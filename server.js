@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import os from 'os'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import routes from './api/routes/index.js'
@@ -10,6 +11,22 @@ const __dirname = path.dirname(__filename)
 
 const app = express()
 const PORT = process.env.APP_PORT || 5000
+
+function getLocalIPAddress() {
+  const networkInterfaces = os.networkInterfaces()
+
+  for (const interfaceName of Object.keys(networkInterfaces)) {
+    const addresses = networkInterfaces[interfaceName] || []
+
+    for (const address of addresses) {
+      if (address.family === 'IPv4' && !address.internal) {
+        return address.address
+      }
+    }
+  }
+
+  return null
+}
 
 // Middleware
 app.use(cors())
@@ -28,6 +45,12 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.listen(PORT, () => {
+  const localIPAddress = getLocalIPAddress()
+  const frontendPort = 5173
+
   console.log(`[server] Running on http://localhost:${PORT}`)
+  if (localIPAddress) {
+    console.log(`[server] Open on phone: http://${localIPAddress}:${frontendPort}`)
+  }
   console.log(`[server] Environment: ${process.env.NODE_ENV || 'development'}`)
 })
