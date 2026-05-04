@@ -1,0 +1,121 @@
+import { useState } from 'react';
+import { C } from '../../utils/theme';
+import { rp } from '../../utils/helpers';
+import { MOCK_DATA } from '../../utils/mockData';
+import { TopBar, Btn, Chip, Avatar } from '../../components/ui';
+
+export default function NotaStep2Page({ navigate, notaCustomer, notaCart, setNotaCart }) {
+  const [activeCategory, setActiveCategory] = useState('all');
+  const categories = ['all', ...new Set(MOCK_DATA.services.map((s) => s.category))];
+
+  const filtered =
+    activeCategory === 'all'
+      ? MOCK_DATA.services
+      : MOCK_DATA.services.filter((s) => s.category === activeCategory);
+
+  const getQty = (id) => notaCart.find((c) => c.id === id)?.qty || 0;
+
+  const addItem = (service) => {
+    setNotaCart((prev) => {
+      const existing = prev.find((c) => c.id === service.id);
+      if (existing) return prev.map((c) => (c.id === service.id ? { ...c, qty: c.qty + 1 } : c));
+      return [...prev, { ...service, qty: 1, express: false }];
+    });
+  };
+
+  const removeItem = (id) => {
+    setNotaCart((prev) => {
+      const existing = prev.find((c) => c.id === id);
+      if (existing && existing.qty > 1) return prev.map((c) => (c.id === id ? { ...c, qty: c.qty - 1 } : c));
+      return prev.filter((c) => c.id !== id);
+    });
+  };
+
+  const toggleExpress = (id) => {
+    setNotaCart((prev) => prev.map((c) => (c.id === id ? { ...c, express: !c.express } : c)));
+  };
+
+  const total = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? c.expressExtra || 5000 : 0)) * c.qty, 0);
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+      <TopBar title="Buat Nota" subtitle="Langkah 2 dari 3 — Pilih Layanan" onBack={() => navigate('nota_step1')} />
+
+      <div style={{ padding: '8px 16px' }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[1, 2, 3].map((s) => (
+            <div key={s} style={{ flex: 1, height: 4, borderRadius: 2, background: s <= 2 ? C.primary : C.n200 }} />
+          ))}
+        </div>
+      </div>
+
+      {notaCustomer && (
+        <div style={{ margin: '4px 16px 0', background: C.primaryLight, borderRadius: 12, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Avatar initials={notaCustomer.avatar} size={32} />
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.primary }}>{notaCustomer.name}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.primarySoft }}>Deposit: {rp(notaCustomer.deposit || 0)}</div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding: '8px 16px 0' }}>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
+          {categories.map((cat) => (
+            <Chip key={cat} label={cat === 'all' ? 'Semua' : cat} active={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {filtered.map((s) => {
+          const qty = getQty(s.id);
+          const inCart = notaCart.find((c) => c.id === s.id);
+          return (
+            <div key={s.id} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{s.name}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{s.unit}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary, marginTop: 4 }}>{rp(s.price)}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {qty > 0 && (
+                    <button onClick={() => removeItem(s.id)} style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.n300}`, background: C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600, fontSize: 18 }}>−</button>
+                  )}
+                  {qty > 0 && <span style={{ fontFamily: 'Poppins', fontWeight: 700, fontSize: 15, minWidth: 20, textAlign: 'center', color: C.n900 }}>{qty}</span>}
+                  <button onClick={() => addItem(s)} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: C.primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18 }}>+</button>
+                </div>
+              </div>
+              {qty > 0 && s.expressExtra && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    onClick={() => toggleExpress(s.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: inCart?.express ? '#FEF3C7' : C.n50, border: `1.5px solid ${inCart?.express ? C.warning : C.n300}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: inCart?.express ? C.warning : C.n600 }}
+                  >
+                    <span style={{ fontSize: 14 }}>⚡</span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>Express (+{rp(s.expressExtra)})</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {notaCart.length > 0 && (
+        <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{notaCart.reduce((s, c) => s + c.qty, 0)} item dipilih</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.primary }}>{rp(total)}</div>
+            </div>
+            <Btn variant="primary" onClick={() => navigate('nota_step3')} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>} style={{ flexDirection: 'row-reverse' }}>
+              Lanjut
+            </Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
