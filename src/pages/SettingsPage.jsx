@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { C } from '../utils/theme';
 import { Avatar, Btn, Divider } from '../components/ui';
 
 export default function SettingsPage({ user, navigate, onLogout, onSwitchRole }) {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const ROLES = [
     { id: 'kasir', label: 'Kasir', icon: '🧾' },
     { id: 'produksi', label: 'Produksi', icon: '🧺' },
@@ -70,8 +72,48 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
           <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Waschen v1.0.0 · PT Waschen Alora Indonesia</div>
         </div>
 
-        <Btn variant="danger" fullWidth onClick={onLogout}>Keluar</Btn>
+        <Btn variant="danger" fullWidth onClick={() => setShowLogoutConfirm(true)}>Keluar</Btn>
       </div>
+
+      {showLogoutConfirm && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          <div
+            style={{
+              width: '100%', maxWidth: 360, background: C.white, borderRadius: 18, padding: 18,
+              boxShadow: '0 12px 36px rgba(15,23,42,0.18)', border: `1.5px solid ${C.n100}`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 12, background: `${C.danger}12`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 18 }}>⚠️</span>
+              </div>
+              <div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900 }}>Konfirmasi Keluar</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Apakah kamu yakin ingin keluar?</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                style={{ flex: 1, padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700 }}
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => { setShowLogoutConfirm(false); onLogout(); }}
+                style={{ flex: 1, padding: '10px 12px', borderRadius: 12, border: 'none', background: C.danger, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: 'white', boxShadow: `0 6px 16px ${C.danger}45` }}
+              >
+                Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

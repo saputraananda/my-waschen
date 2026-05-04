@@ -1,4 +1,5 @@
 import { useToast, BottomNav, Toast } from './components/ui';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { C } from './utils/theme';
 
@@ -153,7 +154,11 @@ function AppInner() {
 export default function App() {
   return (
     <AppProvider>
-      <AppInner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/*" element={<AppInner />} />
+        </Routes>
+      </BrowserRouter>
     </AppProvider>
   );
 }
