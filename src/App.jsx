@@ -130,7 +130,7 @@ function AppInner() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative', background: C.n50, fontFamily: 'Poppins, sans-serif' }}>
+    <div className="app-inner">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
@@ -138,6 +138,16 @@ function AppInner() {
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         ::-webkit-scrollbar { display: none; }
+        .app-inner {
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+          height: 100vh;
+          overflow: hidden;
+          position: relative;
+          background: ${C.n50};
+          font-family: 'Poppins', sans-serif;
+        }
       `}</style>
 
       {renderScreen()}
@@ -153,12 +163,28 @@ function AppInner() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/*" element={<AppInner />} />
-        </Routes>
-      </BrowserRouter>
-    </AppProvider>
+    <div className="app-wrapper">
+      <style>{`
+        .app-wrapper {
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+        }
+        .app-content {
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+        }
+      `}</style>
+      <div className="app-content">
+        <AppProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/*" element={<AppInner />} />
+            </Routes>
+          </BrowserRouter>
+        </AppProvider>
+      </div>
+    </div>
   );
 }

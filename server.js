@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 
 import authRoutes from './api/routes/auth.routes.js'
 import userRoutes from './api/routes/user.routes.js'
+import serviceRoutes from './api/routes/services.routes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -39,6 +40,7 @@ app.use(express.urlencoded({ extended: true }))
 app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'My Waschen API is running' }))
 app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
+app.use('/api/services', serviceRoutes)
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

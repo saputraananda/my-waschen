@@ -1,26 +1,80 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { MOCK_DATA } from '../../utils/mockData';
 import { TopBar, Btn, Chip, Modal, Input, Select } from '../../components/ui';
 
 export default function ManajemenLayananPage({ navigate }) {
-  const [services, setServices] = useState(MOCK_DATA.services);
+  const [services, setServices] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState('all');
   const [modalAdd, setModalAdd] = useState(false);
   const [form, setForm] = useState({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
 
+  // Fetch services from API on mount
+  useEffect(() => {
+    const fetchServices = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get('/api/services');
+        const data = res?.data?.data || [];
+        setServices(data);
+      } catch (error) {
+        console.error('Failed to fetch services:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchServices();
+  }, []);
+
   const categories = ['all', ...new Set(services.map((s) => s.category))];
   const filtered = filter === 'all' ? services : services.filter((s) => s.category === filter);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!form.name.trim() || !form.price) return;
-    setServices((prev) => [...prev, { ...form, id: 'SVC' + Date.now(), price: Number(form.price), expressExtra: form.expressExtra ? Number(form.expressExtra) : null, active: true }]);
-    setModalAdd(false);
-    setForm({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
+    setSubmitting(true);
+    try {
+      const payload = {
+        name: form.name.trim(),
+        category: form.category,
+        price: Number(form.price),
+        unit: form.unit,
+        expressExtra: form.expressExtra ? Number(form.expressExtra) : null,
+        active: true,
+      };
+      const res = await axios.post('/api/services', payload);
+      const newService = res?.data?.data;
+      if (newService) {
+        setServices((prev) => [...prev, newService]);
+      }
+      setModalAdd(false);
+      setForm({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
+    } catch (error) {
+      console.error('Failed to add service:', error);
+      alert('Gagal menambahkan layanan. Silakan coba lagi.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const toggleActive = (id) => setServices((prev) => prev.map((s) => (s.id === id ? { ...s, active: !s.active } : s)));
+  const toggleActive = async (id) => {
+    const service = services.find((s) => s.id === id);
+    if (!service) return;
+    try {
+      const res = await axios.patch(`/api/services/${id}/toggle`, { active: !service.active });
+      const updatedService = res?.data?.data;
+      if (updatedService) {
+        setServices((prev) => prev.map((s) => (s.id === id ? updatedService : s)));
+      } else {
+        setServices((prev) => prev.map((s) => (s.id === id ? { ...s, active: !s.active } : s)));
+      }
+    } catch (error) {
+      console.error('Failed to toggle service:', error);
+      alert('Gagal mengubah status layanan.');
+    }
+  };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
@@ -35,8 +89,20 @@ export default function ManajemenLayananPage({ navigate }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 16px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map((s) => (
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
+            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
+            <span style={{ fontSize: 40 }}>📋</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 14, color: C.n500 }}>Belum ada layanan</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n400 }}>Tap + untuk menambahkan layanan</span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {filtered.map((s) => (
             <div key={s.id} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)', opacity: s.active === false ? 0.5 : 1 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ flex: 1 }}>
@@ -56,7 +122,8 @@ export default function ManajemenLayananPage({ navigate }) {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </div>
 
       <Modal visible={modalAdd} onClose={() => setModalAdd(false)} title="Tambah Layanan">
@@ -67,7 +134,7 @@ export default function ManajemenLayananPage({ navigate }) {
         <Input label="Harga Express (opsional)" value={form.expressExtra} onChange={(v) => setForm((f) => ({ ...f, expressExtra: v }))} inputMode="numeric" placeholder="Tambahan harga express" />
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="secondary" onClick={() => setModalAdd(false)} style={{ flex: 1 }}>Batal</Btn>
-          <Btn variant="primary" onClick={handleAdd} style={{ flex: 1 }}>Simpan</Btn>
+          <Btn variant="primary" onClick={handleAdd} loading={submitting} style={{ flex: 1 }}>Simpan</Btn>
         </div>
       </Modal>
     </div>
