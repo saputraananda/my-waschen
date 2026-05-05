@@ -20,7 +20,7 @@ export default function LoginPage({ onLogin }) {
   const [step, setStep]                 = useState(1);
   const [adminPayload, setAdminPayload] = useState(null);
 
-  const [email, setEmail]               = useState('');
+  const [username, setUsername]         = useState('');
   const [password, setPassword]         = useState('');
   const [showPass, setShowPass]         = useState(false);
   const [loading, setLoading]           = useState(false);
@@ -48,7 +48,7 @@ export default function LoginPage({ onLogin }) {
 
   const validate = () => {
     const errs = {};
-    if (!email.trim())    errs.email    = 'Email wajib diisi';
+    if (!username.trim()) errs.username = 'Username wajib diisi';
     if (!password.trim()) errs.password = 'Password wajib diisi';
     return errs;
   };
@@ -87,7 +87,7 @@ export default function LoginPage({ onLogin }) {
     setLoading(true);
 
     try {
-      const response = await axios.post('/api/auth/login', { email: email.trim(), password });
+      const response = await axios.post('/api/auth/login', { username: username.trim(), password });
       const payload = response?.data?.data || {};
 
       if (payload.roleCode === 'admin') {
@@ -182,11 +182,11 @@ export default function LoginPage({ onLogin }) {
           {step === 1 && (
             <div>
               <Input 
-                label="Email Pekerja" 
-                value={email} 
-                onChange={(v) => { setEmail(v); setErrors((e) => ({ ...e, email: '' })); setGlobalError(''); }} 
-                placeholder="nama@waschen.id" 
-                error={errors.email} 
+                label="Username" 
+                value={username} 
+                onChange={(v) => { setUsername(v); setErrors((e) => ({ ...e, username: '' })); setGlobalError(''); }} 
+                placeholder="contoh: didinRaffles" 
+                error={errors.username} 
               />
               
               <div style={{ marginTop: '20px' }}>

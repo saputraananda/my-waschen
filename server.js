@@ -5,9 +5,8 @@ import os from 'os'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-// Import Routes Baru (Pastikan ditaruh di folder /api/routes/)
-import authRoutes from './api/routes/auth.js'
-import userRoutes from './api/routes/users.js'
+import authRoutes from './api/routes/auth.routes.js'
+import userRoutes from './api/routes/user.routes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -37,6 +36,7 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 // API Routes
+app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'My Waschen API is running' }))
 app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
 
