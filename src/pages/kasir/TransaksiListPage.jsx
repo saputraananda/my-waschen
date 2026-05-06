@@ -1,18 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, SearchBar, Badge, Chip, Avatar, EmptyState } from '../../components/ui';
 
 const FILTERS = ['semua', 'baru', 'proses', 'selesai', 'diambil', 'dibatalkan'];
 
-export default function TransaksiListPage({ transactions, navigate, historyOnly }) {
+export default function TransaksiListPage({ navigate, historyOnly }) {
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('semua');
 
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get('/api/transactions');
+        const data = res?.data?.data || [];
+        setTransactions(data);
+      } catch (error) {
+        console.error('Failed to fetch transactions:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTransactions();
+  }, []);
+
   const list = transactions.filter((t) => {
     const matchQuery =
-      t.customerName.toLowerCase().includes(query.toLowerCase()) ||
-      t.id.toLowerCase().includes(query.toLowerCase());
+      t.customerName?.toLowerCase().includes(query.toLowerCase()) ||
+      t.id?.toLowerCase().includes(query.toLowerCase());
     const matchFilter = activeFilter === 'semua' ? true : t.status === activeFilter;
     const matchHistory = historyOnly ? t.status === 'selesai' || t.status === 'diambil' : true;
     return matchQuery && matchFilter && matchHistory;
@@ -33,7 +52,12 @@ export default function TransaksiListPage({ transactions, navigate, historyOnly 
           ))}
         </div>
 
-        {list.length === 0 ? (
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
+            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat transaksi...</span>
+          </div>
+        ) : list.length === 0 ? (
           <EmptyState title="Tidak ada transaksi" subtitle="Belum ada transaksi yang sesuai filter" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

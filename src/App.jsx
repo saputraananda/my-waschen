@@ -68,31 +68,31 @@ function AppInner() {
       case 'dashboard':
         if (!user) return <LoginPage onLogin={handleLogin} />;
         if (user.role === 'admin' || user.role === 'finance')
-          return <AdminDashboardPage user={user} transactions={transactions} customers={customers} navigate={navigate} />;
+          return <AdminDashboardPage user={user} navigate={navigate} />;
         if (user.role === 'produksi')
-          return <ProduksiDashboardPage user={user} transactions={transactions} navigate={navigate} />;
-        return <KasirDashboardPage user={user} transactions={transactions} navigate={navigate} />;
+          return <ProduksiDashboardPage user={user} navigate={navigate} />;
+        return <KasirDashboardPage user={user} navigate={navigate} />;
 
       case 'transaksi':
-        return <TransaksiListPage transactions={transactions} navigate={navigate} />;
+        return <TransaksiListPage navigate={navigate} />;
       case 'history_produksi':
-        return <TransaksiListPage transactions={transactions} navigate={navigate} historyOnly />;
+        return <TransaksiListPage navigate={navigate} historyOnly />;
 
       case 'customer':
-        return <CustomerListPage customers={customers} navigate={navigate} />;
+        return <CustomerListPage navigate={navigate} />;
       case 'tambah_customer':
-        return <TambahCustomerPage navigate={navigate} onAdd={addCustomer} />;
+        return <TambahCustomerPage navigate={navigate} />;
       case 'detail_customer':
         return <DetailCustomerPage navigate={navigate} screenParams={screenParams} transactions={transactions} />;
       case 'daftar_member':
         return <DaftarMemberPage customers={customers} navigate={navigate} />;
 
       case 'nota_step1':
-        return <NotaStep1Page customers={customers} navigate={navigate} setNotaCustomer={setNotaCustomer} />;
+        return <NotaStep1Page />;
       case 'nota_step2':
-        return <NotaStep2Page navigate={navigate} notaCustomer={notaCustomer} notaCart={notaCart} setNotaCart={setNotaCart} />;
+        return <NotaStep2Page />;
       case 'nota_step3':
-        return <NotaStep3Page navigate={navigate} notaCustomer={notaCustomer} notaCart={notaCart} user={user} onConfirm={addTransaction} />;
+        return <NotaStep3Page />;
       case 'nota_berhasil':
         return <NotaBerhasilPage navigate={navigate} screenParams={screenParams} />;
 
@@ -113,7 +113,7 @@ function AppInner() {
       case 'approval':
         return <ApprovalPage navigate={navigate} />;
       case 'monitoring':
-        return <MonitoringPage transactions={transactions} navigate={navigate} />;
+        return <MonitoringPage navigate={navigate} />;
 
       case 'topup_deposit':
         return <TopupDepositPage navigate={navigate} screenParams={screenParams} showToast={showToast} />;

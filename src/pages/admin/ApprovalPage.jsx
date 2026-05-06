@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { MOCK_DATA } from '../../utils/mockData';
 import { TopBar, Avatar, Btn, Divider } from '../../components/ui';
 
 export default function ApprovalPage({ navigate }) {
-  const [approvals, setApprovals] = useState(MOCK_DATA.approvals || []);
+  const [approvals, setApprovals] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
 
   const TYPE_LABELS = {
     topup_deposit: 'Top Up Deposit',
@@ -14,12 +16,44 @@ export default function ApprovalPage({ navigate }) {
     pembatalan: 'Pembatalan',
   };
 
-  const handleApprove = (id) => {
-    setApprovals((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'approved' } : a)));
+  const fetchApprovals = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/approvals');
+      setApprovals(res?.data?.data || []);
+    } catch (error) {
+      console.error('Failed to fetch approvals:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchApprovals();
+  }, [fetchApprovals]);
+
+  const handleApprove = async (id) => {
+    setActionLoading(id + '_approve');
+    try {
+      await axios.put(`/api/approvals/${id}`, { status: 'approved' });
+      await fetchApprovals();
+    } catch (error) {
+      console.error('Failed to approve:', error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleReject = (id) => {
-    setApprovals((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'rejected' } : a)));
+  const handleReject = async (id) => {
+    setActionLoading(id + '_reject');
+    try {
+      await axios.put(`/api/approvals/${id}`, { status: 'rejected' });
+      await fetchApprovals();
+    } catch (error) {
+      console.error('Failed to reject:', error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const pending = approvals.filter((a) => a.status === 'pending');
@@ -30,7 +64,14 @@ export default function ApprovalPage({ navigate }) {
       <TopBar title="Approval Center" subtitle={`${pending.length} menunggu`} onBack={() => navigate('dashboard')} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px' }}>
-        {pending.length > 0 && (
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
+            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</span>
+          </div>
+        ) : null}
+
+        {!loading && pending.length > 0 && (
           <>
             <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>MENUNGGU PERSETUJUAN</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
@@ -49,8 +90,8 @@ export default function ApprovalPage({ navigate }) {
                     {a.amount && <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.primary, marginTop: 4 }}>{rp(a.amount)}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <Btn variant="danger" onClick={() => handleReject(a.id)} style={{ flex: 1 }} size="sm">Tolak</Btn>
-                    <Btn variant="success" onClick={() => handleApprove(a.id)} style={{ flex: 1 }} size="sm">Setujui</Btn>
+                    <Btn variant="danger" onClick={() => handleReject(a.id)} loading={actionLoading === a.id + '_reject'} style={{ flex: 1 }} size="sm">Tolak</Btn>
+                    <Btn variant="success" onClick={() => handleApprove(a.id)} loading={actionLoading === a.id + '_approve'} style={{ flex: 1 }} size="sm">Setujui</Btn>
                   </div>
                 </div>
               ))}
@@ -58,7 +99,7 @@ export default function ApprovalPage({ navigate }) {
           </>
         )}
 
-        {done.length > 0 && (
+        {!loading && done.length > 0 && (
           <>
             <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>SUDAH DIPROSES</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -83,7 +124,7 @@ export default function ApprovalPage({ navigate }) {
           </>
         )}
 
-        {approvals.length === 0 && (
+        {!loading && approvals.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12 }}>
             <div style={{ fontSize: 48 }}>✅</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900 }}>Semua beres!</div>

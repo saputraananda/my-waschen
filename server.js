@@ -8,6 +8,10 @@ import { fileURLToPath } from 'url'
 import authRoutes from './api/routes/auth.routes.js'
 import userRoutes from './api/routes/user.routes.js'
 import serviceRoutes from './api/routes/services.routes.js'
+import customerRoutes from './api/routes/customers.routes.js'
+import transactionRoutes from './api/routes/transactions.routes.js'
+import approvalRoutes from './api/routes/approvals.routes.js'
+import dashboardRoutes from './api/routes/dashboard.routes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -41,6 +45,10 @@ app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'My Wasch
 app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/services', serviceRoutes)
+app.use('/api/customers', customerRoutes)
+app.use('/api/transactions', transactionRoutes)
+app.use('/api/approvals', approvalRoutes)
+app.use('/api/dashboard', dashboardRoutes)
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

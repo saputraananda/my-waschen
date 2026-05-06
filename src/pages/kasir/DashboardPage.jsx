@@ -1,12 +1,31 @@
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { Avatar, Badge, SectionHeader, StatCard } from '../../components/ui';
 
-export default function KasirDashboardPage({ user, transactions, navigate }) {
-  const today = transactions.filter((t) => t.date.startsWith('2025-04-26'));
-  const express = today.filter((t) => t.items.some((i) => i.express));
-  const pending = today.filter((t) => t.status === 'baru' || t.status === 'proses');
-  const selesai = today.filter((t) => t.status === 'selesai');
+export default function KasirDashboardPage({ user, navigate }) {
+  const [stats, setStats] = useState({ total: 0, express: 0, pending: 0, completed: 0 });
+  const [recent, setRecent] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get('/api/transactions/dashboard/stats');
+        if (res?.data?.data) {
+          setStats(res.data.data.today);
+          setRecent(res.data.data.recent || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
 
   const QUICK = [
     { label: 'Nota Baru', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>, screen: 'nota_step1', color: C.primary },
@@ -36,10 +55,10 @@ export default function KasirDashboardPage({ user, transactions, navigate }) {
 
       <div style={{ padding: '0 16px', marginTop: -12, paddingBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4, marginBottom: 20, scrollbarWidth: 'none' }}>
-          <StatCard label="Transaksi Hari Ini" value={today.length} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>} color={C.primary} />
-          <StatCard label="Express Aktif" value={express.length} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>} color={C.warning} sub="⚡ Prioritas" />
-          <StatCard label="In Progress" value={pending.length} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>} color="#0EA5E9" />
-          <StatCard label="Selesai" value={selesai.length} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>} color={C.success} />
+          <StatCard label="Transaksi Hari Ini" value={stats.total} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>} color={C.primary} />
+          <StatCard label="Express Aktif" value={stats.express} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>} color={C.warning} sub="⚡ Prioritas" />
+          <StatCard label="In Progress" value={stats.pending} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>} color="#0EA5E9" />
+          <StatCard label="Selesai" value={stats.completed} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>} color={C.success} />
         </div>
 
         <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 20, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
@@ -56,22 +75,28 @@ export default function KasirDashboardPage({ user, transactions, navigate }) {
 
         <SectionHeader title="Transaksi Terbaru" action={() => navigate('transaksi')} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {transactions.slice(0, 5).map((tx) => (
-            <div key={tx.id} onClick={() => navigate('detail_transaksi', tx)} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Avatar initials={tx.customerName.split(' ').map((w) => w[0]).join('').slice(0, 2)} size={38} />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{tx.customerName}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(tx.total)}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{tx.id}</div>
-                  {tx.items.some((i) => i.express) && <span style={{ background: '#FEF3C7', color: C.warning, fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>}
-                  <Badge status={tx.status} small />
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 20, color: C.n500, fontFamily: 'Poppins', fontSize: 13 }}>Memuat...</div>
+          ) : recent.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 20, color: C.n500, fontFamily: 'Poppins', fontSize: 13 }}>Belum ada transaksi hari ini</div>
+          ) : (
+            recent.map((tx) => (
+              <div key={tx.id} onClick={() => navigate('detail_transaksi', tx)} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Avatar initials={tx.customerName?.split(' ').map((w) => w[0]).join('').slice(0, 2) || '??'} size={38} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{tx.customerName}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(tx.total)}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{tx.id}</div>
+                    {tx.items?.some((i) => i.express) && <span style={{ background: '#FEF3C7', color: C.warning, fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>}
+                    <Badge status={tx.status} small />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>

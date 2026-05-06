@@ -1,44 +1,93 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Input, Select, Divider } from '../../components/ui';
+import { useApp } from '../../context/AppContext';
 
-export default function NotaStep3Page({ navigate, notaCustomer, notaCart, user, onConfirm }) {
+export default function NotaStep3Page() {
+  const { navigate, user, notaCustomer, notaCart, setNotaCart, setNotaCustomer } = useApp();
   const [pickup, setPickup] = useState(false);
   const [delivery, setDelivery] = useState(false);
   const [payMethod, setPayMethod] = useState('cash');
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
 
   const subtotal = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? c.expressExtra || 5000 : 0)) * c.qty, 0);
   const pickupFee = pickup ? 10000 : 0;
   const deliveryFee = delivery ? 10000 : 0;
   const total = subtotal + pickupFee + deliveryFee;
 
-  const handleConfirm = () => {
+  const showToast = (message, type = 'success') => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => setToast({ visible: false, message: '', type }), 3000);
+  };
+
+  const handleConfirm = async () => {
     setLoading(true);
-    setTimeout(() => {
-      const nota = {
-        id: 'TRX-' + Date.now().toString().slice(-6),
+    try {
+      const payload = {
         customerId: notaCustomer.id,
-        customerName: notaCustomer.name,
-        customerPhone: notaCustomer.phone,
-        items: notaCart,
+        items: notaCart.map((c) => ({
+          serviceId:   c.id,
+          serviceName: c.name,
+          unit:        c.unit,
+          qty:         c.qty,
+          price:       c.price + (c.express ? (c.expressExtra || 0) : 0),
+          subtotal:    (c.price + (c.express ? (c.expressExtra || 0) : 0)) * c.qty,
+          isExpress:   c.express || false,
+          notes:       c.notes  || null,
+        })),
+        payment: {
+          method:      payMethod,
+          amount:      total,
+          paidAmount:  total,
+          changeAmount: 0,
+        },
+        subtotal,
+        discount: 0,
         total,
-        payMethod,
         pickup,
         delivery,
         notes,
-        dueDate,
-        status: 'baru',
-        date: new Date().toISOString().slice(0, 10),
-        createdBy: user?.name,
-        progress: [],
+        dueDate: dueDate || null,
       };
+
+      const res = await axios.post('/api/transactions/checkout', payload);
+      const data = res?.data?.data;
+
+      if (data) {
+        setNotaCart([]);
+        setNotaCustomer(null);
+        const nota = {
+          id:            data.transactionNo,
+          customerName:  data.customerName,
+          customerPhone: data.customerPhone,
+          items:         data.items || [],
+          total:         Number(data.total) || 0,
+          payMethod:     data.payment?.method || payMethod,
+          paidAmount:    data.payment?.paidAmount || total,
+          changeAmount:  data.payment?.changeAmount || 0,
+          pickup,
+          delivery,
+          notes,
+          dueDate,
+          status: 'baru',
+          date:   new Date().toISOString().slice(0, 10),
+        };
+        navigate('nota_berhasil', nota);
+      } else {
+        showToast(res?.data?.message || 'Gagal membuat nota', 'error');
+      }
+    } catch (error) {
+      const msg = error?.response?.data?.message || 'Gagal membuat nota. Silakan coba lagi.';
+      console.error('Checkout error:', error);
+      showToast(msg, 'error');
+    } finally {
       setLoading(false);
-      onConfirm(nota);
-    }, 1000);
+    }
   };
 
   return (
@@ -124,6 +173,29 @@ export default function NotaStep3Page({ navigate, notaCustomer, notaCart, user, 
           <Input label="Catatan (opsional)" value={notes} onChange={setNotes} placeholder="Catatan khusus..." />
         </div>
       </div>
+
+      {toast.visible && (
+        <div style={{
+          position: 'fixed',
+          top: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2',
+          color: toast.type === 'success' ? '#166534' : '#991B1B',
+          padding: '12px 20px',
+          borderRadius: 12,
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: 600,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          {toast.type === 'success' ? '✓' : '⚠'} {toast.message}
+        </div>
+      )}
 
       <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: 10 }}>
         <Btn variant="secondary" onClick={() => navigate('nota_step2')} style={{ flex: 1 }}>Kembali</Btn>

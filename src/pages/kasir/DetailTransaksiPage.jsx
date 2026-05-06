@@ -1,23 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp, STAGES } from '../../utils/helpers';
 import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input } from '../../components/ui';
 
-export default function DetailTransaksiPage({ navigate, screenParams, onCancel }) {
-  const tx = screenParams;
+export default function DetailTransaksiPage({ navigate, screenParams }) {
+  const [tx, setTx] = useState(screenParams);
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+
+  useEffect(() => {
+    const id = screenParams?.id || screenParams?.transactionNo;
+    if (!id) return;
+    // Fetch fresh data if we have an ID
+    const fetchDetail = async () => {
+      setFetching(true);
+      try {
+        const res = await axios.get(`/api/transactions/${id}`);
+        if (res?.data?.data) {
+          setTx(res.data.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch transaction detail:', error);
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchDetail();
+  }, [screenParams?.id, screenParams?.transactionNo]);
 
   if (!tx) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Btn onClick={() => navigate('transaksi')}>Kembali</Btn></div>;
 
   const handleCancel = () => {
     if (!cancelReason.trim()) return;
     setLoading(true);
+    // TODO: call PATCH /api/transactions/:id/cancel when endpoint exists
     setTimeout(() => {
       setLoading(false);
       setCancelModal(false);
-      onCancel(tx.id, cancelReason);
+      navigate('transaksi');
     }, 800);
   };
 

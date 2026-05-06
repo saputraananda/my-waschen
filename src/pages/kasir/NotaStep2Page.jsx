@@ -1,17 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { MOCK_DATA } from '../../utils/mockData';
 import { TopBar, Btn, Chip, Avatar } from '../../components/ui';
+import { useApp } from '../../context/AppContext';
 
-export default function NotaStep2Page({ navigate, notaCustomer, notaCart, setNotaCart }) {
+export default function NotaStep2Page() {
+  const { navigate, notaCustomer, notaCart, setNotaCart } = useApp();
   const [activeCategory, setActiveCategory] = useState('all');
-  const categories = ['all', ...new Set(MOCK_DATA.services.map((s) => s.category))];
+  const [services, setServices] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get('/api/services');
+        setServices(res?.data?.data || []);
+      } catch (error) {
+        console.error('Failed to fetch services:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchServices();
+  }, []);
+
+  const categories = ['all', ...new Set(services.map((s) => s.category))];
 
   const filtered =
     activeCategory === 'all'
-      ? MOCK_DATA.services
-      : MOCK_DATA.services.filter((s) => s.category === activeCategory);
+      ? services
+      : services.filter((s) => s.category === activeCategory);
 
   const getQty = (id) => notaCart.find((c) => c.id === id)?.qty || 0;
 
@@ -68,7 +88,12 @@ export default function NotaStep2Page({ navigate, notaCustomer, notaCart, setNot
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {filtered.map((s) => {
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
+            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat layanan...</span>
+          </div>
+        ) : filtered.map((s) => {
           const qty = getQty(s.id);
           const inCart = notaCart.find((c) => c.id === s.id);
           return (

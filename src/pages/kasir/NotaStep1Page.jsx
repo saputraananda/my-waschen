@@ -1,9 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { TopBar, SearchBar, Avatar, Btn, EmptyState } from '../../components/ui';
+import { useApp } from '../../context/AppContext';
 
-export default function NotaStep1Page({ customers, navigate, setNotaCustomer }) {
+export default function NotaStep1Page() {
+  const { navigate, setNotaCustomer } = useApp();
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get('/api/customers');
+        const data = res?.data?.data || [];
+        setCustomers(data);
+      } catch (error) {
+        console.error('Failed to fetch customers:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCustomers();
+  }, []);
 
   const filtered = customers.filter(
     (c) =>
@@ -31,7 +52,12 @@ export default function NotaStep1Page({ customers, navigate, setNotaCustomer }) 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama atau nomor HP..." />
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
+            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</span>
+          </div>
+        ) : filtered.length === 0 ? (
           <EmptyState title="Customer tidak ditemukan" subtitle="Tambah customer baru?" action={() => navigate('tambah_customer')} actionLabel="+ Tambah Customer" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

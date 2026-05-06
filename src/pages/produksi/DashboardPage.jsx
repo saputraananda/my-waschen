@@ -1,10 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp, STAGES } from '../../utils/helpers';
 import { Avatar, Badge, Chip, SectionHeader } from '../../components/ui';
 
-export default function ProduksiDashboardPage({ user, transactions, navigate }) {
+export default function ProduksiDashboardPage({ user, navigate }) {
   const [filter, setFilter] = useState('aktif');
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchQueue = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get('/api/transactions/production/queue');
+        setTransactions(res?.data?.data || []);
+      } catch (error) {
+        console.error('Failed to fetch production queue:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchQueue();
+  }, []);
 
   const antrianList = transactions.filter((t) => {
     if (filter === 'aktif') return t.status === 'baru' || t.status === 'proses';

@@ -1,11 +1,37 @@
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { Avatar, Badge, SectionHeader, StatCard } from '../../components/ui';
 
-export default function AdminDashboardPage({ user, transactions, customers, navigate }) {
-  const total = transactions.reduce((s, t) => s + t.total, 0);
-  const pending = transactions.filter((t) => t.status === 'baru' || t.status === 'proses').length;
-  const selesai = transactions.filter((t) => t.status === 'selesai').length;
+export default function AdminDashboardPage({ user, navigate }) {
+  const [stats, setStats] = useState({
+    total_omset: 0,
+    total_transaksi: 0,
+    pending_transactions: 0,
+    total_customers: 0,
+  });
+  const [recent, setRecent] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [statsRes, txRes] = await Promise.all([
+          axios.get('/api/dashboard/stats'),
+          axios.get('/api/transactions'),
+        ]);
+        if (statsRes?.data?.data) setStats(statsRes.data.data);
+        setRecent((txRes?.data?.data || []).slice(0, 5));
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: C.n50 }}>
@@ -27,10 +53,10 @@ export default function AdminDashboardPage({ user, transactions, customers, navi
 
       <div style={{ padding: '0 16px', marginTop: -12, paddingBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4, marginBottom: 20, scrollbarWidth: 'none' }}>
-          <StatCard label="Total Omset" value={rp(total).replace('Rp ', 'Rp')} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>} color={C.primary} />
-          <StatCard label="Transaksi" value={transactions.length} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /></svg>} color="#0EA5E9" />
-          <StatCard label="In Progress" value={pending} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>} color={C.warning} />
-          <StatCard label="Customer" value={customers.length} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>} color={C.success} />
+          <StatCard label="Total Omset" value={rp(stats.total_omset).replace('Rp ', 'Rp')} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>} color={C.primary} />
+          <StatCard label="Transaksi" value={stats.total_transaksi} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /></svg>} color="#0EA5E9" />
+          <StatCard label="In Progress" value={stats.pending_transactions} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>} color={C.warning} />
+          <StatCard label="Customer" value={stats.total_customers} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>} color={C.success} />
         </div>
 
         <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 20, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
@@ -52,21 +78,27 @@ export default function AdminDashboardPage({ user, transactions, customers, navi
 
         <SectionHeader title="Transaksi Terbaru" action={() => navigate('transaksi')} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {transactions.slice(0, 5).map((tx) => (
-            <div key={tx.id} onClick={() => navigate('detail_transaksi', tx)} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Avatar initials={tx.customerName.split(' ').map((w) => w[0]).join('').slice(0, 2)} size={38} />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{tx.customerName}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(tx.total)}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{tx.id}</div>
-                  <Badge status={tx.status} small />
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 20, color: C.n500, fontFamily: 'Poppins', fontSize: 13 }}>Memuat...</div>
+          ) : recent.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 20, color: C.n500, fontFamily: 'Poppins', fontSize: 13 }}>Belum ada transaksi</div>
+          ) : (
+            recent.map((tx) => (
+              <div key={tx.id} onClick={() => navigate('detail_transaksi', tx)} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <Avatar initials={tx.customerName?.split(' ').map((w) => w[0]).join('').slice(0, 2) || '??'} size={38} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{tx.customerName}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(tx.total)}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{tx.id}</div>
+                    <Badge status={tx.status} small />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>
