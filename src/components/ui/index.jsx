@@ -63,6 +63,14 @@ export const BottomNav = ({ role, active, navigate }) => {
           { id: 'history_produksi', label: 'Riwayat', icon: NAV_ICONS.history },
           { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
         ]
+      : role === 'finance'
+      ? [
+          { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
+          { id: 'verifikasi_payment', label: 'Verifikasi', icon: NAV_ICONS.approval },
+          { id: '_fab', label: '', icon: null },
+          { id: 'laporan_keuangan', label: 'Laporan', icon: NAV_ICONS.monitor },
+          { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
+        ]
       : [
           { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
           { id: 'approval', label: 'Approval', icon: NAV_ICONS.approval },
@@ -76,6 +84,8 @@ export const BottomNav = ({ role, active, navigate }) => {
       ? () => navigate('nota_step1')
       : role === 'produksi'
       ? () => navigate('antrian')
+      : role === 'finance'
+      ? () => navigate('verifikasi_payment')
       : () => navigate('approval');
 
   return (
@@ -207,9 +217,15 @@ export const Badge = ({ status, label, small }) => {
 };
 
 // ── Avatar ────────────────────────────────────────────────
-export const Avatar = ({ initials, size = 40 }) => (
-  <div style={{ width: size, height: size, borderRadius: size / 2, background: `linear-gradient(135deg, ${C.primaryLight}, ${C.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-    <span style={{ fontFamily: 'Poppins', fontSize: size * 0.35, fontWeight: 700, color: C.primary }}>{initials}</span>
+export const Avatar = ({ initials, size = 40, photo, onClick }) => (
+  <div
+    onClick={onClick}
+    style={{ width: size, height: size, borderRadius: size / 2, background: `linear-gradient(135deg, ${C.primaryLight}, ${C.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default', position: 'relative' }}
+  >
+    {photo
+      ? <img src={photo} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: size / 2 }} />
+      : <span style={{ fontFamily: 'Poppins', fontSize: size * 0.35, fontWeight: 700, color: C.primary }}>{initials}</span>
+    }
   </div>
 );
 

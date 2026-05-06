@@ -42,7 +42,7 @@ export default function ProduksiDashboardPage({ user, navigate }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: 'white' }}>{user.name.split(' ')[0]} 👋</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>Produksi · {user.outlet?.name}</div>
           </div>
-          <Avatar initials={user.avatar} size={40} />
+          <Avatar photo={user.photo} initials={user.avatar} size={40} onClick={() => navigate('profil')} />
         </div>
       </div>
 

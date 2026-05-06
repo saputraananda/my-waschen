@@ -48,7 +48,7 @@ export default function KasirDashboardPage({ user, navigate }) {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
               <div style={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, background: C.danger, border: '2px solid white' }} />
             </button>
-            <Avatar initials={user.avatar} size={40} />
+            <Avatar photo={user.photo} initials={user.avatar} size={40} onClick={() => navigate('profil')} />
           </div>
         </div>
       </div>

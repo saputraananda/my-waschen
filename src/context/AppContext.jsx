@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { MOCK_DATA } from '../utils/mockData';
 
 const AppContext = createContext(null);
@@ -12,9 +12,16 @@ const loadStoredAuth = () => {
     const token   = localStorage.getItem(AUTH_TOKEN_KEY);
     const userRaw = localStorage.getItem(AUTH_USER_KEY);
     const user    = userRaw ? JSON.parse(userRaw) : null;
-    // Validasi minimal: user harus punya roleCode
-    if (user && !user.roleCode && user.role) user.roleCode = user.role;
-    return { token, user: user?.roleCode ? user : null };
+    if (!user) return { token: null, user: null };
+    // Normalisasi legacy: pastikan originalRoleCode selalu ada
+    if (!user.originalRoleCode) {
+      // Ambil dari roleCode jika ada, atau role
+      user.originalRoleCode = user.roleCode || user.role;
+    }
+    // Pastikan roleCode selalu = originalRoleCode (bukan role tampilan)
+    user.roleCode = user.originalRoleCode;
+    if (!user.roleCode) return { token: null, user: null };
+    return { token, user };
   } catch {
     return { token: null, user: null };
   }
@@ -34,23 +41,45 @@ export const AppProvider = ({ children }) => {
   const [notaCustomer,  setNotaCustomer]  = useState(null);
   const [notaCart,      setNotaCart]      = useState([]);
 
+  // ─── Repair user state on mount (handle stale localStorage) ────────────
+  useEffect(() => {
+    if (!user) return;
+    const needsRepair = !user.originalRoleCode;
+    if (needsRepair) {
+      const repaired = {
+        ...user,
+        originalRoleCode: user.roleCode || user.role,
+        roleCode:         user.roleCode || user.role,
+      };
+      setUser(repaired);
+      try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(repaired)); } catch {}
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ─── navigate ───────────────────────────────────────────────────────────
   const navigate = (to, params = null) => {
     setScreen(to);
     setScreenParams(params);
     const navScreens = ['dashboard', 'transaksi', 'customer', 'settings', 'antrian',
-                        'approval', 'monitoring', 'history_produksi', 'nota_step1'];
+                        'approval', 'monitoring', 'history_produksi', 'nota_step1',
+                        'verifikasi_payment', 'laporan_keuangan'];
     if (navScreens.includes(to)) setNavActive(to);
   };
 
   // ─── loginContext — dipanggil dari LoginPage setelah API berhasil ────────
-  const loginContext = ({ token: t, userId, roleCode, outletId, outletName, name, avatar }) => {
+  const loginContext = ({ token: t, userId, roleCode, outletId, outletName, name, avatar, phone, email, photo, username }) => {
     const normalizedUser = {
       userId,
-      name:      name || '',
-      avatar:    avatar || (userId ? userId.slice(-2).toUpperCase() : 'US'),
+      name:             name || '',
+      username:         username || '',
+      avatar:           avatar || (name ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : 'US'),
+      phone:            phone  || null,
+      email:            email  || null,
+      photo:            photo  || null,
       roleCode,
-      role:      roleCode,   // alias untuk komponen yang pakai user.role
+      originalRoleCode: roleCode,   // TIDAK PERNAH berubah, dipakai untuk isAdmin check
+      role:             roleCode,
       outletId,
       outletName,
       outlet: outletId ? { id: outletId, name: outletName } : null,
@@ -82,7 +111,11 @@ export const AppProvider = ({ children }) => {
         outletId:   loggedUser.outletId  || loggedUser.outlet?.id,
         outletName: loggedUser.outletName || loggedUser.outlet?.name,
         name:       loggedUser.name || '',
+        username:   loggedUser.username || '',
         avatar:     loggedUser.avatar || '',
+        phone:      loggedUser.phone  || null,
+        email:      loggedUser.email  || null,
+        photo:      loggedUser.photo  || null,
       });
       return;
     }
@@ -105,19 +138,30 @@ export const AppProvider = ({ children }) => {
     setNavActive('dashboard');
   };
 
-  // ─── handleSwitchRole — untuk testing di settings ────────────────────────
+  // ─── handleSwitchRole — hanya untuk admin, ganti tampilan role tanpa ubah data ───
   const handleSwitchRole = (role) => {
-    const mockUser = MOCK_DATA.users.find((u) => u.role === role) || MOCK_DATA.users[0];
     const updatedUser = {
       ...user,
-      ...mockUser,
       role,
-      roleCode: role,
-      outlet: user?.outlet || mockUser.outlet,
+      // roleCode dan originalRoleCode TIDAK berubah — hanya tampilan (role) yang ganti
     };
     setUser(updatedUser);
     try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch {}
     navigate('dashboard');
+  };
+
+  // ─── updateUserProfile — dipanggil setelah simpan profil berhasil ──────────────
+  const updateUserProfile = ({ name, phone, email, photo }) => {
+    const updatedUser = {
+      ...user,
+      name:   name   ?? user?.name,
+      phone:  phone  ?? user?.phone,
+      email:  email  ?? user?.email,
+      photo:  photo  !== undefined ? photo : user?.photo,
+      avatar: name ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : user?.avatar,
+    };
+    setUser(updatedUser);
+    try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch {}
   };
 
   // ─── Transaksi & customer actions ────────────────────────────────────────
@@ -148,7 +192,7 @@ export const AppProvider = ({ children }) => {
       value={{
         screen, screenParams, user, token, customers, transactions,
         navActive, notaCustomer, notaCart,
-        navigate, loginContext, handleLogin, handleLogout, handleSwitchRole,
+        navigate, loginContext, handleLogin, handleLogout, handleSwitchRole, updateUserProfile,
         addTransaction, addCustomer, cancelTransaction,
         setNotaCustomer, setNotaCart,
       }}

@@ -1,6 +1,68 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { randomUUID } from 'crypto';
 
+// ─── Controller: POST /api/customers/:id/topup ─────────────────────────────
+export const topupDeposit = async (req, res) => {
+  const conn = await poolWaschenPos.getConnection();
+  try {
+    const { id } = req.params;
+    const { amount, payMethod } = req.body;
+
+    if (!amount || Number(amount) < 1000) {
+      conn.release();
+      return res.status(400).json({ success: false, message: 'Nominal top up minimal Rp 1.000.' });
+    }
+
+    const [custRows] = await conn.execute(
+      'SELECT id, name FROM mst_customer WHERE id = ? AND is_active = 1 LIMIT 1',
+      [id]
+    );
+    if (custRows.length === 0) {
+      conn.release();
+      return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
+    }
+
+    await conn.beginTransaction();
+
+    const [walletRows] = await conn.execute(
+      'SELECT id, balance FROM mst_customer_wallet WHERE customer_id = ? LIMIT 1',
+      [id]
+    );
+
+    if (walletRows.length > 0) {
+      await conn.execute(
+        'UPDATE mst_customer_wallet SET balance = balance + ?, updated_at = NOW() WHERE customer_id = ?',
+        [Number(amount), id]
+      );
+    } else {
+      await conn.execute(
+        `INSERT INTO mst_customer_wallet (id, customer_id, balance, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, TRUE, NOW(), NOW())`,
+        [randomUUID(), id, Number(amount)]
+      );
+    }
+
+    const [[wallet]] = await conn.execute(
+      'SELECT balance FROM mst_customer_wallet WHERE customer_id = ?',
+      [id]
+    );
+
+    await conn.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: `Top up Rp ${Number(amount).toLocaleString('id-ID')} berhasil.`,
+      data: { newBalance: Number(wallet.balance) },
+    });
+  } catch (err) {
+    await conn.rollback();
+    console.error('[topupDeposit] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal melakukan top up deposit.' });
+  } finally {
+    conn.release();
+  }
+};
+
 // ─── Helper: Get default awareness source id ──────────────────────────────────
 const getDefaultAwarenessSource = async () => {
   const [rows] = await poolWaschenPos.execute(

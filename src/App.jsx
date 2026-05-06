@@ -30,6 +30,11 @@ import ProduksiDashboardPage from './pages/produksi/DashboardPage';
 import DetailItemProduksiPage from './pages/produksi/DetailItemPage';
 import FotoKondisiPage from './pages/produksi/FotoKondisiPage';
 
+// Finance
+import FinanceDashboardPage from './pages/finance/DashboardPage';
+import VerifikasiPaymentPage from './pages/finance/VerifikasiPaymentPage';
+import LaporanKeuanganPage from './pages/finance/LaporanKeuanganPage';
+
 // Member
 import DetailCustomerPage from './pages/member/DetailCustomerPage';
 import TopupDepositPage from './pages/member/TopupDepositPage';
@@ -38,12 +43,13 @@ import DaftarMemberPage from './pages/member/DaftarMemberPage';
 // Shared pages
 import SettingsPage from './pages/SettingsPage';
 import NotifikasiPage from './pages/NotifikasiPage';
+import ProfilePage from './pages/ProfilePage';
 
 const SCREENS_NO_NAV = new Set([
   'splash', 'login', 'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
   'tambah_customer', 'detail_item_produksi', 'foto_kondisi',
   'detail_transaksi', 'detail_customer', 'topup_deposit', 'notifikasi',
-  'manajemen_user', 'manajemen_layanan',
+  'manajemen_user', 'manajemen_layanan', 'profil',
 ]);
 
 function AppInner() {
@@ -67,8 +73,10 @@ function AppInner() {
         return <LoginPage onLogin={handleLogin} />;
       case 'dashboard':
         if (!user) return <LoginPage onLogin={handleLogin} />;
-        if (user.role === 'admin' || user.role === 'finance')
+        if (user.role === 'admin')
           return <AdminDashboardPage user={user} navigate={navigate} />;
+        if (user.role === 'finance')
+          return <FinanceDashboardPage user={user} navigate={navigate} />;
         if (user.role === 'produksi')
           return <ProduksiDashboardPage user={user} navigate={navigate} />;
         return <KasirDashboardPage user={user} navigate={navigate} />;
@@ -83,9 +91,9 @@ function AppInner() {
       case 'tambah_customer':
         return <TambahCustomerPage navigate={navigate} />;
       case 'detail_customer':
-        return <DetailCustomerPage navigate={navigate} screenParams={screenParams} transactions={transactions} />;
+        return <DetailCustomerPage navigate={navigate} screenParams={screenParams} />;
       case 'daftar_member':
-        return <DaftarMemberPage customers={customers} navigate={navigate} />;
+        return <DaftarMemberPage navigate={navigate} />;
 
       case 'nota_step1':
         return <NotaStep1Page />;
@@ -115,6 +123,11 @@ function AppInner() {
       case 'monitoring':
         return <MonitoringPage navigate={navigate} />;
 
+      case 'verifikasi_payment':
+        return <VerifikasiPaymentPage navigate={navigate} />;
+      case 'laporan_keuangan':
+        return <LaporanKeuanganPage navigate={navigate} />;
+
       case 'topup_deposit':
         return <TopupDepositPage navigate={navigate} screenParams={screenParams} showToast={showToast} />;
 
@@ -123,6 +136,9 @@ function AppInner() {
 
       case 'notifikasi':
         return <NotifikasiPage navigate={navigate} />;
+
+      case 'profil':
+        return <ProfilePage navigate={navigate} />;
 
       default:
         return <KasirDashboardPage user={user} transactions={transactions} navigate={navigate} />;

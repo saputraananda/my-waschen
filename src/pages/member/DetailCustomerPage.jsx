@@ -1,12 +1,31 @@
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Avatar, Divider } from '../../components/ui';
 
-export default function DetailCustomerPage({ navigate, screenParams, transactions }) {
+export default function DetailCustomerPage({ navigate, screenParams }) {
   const customer = screenParams;
-  if (!customer) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Btn onClick={() => navigate('customer')}>Kembali</Btn></div>;
+  const [customerTx, setCustomerTx] = useState([]);
+  const [txLoading, setTxLoading] = useState(false);
 
-  const customerTx = transactions.filter((t) => t.customerId === customer.id);
+  useEffect(() => {
+    if (!customer?.id) return;
+    const fetch = async () => {
+      setTxLoading(true);
+      try {
+        const res = await axios.get(`/api/transactions?customerId=${customer.id}`);
+        setCustomerTx(res?.data?.data || []);
+      } catch {
+        setCustomerTx([]);
+      } finally {
+        setTxLoading(false);
+      }
+    };
+    fetch();
+  }, [customer?.id]);
+
+  if (!customer) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Btn onClick={() => navigate('customer')}>Kembali</Btn></div>;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
@@ -51,7 +70,9 @@ export default function DetailCustomerPage({ navigate, screenParams, transaction
 
         {/* Transaction history */}
         <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Riwayat Transaksi</div>
-        {customerTx.length === 0 ? (
+        {txLoading ? (
+          <div style={{ textAlign: 'center', padding: '24px', background: C.white, borderRadius: 14, color: C.n600, fontFamily: 'Poppins', fontSize: 13 }}>Memuat transaksi...</div>
+        ) : customerTx.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '24px', background: C.white, borderRadius: 14, color: C.n600, fontFamily: 'Poppins', fontSize: 13 }}>Belum ada transaksi</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

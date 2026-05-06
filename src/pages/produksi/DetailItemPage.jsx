@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp, STAGES } from '../../utils/helpers';
 import { TopBar, Btn, Badge, Avatar, ProgressTimeline } from '../../components/ui';
@@ -13,18 +14,25 @@ export default function DetailItemProduksiPage({ navigate, screenParams, user })
   const doneStages = localProgress.map((p) => p.stage);
   const nextStage = STAGES.find((s) => !doneStages.includes(s));
 
-  const handleUpdateStage = () => {
+  const [stageError, setStageError] = useState('');
+
+  const handleUpdateStage = async () => {
     if (!nextStage) return;
     setUpdating(true);
-    setTimeout(() => {
-      const newProgress = [...localProgress, {
-        stage: nextStage,
-        time: new Date().toLocaleString('id-ID'),
-        pic: user?.name || 'Produksi',
-      }];
-      setLocalProgress(newProgress);
+    setStageError('');
+    try {
+      const res = await axios.patch(`/api/transactions/${tx.id}/production-stage`, { stage: nextStage });
+      const updatedProgress = res?.data?.data?.progress || [
+        ...localProgress,
+        { stage: nextStage, timestamp: new Date().toISOString() },
+      ];
+      setLocalProgress(updatedProgress);
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Gagal mencatat stage.';
+      setStageError(msg);
+    } finally {
       setUpdating(false);
-    }, 800);
+    }
   };
 
   return (
@@ -78,6 +86,11 @@ export default function DetailItemProduksiPage({ navigate, screenParams, user })
 
       {nextStage && (
         <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}` }}>
+          {stageError && (
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#991B1B', background: '#FEE2E2', borderRadius: 8, padding: '8px 12px', marginBottom: 8, textAlign: 'center' }}>
+              ⚠ {stageError}
+            </div>
+          )}
           <Btn variant="primary" fullWidth size="lg" loading={updating} onClick={handleUpdateStage}>
             ✅ Selesaikan: {nextStage}
           </Btn>

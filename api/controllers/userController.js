@@ -3,8 +3,125 @@ import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
 // ─── Controller: GET /api/users/me ────────────────────────────────────────────
-export const getMe = (req, res) => {
-  return res.json({ success: true, data: req.user });
+export const getMe = async (req, res) => {
+  try {
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT u.id, u.name, u.username, u.phone, u.email,
+              r.code AS role, o.id AS outletId, o.name AS outletName
+       FROM mst_user u
+       JOIN mst_role r ON r.id = u.primary_role_id
+       LEFT JOIN mst_outlet o ON o.id = u.outlet_id
+       WHERE u.id = ? AND u.is_active = 1 LIMIT 1`,
+      [req.user.userId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
+    const u = rows[0];
+
+    // Ambil photo — graceful jika kolom belum ada (DDL patch belum dijalankan)
+    let photo = null;
+    try {
+      const [[photoRow]] = await poolWaschenPos.execute(
+        'SELECT photo FROM mst_user WHERE id = ? LIMIT 1', [u.id]
+      );
+      photo = photoRow?.photo || null;
+    } catch { /* kolom belum ada */ }
+
+    return res.json({
+      success: true,
+      data: {
+        userId:     u.id,
+        name:       u.name,
+        username:   u.username,
+        phone:      u.phone || null,
+        email:      u.email || null,
+        photo,
+        roleCode:   u.role,
+        role:       u.role,
+        outletId:   u.outletId,
+        outletName: u.outletName,
+        outlet: u.outletId ? { id: u.outletId, name: u.outletName } : null,
+        avatar: u.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
+      },
+    });
+  } catch (err) {
+    console.error('[getMe] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal memuat profil.' });
+  }
+};
+
+// ─── Controller: PATCH /api/users/me/profile ──────────────────────────────────
+export const updateMyProfile = async (req, res) => {
+  try {
+    const { name, phone, email, photo } = req.body;
+    const { userId } = req.user;
+
+    if (!name?.trim()) {
+      return res.status(400).json({ success: false, message: 'Nama tidak boleh kosong.' });
+    }
+
+    // Update name, phone, email (kolom sudah ada); coba sertakan photo, fallback jika belum ada
+    try {
+      await poolWaschenPos.execute(
+        `UPDATE mst_user SET name = ?, phone = ?, email = ?, photo = ?, updated_at = NOW() WHERE id = ?`,
+        [name.trim(), phone?.trim() || null, email?.trim() || null, photo || null, userId]
+      );
+    } catch (colErr) {
+      if (colErr.code === 'ER_BAD_FIELD_ERROR') {
+        await poolWaschenPos.execute(
+          `UPDATE mst_user SET name = ?, phone = ?, email = ?, updated_at = NOW() WHERE id = ?`,
+          [name.trim(), phone?.trim() || null, email?.trim() || null, userId]
+        );
+      } else {
+        throw colErr;
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Profil berhasil diperbarui.',
+      data: { name: name.trim(), phone: phone?.trim() || null, email: email?.trim() || null, photo: photo || null },
+    });
+  } catch (err) {
+    console.error('[updateMyProfile] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal memperbarui profil.' });
+  }
+};
+
+// ─── Controller: PATCH /api/users/me/password ─────────────────────────────────
+export const changeMyPassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const { userId } = req.user;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Password lama dan baru wajib diisi.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password baru minimal 6 karakter.' });
+    }
+
+    const [rows] = await poolWaschenPos.execute(
+      'SELECT password_hash FROM mst_user WHERE id = ? LIMIT 1',
+      [userId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
+
+    const valid = await bcrypt.compare(oldPassword, rows[0].password_hash);
+    if (!valid) return res.status(400).json({ success: false, message: 'Password lama salah.' });
+
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(newPassword, salt);
+
+    await poolWaschenPos.execute(
+      'UPDATE mst_user SET password_hash = ?, updated_at = NOW() WHERE id = ?',
+      [newHash, userId]
+    );
+
+    return res.json({ success: true, message: 'Password berhasil diubah.' });
+  } catch (err) {
+    console.error('[changeMyPassword] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengubah password.' });
+  }
 };
 
 // ─── Controller: GET /api/users ───────────────────────────────────────────────

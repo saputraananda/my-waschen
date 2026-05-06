@@ -7,6 +7,8 @@ import {
   getDashboardStats,
   getProductionQueue,
   updateTransactionStatus,
+  cancelTransaction,
+  updateProductionStage,
 } from '../controllers/transactionController.js';
 
 const router = Router();
@@ -28,5 +30,11 @@ router.put('/:id/status', authenticate, updateTransactionStatus);
 
 // POST /api/transactions/checkout — buat nota baru dengan DB transaction
 router.post('/checkout', authenticate, checkoutTransaction);
+
+// PATCH /api/transactions/:id/cancel — batalkan transaksi
+router.patch('/:id/cancel', authenticate, cancelTransaction);
+
+// PATCH /api/transactions/:id/production-stage — catat progress produksi
+router.patch('/:id/production-stage', authenticate, updateProductionStage);
 
 export default router;

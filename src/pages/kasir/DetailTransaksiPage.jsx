@@ -9,7 +9,14 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
   const [cancelModal, setCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
   const [fetching, setFetching] = useState(false);
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'error' });
+
+  const showToast = (message, type = 'error') => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => setToast({ visible: false, message: '', type }), 3000);
+  };
 
   useEffect(() => {
     const id = screenParams?.id || screenParams?.transactionNo;
@@ -33,15 +40,31 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
 
   if (!tx) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Btn onClick={() => navigate('transaksi')}>Kembali</Btn></div>;
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (!cancelReason.trim()) return;
     setLoading(true);
-    // TODO: call PATCH /api/transactions/:id/cancel when endpoint exists
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await axios.patch(`/api/transactions/${tx.id}/cancel`, { reason: cancelReason.trim() });
       setCancelModal(false);
       navigate('transaksi');
-    }, 800);
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Gagal membatalkan transaksi.';
+      showToast(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePickedUp = async () => {
+    setActionLoading('pickup');
+    try {
+      await axios.put(`/api/transactions/${tx.id}/status`, { status: 'diambil' });
+      setTx((prev) => ({ ...prev, status: 'diambil' }));
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Gagal update status.');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   return (
@@ -115,10 +138,18 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
       </div>
 
       {/* Actions */}
+      {toast.visible && (
+        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 100, background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2', color: toast.type === 'success' ? '#166534' : '#991B1B', padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          {toast.type === 'success' ? '✓' : '⚠'} {toast.message}
+        </div>
+      )}
+
       {tx.status !== 'dibatalkan' && tx.status !== 'diambil' && (
         <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: 10 }}>
           <Btn variant="danger" onClick={() => setCancelModal(true)} style={{ flex: 1 }}>Batalkan</Btn>
-          {tx.status === 'selesai' && <Btn variant="success" style={{ flex: 2 }} onClick={() => {}}>✅ Diambil</Btn>}
+          {tx.status === 'selesai' && (
+            <Btn variant="success" style={{ flex: 2 }} loading={actionLoading === 'pickup'} onClick={handlePickedUp}>✅ Sudah Diambil</Btn>
+          )}
         </div>
       )}
 

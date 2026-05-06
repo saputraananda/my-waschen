@@ -20,6 +20,7 @@ export const login = async (req, res) => {
 
     const [rows] = await poolWaschenPos.execute(
       `SELECT u.id, u.name, u.username, u.password_hash,
+              u.phone, u.email,
               r.code  AS role_code,
               o.id    AS outlet_id,   o.name    AS outlet_name,
               o.address AS outlet_address, o.phone AS outlet_phone
@@ -41,6 +42,16 @@ export const login = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({ success: false, message: 'Password salah. Coba lagi.' });
     }
+
+    // Ambil kolom photo — graceful jika DDL patch belum dijalankan
+    let photo = null;
+    try {
+      const [[photoRow]] = await poolWaschenPos.execute(
+        'SELECT photo FROM mst_user WHERE id = ? LIMIT 1',
+        [user.id]
+      );
+      photo = photoRow?.photo || null;
+    } catch { /* kolom photo belum ada */ }
 
     // Catat waktu login terakhir
     await poolWaschenPos.execute(
@@ -64,6 +75,9 @@ export const login = async (req, res) => {
         name:       user.name,
         username:   user.username,
         avatar:     getInitials(user.name),
+        phone:      user.phone  || null,
+        email:      user.email  || null,
+        photo:      photo,
         roleCode:   user.role_code,
         outletId:   user.outlet_id,
         outletName: user.outlet_name,

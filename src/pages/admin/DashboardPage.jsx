@@ -46,7 +46,7 @@ export default function AdminDashboardPage({ user, navigate }) {
             <button onClick={() => navigate('notifikasi')} style={{ width: 40, height: 40, borderRadius: 20, background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
             </button>
-            <Avatar initials={user.avatar} size={40} />
+            <Avatar photo={user.photo} initials={user.avatar} size={40} onClick={() => navigate('profil')} />
           </div>
         </div>
       </div>

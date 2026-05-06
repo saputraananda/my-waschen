@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn } from '../../components/ui';
@@ -13,14 +14,23 @@ export default function TopupDepositPage({ navigate, screenParams, showToast }) 
 
   if (!customer) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Btn onClick={() => navigate('customer')}>Kembali</Btn></div>;
 
-  const handleTopUp = () => {
+  const handleTopUp = async () => {
     if (!amount || Number(amount) < 1000) return;
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const res = await axios.post(`/api/customers/${customer.id}/topup`, {
+        amount: Number(amount),
+        payMethod,
+      });
+      const newBalance = res?.data?.data?.newBalance ?? (customer.deposit || 0) + Number(amount);
       showToast(`Top up ${rp(Number(amount))} berhasil!`, 'success');
-      navigate('detail_customer', { ...customer, deposit: (customer.deposit || 0) + Number(amount) });
-    }, 1200);
+      setTimeout(() => navigate('detail_customer', { ...customer, deposit: newBalance }), 800);
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Gagal melakukan top up.';
+      showToast(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

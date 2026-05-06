@@ -259,7 +259,7 @@ const mapDbStatusToFrontend = (status, pickedUpAt) => {
 // ─── GET /api/transactions ─────────────────────────────────────────────────────
 export const getTransactions = async (req, res) => {
   try {
-    const { status, outletId } = req.query;
+    const { status, outletId, customerId } = req.query;
     const userOutletId = req.user?.outletId;
 
     let sql = `
@@ -282,30 +282,38 @@ export const getTransactions = async (req, res) => {
       FROM tr_transaction t
       JOIN mst_customer c ON c.id = t.customer_id
       JOIN mst_user u ON u.id = t.cashier_id
-      WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+      WHERE t.deleted_at IS NULL
     `;
     const params = [];
+
+    if (customerId) {
+      sql += ' AND t.customer_id = ?';
+      params.push(customerId);
+    }
 
     if (outletId) {
       sql += ' AND t.outlet_id = ?';
       params.push(outletId);
-    } else if (userOutletId) {
+    } else if (userOutletId && !customerId) {
       sql += ' AND t.outlet_id = ?';
       params.push(userOutletId);
     }
 
     if (status && status !== 'semua') {
       const statusMap = {
-        baru: ['draft', 'pending'],
-        proses: ['process'],
-        selesai: ['ready_for_pickup', 'ready_for_delivery', 'completed'],
+        baru:       ['draft', 'pending'],
+        proses:     ['process'],
+        selesai:    ['ready_for_pickup', 'ready_for_delivery', 'completed'],
         dibatalkan: ['cancelled'],
+        diambil:    ['completed'],
       };
       const dbStatuses = statusMap[status];
       if (dbStatuses) {
-        sql += ` AND t.status IN (${dbStatuses.map(() => '?').join(',')})`;
+        sql += ` AND t.status IN (${dbStatuses.map(() => '?').join(',')})${status === 'diambil' ? ' AND t.picked_up_at IS NOT NULL' : ''}`;
         params.push(...dbStatuses);
       }
+    } else {
+      sql += " AND t.status <> 'cancelled'";
     }
 
     sql += ' ORDER BY t.created_at DESC LIMIT 200';
@@ -625,5 +633,121 @@ export const getProductionQueue = async (req, res) => {
   } catch (err) {
     console.error('[getProductionQueue] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat antrian produksi.' });
+  }
+};
+
+// ─── PATCH /api/transactions/:id/cancel ──────────────────────────────────────
+export const cancelTransaction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    if (!reason?.trim()) {
+      return res.status(400).json({ success: false, message: 'Alasan pembatalan wajib diisi.' });
+    }
+
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT id, status FROM tr_transaction
+       WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
+      [id, id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
+    }
+
+    const tx = rows[0];
+
+    if (tx.status === 'cancelled') {
+      return res.status(409).json({ success: false, message: 'Transaksi sudah dibatalkan.' });
+    }
+    if (tx.status === 'completed' && !rows[0].picked_up_at) {
+      return res.status(409).json({ success: false, message: 'Transaksi sudah selesai, tidak bisa dibatalkan.' });
+    }
+
+    await poolWaschenPos.execute(
+      `UPDATE tr_transaction
+       SET status = 'cancelled',
+           notes  = CONCAT(COALESCE(notes, ''), IF(notes IS NULL OR notes = '', '', ' | '), '[Batal: ', ?, ']'),
+           updated_at = NOW()
+       WHERE id = ?`,
+      [reason.trim(), tx.id]
+    );
+
+    return res.status(200).json({ success: true, message: 'Transaksi berhasil dibatalkan.' });
+  } catch (err) {
+    console.error('[cancelTransaction] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal membatalkan transaksi.' });
+  }
+};
+
+// ─── PATCH /api/transactions/:id/production-stage ────────────────────────────
+const VALID_STAGES = ['Diterima', 'Cuci', 'Pengeringan', 'Setrika', 'Packing', 'Selesai'];
+
+export const updateProductionStage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stage } = req.body;
+
+    if (!VALID_STAGES.includes(stage)) {
+      return res.status(400).json({ success: false, message: `Stage tidak valid. Pilih: ${VALID_STAGES.join(', ')}` });
+    }
+
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT id FROM tr_transaction
+       WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
+      [id, id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
+    }
+
+    const txId = rows[0].id;
+
+    // Cek apakah stage sudah pernah dicatat
+    const [existing] = await poolWaschenPos.execute(
+      `SELECT id FROM tr_item_unit WHERE transaction_id = ? AND production_status = ? LIMIT 1`,
+      [txId, stage]
+    );
+
+    if (existing.length === 0) {
+      await poolWaschenPos.execute(
+        `INSERT INTO tr_item_unit (id, transaction_id, production_status, created_at, updated_at)
+         VALUES (?, ?, ?, NOW(), NOW())`,
+        [randomUUID(), txId, stage]
+      );
+    }
+
+    // Sync status transaksi
+    if (stage === 'Selesai') {
+      await poolWaschenPos.execute(
+        `UPDATE tr_transaction SET status = 'ready_for_pickup', updated_at = NOW() WHERE id = ?`,
+        [txId]
+      );
+    } else {
+      await poolWaschenPos.execute(
+        `UPDATE tr_transaction SET status = 'process', updated_at = NOW() WHERE id = ? AND status IN ('draft','pending')`,
+        [txId]
+      );
+    }
+
+    // Ambil progress terbaru
+    const [unitRows] = await poolWaschenPos.execute(
+      `SELECT production_status AS stage, created_at AS timestamp
+       FROM tr_item_unit
+       WHERE transaction_id = ?
+       ORDER BY created_at ASC`,
+      [txId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Stage '${stage}' berhasil dicatat.`,
+      data: { progress: unitRows },
+    });
+  } catch (err) {
+    console.error('[updateProductionStage] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal mencatat progress produksi.' });
   }
 };
