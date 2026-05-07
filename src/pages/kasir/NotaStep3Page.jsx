@@ -1,31 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Input, Select, Divider } from '../../components/ui';
+import { TopBar, Btn, Input, Select, Divider, Modal } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 
 export default function NotaStep3Page() {
   const { navigate, user, notaCustomer, notaCart, setNotaCart, setNotaCustomer } = useApp();
-  const [pickup, setPickup] = useState(false);
-  const [delivery, setDelivery] = useState(false);
+  const [pickupType, setPickupType] = useState('self'); // 'self' | 'pickup' | 'delivery'
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [areaZoneId, setAreaZoneId] = useState('');
+  const [areaZones, setAreaZones] = useState([]);
   const [payMethod, setPayMethod] = useState('cash');
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [qrisModal, setQrisModal] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
 
+  // Fetch area zones for delivery fee calculation
+  useEffect(() => {
+    const fetchZones = async () => {
+      try {
+        const res = await axios.get('/api/logistics/area-zones');
+        setAreaZones(res?.data?.data || []);
+      } catch { /* fallback handled by API */ }
+    };
+    fetchZones();
+  }, []);
+
+  const selectedZone = areaZones.find((z) => z.id === areaZoneId);
+  const logisticFee = pickupType === 'self' ? 0 : (selectedZone?.fee || 10000);
   const subtotal = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? c.expressExtra || 5000 : 0)) * c.qty, 0);
-  const pickupFee = pickup ? 10000 : 0;
-  const deliveryFee = delivery ? 10000 : 0;
-  const total = subtotal + pickupFee + deliveryFee;
+  const total = subtotal + logisticFee;
 
   const showToast = (message, type = 'success') => {
     setToast({ visible: true, message, type });
     setTimeout(() => setToast({ visible: false, message: '', type }), 3000);
   };
 
-  const handleConfirm = async () => {
+  const doCheckout = async () => {
     setLoading(true);
     try {
       const payload = {
@@ -49,8 +64,11 @@ export default function NotaStep3Page() {
         subtotal,
         discount: 0,
         total,
-        pickup,
-        delivery,
+        pickup:   pickupType === 'pickup',
+        delivery: pickupType === 'delivery',
+        pickupType,
+        areaZoneId: areaZoneId || null,
+        scheduleAt: (scheduleDate && scheduleTime) ? `${scheduleDate}T${scheduleTime}:00` : null,
         notes,
         dueDate: dueDate || null,
       };
@@ -70,8 +88,8 @@ export default function NotaStep3Page() {
           payMethod:     data.payment?.method || payMethod,
           paidAmount:    data.payment?.paidAmount || total,
           changeAmount:  data.payment?.changeAmount || 0,
-          pickup,
-          delivery,
+          pickup: pickupType === 'pickup',
+          delivery: pickupType === 'delivery',
           notes,
           dueDate,
           status: 'baru',
@@ -87,6 +105,19 @@ export default function NotaStep3Page() {
       showToast(msg, 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConfirm = () => {
+    // QRIS EDC Simulation
+    if (payMethod === 'qris') {
+      setQrisModal(true);
+      setTimeout(() => {
+        setQrisModal(false);
+        doCheckout();
+      }, 3000);
+    } else {
+      doCheckout();
     }
   };
 
@@ -116,8 +147,11 @@ export default function NotaStep3Page() {
           {notaCart.map((item) => (
             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{item.name}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{item.qty} {item.unit} {item.express ? '⚡' : ''}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{item.name}</span>
+                  {item.express && <span style={{ background: '#FEF3C7', color: '#B45309', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>Express</span>}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{item.qty} {item.unit}</div>
               </div>
               <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{rp((item.price + (item.express ? item.expressExtra || 5000 : 0)) * item.qty)}</div>
             </div>
@@ -128,16 +162,10 @@ export default function NotaStep3Page() {
             <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Subtotal</span>
             <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{rp(subtotal)}</span>
           </div>
-          {pickup && (
+          {pickupType !== 'self' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Jemput</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{rp(pickupFee)}</span>
-            </div>
-          )}
-          {delivery && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Antar</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{rp(deliveryFee)}</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Ongkir ({pickupType === 'pickup' ? 'Jemput' : 'Antar'})</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{rp(logisticFee)}</span>
             </div>
           )}
           <Divider my={8} />
@@ -147,13 +175,55 @@ export default function NotaStep3Page() {
           </div>
         </div>
 
-        {/* Options */}
+        {/* Pickup Type - 3 Options */}
         <div style={{ background: C.white, borderRadius: 14, padding: '12px 14px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>OPSI LAYANAN</div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => setPickup(!pickup)} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${pickup ? C.primary : C.n300}`, background: pickup ? C.primaryLight : C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: pickup ? 700 : 400, color: pickup ? C.primary : C.n600 }}>🚗 Jemput (+{rp(10000)})</button>
-            <button onClick={() => setDelivery(!delivery)} style={{ flex: 1, padding: '10px', borderRadius: 10, border: `1.5px solid ${delivery ? C.primary : C.n300}`, background: delivery ? C.primaryLight : C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: delivery ? 700 : 400, color: delivery ? C.primary : C.n600 }}>🛵 Antar (+{rp(10000)})</button>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>TIPE PENGIRIMAN</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[
+              { key: 'self', label: 'Ambil Sendiri', icon: '🏪' },
+              { key: 'pickup', label: 'Pickup', icon: '🚗' },
+              { key: 'delivery', label: 'Delivery', icon: '🛵' },
+            ].map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setPickupType(opt.key)}
+                style={{
+                  flex: 1, padding: '10px 6px', borderRadius: 10, textAlign: 'center',
+                  border: `1.5px solid ${pickupType === opt.key ? C.primary : C.n300}`,
+                  background: pickupType === opt.key ? C.primaryLight : C.white,
+                  cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11,
+                  fontWeight: pickupType === opt.key ? 700 : 400,
+                  color: pickupType === opt.key ? C.primary : C.n600,
+                }}
+              >
+                <div style={{ fontSize: 18, marginBottom: 4 }}>{opt.icon}</div>
+                {opt.label}
+              </button>
+            ))}
           </div>
+
+          {/* Schedule & Area Zone for Pickup/Delivery */}
+          {pickupType !== 'self' && (
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <Input label="Tanggal Jadwal" value={scheduleDate} onChange={setScheduleDate} type="date" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <Input label="Jam" value={scheduleTime} onChange={setScheduleTime} type="time" />
+                </div>
+              </div>
+              <Select
+                label="Area Zone (ongkir)"
+                value={areaZoneId}
+                onChange={setAreaZoneId}
+                options={[
+                  { value: '', label: 'Pilih zona...' },
+                  ...areaZones.map((z) => ({ value: z.id, label: `${z.name} - ${rp(z.fee)}` })),
+                ]}
+              />
+            </div>
+          )}
         </div>
 
         {/* Payment */}
@@ -163,12 +233,17 @@ export default function NotaStep3Page() {
             value={payMethod}
             onChange={setPayMethod}
             options={[
-              { value: 'cash', label: '💵 Tunai' },
-              { value: 'transfer', label: '🏦 Transfer Bank' },
-              { value: 'deposit', label: `💳 Deposit (${rp(notaCustomer?.deposit || 0)})` },
-              { value: 'qris', label: '📱 QRIS' },
+              { value: 'cash', label: 'Tunai' },
+              { value: 'transfer', label: 'Transfer Bank' },
+              { value: 'deposit', label: `Deposit (${rp(notaCustomer?.deposit || 0)})` },
+              { value: 'qris', label: 'QRIS (EDC)' },
             ]}
           />
+          {payMethod === 'qris' && (
+            <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '8px 12px', marginTop: 6, fontFamily: 'Poppins', fontSize: 11, color: '#1D4ED8' }}>
+              Saat klik "Buat Nota", sistem akan menunggu konfirmasi dari EDC QRIS.
+            </div>
+          )}
           <Input label="Estimasi Selesai" value={dueDate} onChange={setDueDate} type="date" />
           <Input label="Catatan (opsional)" value={notes} onChange={setNotes} placeholder="Catatan khusus..." />
         </div>
@@ -176,24 +251,25 @@ export default function NotaStep3Page() {
 
       {toast.visible && (
         <div style={{
-          position: 'fixed',
-          top: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 100,
+          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 100,
           background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2',
           color: toast.type === 'success' ? '#166534' : '#991B1B',
-          padding: '12px 20px',
-          borderRadius: 12,
-          fontFamily: 'Poppins',
-          fontSize: 13,
-          fontWeight: 600,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 8,
         }}>
           {toast.type === 'success' ? '✓' : '⚠'} {toast.message}
+        </div>
+      )}
+
+      {/* QRIS EDC Loading Modal */}
+      {qrisModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: C.white, borderRadius: 20, padding: '32px 28px', textAlign: 'center', maxWidth: 300, width: '85%' }}>
+            <div style={{ width: 56, height: 56, border: `4px solid ${C.n200}`, borderTop: `4px solid ${C.primary}`, borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 1s linear infinite' }} />
+            <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900, marginBottom: 8 }}>Menunggu Pembayaran</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Menunggu konfirmasi dari EDC QRIS...</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.primary, marginTop: 12 }}>{rp(total)}</div>
+          </div>
         </div>
       )}
 

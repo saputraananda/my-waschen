@@ -17,6 +17,7 @@ import NotaStep3Page from './pages/kasir/NotaStep3Page';
 import NotaBerhasilPage from './pages/kasir/NotaBerhasilPage';
 import TransaksiListPage from './pages/kasir/TransaksiListPage';
 import DetailTransaksiPage from './pages/kasir/DetailTransaksiPage';
+import CetakNotaPage from './pages/kasir/CetakNotaPage';
 
 // Admin
 import AdminDashboardPage from './pages/admin/DashboardPage';
@@ -48,7 +49,7 @@ import ProfilePage from './pages/ProfilePage';
 const SCREENS_NO_NAV = new Set([
   'splash', 'login', 'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
   'tambah_customer', 'detail_item_produksi', 'foto_kondisi',
-  'detail_transaksi', 'detail_customer', 'topup_deposit', 'notifikasi',
+  'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'notifikasi',
   'manajemen_user', 'manajemen_layanan', 'profil',
 ]);
 
@@ -89,7 +90,7 @@ function AppInner() {
       case 'customer':
         return <CustomerListPage navigate={navigate} />;
       case 'tambah_customer':
-        return <TambahCustomerPage navigate={navigate} />;
+        return <TambahCustomerPage navigate={navigate} screenParams={screenParams} />;
       case 'detail_customer':
         return <DetailCustomerPage navigate={navigate} screenParams={screenParams} />;
       case 'daftar_member':
@@ -106,6 +107,8 @@ function AppInner() {
 
       case 'detail_transaksi':
         return <DetailTransaksiPage navigate={navigate} screenParams={screenParams} onCancel={cancelTransaction} />;
+      case 'cetak_nota':
+        return <CetakNotaPage navigate={navigate} screenParams={screenParams} />;
 
       case 'antrian':
         return <ProduksiDashboardPage user={user} transactions={transactions} navigate={navigate} />;

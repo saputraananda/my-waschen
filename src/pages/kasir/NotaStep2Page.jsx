@@ -7,29 +7,39 @@ import { useApp } from '../../context/AppContext';
 
 export default function NotaStep2Page() {
   const { navigate, notaCustomer, notaCart, setNotaCart } = useApp();
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState('Semua');
   const [services, setServices] = useState([]);
+  const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchServices = async () => {
       setLoading(true);
       try {
-        const res = await axios.get('/api/services');
-        setServices(res?.data?.data || []);
+        const [svcRes, matRes] = await Promise.all([
+          axios.get(`/api/services${notaCustomer?.id ? `?customerId=${notaCustomer.id}` : ''}`),
+          axios.get('/api/master/materials')
+        ]);
+        setServices(svcRes?.data?.data || []);
+        if (matRes?.data?.data) setMaterials(matRes.data.data);
       } catch (error) {
-        console.error('Failed to fetch services:', error);
+        console.error('Failed to fetch data:', error);
       } finally {
         setLoading(false);
       }
     };
     fetchServices();
-  }, []);
+  }, [notaCustomer?.id]);
 
-  const categories = ['all', ...new Set(services.map((s) => s.category))];
+  const dynamicCategories = [...new Set(services.map((s) => s.category))];
+  const categories = ['Sering Dipakai', 'Pinned / Event', 'Semua', ...dynamicCategories];
 
   const filtered =
-    activeCategory === 'all'
+    activeCategory === 'Sering Dipakai'
+      ? services.filter((s) => s.usage_count > 0).sort((a, b) => b.usage_count - a.usage_count)
+      : activeCategory === 'Pinned / Event'
+      ? services.filter((s) => s.pin_context)
+      : activeCategory === 'Semua'
       ? services
       : services.filter((s) => s.category === activeCategory);
 
@@ -53,6 +63,10 @@ export default function NotaStep2Page() {
 
   const toggleExpress = (id) => {
     setNotaCart((prev) => prev.map((c) => (c.id === id ? { ...c, express: !c.express } : c)));
+  };
+
+  const updateMaterial = (id, materialId) => {
+    setNotaCart((prev) => prev.map((c) => (c.id === id ? { ...c, materialId } : c)));
   };
 
   const total = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? c.expressExtra || 5000 : 0)) * c.qty, 0);
@@ -82,7 +96,7 @@ export default function NotaStep2Page() {
       <div style={{ padding: '8px 16px 0' }}>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
           {categories.map((cat) => (
-            <Chip key={cat} label={cat === 'all' ? 'Semua' : cat} active={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
+            <Chip key={cat} label={cat} active={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
           ))}
         </div>
       </div>
@@ -112,15 +126,29 @@ export default function NotaStep2Page() {
                   <button onClick={() => addItem(s)} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: C.primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18 }}>+</button>
                 </div>
               </div>
-              {qty > 0 && s.expressExtra && (
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    onClick={() => toggleExpress(s.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: inCart?.express ? '#FEF3C7' : C.n50, border: `1.5px solid ${inCart?.express ? C.warning : C.n300}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: inCart?.express ? C.warning : C.n600 }}
-                  >
-                    <span style={{ fontSize: 14 }}>⚡</span>
-                    <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>Express (+{rp(s.expressExtra)})</span>
-                  </button>
+              {qty > 0 && (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {s.expressExtra > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <button
+                        onClick={() => toggleExpress(s.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: inCart?.express ? '#FEF3C7' : C.n50, border: `1.5px solid ${inCart?.express ? C.warning : C.n300}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: inCart?.express ? C.warning : C.n600 }}
+                      >
+                        <span style={{ fontSize: 14 }}>⚡</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>Express (+{rp(s.expressExtra)})</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {(s.category.toLowerCase().includes('satuan')) && (
+                    <div>
+                      <Select 
+                        value={inCart?.materialId || ''} 
+                        onChange={(val) => updateMaterial(s.id, val)} 
+                        options={[{ value: '', label: 'Pilih Jenis Bahan...' }, ...materials.map(m => ({ value: m.id, label: m.name }))]}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

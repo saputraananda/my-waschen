@@ -10,6 +10,7 @@ export default function ManajemenLayananPage({ navigate }) {
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState('all');
   const [modalAdd, setModalAdd] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
 
   // Fetch services from API on mount
@@ -32,7 +33,19 @@ export default function ManajemenLayananPage({ navigate }) {
   const categories = ['all', ...new Set(services.map((s) => s.category))];
   const filtered = filter === 'all' ? services : services.filter((s) => s.category === filter);
 
-  const handleAdd = async () => {
+  const openAdd = () => {
+    setEditingId(null);
+    setForm({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
+    setModalAdd(true);
+  };
+
+  const openEdit = (s) => {
+    setEditingId(s.id);
+    setForm({ name: s.name, category: s.category, price: s.price, unit: s.unit, expressExtra: s.expressExtra || '' });
+    setModalAdd(true);
+  };
+
+  const handleSave = async () => {
     if (!form.name.trim() || !form.price) return;
     setSubmitting(true);
     try {
@@ -42,20 +55,38 @@ export default function ManajemenLayananPage({ navigate }) {
         price: Number(form.price),
         unit: form.unit,
         expressExtra: form.expressExtra ? Number(form.expressExtra) : null,
-        active: true,
       };
-      const res = await axios.post('/api/services', payload);
-      const newService = res?.data?.data;
-      if (newService) {
-        setServices((prev) => [...prev, newService]);
+      
+      if (editingId) {
+        const res = await axios.put(`/api/services/${editingId}`, payload);
+        const updatedService = res?.data?.data;
+        if (updatedService) {
+          setServices((prev) => prev.map((s) => (s.id === editingId ? updatedService : s)));
+        }
+      } else {
+        const res = await axios.post('/api/services', payload);
+        const newService = res?.data?.data;
+        if (newService) {
+          setServices((prev) => [...prev, newService]);
+        }
       }
       setModalAdd(false);
-      setForm({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
     } catch (error) {
-      console.error('Failed to add service:', error);
-      alert('Gagal menambahkan layanan. Silakan coba lagi.');
+      console.error('Failed to save service:', error);
+      alert('Gagal menyimpan layanan. Silakan coba lagi.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Yakin ingin menghapus layanan ini?')) return;
+    try {
+      await axios.delete(`/api/services/${id}`);
+      setServices((prev) => prev.filter((s) => s.id !== id));
+    } catch (error) {
+      console.error('Failed to delete service:', error);
+      alert('Gagal menghapus layanan.');
     }
   };
 
@@ -78,7 +109,7 @@ export default function ManajemenLayananPage({ navigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
-      <TopBar title="Manajemen Layanan" onBack={() => navigate('dashboard')} rightAction={() => setModalAdd(true)} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>} />
+      <TopBar title="Manajemen Layanan" onBack={() => navigate('dashboard')} rightAction={openAdd} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>} />
 
       <div style={{ padding: '12px 16px 0' }}>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none' }}>
@@ -113,12 +144,18 @@ export default function ManajemenLayananPage({ navigate }) {
                     {s.expressExtra && <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.warning, fontWeight: 600 }}>⚡ +{rp(s.expressExtra)}</span>}
                   </div>
                 </div>
-                <button
-                  onClick={() => toggleActive(s.id)}
-                  style={{ padding: '6px 12px', borderRadius: 8, border: `1.5px solid ${s.active !== false ? C.success : C.n300}`, background: s.active !== false ? '#DCFCE7' : C.n50, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: s.active !== false ? C.success : C.n600, flexShrink: 0 }}
-                >
-                  {s.active !== false ? 'Aktif' : 'Nonaktif'}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button
+                    onClick={() => toggleActive(s.id)}
+                    style={{ padding: '4px 8px', borderRadius: 6, border: `1px solid ${s.active !== false ? C.success : C.n300}`, background: s.active !== false ? '#DCFCE7' : C.n50, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: s.active !== false ? C.success : C.n600, width: 60 }}
+                  >
+                    {s.active !== false ? 'Aktif' : 'Nonaktif'}
+                  </button>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={() => openEdit(s)} style={{ flex: 1, padding: '4px', borderRadius: 6, border: `1px solid ${C.n200}`, background: C.white, cursor: 'pointer', color: C.primary, fontSize: 12 }}>✏️</button>
+                    <button onClick={() => handleDelete(s.id)} style={{ flex: 1, padding: '4px', borderRadius: 6, border: `1px solid ${C.n200}`, background: C.white, cursor: 'pointer', color: C.error, fontSize: 12 }}>🗑️</button>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
@@ -126,15 +163,24 @@ export default function ManajemenLayananPage({ navigate }) {
         )}
       </div>
 
-      <Modal visible={modalAdd} onClose={() => setModalAdd(false)} title="Tambah Layanan">
+      <Modal visible={modalAdd} onClose={() => setModalAdd(false)} title={editingId ? "Edit Layanan" : "Tambah Layanan"}>
         <Input label="Nama Layanan" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Contoh: Cuci Kiloan" />
         <Select label="Kategori" value={form.category} onChange={(v) => setForm((f) => ({ ...f, category: v }))} options={['Cuci', 'Setrika', 'Dry Clean', 'Sepatu'].map((c) => ({ value: c, label: c }))} />
         <Input label="Harga (Rp)" value={form.price} onChange={(v) => setForm((f) => ({ ...f, price: v }))} inputMode="numeric" placeholder="0" />
-        <Input label="Satuan" value={form.unit} onChange={(v) => setForm((f) => ({ ...f, unit: v }))} placeholder="kg / pcs / pasang" />
+        <Select label="Satuan" value={form.unit} onChange={(v) => setForm((f) => ({ ...f, unit: v }))} options={[
+          { value: 'kg', label: 'Kilogram (kg)' },
+          { value: 'pcs', label: 'Pcs (Satuan)' },
+          { value: 'pair', label: 'Pasang' },
+          { value: 'm2', label: 'Meter Persegi (m2)' },
+          { value: 'meter', label: 'Meter' },
+          { value: 'stel', label: 'Stel' },
+          { value: 'package', label: 'Paket' },
+          { value: 'other', label: 'Lainnya' }
+        ]} />
         <Input label="Harga Express (opsional)" value={form.expressExtra} onChange={(v) => setForm((f) => ({ ...f, expressExtra: v }))} inputMode="numeric" placeholder="Tambahan harga express" />
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="secondary" onClick={() => setModalAdd(false)} style={{ flex: 1 }}>Batal</Btn>
-          <Btn variant="primary" onClick={handleAdd} loading={submitting} style={{ flex: 1 }}>Simpan</Btn>
+          <Btn variant="primary" onClick={handleSave} loading={submitting} style={{ flex: 1 }}>Simpan</Btn>
         </div>
       </Modal>
     </div>

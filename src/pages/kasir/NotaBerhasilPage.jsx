@@ -37,14 +37,16 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
       )}
 
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <Btn variant="primary" fullWidth size="lg" onClick={() => navigate('nota_step1')}>
+        {nota && (
+          <Btn variant="primary" fullWidth size="lg" onClick={() => navigate('cetak_nota', { id: nota.id })}>
+            🖨️ Cetak Nota & Label
+          </Btn>
+        )}
+        <Btn variant="secondary" fullWidth onClick={() => navigate('nota_step1')}>
           Buat Nota Baru
         </Btn>
-        <Btn variant="secondary" fullWidth onClick={() => navigate('transaksi')}>
+        <Btn variant="ghost" fullWidth onClick={() => navigate('transaksi')}>
           Lihat Transaksi
-        </Btn>
-        <Btn variant="ghost" fullWidth onClick={() => navigate('dashboard')}>
-          Kembali ke Beranda
         </Btn>
       </div>
     </div>

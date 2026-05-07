@@ -2,36 +2,61 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { Avatar, Badge, SectionHeader, StatCard } from '../../components/ui';
+import { Avatar, Badge, SectionHeader, StatCard, Modal, Input, Btn } from '../../components/ui';
 
 export default function KasirDashboardPage({ user, navigate }) {
   const [stats, setStats] = useState({ total: 0, express: 0, pending: 0, completed: 0 });
   const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  const [shift, setShift] = useState(null);
+  const [shiftModal, setShiftModal] = useState(false);
+  const [openingCash, setOpeningCash] = useState('');
+  const [shiftLoading, setShiftLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchStatsAndShift = async () => {
       setLoading(true);
       try {
-        const res = await axios.get('/api/transactions/dashboard/stats');
-        if (res?.data?.data) {
-          setStats(res.data.data.today);
-          setRecent(res.data.data.recent || []);
+        const [resStats, resShift] = await Promise.all([
+          axios.get('/api/transactions/dashboard/stats'),
+          axios.get('/api/shifts/status')
+        ]);
+        if (resStats?.data?.data) {
+          setStats(resStats.data.data.today);
+          setRecent(resStats.data.data.recent || []);
+        }
+        if (resShift?.data) {
+          setShift(resShift.data);
         }
       } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
+        console.error('Failed to fetch dashboard data:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchStats();
+    fetchStatsAndShift();
   }, []);
 
+  const handleOpenShift = async () => {
+    setShiftLoading(true);
+    try {
+      await axios.post('/api/shifts/open', { openingCash: Number(openingCash || 0), shift: 'full' });
+      const resShift = await axios.get('/api/shifts/status');
+      setShift(resShift.data);
+      setShiftModal(false);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Gagal buka kas');
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
   const QUICK = [
-    { label: 'Nota Baru', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>, screen: 'nota_step1', color: C.primary },
-    { label: 'Cari Customer', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>, screen: 'customer', color: '#0EA5E9' },
-    { label: 'Pickup / Delivery', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>, screen: 'transaksi', color: C.warning },
-    { label: 'Riwayat', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-3.5" /></svg>, screen: 'transaksi', color: C.success },
+    { label: 'Nota Baru', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>, action: () => shift?.isOpen ? navigate('nota_step1') : setShiftModal(true), color: C.primary },
+    { label: 'Cari Customer', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>, action: () => navigate('customer'), color: '#0EA5E9' },
+    { label: 'Pickup / Delivery', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>, action: () => navigate('transaksi'), color: C.warning },
+    { label: 'Riwayat', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-3.5" /></svg>, action: () => navigate('transaksi'), color: C.success },
   ];
 
   return (
@@ -42,6 +67,14 @@ export default function KasirDashboardPage({ user, navigate }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>Hai,</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: 'white' }}>{user.name.split(' ')[0]} 👋</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>{user.outlet?.name || 'Waschen Kemang'}</div>
+            
+            {/* Shift Status Indicator */}
+            {shift && (
+              <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: shift.isOpen ? '#059669' : '#DC2626', padding: '4px 10px', borderRadius: 999 }}>
+                <span style={{ width: 6, height: 6, borderRadius: 3, background: 'white' }} />
+                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: 'white' }}>{shift.isOpen ? 'Toko Buka' : 'Toko Tutup'}</span>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <button onClick={() => navigate('notifikasi')} style={{ width: 40, height: 40, borderRadius: 20, background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', position: 'relative' }}>
@@ -54,7 +87,7 @@ export default function KasirDashboardPage({ user, navigate }) {
       </div>
 
       <div style={{ padding: '0 16px', marginTop: -12, paddingBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4, marginBottom: 20, scrollbarWidth: 'none' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingBottom: 4, marginBottom: 20 }}>
           <StatCard label="Transaksi Hari Ini" value={stats.total} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>} color={C.primary} />
           <StatCard label="Express Aktif" value={stats.express} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>} color={C.warning} sub="⚡ Prioritas" />
           <StatCard label="In Progress" value={stats.pending} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>} color="#0EA5E9" />
@@ -65,7 +98,7 @@ export default function KasirDashboardPage({ user, navigate }) {
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 14 }}>Aksi Cepat</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {QUICK.map((q) => (
-              <button key={q.label} onClick={() => navigate(q.screen)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '14px 8px', borderRadius: 12, background: C.n50, border: `1px solid ${C.n100}`, cursor: 'pointer' }}>
+              <button key={q.label} onClick={q.action} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '14px 8px', borderRadius: 12, background: C.n50, border: `1px solid ${C.n100}`, cursor: 'pointer' }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: `${q.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: q.color }}>{q.icon}</div>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{q.label}</span>
               </button>
@@ -99,6 +132,24 @@ export default function KasirDashboardPage({ user, navigate }) {
           )}
         </div>
       </div>
+
+      <Modal visible={shiftModal} onClose={() => setShiftModal(false)} title="Buka Kas / Mulai Operasional">
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 16 }}>
+          Anda belum mencatat modal awal kasir untuk operasional hari ini. Silakan masukkan jumlah uang tunai di laci kasir saat ini.
+        </div>
+        <Input 
+          label="Modal Awal Harian (Rp)" 
+          type="number" 
+          value={openingCash} 
+          onChange={setOpeningCash} 
+          placeholder="Contoh: 100000" 
+        />
+        <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+          <Btn variant="secondary" onClick={() => setShiftModal(false)} style={{ flex: 1 }}>Batal</Btn>
+          <Btn variant="primary" loading={shiftLoading} onClick={handleOpenShift} style={{ flex: 1 }}>Mulai Operasional</Btn>
+        </div>
+      </Modal>
+
     </div>
   );
 }

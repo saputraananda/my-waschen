@@ -7,20 +7,21 @@ export const getApprovals = async (req, res) => {
       `SELECT
         a.id,
         a.type,
-        a.description,
-        a.amount,
+        a.reason AS description,
+        t.total AS amount,
         a.status,
-        a.created_at AS date,
+        a.requested_at AS date,
         a.resolved_at AS resolvedAt,
         u.name AS requester,
         u.id   AS requesterId,
         r.name AS resolvedByName
       FROM tr_transaction_approval a
       JOIN mst_user u ON u.id = a.requested_by
-      LEFT JOIN mst_user r ON r.id = a.resolved_by
+      LEFT JOIN mst_user r ON r.id = a.approved_by
+      LEFT JOIN tr_transaction t ON t.id = a.transaction_id
       ORDER BY
         FIELD(a.status, 'pending', 'approved', 'rejected'),
-        a.created_at DESC`
+        a.requested_at DESC`
     );
 
     const data = rows.map((a) => ({
@@ -41,7 +42,7 @@ export const resolveApproval = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const resolvedBy = req.user?.userId;
+    const resolvedBy = req.user?.id;
 
     if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({
@@ -51,7 +52,7 @@ export const resolveApproval = async (req, res) => {
     }
 
     const [check] = await poolWaschenPos.execute(
-      'SELECT id, status FROM tr_transaction_approval WHERE id = ? LIMIT 1',
+      'SELECT id, status, type, transaction_id FROM tr_transaction_approval WHERE id = ? LIMIT 1',
       [id]
     );
 
@@ -65,10 +66,37 @@ export const resolveApproval = async (req, res) => {
 
     await poolWaschenPos.execute(
       `UPDATE tr_transaction_approval
-       SET status = ?, resolved_by = ?, resolved_at = NOW(), updated_at = NOW()
+       SET status = ?, approved_by = ?, resolved_at = NOW()
        WHERE id = ?`,
       [status, resolvedBy, id]
     );
+
+    // --- APPLY THE EFFECT OF THE APPROVAL ---
+    if (status === 'approved') {
+      const approvalType = check[0].type;
+      const txId = check[0].transaction_id;
+
+      if (approvalType === 'cancel_nota' && txId) {
+        await poolWaschenPos.execute(
+          `UPDATE tr_transaction 
+           SET status = 'cancelled', 
+               notes = CONCAT(COALESCE(notes, ''), ' | [Batal Disetujui Admin]'), 
+               updated_at = NOW() 
+           WHERE id = ?`,
+          [txId]
+        );
+      } else if (approvalType === 'delete_transaction' && txId) {
+        // SOFT DELETE — data tetap ada di DB untuk audit/finance, tapi tidak tampil di UI
+        await poolWaschenPos.execute(
+          `UPDATE tr_transaction 
+           SET deleted_at = NOW(),
+               notes = CONCAT(COALESCE(notes, ''), ' | [Dihapus via Approval Admin]'),
+               updated_at = NOW() 
+           WHERE id = ?`,
+          [txId]
+        );
+      }
+    }
 
     return res.status(200).json({
       success: true,

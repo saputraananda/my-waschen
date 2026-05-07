@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { C, T } from '../../utils/theme';
 import { STATUS_COLORS, STAGES, rp } from '../../utils/helpers';
 
@@ -17,7 +17,7 @@ export const TopBar = ({ title, onBack, rightAction, rightIcon, subtitle }) => (
   <div style={{ height: 56, background: C.white, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${C.n100}`, flexShrink: 0, position: 'relative', zIndex: 10 }}>
     {onBack && (
       <button onClick={onBack} style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n900 }}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+        <svg style={{ pointerEvents: 'none' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
       </button>
     )}
     <div style={{ flex: 1 }}>
@@ -26,7 +26,9 @@ export const TopBar = ({ title, onBack, rightAction, rightIcon, subtitle }) => (
     </div>
     {rightAction && (
       <button onClick={rightAction} style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600 }}>
-        {rightIcon}
+        <div style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {rightIcon}
+        </div>
       </button>
     )}
   </div>
@@ -98,7 +100,7 @@ export const BottomNav = ({ role, active, navigate }) => {
                 onClick={fabAction}
                 style={{ width: 52, height: 52, borderRadius: 26, background: `linear-gradient(135deg, ${C.primarySoft}, ${C.primary})`, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 16px ${C.primary}55`, color: C.white, marginBottom: 8 }}
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                <svg style={{ pointerEvents: 'none' }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
               </button>
             </div>
           );
@@ -109,11 +111,11 @@ export const BottomNav = ({ role, active, navigate }) => {
             onClick={() => navigate(tab.id)}
             style={{ flex: 1, height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: isActive ? C.primary : C.n600 }}
           >
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', pointerEvents: 'none' }}>
               {tab.icon}
               {isActive && <div style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 4, height: 4, borderRadius: 2, background: C.primary }} />}
             </div>
-            <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: isActive ? 600 : 400 }}>{tab.label}</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: isActive ? 600 : 400, pointerEvents: 'none' }}>{tab.label}</span>
           </button>
         );
       })}
@@ -145,9 +147,9 @@ export const Btn = ({ variant = 'primary', children, onClick, disabled, loading,
       onTouchEnd={() => setPressed(false)}
       disabled={disabled}
     >
-      {loading ? <div style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> : null}
-      {!loading && icon}
-      {!loading && children}
+      {loading ? <div style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', pointerEvents: 'none' }} /> : null}
+      {!loading && icon && <span style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>{icon}</span>}
+      {!loading && <span style={{ pointerEvents: 'none' }}>{children}</span>}
     </button>
   );
 };
@@ -188,18 +190,106 @@ export const Textarea = ({ label, value, onChange, placeholder, rows = 3 }) => {
 };
 
 // ── Select ────────────────────────────────────────────────
-export const Select = ({ label, value, onChange, options, error }) => {
-  const [focused, setFocused] = useState(false);
+export const Select = ({ label, value, onChange, options, error, placeholder }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
+  }, [open]);
+
+  const selectedOption = options.find((o) => o.value === value);
+  const displayLabel = selectedOption ? selectedOption.label : (placeholder || 'Pilih...');
+
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div ref={ref} style={{ marginBottom: 16, position: 'relative', zIndex: open ? 50 : 1 }}>
       {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
-      <select
-        value={value} onChange={(e) => onChange(e.target.value)}
-        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        style={{ width: '100%', height: 48, borderRadius: 10, padding: '0 14px', border: `${focused ? 2 : 1.5}px solid ${error ? C.danger : focused ? C.primary : C.n300}`, fontFamily: 'Poppins', fontSize: 14, color: value ? C.n900 : C.n600, background: C.white, outline: 'none', boxSizing: 'border-box', appearance: 'none', cursor: 'pointer' }}
+      
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: '100%', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 14px', background: C.white, cursor: 'pointer', outline: 'none',
+          border: `${open ? 2 : 1.5}px solid ${error ? C.danger : open ? C.primary : C.n300}`,
+          borderRadius: open ? '10px 10px 0 0' : 10,
+          fontFamily: 'Poppins', fontSize: 14, color: selectedOption ? C.n900 : C.n600,
+          boxSizing: 'border-box', transition: 'border-color 0.2s, border-radius 0.15s',
+          boxShadow: open ? `0 2px 12px ${C.primary}15` : 'none',
+        }}
       >
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+          {displayLabel}
+        </span>
+        <svg
+          width="16" height="16" viewBox="0 0 24 24"
+          fill="none" stroke={open ? C.primary : C.n500}
+          strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ flexShrink: 0, transition: 'transform 0.25s ease', transform: open ? 'rotate(180deg)' : 'rotate(0)', pointerEvents: 'none' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {/* Dropdown list */}
+      <div
+        style={{
+          position: 'absolute', top: '100%', left: 0, right: 0,
+          background: C.white,
+          border: open ? `1.5px solid ${C.primary}` : '1.5px solid transparent',
+          borderTop: open ? `1px solid ${C.n100}` : 'none',
+          borderRadius: '0 0 14px 14px',
+          maxHeight: open ? 220 : 0,
+          overflowY: 'auto', overflowX: 'hidden',
+          opacity: open ? 1 : 0,
+          transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease',
+          boxShadow: open ? '0 8px 24px rgba(15,23,42,0.12)' : 'none',
+          pointerEvents: open ? 'auto' : 'none',
+          scrollbarWidth: 'thin', scrollbarColor: `${C.n300} transparent`,
+        }}
+      >
+        {options.map((o, i) => {
+          const isActive = value === o.value;
+          const isLast = i === options.length - 1;
+          return (
+            <div
+              key={o.value}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              style={{
+                padding: '12px 14px',
+                fontFamily: 'Poppins', fontSize: 13, fontWeight: isActive ? 600 : 400,
+                color: isActive ? C.primary : C.n900,
+                background: isActive ? C.primaryLight : 'transparent',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                transition: 'background 0.15s',
+                borderRadius: isLast ? '0 0 13px 13px' : 0,
+              }}
+              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = C.n50; }}
+              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = isActive ? C.primaryLight : 'transparent'; }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.label}</span>
+              {isActive && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="3" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+          );
+        })}
+        <div style={{ height: 4 }} />
+      </div>
+
       {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
     </div>
   );
@@ -231,7 +321,7 @@ export const Avatar = ({ initials, size = 40, photo, onClick }) => (
 
 // ── Toast ─────────────────────────────────────────────────
 export const Toast = ({ message, type = 'success', visible }) => (
-  <div style={{ position: 'absolute', bottom: 90, left: 16, right: 16, zIndex: 9999, background: type === 'success' ? C.success : type === 'error' ? C.danger : C.n900, color: C.white, borderRadius: 12, padding: '12px 16px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', transform: visible ? 'translateY(0)' : 'translateY(80px)', opacity: visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', display: 'flex', alignItems: 'center', gap: 10 }}>
+  <div style={{ position: 'absolute', bottom: 90, left: 16, right: 16, zIndex: 9999, pointerEvents: visible ? 'auto' : 'none', background: type === 'success' ? C.success : type === 'error' ? C.danger : C.n900, color: C.white, borderRadius: 12, padding: '12px 16px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', transform: visible ? 'translateY(0)' : 'translateY(80px)', opacity: visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', display: 'flex', alignItems: 'center', gap: 10 }}>
     {type === 'success' && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>}
     {message}
   </div>
@@ -262,7 +352,7 @@ export const Modal = ({ visible, onClose, title, children }) => (
 
 // ── StatCard ──────────────────────────────────────────────
 export const StatCard = ({ label, value, sub, icon, color = C.primary, onClick }) => (
-  <div onClick={onClick} style={{ background: C.white, borderRadius: 16, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)', minWidth: 130, cursor: onClick ? 'pointer' : 'default', flexShrink: 0 }}>
+  <div onClick={onClick} style={{ background: C.white, borderRadius: 16, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)', cursor: onClick ? 'pointer' : 'default', width: '100%', boxSizing: 'border-box' }}>
     <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, color }}>{icon}</div>
     <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: C.n900 }}>{value}</div>
     <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{label}</div>

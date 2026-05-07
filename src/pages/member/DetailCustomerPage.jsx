@@ -8,6 +8,38 @@ export default function DetailCustomerPage({ navigate, screenParams }) {
   const customer = screenParams;
   const [customerTx, setCustomerTx] = useState([]);
   const [txLoading, setTxLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+
+  const handleUpgrade = async () => {
+    if (!window.confirm(`Upgrade ${customer.name} menjadi Member Premium? (Otomatis aktif 6 bulan)`)) return;
+    setUpgrading(true);
+    try {
+      await axios.post(`/api/customers/${customer.id}/upgrade`);
+      alert('Berhasil! Customer sekarang adalah Member Premium.');
+      // Update data di lokal sementara, atau arahkan kembali ke customer list
+      navigate('customer');
+    } catch (error) {
+      console.error('Failed to upgrade:', error);
+      alert('Gagal melakukan upgrade member.');
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('Yakin ingin menghapus customer ini?')) return;
+    setDeleting(true);
+    try {
+      await axios.delete(`/api/customers/${customer.id}`);
+      alert('Customer berhasil dihapus');
+      navigate('customer');
+    } catch (error) {
+      console.error('Failed to delete customer:', error);
+      alert('Gagal menghapus customer.');
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (!customer?.id) return;
@@ -63,9 +95,22 @@ export default function DetailCustomerPage({ navigate, screenParams }) {
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
           <Btn variant="primary" onClick={() => navigate('nota_step1', { preCustomer: customer })} style={{ flex: 1 }}>Buat Nota</Btn>
           <Btn variant="secondary" onClick={() => navigate('topup_deposit', customer)} style={{ flex: 1 }}>Top Up Deposit</Btn>
+        </div>
+        
+        {!customer.isPremium && (
+          <div style={{ marginBottom: 12 }}>
+            <Btn variant="secondary" onClick={handleUpgrade} loading={upgrading} fullWidth style={{ background: '#FEF3C7', color: '#B45309', border: 'none', fontWeight: 700 }}>
+              ⭐ Upgrade ke Member Premium
+            </Btn>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <Btn variant="secondary" onClick={() => navigate('tambah_customer', customer)} style={{ flex: 1, border: `1px solid ${C.primary}`, color: C.primary }}>✏️ Edit Customer</Btn>
+          <Btn variant="secondary" onClick={handleDelete} loading={deleting} style={{ flex: 1, border: `1px solid ${C.error}`, color: C.error }}>🗑️ Hapus</Btn>
         </div>
 
         {/* Transaction history */}

@@ -9,6 +9,9 @@ import {
   updateTransactionStatus,
   cancelTransaction,
   updateProductionStage,
+  saveItemCondition,
+  saveReview,
+  requestApproval,
 } from '../controllers/transactionController.js';
 
 const router = Router();
@@ -36,5 +39,14 @@ router.patch('/:id/cancel', authenticate, cancelTransaction);
 
 // PATCH /api/transactions/:id/production-stage — catat progress produksi
 router.patch('/:id/production-stage', authenticate, updateProductionStage);
+
+// POST /api/transactions/:id/condition — catat kondisi pakaian
+router.post('/:id/condition', authenticate, saveItemCondition);
+
+// POST /api/transactions/:id/review — submit review
+router.post('/:id/review', authenticate, saveReview);
+
+// POST /api/transactions/:id/request-approval — ajukan pembatalan/penghapusan via approval
+router.post('/:id/request-approval', authenticate, requestApproval);
 
 export default router;

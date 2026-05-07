@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 import { C } from '../../utils/theme';
 import { TopBar, Btn } from '../../components/ui';
 
@@ -6,10 +7,34 @@ export default function FotoKondisiPage({ navigate, screenParams }) {
   const tx = screenParams;
   const [photos, setPhotos] = useState([]);
   const [note, setNote] = useState('');
+  const [isDamage, setIsDamage] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const addPhoto = (type) => {
     const fakeUrl = `photo_${type}_${Date.now()}.jpg`;
     setPhotos((prev) => [...prev, { url: fakeUrl, type, label: type === 'before' ? 'Sebelum Cuci' : 'Sesudah Cuci' }]);
+  };
+
+  const handleSave = async () => {
+    if (photos.length === 0 && !note) {
+      alert('Tambahkan foto atau catatan terlebih dahulu.');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await axios.post(`/api/transactions/${tx.id}/condition`, {
+        photos: photos.map(p => p.url),
+        notes: note,
+        isDamage: isDamage
+      });
+      alert('Kondisi awal pakaian berhasil dicatat!');
+      navigate('detail_item_produksi', tx);
+    } catch (err) {
+      alert('Gagal menyimpan kondisi pakaian.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,20 +77,26 @@ export default function FotoKondisiPage({ navigate, screenParams }) {
         )}
 
         <div style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 8 }}>CATATAN KONDISI</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600 }}>CATATAN KONDISI</div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={isDamage} onChange={(e) => setIsDamage(e.target.checked)} />
+              <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.danger, fontWeight: 600 }}>Tandai Ada Kerusakan (Sobek/Luntur)</span>
+            </label>
+          </div>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Catatan kondisi pakaian, noda, kerusakan, dll..."
+            placeholder="Contoh: Ada noda tinta di lengan kanan baju putih, atau kancing kemeja hilang satu..."
             rows={4}
-            style={{ width: '100%', borderRadius: 10, padding: '10px 12px', border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, color: C.n900, background: C.white, outline: 'none', resize: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', borderRadius: 10, padding: '10px 12px', border: `1.5px solid ${isDamage ? C.danger : C.n300}`, fontFamily: 'Poppins', fontSize: 13, color: C.n900, background: isDamage ? '#FEF2F2' : C.white, outline: 'none', resize: 'none', boxSizing: 'border-box' }}
           />
         </div>
       </div>
 
       <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: 10 }}>
         <Btn variant="secondary" onClick={() => navigate('detail_item_produksi', tx)} style={{ flex: 1 }}>Batal</Btn>
-        <Btn variant="primary" onClick={() => navigate('detail_item_produksi', tx)} style={{ flex: 2 }}>Simpan Foto</Btn>
+        <Btn variant="primary" loading={loading} onClick={handleSave} style={{ flex: 2 }}>Simpan Catatan</Btn>
       </div>
     </div>
   );

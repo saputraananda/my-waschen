@@ -52,7 +52,7 @@ export default function AdminDashboardPage({ user, navigate }) {
       </div>
 
       <div style={{ padding: '0 16px', marginTop: -12, paddingBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4, marginBottom: 20, scrollbarWidth: 'none' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingBottom: 4, marginBottom: 20 }}>
           <StatCard label="Total Omset" value={rp(stats.total_omset).replace('Rp ', 'Rp')} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>} color={C.primary} />
           <StatCard label="Transaksi" value={stats.total_transaksi} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /></svg>} color="#0EA5E9" />
           <StatCard label="In Progress" value={stats.pending_transactions} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>} color={C.warning} />

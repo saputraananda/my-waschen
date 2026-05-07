@@ -13,7 +13,10 @@ import transactionRoutes from './api/routes/transactions.routes.js'
 import approvalRoutes from './api/routes/approvals.routes.js'
 import dashboardRoutes from './api/routes/dashboard.routes.js'
 import financeRoutes from './api/routes/finance.routes.js'
+import logisticsRoutes from './api/routes/logistics.routes.js'
 import notificationRoutes from './api/routes/notifications.routes.js'
+import shiftRoutes from './api/routes/shift.routes.js'
+import masterRoutes from './api/routes/master.routes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -52,7 +55,10 @@ app.use('/api/transactions', transactionRoutes)
 app.use('/api/approvals', approvalRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/finance', financeRoutes)
+app.use('/api/logistics', logisticsRoutes)
 app.use('/api/notifications', notificationRoutes)
+app.use('/api/shifts', shiftRoutes)
+app.use('/api/master', masterRoutes)
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

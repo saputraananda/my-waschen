@@ -64,7 +64,9 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
         style={{
           position: 'absolute', top: '100%', left: 0, right: 0,
           background: C.white,
-          border: open ? `1.5px solid ${C.primary}` : `1.5px solid transparent`,
+          borderRight: open ? `1.5px solid ${C.primary}` : `1.5px solid transparent`,
+          borderBottom: open ? `1.5px solid ${C.primary}` : `1.5px solid transparent`,
+          borderLeft: open ? `1.5px solid ${C.primary}` : `1.5px solid transparent`,
           borderTop: 'none',
           borderRadius: '0 0 14px 14px',
           maxHeight: open ? 220 : 0,
