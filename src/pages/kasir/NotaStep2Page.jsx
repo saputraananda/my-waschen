@@ -1,13 +1,48 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Chip, Avatar } from '../../components/ui';
+import { TopBar, Btn, Chip, Avatar, SearchBar, EmptyState, Select } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+
+/** Filter genre — pakai `categoryCode` (API) + fallback nama kategori & nama layanan. */
+const genreMatcher = {
+  Cuci: (s) => {
+    const c = (s.categoryCode || '').toLowerCase();
+    const n = (s.category || '').toLowerCase();
+    const t = (s.name || '').toLowerCase();
+    return c === 'laundry' || /laundry|cuci|kilo|wash/.test(n) || /cuci|kiloan|laundry|wash/.test(t);
+  },
+  Sepatu: (s) => {
+    const c = (s.categoryCode || '').toLowerCase();
+    const n = (s.category || '').toLowerCase();
+    const t = (s.name || '').toLowerCase();
+    return ['shoes', 'sepatu', 'footwear'].includes(c) || /sepatu|shoe|sneaker|footwear/.test(n) || /sepatu|shoe|sneaker|boots/.test(t);
+  },
+  'Dry Clean': (s) => {
+    const c = (s.categoryCode || '').toLowerCase();
+    const n = (s.category || '').toLowerCase();
+    const t = (s.name || '').toLowerCase();
+    return c === 'dry_clean' || /dry\s*clean|dryclean|suit|jas/.test(n) || /dry\s*clean|jas|gown/.test(t);
+  },
+  Setrika: (s) => {
+    const c = (s.categoryCode || '').toLowerCase();
+    const n = (s.category || '').toLowerCase();
+    return c === 'ironing' || /setrika|iron|pressing|lips|lipat/.test(n);
+  },
+  Premium: (s) => {
+    const c = (s.categoryCode || '').toLowerCase();
+    const n = (s.category || '').toLowerCase();
+    return c === 'premium' || /premium|silk|wool\s*care/.test(n);
+  },
+};
+
+const GENRE_ORDER = ['Cuci', 'Sepatu', 'Dry Clean', 'Setrika', 'Premium'];
 
 export default function NotaStep2Page() {
   const { navigate, notaCustomer, notaCart, setNotaCart } = useApp();
   const [activeCategory, setActiveCategory] = useState('Semua');
+  const [searchQuery, setSearchQuery] = useState('');
   const [services, setServices] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -31,17 +66,37 @@ export default function NotaStep2Page() {
     fetchServices();
   }, [notaCustomer?.id]);
 
-  const dynamicCategories = [...new Set(services.map((s) => s.category))];
-  const categories = ['Sering Dipakai', 'Pinned / Event', 'Semua', ...dynamicCategories];
+  const categoryChips = useMemo(() => {
+    const uniqNames = [...new Set(services.map((s) => s.category).filter(Boolean))];
+    const extra = uniqNames.filter((cName) => {
+      const probe = { category: cName, categoryCode: '', name: '' };
+      return !GENRE_ORDER.some((label) => {
+        const fn = genreMatcher[label];
+        return fn ? fn(probe) : false;
+      });
+    });
+    return ['Semua', 'Sering Dipakai', 'Pinned / Event', ...GENRE_ORDER, ...extra.sort((a, b) => a.localeCompare(b, 'id'))];
+  }, [services]);
 
-  const filtered =
-    activeCategory === 'Sering Dipakai'
-      ? services.filter((s) => s.usage_count > 0).sort((a, b) => b.usage_count - a.usage_count)
-      : activeCategory === 'Pinned / Event'
-      ? services.filter((s) => s.pin_context)
-      : activeCategory === 'Semua'
-      ? services
-      : services.filter((s) => s.category === activeCategory);
+  const categoryFiltered = useMemo(() => {
+    if (activeCategory === 'Semua') return services;
+    if (activeCategory === 'Sering Dipakai') {
+      return services.filter((s) => s.usage_count > 0).sort((a, b) => b.usage_count - a.usage_count);
+    }
+    if (activeCategory === 'Pinned / Event') return services.filter((s) => s.pin_context);
+    const genreFn = genreMatcher[activeCategory];
+    if (genreFn) return services.filter((s) => genreFn(s));
+    return services.filter((s) => s.category === activeCategory);
+  }, [services, activeCategory]);
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return categoryFiltered;
+    return categoryFiltered.filter((s) => {
+      const blob = `${s.name || ''} ${s.unit || ''} ${s.category || ''} ${s.categoryCode || ''}`.toLowerCase();
+      return blob.includes(q);
+    });
+  }, [categoryFiltered, searchQuery]);
 
   const getQty = (id) => notaCart.find((c) => c.id === id)?.qty || 0;
 
@@ -94,8 +149,17 @@ export default function NotaStep2Page() {
       )}
 
       <div style={{ padding: '8px 16px 0' }}>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
-          {categories.map((cat) => (
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Cari nama layanan, satuan, atau kategori..."
+        />
+      </div>
+
+      <div style={{ padding: '8px 16px 0' }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, marginBottom: 6 }}>Genre / kategori</div>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+          {categoryChips.map((cat) => (
             <Chip key={cat} label={cat} active={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
           ))}
         </div>
@@ -107,6 +171,11 @@ export default function NotaStep2Page() {
             <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
             <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat layanan...</span>
           </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title="Tidak ada layanan"
+            subtitle="Ubah pencarian atau pilih genre lain. Jika kategori masih kosong, tambah master layanan & kategori di admin."
+          />
         ) : filtered.map((s) => {
           const qty = getQty(s.id);
           const inCart = notaCart.find((c) => c.id === s.id);
@@ -115,7 +184,10 @@ export default function NotaStep2Page() {
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{s.name}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{s.unit}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
+                    {s.unit}
+                    {s.category ? <span> · {s.category}</span> : null}
+                  </div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary, marginTop: 4 }}>{rp(s.price)}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -128,7 +200,7 @@ export default function NotaStep2Page() {
               </div>
               {qty > 0 && (
                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {s.expressExtra > 0 && (
+                  {Number(s.expressExtra) > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                       <button
                         onClick={() => toggleExpress(s.id)}
@@ -140,7 +212,7 @@ export default function NotaStep2Page() {
                     </div>
                   )}
 
-                  {(s.category.toLowerCase().includes('satuan')) && (
+                  {((s.category || '').toLowerCase().includes('satuan')) && (
                     <div>
                       <Select 
                         value={inCart?.materialId || ''} 

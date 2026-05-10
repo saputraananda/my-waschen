@@ -4,17 +4,22 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Input, Select, Divider, Modal } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 export default function NotaStep3Page() {
   const { navigate, user, notaCustomer, notaCart, setNotaCart, setNotaCustomer } = useApp();
   const [pickupType, setPickupType] = useState('self'); // 'self' | 'pickup' | 'delivery'
-  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleDate, setScheduleDate] = useState(null);
   const [scheduleTime, setScheduleTime] = useState('');
   const [areaZoneId, setAreaZoneId] = useState('');
   const [areaZones, setAreaZones] = useState([]);
   const [payMethod, setPayMethod] = useState('cash');
+  const [payTiming, setPayTiming] = useState('now');
+  const [payPlan, setPayPlan] = useState('full');
+  const [dpAmountStr, setDpAmountStr] = useState('');
   const [notes, setNotes] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState(null);
   const [loading, setLoading] = useState(false);
   const [qrisModal, setQrisModal] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
@@ -43,6 +48,34 @@ export default function NotaStep3Page() {
   const doCheckout = async () => {
     setLoading(true);
     try {
+      const formatDate = (d) => {
+        if (!d) return null;
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      const dpNum = Math.max(0, Number(String(dpAmountStr).replace(/\D/g, '')) || 0);
+      let paidAmount = total;
+      let changeAmount = 0;
+      if (payTiming === 'later' && payPlan === 'full') {
+        paidAmount = 0;
+      } else if (payPlan === 'dp') {
+        paidAmount = Math.min(dpNum, total);
+        changeAmount = Math.max(0, paidAmount - total);
+      }
+
+      const paymentPayload = {
+        amount: total,
+        paidAmount,
+        changeAmount,
+      };
+      const needMethod = paidAmount > 0;
+      if (needMethod) {
+        paymentPayload.method = payMethod;
+      }
+
       const payload = {
         customerId: notaCustomer.id,
         items: notaCart.map((c) => ({
@@ -55,11 +88,11 @@ export default function NotaStep3Page() {
           isExpress:   c.express || false,
           notes:       c.notes  || null,
         })),
-        payment: {
-          method:      payMethod,
-          amount:      total,
-          paidAmount:  total,
-          changeAmount: 0,
+        payment: paymentPayload,
+        paymentIntent: {
+          payTiming: payTiming === 'later' ? 'later' : 'now',
+          payPlan: payPlan === 'dp' ? 'dp' : 'full',
+          dpAmount: payPlan === 'dp' ? dpNum : 0,
         },
         subtotal,
         discount: 0,
@@ -68,9 +101,9 @@ export default function NotaStep3Page() {
         delivery: pickupType === 'delivery',
         pickupType,
         areaZoneId: areaZoneId || null,
-        scheduleAt: (scheduleDate && scheduleTime) ? `${scheduleDate}T${scheduleTime}:00` : null,
+        scheduleAt: (scheduleDate && scheduleTime) ? `${formatDate(scheduleDate)}T${scheduleTime}:00` : null,
         notes,
-        dueDate: dueDate || null,
+        dueDate: dueDate ? formatDate(dueDate) : null,
       };
 
       const res = await axios.post('/api/transactions/checkout', payload);
@@ -108,21 +141,139 @@ export default function NotaStep3Page() {
     }
   };
 
+  const dpNumPreview = Math.max(0, Number(String(dpAmountStr).replace(/\D/g, '')) || 0);
+  const effectivePaid =
+    payTiming === 'later' && payPlan === 'full'
+      ? 0
+      : payPlan === 'dp'
+        ? Math.min(dpNumPreview, total)
+        : total;
+
   const handleConfirm = () => {
-    // QRIS EDC Simulation
-    if (payMethod === 'qris') {
+    if (payPlan === 'dp' && (!dpAmountStr || dpNumPreview <= 0)) {
+      showToast('Isi nominal DP', 'error');
+      return;
+    }
+    const runCheckout = () => doCheckout();
+    if (payMethod === 'qris' && effectivePaid > 0) {
       setQrisModal(true);
       setTimeout(() => {
         setQrisModal(false);
-        doCheckout();
+        runCheckout();
       }, 3000);
     } else {
-      doCheckout();
+      runCheckout();
     }
   };
 
+  const dateInputStyle = {
+    width: '100%',
+    height: 48,
+    borderRadius: 10,
+    padding: '0 14px',
+    border: `1.5px solid ${C.n300}`,
+    fontFamily: 'Poppins',
+    fontSize: 14,
+    color: C.n900,
+    background: C.white,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+
+  const renderCalendarHeader = ({ date, decreaseMonth, increaseMonth }) => (
+    <div className="nota-datepicker-header">
+      <button type="button" className="nota-datepicker-nav-btn" onClick={decreaseMonth} aria-label="Bulan sebelumnya">
+        ‹
+      </button>
+      <div className="nota-datepicker-month-label">
+        {date.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}
+      </div>
+      <button type="button" className="nota-datepicker-nav-btn" onClick={increaseMonth} aria-label="Bulan berikutnya">
+        ›
+      </button>
+    </div>
+  );
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+      <style>{`
+        .nota-datepicker {
+          border: 1px solid #E2E8F0;
+          border-radius: 14px;
+          font-family: Poppins, sans-serif;
+          box-shadow: 0 12px 28px rgba(15,23,42,0.14);
+          overflow: hidden;
+        }
+        .nota-datepicker .react-datepicker__triangle {
+          display: none;
+        }
+        .nota-datepicker .react-datepicker__month-container {
+          background: #F8FAFC;
+        }
+        .nota-datepicker-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          background: linear-gradient(135deg, ${C.primary}, ${C.primaryDark || C.primary});
+          color: #fff;
+          padding: 12px 10px;
+        }
+        .nota-datepicker-month-label {
+          font-size: 13px;
+          font-weight: 700;
+          text-transform: capitalize;
+        }
+        .nota-datepicker-nav-btn {
+          width: 28px;
+          height: 28px;
+          border: none;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.2);
+          color: #fff;
+          font-size: 20px;
+          line-height: 20px;
+          cursor: pointer;
+        }
+        .nota-datepicker-nav-btn:hover {
+          background: rgba(255,255,255,0.3);
+        }
+        .nota-datepicker .react-datepicker__day-names {
+          margin-top: 6px;
+          margin-bottom: 2px;
+        }
+        .nota-datepicker .react-datepicker__day-name {
+          color: #64748B;
+          font-size: 11px;
+          font-weight: 600;
+          width: 2rem;
+          line-height: 2rem;
+        }
+        .nota-datepicker .react-datepicker__day {
+          color: #0F172A;
+          border-radius: 9px;
+          width: 2rem;
+          line-height: 2rem;
+          margin: 0.16rem;
+          font-size: 12px;
+          transition: all 0.15s ease;
+        }
+        .nota-datepicker .react-datepicker__day:hover {
+          background: #DBEAFE;
+          color: #1D4ED8;
+        }
+        .nota-datepicker .react-datepicker__day--today {
+          background: #E2E8F0;
+          color: #334155;
+          font-weight: 700;
+        }
+        .nota-datepicker .react-datepicker__day--selected,
+        .nota-datepicker .react-datepicker__day--keyboard-selected {
+          background: ${C.primary};
+          color: #fff;
+          font-weight: 700;
+        }
+      `}</style>
       <TopBar title="Buat Nota" subtitle="Langkah 3 dari 3 — Konfirmasi" onBack={() => navigate('nota_step2')} />
 
       <div style={{ padding: '8px 16px' }}>
@@ -206,8 +357,19 @@ export default function NotaStep3Page() {
           {pickupType !== 'self' && (
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <Input label="Tanggal Jadwal" value={scheduleDate} onChange={setScheduleDate} type="date" />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>Tanggal Jadwal</div>
+                  <DatePicker
+                    selected={scheduleDate}
+                    onChange={(date) => setScheduleDate(date)}
+                    dateFormat="dd/MM/yyyy"
+                    placeholderText="Pilih tanggal"
+                    calendarClassName="nota-datepicker"
+                    renderCustomHeader={renderCalendarHeader}
+                    customInput={
+                      <input style={dateInputStyle} />
+                    }
+                  />
                 </div>
                 <div style={{ flex: 1 }}>
                   <Input label="Jam" value={scheduleTime} onChange={setScheduleTime} type="time" />
@@ -228,23 +390,104 @@ export default function NotaStep3Page() {
 
         {/* Payment */}
         <div style={{ background: C.white, borderRadius: 14, padding: '12px 14px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
-          <Select
-            label="Metode Pembayaran"
-            value={payMethod}
-            onChange={setPayMethod}
-            options={[
-              { value: 'cash', label: 'Tunai' },
-              { value: 'transfer', label: 'Transfer Bank' },
-              { value: 'deposit', label: `Deposit (${rp(notaCustomer?.deposit || 0)})` },
-              { value: 'qris', label: 'QRIS (EDC)' },
-            ]}
-          />
-          {payMethod === 'qris' && (
-            <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '8px 12px', marginTop: 6, fontFamily: 'Poppins', fontSize: 11, color: '#1D4ED8' }}>
-              Saat klik "Buat Nota", sistem akan menunggu konfirmasi dari EDC QRIS.
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 8 }}>WAKTU PEMBAYARAN</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {[
+              { key: 'now', label: 'Di kasir sekarang', sub: 'Bayar saat nota dibuat' },
+              { key: 'later', label: 'Nanti', sub: 'Saat selesai / pengambilan' },
+            ].map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => { setPayTiming(opt.key); if (opt.key === 'later') setPayMethod('cash'); }}
+                style={{
+                  flex: 1, padding: '10px 8px', borderRadius: 10, textAlign: 'left',
+                  border: `1.5px solid ${payTiming === opt.key ? C.primary : C.n300}`,
+                  background: payTiming === opt.key ? C.primaryLight : C.white,
+                  cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: payTiming === opt.key ? C.primary : C.n900 }}>{opt.label}</div>
+                <div style={{ fontSize: 10, color: C.n600, marginTop: 2 }}>{opt.sub}</div>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 8 }}>SKEMA</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            {[
+              { key: 'full', label: 'Lunas' },
+              { key: 'dp', label: 'DP / cicil' },
+            ].map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setPayPlan(opt.key)}
+                style={{
+                  flex: 1, padding: '10px 8px', borderRadius: 10, textAlign: 'center',
+                  border: `1.5px solid ${payPlan === opt.key ? C.primary : C.n300}`,
+                  background: payPlan === opt.key ? C.primaryLight : C.white,
+                  cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12,
+                  fontWeight: payPlan === opt.key ? 700 : 500,
+                  color: payPlan === opt.key ? C.primary : C.n600,
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {payPlan === 'dp' && (
+            <div style={{ marginBottom: 12 }}>
+              <Input
+                label="Nominal DP (Rp)"
+                value={dpAmountStr}
+                onChange={setDpAmountStr}
+                placeholder="Contoh: 50000"
+                type="number"
+              />
             </div>
           )}
-          <Input label="Estimasi Selesai" value={dueDate} onChange={setDueDate} type="date" />
+
+          {!(payTiming === 'later' && payPlan === 'full') && (
+            <>
+              <Select
+                label={payTiming === 'later' ? 'Metode untuk DP / pembayaran yang dicatat sekarang' : 'Metode pembayaran'}
+                value={payMethod}
+                onChange={setPayMethod}
+                options={[
+                  { value: 'cash', label: 'Tunai' },
+                  { value: 'transfer', label: 'Transfer Bank' },
+                  { value: 'deposit', label: `Deposit (${rp(notaCustomer?.deposit || 0)})` },
+                  { value: 'qris', label: 'QRIS (EDC)' },
+                ]}
+              />
+              {payMethod === 'qris' && effectivePaid > 0 && (
+                <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '8px 12px', marginTop: 6, marginBottom: 16, fontFamily: 'Poppins', fontSize: 11, color: '#1D4ED8' }}>
+                  Saat klik "Buat Nota", sistem akan menunggu konfirmasi dari EDC QRIS.
+                </div>
+              )}
+            </>
+          )}
+          {payTiming === 'later' && payPlan === 'full' && (
+            <div style={{ background: '#FEF9C3', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontFamily: 'Poppins', fontSize: 11, color: '#854D0E' }}>
+              Pelunasan dilakukan di kasir saat pengambilan atau saat laundry selesai — metode pembayaran bisa dipilih saat itu.
+            </div>
+          )}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>Estimasi Selesai</div>
+            <DatePicker
+              selected={dueDate}
+              onChange={(date) => setDueDate(date)}
+              dateFormat="dd/MM/yyyy"
+              placeholderText="Pilih estimasi selesai"
+              calendarClassName="nota-datepicker"
+              renderCustomHeader={renderCalendarHeader}
+              customInput={
+                <input style={dateInputStyle} />
+              }
+            />
+          </div>
           <Input label="Catatan (opsional)" value={notes} onChange={setNotes} placeholder="Catatan khusus..." />
         </div>
       </div>
@@ -268,14 +511,16 @@ export default function NotaStep3Page() {
             <div style={{ width: 56, height: 56, border: `4px solid ${C.n200}`, borderTop: `4px solid ${C.primary}`, borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 1s linear infinite' }} />
             <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900, marginBottom: 8 }}>Menunggu Pembayaran</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Menunggu konfirmasi dari EDC QRIS...</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.primary, marginTop: 12 }}>{rp(total)}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.primary, marginTop: 12 }}>{rp(effectivePaid)}</div>
           </div>
         </div>
       )}
 
       <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: 10 }}>
         <Btn variant="secondary" onClick={() => navigate('nota_step2')} style={{ flex: 1 }}>Kembali</Btn>
-        <Btn variant="primary" onClick={handleConfirm} loading={loading} style={{ flex: 2 }}>Buat Nota {rp(total)}</Btn>
+        <Btn variant="primary" onClick={handleConfirm} loading={loading} style={{ flex: 2 }}>
+          Buat Nota {payTiming === 'later' && payPlan === 'full' ? `(belum bayar ${rp(total)})` : payPlan === 'dp' ? `(DP ${rp(Math.min(dpNumPreview, total))})` : rp(total)}
+        </Btn>
       </div>
     </div>
   );

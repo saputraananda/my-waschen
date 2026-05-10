@@ -2,7 +2,27 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input } from '../../components/ui';
+import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select } from '../../components/ui';
+
+const PAY_METHOD_LABEL = {
+  cash: 'Tunai',
+  transfer: 'Transfer',
+  deposit: 'Deposit',
+  qris: 'QRIS',
+  ovo: 'OVO',
+  gopay: 'GoPay',
+  dana: 'DANA',
+  shopeepay: 'ShopeePay',
+  mixed: 'Campuran',
+};
+
+const PAY_STATUS_LABEL = {
+  unpaid: 'Belum lunas',
+  partial: 'Sebagian',
+  paid: 'Lunas',
+  refunded: 'Refund',
+  void: 'Void',
+};
 
 export default function DetailTransaksiPage({ navigate, screenParams }) {
   const [tx, setTx] = useState(screenParams);
@@ -20,6 +40,12 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
   const [actionLoading, setActionLoading] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'error' });
+
+  const [pelunasanModal, setPelunasanModal] = useState(false);
+  const [pelMethod, setPelMethod] = useState('cash');
+  const [pelAmountStr, setPelAmountStr] = useState('');
+  const [pelCashStr, setPelCashStr] = useState('');
+  const [pelLoading, setPelLoading] = useState(false);
 
   const showToast = (message, type = 'error') => {
     setToast({ visible: true, message, type });
@@ -42,6 +68,17 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
     };
     fetchDetail();
   }, [screenParams?.id, screenParams?.transactionNo]);
+
+  const refreshDetail = async () => {
+    const raw = screenParams?.id || screenParams?.transactionNo;
+    if (!raw) return;
+    try {
+      const res = await axios.get(`/api/transactions/${raw}`);
+      if (res?.data?.data) setTx(res.data.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Fetch logistic orders for this transaction
   useEffect(() => {
@@ -115,8 +152,8 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
   const handlePickedUp = async () => {
     setActionLoading('pickup');
     try {
-      await axios.put(`/api/transactions/${tx.id}/status`, { status: 'completed' });
-      setTx((prev) => ({ ...prev, status: 'completed' }));
+      await axios.put(`/api/transactions/${tx.id}/status`, { status: 'diambil' });
+      setTx((prev) => ({ ...prev, status: 'diambil' }));
       setTimeout(() => setReviewModal(true), 500);
     } catch (err) {
       showToast(err?.response?.data?.message || 'Gagal update status.');
@@ -143,6 +180,46 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
 
   const hasLogistics = logisticOrders.length > 0;
   const activeLogistic = logisticOrders.find((lo) => !['done', 'cancelled', 'failed'].includes(lo.status));
+
+  const balanceDue = tx.balanceDue != null
+    ? Number(tx.balanceDue)
+    : Math.max(0, Number(tx.total || 0) - Number(tx.paidAmount || 0));
+  const paymentStatus = tx.paymentStatus || 'paid';
+  const needsSettlement = balanceDue > 0.009 && tx.status !== 'dibatalkan';
+
+  const openPelunasan = () => {
+    setPelAmountStr(String(Math.round(balanceDue)));
+    setPelCashStr('');
+    setPelMethod('cash');
+    setPelunasanModal(true);
+  };
+
+  const submitPelunasan = async () => {
+    const payAmt = Number(pelAmountStr);
+    if (!Number.isFinite(payAmt) || payAmt <= 0) {
+      showToast('Nominal tidak valid.');
+      return;
+    }
+    const tid = tx.transactionUuid || tx.id;
+    setPelLoading(true);
+    try {
+      const body = {
+        method: pelMethod,
+        payAmount: payAmt,
+      };
+      if (pelMethod === 'cash' && pelCashStr && Number(pelCashStr) > 0) {
+        body.cashReceived = Number(pelCashStr);
+      }
+      await axios.post(`/api/transactions/${tid}/payments`, body);
+      showToast('Pembayaran berhasil dicatat.', 'success');
+      setPelunasanModal(false);
+      await refreshDetail();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Gagal mencatat pembayaran.');
+    } finally {
+      setPelLoading(false);
+    }
+  };
   
   // PERBAIKAN: Safely format avatar initials agar tidak crash
   const customerInitials = (tx?.customerName || 'Unknown')
@@ -196,13 +273,66 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
           </div>
         </div>
 
+        {/* Pembayaran & pelunasan */}
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600 }}>PEMBAYARAN</div>
+            <span style={{
+              fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
+              padding: '3px 8px', borderRadius: 999,
+              background: paymentStatus === 'paid' ? '#DCFCE7' : paymentStatus === 'partial' ? '#FEF3C7' : '#FEE2E2',
+              color: paymentStatus === 'paid' ? '#166534' : paymentStatus === 'partial' ? '#92400E' : '#991B1B',
+            }}>
+              {PAY_STATUS_LABEL[paymentStatus] || paymentStatus}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Terbayar</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(tx.paidAmount || 0)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Sisa tagihan</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: needsSettlement ? C.danger : C.success }}>{rp(balanceDue)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Metode utama</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>
+              {PAY_METHOD_LABEL[tx.payMethod] || tx.payMethod || '-'}
+            </span>
+          </div>
+          {tx.payments?.length > 0 && (
+            <>
+              <Divider my={8} />
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 6 }}>Riwayat pembayaran</div>
+              {tx.payments.map((p) => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n900 }}>{PAY_METHOD_LABEL[p.method] || p.method}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+                      {p.recordedAt ? new Date(p.recordedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : ''}
+                    </div>
+                  </div>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600 }}>{rp(p.amount)}</span>
+                </div>
+              ))}
+            </>
+          )}
+          {needsSettlement && (
+            <>
+              <Divider my={8} />
+              <Btn variant="primary" onClick={openPelunasan} style={{ width: '100%' }}>Catat pelunasan</Btn>
+            </>
+          )}
+        </div>
+
         {/* Info */}
         <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>INFO TRANSAKSI</div>
           {[
             ['Tanggal Masuk', tx.date || tx.createdAt],
             ['Estimasi Selesai', tx.dueDate || '-'],
-            ['Pembayaran', tx.payMethod || '-'],
+            ['Status bayar', PAY_STATUS_LABEL[paymentStatus] || paymentStatus],
+            ['Pembayaran (metode utama)', PAY_METHOD_LABEL[tx.payMethod] || tx.payMethod || '-'],
             ['Dibuat oleh', tx.createdBy || tx.kasirName || '-'],
             tx.pickup && ['Layanan Jemput', '✅ Ya'],
             tx.delivery && ['Layanan Antar', '✅ Ya'],
@@ -297,6 +427,42 @@ export default function DetailTransaksiPage({ navigate, screenParams }) {
         <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
           <Btn variant="secondary" onClick={() => setRescheduleModal(false)} style={{ flex: 1 }}>Batal</Btn>
           <Btn variant="primary" onClick={handleReschedule} loading={loading} style={{ flex: 1 }}>Simpan Jadwal</Btn>
+        </div>
+      </Modal>
+
+      {/* Pelunasan */}
+      <Modal visible={pelunasanModal} onClose={() => setPelunasanModal(false)} title="Catat pelunasan">
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 12 }}>
+          Sisa tagihan: <strong>{rp(balanceDue)}</strong>. Nominal di bawah tidak boleh melebihi sisa (kelebihan tunai dihitung kembalian).
+        </div>
+        <Select
+          label="Metode"
+          value={pelMethod}
+          onChange={setPelMethod}
+          options={[
+            { value: 'cash', label: 'Tunai' },
+            { value: 'transfer', label: 'Transfer Bank' },
+            { value: 'qris', label: 'QRIS' },
+            { value: 'deposit', label: 'Deposit member' },
+            { value: 'ovo', label: 'OVO' },
+            { value: 'gopay', label: 'GoPay' },
+            { value: 'dana', label: 'DANA' },
+            { value: 'shopeepay', label: 'ShopeePay' },
+          ]}
+        />
+        <Input label="Nominal ke tagihan (Rp)" value={pelAmountStr} onChange={setPelAmountStr} type="number" placeholder={String(Math.round(balanceDue))} />
+        {pelMethod === 'cash' && (
+          <Input
+            label="Uang diterima (opsional, untuk kembalian)"
+            value={pelCashStr}
+            onChange={setPelCashStr}
+            type="number"
+            placeholder="Jika lebih besar dari nominal, sisanya kembalian"
+          />
+        )}
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <Btn variant="secondary" onClick={() => setPelunasanModal(false)} style={{ flex: 1 }}>Batal</Btn>
+          <Btn variant="primary" onClick={submitPelunasan} loading={pelLoading} style={{ flex: 1 }}>Simpan</Btn>
         </div>
       </Modal>
 

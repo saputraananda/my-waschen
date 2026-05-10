@@ -35,3 +35,15 @@ export const getMaterials = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Gagal mengambil material layanan.' });
   }
 };
+
+export const getOutlets = async (req, res) => {
+  try {
+    const [rows] = await poolWaschenPos.execute(
+      'SELECT id, outlet_code AS code, name FROM mst_outlet WHERE is_active = TRUE ORDER BY name'
+    );
+    return res.status(200).json({ success: true, data: rows });
+  } catch (error) {
+    console.error('[getOutlets] Error:', error);
+    return res.status(500).json({ success: false, message: 'Gagal mengambil data outlet.' });
+  }
+};

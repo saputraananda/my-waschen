@@ -4,15 +4,44 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { Avatar, Badge, SectionHeader, StatCard, Modal, Input, Btn } from '../../components/ui';
 
+const WIB_FORMATTER = new Intl.DateTimeFormat('id-ID', {
+  timeZone: 'Asia/Jakarta',
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+const WIB_TIME_FORMATTER = new Intl.DateTimeFormat('id-ID', {
+  timeZone: 'Asia/Jakarta',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+
 export default function KasirDashboardPage({ user, navigate }) {
   const [stats, setStats] = useState({ total: 0, express: 0, pending: 0, completed: 0 });
   const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(false);
-  
+  const [wibLabel, setWibLabel] = useState(() => {
+    const now = new Date();
+    return `${WIB_FORMATTER.format(now)} · ${WIB_TIME_FORMATTER.format(now)} WIB`;
+  });
+
   const [shift, setShift] = useState(null);
   const [shiftModal, setShiftModal] = useState(false);
   const [openingCash, setOpeningCash] = useState('');
   const [shiftLoading, setShiftLoading] = useState(false);
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setWibLabel(`${WIB_FORMATTER.format(now)} · ${WIB_TIME_FORMATTER.format(now)} WIB`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const fetchStatsAndShift = async () => {
@@ -67,7 +96,8 @@ export default function KasirDashboardPage({ user, navigate }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>Hai,</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: 'white' }}>{user.name.split(' ')[0]} 👋</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>{user.outlet?.name || 'Waschen Kemang'}</div>
-            
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 6, lineHeight: 1.35 }}>{wibLabel}</div>
+
             {/* Shift Status Indicator */}
             {shift && (
               <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: shift.isOpen ? '#059669' : '#DC2626', padding: '4px 10px', borderRadius: 999 }}>

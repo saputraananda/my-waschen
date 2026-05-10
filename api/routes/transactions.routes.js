@@ -4,6 +4,7 @@ import {
   checkoutTransaction,
   getTransactions,
   getTransactionById,
+  recordTransactionPayment,
   getDashboardStats,
   getProductionQueue,
   updateTransactionStatus,
@@ -33,6 +34,9 @@ router.put('/:id/status', authenticate, updateTransactionStatus);
 
 // POST /api/transactions/checkout — buat nota baru dengan DB transaction
 router.post('/checkout', authenticate, checkoutTransaction);
+
+// POST /api/transactions/:id/payments — pelunasan / pembayaran lanjutan (kasir & admin)
+router.post('/:id/payments', authenticate, recordTransactionPayment);
 
 // PATCH /api/transactions/:id/cancel — batalkan transaksi
 router.patch('/:id/cancel', authenticate, cancelTransaction);

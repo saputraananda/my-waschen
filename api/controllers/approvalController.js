@@ -1,8 +1,27 @@
 import { poolWaschenPos } from '../db/connection.js';
 
+const schemaColumnCache = new Map();
+const hasColumn = async (tableName, columnName) => {
+  const key = `${tableName}.${columnName}`;
+  if (schemaColumnCache.has(key)) return schemaColumnCache.get(key);
+  const [rows] = await poolWaschenPos.execute(
+    `SELECT 1
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = ?
+       AND COLUMN_NAME = ?
+     LIMIT 1`,
+    [tableName, columnName]
+  );
+  const exists = rows.length > 0;
+  schemaColumnCache.set(key, exists);
+  return exists;
+};
+
 // ─── GET /api/approvals ────────────────────────────────────────────────────────
 export const getApprovals = async (req, res) => {
   try {
+    const hasApprovalActiveFlag = await hasColumn('tr_transaction_approval', 'is_active');
     const [rows] = await poolWaschenPos.execute(
       `SELECT
         a.id,
@@ -19,6 +38,7 @@ export const getApprovals = async (req, res) => {
       JOIN mst_user u ON u.id = a.requested_by
       LEFT JOIN mst_user r ON r.id = a.approved_by
       LEFT JOIN tr_transaction t ON t.id = a.transaction_id
+      ${hasApprovalActiveFlag ? 'WHERE a.is_active = 1' : ''}
       ORDER BY
         FIELD(a.status, 'pending', 'approved', 'rejected'),
         a.requested_at DESC`
@@ -42,7 +62,7 @@ export const resolveApproval = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const resolvedBy = req.user?.id;
+    const resolvedBy = req.user?.userId;
 
     if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({
@@ -51,8 +71,13 @@ export const resolveApproval = async (req, res) => {
       });
     }
 
+    const hasApprovalActiveFlag = await hasColumn('tr_transaction_approval', 'is_active');
     const [check] = await poolWaschenPos.execute(
-      'SELECT id, status, type, transaction_id FROM tr_transaction_approval WHERE id = ? LIMIT 1',
+      `SELECT id, status, type, transaction_id
+       FROM tr_transaction_approval
+       WHERE id = ?
+       ${hasApprovalActiveFlag ? 'AND is_active = 1' : ''}
+       LIMIT 1`,
       [id]
     );
 
@@ -80,20 +105,25 @@ export const resolveApproval = async (req, res) => {
         await poolWaschenPos.execute(
           `UPDATE tr_transaction 
            SET status = 'cancelled', 
+               cancelled_at = NOW(),
+               cancelled_by = ?,
+               cancel_reason = COALESCE(cancel_reason, 'Batal Disetujui Admin'),
                notes = CONCAT(COALESCE(notes, ''), ' | [Batal Disetujui Admin]'), 
                updated_at = NOW() 
            WHERE id = ?`,
-          [txId]
+          [resolvedBy, txId]
         );
       } else if (approvalType === 'delete_transaction' && txId) {
         // SOFT DELETE — data tetap ada di DB untuk audit/finance, tapi tidak tampil di UI
         await poolWaschenPos.execute(
           `UPDATE tr_transaction 
            SET deleted_at = NOW(),
+               deleted_by = ?,
+               delete_reason = COALESCE(delete_reason, 'Dihapus via Approval Admin'),
                notes = CONCAT(COALESCE(notes, ''), ' | [Dihapus via Approval Admin]'),
                updated_at = NOW() 
            WHERE id = ?`,
-          [txId]
+          [resolvedBy, txId]
         );
       }
     }

@@ -5,12 +5,33 @@ import { rp } from '../../utils/helpers';
 import { TopBar, SearchBar, Badge, Chip, Avatar, EmptyState } from '../../components/ui';
 
 const FILTERS = ['semua', 'baru', 'proses', 'selesai', 'diambil', 'dibatalkan'];
+const PERIODS = [
+  { value: 'all', label: 'Semua Waktu' },
+  { value: 'today', label: 'Hari Ini' },
+  { value: '7d', label: '7 Hari' },
+  { value: '30d', label: '30 Hari' },
+];
 
 export default function TransaksiListPage({ navigate, historyOnly }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('semua');
+  const [periodFilter, setPeriodFilter] = useState('all');
+
+  const inPeriod = (dateValue) => {
+    if (periodFilter === 'all') return true;
+    const txDate = new Date(dateValue);
+    if (Number.isNaN(txDate.getTime())) return false;
+    const now = new Date();
+    if (periodFilter === 'today') {
+      return txDate.toDateString() === now.toDateString();
+    }
+    const diffDays = Math.floor((now - txDate) / 86400000);
+    if (periodFilter === '7d') return diffDays <= 7;
+    if (periodFilter === '30d') return diffDays <= 30;
+    return true;
+  };
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -34,7 +55,8 @@ export default function TransaksiListPage({ navigate, historyOnly }) {
       t.id?.toLowerCase().includes(query.toLowerCase());
     const matchFilter = activeFilter === 'semua' ? true : t.status === activeFilter;
     const matchHistory = historyOnly ? t.status === 'selesai' || t.status === 'diambil' : true;
-    return matchQuery && matchFilter && matchHistory;
+    const matchPeriod = inPeriod(t.createdAt || t.date);
+    return matchQuery && matchFilter && matchHistory && matchPeriod;
   });
 
   const title = historyOnly ? 'Riwayat Produksi' : 'Transaksi';
@@ -49,6 +71,11 @@ export default function TransaksiListPage({ navigate, historyOnly }) {
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none', marginBottom: 4 }}>
           {FILTERS.map((f) => (
             <Chip key={f} label={f.charAt(0).toUpperCase() + f.slice(1)} active={activeFilter === f} onClick={() => setActiveFilter(f)} />
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none', marginBottom: 4 }}>
+          {PERIODS.map((p) => (
+            <Chip key={p.value} label={p.label} active={periodFilter === p.value} onClick={() => setPeriodFilter(p.value)} />
           ))}
         </div>
 

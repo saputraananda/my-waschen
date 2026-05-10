@@ -31,11 +31,11 @@ export const createLogisticOrder = async (req, res) => {
     if (areaZoneId) {
       try {
         const [zoneRows] = await poolWaschenPos.execute(
-          `SELECT name, fee FROM mst_area_zone WHERE id = ? AND is_active = 1 LIMIT 1`,
+          `SELECT name, delivery_fee FROM mst_area_zone WHERE id = ? AND is_active = 1 LIMIT 1`,
           [areaZoneId]
         );
         if (zoneRows.length > 0) {
-          deliveryFee = Number(zoneRows[0].fee) || 10000;
+          deliveryFee = Number(zoneRows[0].delivery_fee) || 10000;
           areaZoneSnapshot = zoneRows[0].name;
         }
       } catch { /* tabel mst_area_zone belum ada, pakai default */ }
@@ -83,8 +83,8 @@ export const getLogisticOrders = async (req, res) => {
     const params = [];
 
     if (transactionId) {
-      sql += ' AND lo.transaction_id = ?';
-      params.push(transactionId);
+      sql += ' AND (lo.transaction_id = ? OR t.transaction_no = ?)';
+      params.push(transactionId, transactionId);
     }
 
     sql += ' ORDER BY lo.scheduled_at DESC LIMIT 100';
@@ -164,7 +164,7 @@ export const rescheduleLogistic = async (req, res) => {
 export const getAreaZones = async (req, res) => {
   try {
     const [rows] = await poolWaschenPos.execute(
-      `SELECT id, name, fee FROM mst_area_zone WHERE is_active = 1 ORDER BY name`
+      `SELECT id, name, delivery_fee AS fee FROM mst_area_zone WHERE is_active = 1 ORDER BY name`
     );
     return res.json({ success: true, data: rows.map((r) => ({ ...r, fee: Number(r.fee) })) });
   } catch (err) {

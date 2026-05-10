@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Chip, Modal, Input, Select } from '../../components/ui';
+import { TopBar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
 
 export default function ManajemenLayananPage({ navigate }) {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [query, setQuery] = useState('');
   const [modalAdd, setModalAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
@@ -31,7 +33,21 @@ export default function ManajemenLayananPage({ navigate }) {
   }, []);
 
   const categories = ['all', ...new Set(services.map((s) => s.category))];
-  const filtered = filter === 'all' ? services : services.filter((s) => s.category === filter);
+  const filtered = services.filter((s) => {
+    const matchCategory = filter === 'all' ? true : s.category === filter;
+    const matchStatus = statusFilter === 'all'
+      ? true
+      : statusFilter === 'active'
+        ? s.active !== false
+        : s.active === false;
+    const q = query.trim().toLowerCase();
+    const matchQuery = !q
+      ? true
+      : (s.name || '').toLowerCase().includes(q)
+        || (s.category || '').toLowerCase().includes(q)
+        || (s.unit || '').toLowerCase().includes(q);
+    return matchCategory && matchStatus && matchQuery;
+  });
 
   const openAdd = () => {
     setEditingId(null);
@@ -41,7 +57,7 @@ export default function ManajemenLayananPage({ navigate }) {
 
   const openEdit = (s) => {
     setEditingId(s.id);
-    setForm({ name: s.name, category: s.category, price: s.price, unit: s.unit, expressExtra: s.expressExtra || '' });
+    setForm({ name: s.name, category: s.category, price: s.price, unit: s.unit });
     setModalAdd(true);
   };
 
@@ -53,8 +69,7 @@ export default function ManajemenLayananPage({ navigate }) {
         name: form.name.trim(),
         category: form.category,
         price: Number(form.price),
-        unit: form.unit,
-        expressExtra: form.expressExtra ? Number(form.expressExtra) : null,
+        unit: form.unit
       };
       
       if (editingId) {
@@ -112,6 +127,16 @@ export default function ManajemenLayananPage({ navigate }) {
       <TopBar title="Manajemen Layanan" onBack={() => navigate('dashboard')} rightAction={openAdd} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>} />
 
       <div style={{ padding: '12px 16px 0' }}>
+        <SearchBar value={query} onChange={setQuery} placeholder="Cari nama layanan, kategori, atau satuan..." />
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingTop: 10, paddingBottom: 10, scrollbarWidth: 'none' }}>
+          {[
+            { value: 'all', label: 'Semua Status' },
+            { value: 'active', label: 'Aktif' },
+            { value: 'inactive', label: 'Nonaktif' },
+          ].map((s) => (
+            <Chip key={s.value} label={s.label} active={statusFilter === s.value} onClick={() => setStatusFilter(s.value)} />
+          ))}
+        </div>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none' }}>
           {categories.map((cat) => (
             <Chip key={cat} label={cat === 'all' ? 'Semua' : cat} active={filter === cat} onClick={() => setFilter(cat)} />
@@ -177,7 +202,6 @@ export default function ManajemenLayananPage({ navigate }) {
           { value: 'package', label: 'Paket' },
           { value: 'other', label: 'Lainnya' }
         ]} />
-        <Input label="Harga Express (opsional)" value={form.expressExtra} onChange={(v) => setForm((f) => ({ ...f, expressExtra: v }))} inputMode="numeric" placeholder="Tambahan harga express" />
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="secondary" onClick={() => setModalAdd(false)} style={{ flex: 1 }}>Batal</Btn>
           <Btn variant="primary" onClick={handleSave} loading={submitting} style={{ flex: 1 }}>Simpan</Btn>

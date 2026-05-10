@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
+import { compressImage } from '../../utils/helpers';
 import { TopBar, Btn } from '../../components/ui';
 
 export default function FotoKondisiPage({ navigate, screenParams }) {
@@ -9,10 +10,19 @@ export default function FotoKondisiPage({ navigate, screenParams }) {
   const [note, setNote] = useState('');
   const [isDamage, setIsDamage] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  const beforeFileRef = useRef(null);
+  const afterFileRef = useRef(null);
 
-  const addPhoto = (type) => {
-    const fakeUrl = `photo_${type}_${Date.now()}.jpg`;
-    setPhotos((prev) => [...prev, { url: fakeUrl, type, label: type === 'before' ? 'Sebelum Cuci' : 'Sesudah Cuci' }]);
+  const handlePhotoUpload = async (e, type) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressedUrl = await compressImage(file, 1024, 1024, 0.7);
+      setPhotos((prev) => [...prev, { url: compressedUrl, type, label: type === 'before' ? 'Sebelum Cuci' : 'Sesudah Cuci' }]);
+    } catch (err) {
+      alert('Gagal mengompres atau memproses foto.');
+    }
   };
 
   const handleSave = async () => {
@@ -42,9 +52,12 @@ export default function FotoKondisiPage({ navigate, screenParams }) {
       <TopBar title="Foto Kondisi" subtitle={tx?.id} onBack={() => navigate('detail_item_produksi', tx)} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        <input type="file" accept="image/*" capture="environment" ref={beforeFileRef} style={{ display: 'none' }} onChange={(e) => handlePhotoUpload(e, 'before')} />
+        <input type="file" accept="image/*" capture="environment" ref={afterFileRef} style={{ display: 'none' }} onChange={(e) => handlePhotoUpload(e, 'after')} />
+
         <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
           <button
-            onClick={() => addPhoto('before')}
+            onClick={() => beforeFileRef.current?.click()}
             style={{ flex: 1, height: 140, borderRadius: 14, border: `2px dashed ${C.n300}`, background: C.white, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.n600 }}
           >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
@@ -53,7 +66,7 @@ export default function FotoKondisiPage({ navigate, screenParams }) {
           </button>
 
           <button
-            onClick={() => addPhoto('after')}
+            onClick={() => afterFileRef.current?.click()}
             style={{ flex: 1, height: 140, borderRadius: 14, border: `2px dashed ${C.n300}`, background: C.white, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.n600 }}
           >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
@@ -67,9 +80,11 @@ export default function FotoKondisiPage({ navigate, screenParams }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>FOTO DITAMBAHKAN ({photos.length})</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {photos.map((p, i) => (
-                <div key={i} style={{ width: 70, height: 70, borderRadius: 10, background: C.primaryLight, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 20 }}>{p.type === 'before' ? '📷' : '✅'}</span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 8, color: C.primary, fontWeight: 600 }}>{p.label}</span>
+                <div key={i} style={{ position: 'relative', width: 70, height: 70, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.n200}` }}>
+                  <img src={p.url} alt={p.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: 'white', fontSize: 8, fontFamily: 'Poppins', fontWeight: 600, textAlign: 'center', padding: '2px 0' }}>
+                    {p.label}
+                  </div>
                 </div>
               ))}
             </div>

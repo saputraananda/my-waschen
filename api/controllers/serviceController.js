@@ -74,6 +74,8 @@ export const getServices = async (req, res) => {
         s.id,
         s.name,
         c.name AS category,
+        c.code AS categoryCode,
+        c.sort_order AS categorySort,
         s.price,
         s.unit_type AS unit,
         ROUND(s.price * (s.express_multiplier - 1)) AS expressExtra,
@@ -88,7 +90,7 @@ export const getServices = async (req, res) => {
       LEFT JOIN mst_service_pin sp ON sp.service_id = s.id AND sp.outlet_id = s.outlet_id
       ${favJoin}
       WHERE s.is_active = 1 ${outletFilter}
-      ORDER BY c.name, s.name`,
+      ORDER BY c.sort_order, c.name, s.name`,
       finalParams
     );
     return res.status(200).json({ success: true, data: rows });
@@ -109,13 +111,36 @@ export const createService = async (req, res) => {
 
     const id = randomUUID();
     const outletId = await getDefaultOutlet();
+
+    // Check if the service was soft-deleted
+    const [[existing]] = await poolWaschenPos.execute(
+      `SELECT id, is_active FROM mst_service WHERE outlet_id = ? AND name = ? LIMIT 1`,
+      [outletId, name.trim()]
+    );
+
     const categoryId = await getOrCreateCategory(category);
-    const serviceCode = await generateServiceCode();
     const isActive = active !== undefined ? active : true;
     const basePrice = Number(price);
     const expressNominal = expressExtra ? Number(expressExtra) : 0;
     const expressMul = basePrice > 0 ? 1 + (expressNominal / basePrice) : 1.0;
 
+    if (existing) {
+      if (existing.is_active === 1) {
+        return res.status(400).json({ success: false, message: 'Layanan dengan nama yang sama sudah ada.' });
+      } else {
+        // Resurrect soft-deleted service
+        await poolWaschenPos.execute(
+          `UPDATE mst_service 
+           SET category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_active = ?, updated_at = NOW() 
+           WHERE id = ?`,
+          [categoryId, unit, basePrice, expressMul, isActive ? 1 : 0, existing.id]
+        );
+        const updService = { id: existing.id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive };
+        return res.status(201).json({ success: true, message: 'Layanan yang sempat terhapus berhasil diaktifkan kembali.', data: updService });
+      }
+    }
+
+    const serviceCode = await generateServiceCode();
     await poolWaschenPos.execute(
       `INSERT INTO mst_service 
         (id, outlet_id, category_id, service_code, name, unit_type, price, express_multiplier, is_active, created_at, updated_at)
@@ -126,6 +151,9 @@ export const createService = async (req, res) => {
     const newService = { id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive };
     return res.status(201).json({ success: true, message: 'Layanan berhasil ditambahkan', data: newService });
   } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ success: false, message: 'Layanan dengan nama tersebut sudah ada (duplikat)' });
+    }
     console.error('[createService] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal menambahkan layanan.' });
   }

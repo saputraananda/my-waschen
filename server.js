@@ -14,12 +14,12 @@ import approvalRoutes from './api/routes/approvals.routes.js'
 import dashboardRoutes from './api/routes/dashboard.routes.js'
 import financeRoutes from './api/routes/finance.routes.js'
 import logisticsRoutes from './api/routes/logistics.routes.js'
-import notificationRoutes from './api/routes/notifications.routes.js'
-import shiftRoutes from './api/routes/shift.routes.js'
-import masterRoutes from './api/routes/master.routes.js'
+import notificationRoutes from './api/routes/notifications.routes.js';
+import shiftRoutes from './api/routes/shift.routes.js';
+import masterRoutes from './api/routes/master.routes.js';
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express()
 const PORT = process.env.APP_PORT || 5000
@@ -42,8 +42,8 @@ app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
 }))
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ limit: '10mb', extended: true }))
 
 // API Routes
 app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'My Waschen API is running' }))
@@ -56,9 +56,9 @@ app.use('/api/approvals', approvalRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/finance', financeRoutes)
 app.use('/api/logistics', logisticsRoutes)
-app.use('/api/notifications', notificationRoutes)
-app.use('/api/shifts', shiftRoutes)
-app.use('/api/master', masterRoutes)
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/shifts', shiftRoutes);
+app.use('/api/master', masterRoutes);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

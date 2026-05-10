@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Badge, Avatar } from '../../components/ui';
+import { TopBar, Avatar, SearchBar, Chip } from '../../components/ui';
 
 const NEXT_STATUS = {
   baru:   { label: 'Mulai Proses', next: 'proses' },
@@ -21,6 +21,21 @@ export default function MonitoringPage({ navigate }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
+  const [query, setQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('semua');
+  const [periodFilter, setPeriodFilter] = useState('all');
+
+  const inPeriod = (dateValue) => {
+    if (periodFilter === 'all') return true;
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return false;
+    const now = new Date();
+    if (periodFilter === 'today') return d.toDateString() === now.toDateString();
+    const diffDays = Math.floor((now - d) / 86400000);
+    if (periodFilter === '7d') return diffDays <= 7;
+    if (periodFilter === '30d') return diffDays <= 30;
+    return true;
+  };
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -51,11 +66,22 @@ export default function MonitoringPage({ navigate }) {
     }
   };
 
+  const filteredTransactions = transactions.filter((t) => {
+    const q = query.trim().toLowerCase();
+    const matchQuery = !q
+      ? true
+      : (t.customerName || '').toLowerCase().includes(q)
+        || (t.id || '').toLowerCase().includes(q);
+    const matchStatus = activeFilter === 'semua' ? true : t.status === activeFilter;
+    const matchPeriod = inPeriod(t.createdAt || t.date);
+    return matchQuery && matchStatus && matchPeriod;
+  });
+
   const byStatus = {
-    baru:    transactions.filter((t) => t.status === 'baru'),
-    proses:  transactions.filter((t) => t.status === 'proses'),
-    selesai: transactions.filter((t) => t.status === 'selesai'),
-    diambil: transactions.filter((t) => t.status === 'diambil'),
+    baru:    filteredTransactions.filter((t) => t.status === 'baru'),
+    proses:  filteredTransactions.filter((t) => t.status === 'proses'),
+    selesai: filteredTransactions.filter((t) => t.status === 'selesai'),
+    diambil: filteredTransactions.filter((t) => t.status === 'diambil'),
   };
 
   return (
@@ -79,6 +105,29 @@ export default function MonitoringPage({ navigate }) {
         </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px' }}>
+          <SearchBar value={query} onChange={setQuery} placeholder="Cari customer atau no nota..." />
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingTop: 10, paddingBottom: 12, scrollbarWidth: 'none' }}>
+            {[
+              { value: 'semua', label: 'Semua' },
+              { value: 'baru', label: 'Baru' },
+              { value: 'proses', label: 'Proses' },
+              { value: 'selesai', label: 'Selesai' },
+              { value: 'diambil', label: 'Diambil' },
+            ].map((s) => (
+              <Chip key={s.value} label={s.label} active={activeFilter === s.value} onClick={() => setActiveFilter(s.value)} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none' }}>
+            {[
+              { value: 'all', label: 'Semua Waktu' },
+              { value: 'today', label: 'Hari Ini' },
+              { value: '7d', label: '7 Hari' },
+              { value: '30d', label: '30 Hari' },
+            ].map((p) => (
+              <Chip key={p.value} label={p.label} active={periodFilter === p.value} onClick={() => setPeriodFilter(p.value)} />
+            ))}
+          </div>
+
           {COLS.map((col) => (
             <div key={col.key} style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>

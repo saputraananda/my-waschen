@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
+import Cropper from 'react-easy-crop';
 import { C } from '../utils/theme';
+import { compressImage, getCroppedImg } from '../utils/helpers';
 import { TopBar, Btn, Input } from '../components/ui';
 import { useApp } from '../context/AppContext';
 
@@ -32,18 +34,34 @@ export default function ProfilePage({ navigate }) {
   const [toast, setToast]     = useState({ visible: false, msg: '', type: 'success' });
   const fileRef = useRef();
 
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
   const showToast = (msg, type = 'success') => {
     setToast({ visible: true, msg, type });
     setTimeout(() => setToast((t) => ({ ...t, visible: false })), 3000);
   };
 
-  const handlePhotoChange = (e) => {
+  const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) { showToast('Foto maksimal 3MB', 'error'); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => setPhoto(ev.target.result);
-    reader.readAsDataURL(file);
+
+    try {
+      showToast('Menyiapkan gambar...', 'success');
+      // Compress sedikit sebelum masuk ke cropper untuk mencegah lag browser
+      const compressedDataUrl = await compressImage(file, 1600, 1600, 0.85);
+      setCropImageSrc(compressedDataUrl);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCropModalOpen(true);
+    } catch (error) {
+      showToast('Gagal memproses file gambar ini', 'error');
+    }
+    
+    if (fileRef.current) fileRef.current.value = '';
   };
 
   const initials = (name || user?.name || 'US')
@@ -90,8 +108,59 @@ export default function ProfilePage({ navigate }) {
 
       {/* Toast */}
       {toast.visible && (
-        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2', color: toast.type === 'success' ? '#166534' : '#991B1B', padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', whiteSpace: 'nowrap' }}>
+        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1300, background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2', color: toast.type === 'success' ? '#166534' : '#991B1B', padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', whiteSpace: 'nowrap' }}>
           {toast.type === 'success' ? '✓' : '⚠'} {toast.msg}
+        </div>
+      )}
+
+      {cropModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#000', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '16px', background: '#111', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <span style={{ color: 'white', fontFamily: 'Poppins', fontWeight: 600 }}>Sesuaikan Foto Profil</span>
+          </div>
+          
+          <div style={{ flex: 1, position: 'relative' }}>
+            <Cropper
+              image={cropImageSrc}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              cropShape="round"
+              showGrid={false}
+              onCropChange={setCrop}
+              onCropComplete={(pct, pixels) => setCroppedAreaPixels(pixels)}
+              onZoomChange={setZoom}
+            />
+          </div>
+          
+          <div style={{ padding: '24px 20px', background: '#111', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 16 }}>➖</span>
+              <input 
+                type="range" 
+                value={zoom} 
+                min={1} 
+                max={3} 
+                step={0.1} 
+                aria-labelledby="Zoom" 
+                onChange={(e) => setZoom(Number(e.target.value))} 
+                style={{ flex: 1, accentColor: C.primary }} 
+              />
+              <span style={{ fontSize: 16 }}>➕</span>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <Btn variant="secondary" style={{ flex: 1, background: '#333', color: 'white', borderColor: '#444' }} onClick={() => setCropModalOpen(false)}>Batal</Btn>
+              <Btn variant="primary" style={{ flex: 1 }} onClick={async () => {
+                try {
+                  const croppedBase64 = await getCroppedImg(cropImageSrc, croppedAreaPixels, 800, 0.8);
+                  setPhoto(croppedBase64);
+                  setCropModalOpen(false);
+                } catch (err) {
+                  showToast('Gagal memotong foto', 'error');
+                }
+              }}>Terapkan</Btn>
+            </div>
+          </div>
         </div>
       )}
 

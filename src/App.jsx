@@ -45,12 +45,14 @@ import DaftarMemberPage from './pages/member/DaftarMemberPage';
 import SettingsPage from './pages/SettingsPage';
 import NotifikasiPage from './pages/NotifikasiPage';
 import ProfilePage from './pages/ProfilePage';
+import BukaShiftPage from './pages/kasir/BukaShiftPage';
+import TutupShiftPage from './pages/kasir/TutupShiftPage';
 
 const SCREENS_NO_NAV = new Set([
   'splash', 'login', 'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
   'tambah_customer', 'detail_item_produksi', 'foto_kondisi',
   'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'notifikasi',
-  'manajemen_user', 'manajemen_layanan', 'profil',
+  'manajemen_user', 'manajemen_layanan', 'profil', 'buka_shift', 'tutup_shift'
 ]);
 
 function AppInner() {
@@ -72,6 +74,10 @@ function AppInner() {
         return <SplashPage onDone={() => navigate('login')} />;
       case 'login':
         return <LoginPage onLogin={handleLogin} />;
+      case 'buka_shift':
+        return <BukaShiftPage />;
+      case 'tutup_shift':
+        return <TutupShiftPage />;
       case 'dashboard':
         if (!user) return <LoginPage onLogin={handleLogin} />;
         if (user.role === 'admin')

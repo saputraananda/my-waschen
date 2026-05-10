@@ -284,6 +284,7 @@ export default function LoginPage({ onLogin }) {
             </div>
           </div>
         </div>
+        
       )}
 
       {/* Modern Animations */}
