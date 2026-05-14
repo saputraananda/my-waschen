@@ -4,7 +4,7 @@ import { C } from '../../utils/theme';
 import { compressImage } from '../../utils/helpers';
 import { TopBar, Btn } from '../../components/ui';
 
-export default function FotoKondisiPage({ navigate, screenParams }) {
+export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
   const tx = screenParams;
   const [photos, setPhotos] = useState([]);
   const [note, setNote] = useState('');
@@ -49,7 +49,7 @@ export default function FotoKondisiPage({ navigate, screenParams }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Foto Kondisi" subtitle={tx?.id} onBack={() => navigate('detail_item_produksi', tx)} />
+      <TopBar title="Foto Kondisi" subtitle={tx?.id} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         <input type="file" accept="image/*" capture="environment" ref={beforeFileRef} style={{ display: 'none' }} onChange={(e) => handlePhotoUpload(e, 'before')} />

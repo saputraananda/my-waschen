@@ -6,7 +6,7 @@ import { TopBar, Btn } from '../../components/ui';
 
 const PRESETS = [50000, 100000, 200000, 500000];
 
-export default function TopupDepositPage({ navigate, screenParams, showToast }) {
+export default function TopupDepositPage({ navigate, goBack, screenParams, showToast }) {
   const customer = screenParams;
   const [amount, setAmount] = useState('');
   const [payMethod, setPayMethod] = useState('cash');
@@ -35,7 +35,7 @@ export default function TopupDepositPage({ navigate, screenParams, showToast }) 
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Top Up Deposit" subtitle={customer.name} onBack={() => navigate('detail_customer', customer)} />
+      <TopBar title="Top Up Deposit" subtitle={customer.name} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         <div style={{ background: C.white, borderRadius: 16, padding: '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>

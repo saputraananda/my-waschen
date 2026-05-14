@@ -1,22 +1,17 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 import { getServices, createService, toggleService, updateService, deleteService } from '../controllers/serviceController.js';
 
 const router = Router();
 
-// GET /api/services - Ambil layanan (filtered per outlet)
+// GET /api/services — kasir, produksi, admin (baca untuk nota / referensi)
 router.get('/', authenticate, getServices);
 
-// POST /api/services - Tambah layanan baru
-router.post('/', authenticate, createService);
-
-// PATCH /api/services/:id/toggle - Toggle status aktif/nonaktif
-router.patch('/:id/toggle', authenticate, toggleService);
-
-// PUT /api/services/:id - Update layanan
-router.put('/:id', authenticate, updateService);
-
-// DELETE /api/services/:id - Delete layanan
-router.delete('/:id', authenticate, deleteService);
+// Mutasi master layanan (harga, satuan, dll.) — selaras Manajemen Layanan admin
+const manageServices = requireRole('admin', 'finance');
+router.post('/', authenticate, manageServices, createService);
+router.patch('/:id/toggle', authenticate, manageServices, toggleService);
+router.put('/:id', authenticate, manageServices, updateService);
+router.delete('/:id', authenticate, manageServices, deleteService);
 
 export default router;

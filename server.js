@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import http from 'http'
 import os from 'os'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -17,6 +18,10 @@ import logisticsRoutes from './api/routes/logistics.routes.js'
 import notificationRoutes from './api/routes/notifications.routes.js';
 import shiftRoutes from './api/routes/shift.routes.js';
 import masterRoutes from './api/routes/master.routes.js';
+import inventoryRoutes from './api/routes/inventory.routes.js';
+import promoRoutes from './api/routes/promo.routes.js';
+import outletRoutes from './api/routes/outlet.routes.js';
+import cashDrawerRoutes from './api/routes/cashDrawer.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,6 +64,10 @@ app.use('/api/logistics', logisticsRoutes)
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/shifts', shiftRoutes);
 app.use('/api/master', masterRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/promos', promoRoutes);
+app.use('/api/outlets', outletRoutes);
+app.use('/api/cash-drawer', cashDrawerRoutes);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
@@ -68,7 +77,8 @@ if (process.env.NODE_ENV === 'production') {
   })
 }
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+server.listen(PORT, () => {
   const localIPAddress = getLocalIPAddress()
   const frontendPort = 5173
 

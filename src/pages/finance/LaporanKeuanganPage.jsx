@@ -49,7 +49,7 @@ const METHOD_COLORS = {
   deposit: { bg: '#F59E0B', label: 'Deposit', icon: '💳' },
 };
 
-export default function LaporanKeuanganPage({ navigate }) {
+export default function LaporanKeuanganPage({ navigate, goBack }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('30d');
@@ -137,7 +137,7 @@ export default function LaporanKeuanganPage({ navigate }) {
       <TopBar
         title="Laporan Keuangan"
         subtitle={report?.period ? `${report.period.start} s/d ${report.period.end}` : ''}
-        onBack={() => navigate('dashboard')}
+        onBack={goBack}
         rightAction={report?.daily?.length > 0 ? exportCSV : undefined}
         rightIcon={
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

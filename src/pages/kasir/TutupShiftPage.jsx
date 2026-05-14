@@ -1,119 +1,117 @@
 import React, { useState } from 'react';
 import api from '../../utils/api';
-import { formatRupiah, parseRupiah } from '../../utils/helpers';
+import { formatRupiah, parseRupiah, rp } from '../../utils/helpers';
 import { useApp } from '../../context/AppContext';
+import { C } from '../../utils/theme';
+import { TopBar, Btn, Input } from '../../components/ui';
 
-function TutupShiftPage() {
+function TutupShiftPage({ goBack }) {
   const [closingCash, setClosingCash] = useState('');
   const [notes, setNotes] = useState('');
   const [recap, setRecap] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { navigate, handleLogout } = useApp();
+  const { navigate } = useApp();
 
   const handleCashChange = (e) => {
     const rawValue = parseRupiah(e.target.value);
     setClosingCash(formatRupiah(rawValue, ''));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     const cashValue = parseRupiah(closingCash);
-    if (cashValue === 0) { // Bisa jadi 0 jika memang tidak ada uang
-      setError('Jumlah uang fisik wajib diisi.');
-      // return; // Komentari agar bisa tutup shift dengan 0
+    if (!Number.isFinite(cashValue) || cashValue < 0) {
+      setError('Jumlah uang fisik tidak valid.');
+      return;
     }
     setLoading(true);
     setError('');
     try {
-      const response = await api.post('/shifts/close', {
+      const response = await api.post('/api/shifts/close', {
         closingCash: cashValue,
         notes,
       });
-      setRecap(response.data.data);
+      const d = response?.data?.data;
+      if (d) {
+        setRecap({
+          openingCash: d.openingCash,
+          cashSales: d.cashSales,
+          systemCash: d.systemCash,
+          closingCash: d.closingCash,
+          difference: d.difference,
+        });
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Gagal menutup sesi. Coba lagi.');
+    } finally {
       setLoading(false);
     }
   };
 
   if (recap) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="w-full max-w-md p-8 space-y-4 bg-white rounded-lg shadow-md text-center">
-          <h2 className="text-2xl font-bold text-gray-800">Sesi Berhasil Ditutup</h2>
-          <div className="text-left border-t pt-4">
-            <p><strong>Saldo Awal:</strong> Rp {recap.openingCash.toLocaleString()}</p>
-            <p><strong>Penjualan Tunai:</strong> Rp {recap.cashSales.toLocaleString()}</p>
-            <p><strong>Total Uang di Sistem:</strong> Rp {recap.systemCash.toLocaleString()}</p>
-            <hr className="my-2"/>
-            <p><strong>Uang Fisik Dihitung:</strong> Rp {recap.closingCash.toLocaleString()}</p>
-            <p className={`font-bold ${recap.difference < 0 ? 'text-red-500' : 'text-green-500'}`}>
-              <strong>Selisih:</strong> Rp {recap.difference.toLocaleString()}
-            </p>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
+        <TopBar title="Shift ditutup" subtitle="Rekonsiliasi kas tersimpan" onBack={goBack} />
+        <div style={{ flex: 1, padding: 20, maxWidth: 440, margin: '0 auto', width: '100%' }}>
+          <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 12px rgba(15,23,42,0.08)' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 14 }}>Ringkasan</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n700, lineHeight: 1.7 }}>
+              <div>Saldo awal: <strong>{rp(recap.openingCash)}</strong></div>
+              <div>Penjualan tunai (sesi): <strong>{rp(recap.cashSales)}</strong></div>
+              <div>Total menurut sistem: <strong>{rp(recap.systemCash)}</strong></div>
+              <hr style={{ border: 'none', borderTop: `1px solid ${C.n200}`, margin: '12px 0' }} />
+              <div>Uang fisik dihitung: <strong>{rp(recap.closingCash)}</strong></div>
+              <div style={{ fontWeight: 700, color: recap.difference < 0 ? C.danger : recap.difference > 0 ? C.success : C.n800, marginTop: 6 }}>
+                Selisih: {rp(recap.difference)}
+              </div>
+            </div>
+            <Btn variant="primary" fullWidth style={{ marginTop: 20 }} onClick={() => navigate('dashboard')}>
+              Kembali ke beranda
+            </Btn>
           </div>
-          <button
-            onClick={() => handleLogout()}
-            className="w-full px-4 py-2 font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
-          >
-            Selesai & Logout
-          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center text-gray-800">Tutup Sesi Kasir</h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="closingCash" className="block text-sm font-medium text-gray-700">
-              Total Uang Fisik di Laci
-            </label>
-            <div className="relative mt-1">
-               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <span className="text-gray-500 sm:text-sm">Rp</span>
-              </div>
-              <input
-                id="closingCash"
-                name="closingCash"
-                type="text"
-                inputMode="numeric"
-                required
-                value={closingCash}
-                onChange={handleCashChange}
-                className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Hitung semua uang tunai"
-              />
-            </div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+      <TopBar title="Tutup shift" subtitle="Hitung uang tunai di laci lalu rekonsiliasi" onBack={goBack} />
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: 16, maxWidth: 440, margin: '0 auto', boxShadow: '0 2px 12px rgba(15,23,42,0.06)' }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 16, lineHeight: 1.5 }}>
+            Data tutup shift dan timestamp dikirim ke pusat agar admin dapat memantau disiplin kas per outlet.
           </div>
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-              Catatan (Opsional)
-            </label>
+          <Input
+            label="Total uang tunai di laci (Rp)"
+            value={closingCash}
+            onChange={(v) => setClosingCash(formatRupiah(parseRupiah(v), ''))}
+            placeholder="0"
+          />
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n700, marginBottom: 6 }}>Catatan (opsional)</div>
             <textarea
-              id="notes"
-              name="notes"
-              rows="3"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Contoh: Ada selisih karena salah kembalian"
-            ></textarea>
+              rows={3}
+              placeholder="Contoh: selisih karena kembalian"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                borderRadius: 10,
+                border: `1.5px solid ${C.n300}`,
+                padding: 10,
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                resize: 'vertical',
+              }}
+            />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full px-4 py-2 font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
-            >
-              {loading ? 'Menutup...' : 'Tutup Sesi & Rekapitulasi'}
-            </button>
-          </div>
-        </form>
+          {error && <div style={{ marginTop: 10, fontFamily: 'Poppins', fontSize: 12, color: C.danger }}>{error}</div>}
+          <Btn variant="primary" fullWidth loading={loading} style={{ marginTop: 20 }} onClick={() => handleSubmit()}>
+            Tutup shift &amp; simpan
+          </Btn>
+        </div>
       </div>
     </div>
   );

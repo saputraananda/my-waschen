@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 import {
   checkoutTransaction,
   getTransactions,
@@ -23,8 +23,8 @@ router.get('/', authenticate, getTransactions);
 // GET /api/transactions/dashboard/stats — statistik dashboard
 router.get('/dashboard/stats', authenticate, getDashboardStats);
 
-// GET /api/transactions/production/queue — antrian produksi
-router.get('/production/queue', authenticate, getProductionQueue);
+// GET /api/transactions/production/queue — antrian produksi (kasir ikut baca; produksi/admin)
+router.get('/production/queue', authenticate, requireRole('kasir', 'produksi', 'admin', 'finance'), getProductionQueue);
 
 // GET /api/transactions/:id — detail transaksi
 router.get('/:id', authenticate, getTransactionById);
@@ -32,8 +32,8 @@ router.get('/:id', authenticate, getTransactionById);
 // PUT /api/transactions/:id/status — update status transaksi
 router.put('/:id/status', authenticate, updateTransactionStatus);
 
-// POST /api/transactions/checkout — buat nota baru dengan DB transaction
-router.post('/checkout', authenticate, checkoutTransaction);
+// POST /api/transactions/checkout — buat nota (kasir / admin / finance; bukan produksi)
+router.post('/checkout', authenticate, requireRole('kasir', 'admin', 'finance'), checkoutTransaction);
 
 // POST /api/transactions/:id/payments — pelunasan / pembayaran lanjutan (kasir & admin)
 router.post('/:id/payments', authenticate, recordTransactionPayment);
@@ -42,7 +42,7 @@ router.post('/:id/payments', authenticate, recordTransactionPayment);
 router.patch('/:id/cancel', authenticate, cancelTransaction);
 
 // PATCH /api/transactions/:id/production-stage — catat progress produksi
-router.patch('/:id/production-stage', authenticate, updateProductionStage);
+router.patch('/:id/production-stage', authenticate, requireRole('produksi', 'admin'), updateProductionStage);
 
 // POST /api/transactions/:id/condition — catat kondisi pakaian
 router.post('/:id/condition', authenticate, saveItemCondition);

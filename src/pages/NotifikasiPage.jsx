@@ -12,7 +12,7 @@ const TYPE_ICONS = {
   promo:    { icon: '🎉', bg: '#FEF3C7', color: '#B45309' },
 };
 
-export default function NotifikasiPage({ navigate }) {
+export default function NotifikasiPage({ navigate, goBack }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +38,7 @@ export default function NotifikasiPage({ navigate }) {
       <TopBar
         title="Notifikasi"
         subtitle={unreadCount > 0 ? `${unreadCount} belum dibaca` : `${notifications.length} notifikasi`}
-        onBack={() => navigate('dashboard')}
+        onBack={goBack}
       />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>

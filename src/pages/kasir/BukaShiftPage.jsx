@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import api from '../../utils/api';
 import { formatRupiah, parseRupiah } from '../../utils/helpers';
 import { useApp } from '../../context/AppContext';
+import { TopBar } from '../../components/ui';
 
-function BukaShiftPage() {
+function BukaShiftPage({ goBack }) {
   const [openingCash, setOpeningCash] = useState('');
   const [shift, setShift] = useState('pagi');
   const [error, setError] = useState('');
@@ -18,8 +19,8 @@ function BukaShiftPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const cashValue = parseRupiah(openingCash);
-    if (!cashValue) {
-      setError('Saldo awal wajib diisi.');
+    if (!Number.isFinite(cashValue) || cashValue < 0) {
+      setError('Saldo awal tidak valid (boleh 0).');
       return;
     }
     setLoading(true);
@@ -39,9 +40,11 @@ function BukaShiftPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3F4F6', minHeight: '100%' }}>
+      <TopBar title="Buka shift" subtitle="Modal awal & jenis shift tercatat ke pusat" onBack={goBack} />
+      <div className="flex items-center justify-center flex-1 p-4">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center text-gray-800">Buka Sesi Kasir</h2>
+        <h2 className="text-2xl font-bold text-center text-gray-800">Buka shift kasir</h2>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="openingCash" className="block text-sm font-medium text-gray-700">
@@ -92,6 +95,7 @@ function BukaShiftPage() {
             </button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );

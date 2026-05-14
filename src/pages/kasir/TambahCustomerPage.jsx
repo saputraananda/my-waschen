@@ -1,19 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, Input, Btn, Select } from '../../components/ui';
+import { TopBar, Input, Btn, Select, Modal } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 
 export default function TambahCustomerPage({ navigate, screenParams }) {
   const { setNotaCustomer } = useApp();
   const isEdit = !!screenParams?.id;
+
+  const initialPhone = (screenParams?.phone || '').replace(/^\+?62/, '').replace(/^0/, '');
   
   const [form, setForm] = useState({
     name: screenParams?.name || '',
-    phone: screenParams?.phone || '',
+    phone: initialPhone,
     email: screenParams?.email || '',
     gender: screenParams?.gender || '',
     greeting: screenParams?.greeting || '',
+    instansi: screenParams?.instansi || '',
+    birthDate: screenParams?.birthDate || '',
+    religion: screenParams?.religion || '',
     awareness_source_id: screenParams?.awareness_source_id || '',
     awareness_other_text: screenParams?.awareness_other_text || '',
     area_zone_id: screenParams?.area_zone_id || '',
@@ -28,9 +33,14 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [optionalOpen, setOptionalOpen] = useState(false);
+  const [exitGuard, setExitGuard] = useState(false);
+  const isDirty = useRef(false);
   
   const [awarenessSources, setAwarenessSources] = useState([]);
   const [areaZones, setAreaZones] = useState([]);
+
+  const markDirty = () => { isDirty.current = true; };
 
   useEffect(() => {
     const fetchMasterData = async () => {
@@ -48,7 +58,15 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     fetchMasterData();
   }, []);
 
-  const set = (key) => (v) => setForm((f) => ({ ...f, [key]: v }));
+  const set = (key) => (v) => { markDirty(); setForm((f) => ({ ...f, [key]: v })); };
+
+  const handleBack = () => {
+    if (isDirty.current) {
+      setExitGuard(true);
+    } else {
+      navigate('customer');
+    }
+  };
 
   const showToast = (message, type = 'success') => {
     setToast({ visible: true, message, type });
@@ -59,7 +77,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Wajib diisi';
     if (!form.phone.trim()) errs.phone = 'Wajib diisi';
-    else if (!/^08\d{7,11}$/.test(form.phone)) errs.phone = 'Format tidak valid';
+    else if (!/^\d{8,13}$/.test(form.phone)) errs.phone = 'Nomor tidak valid (8–13 digit)';
     if (!form.gender) errs.gender = 'Wajib diisi';
     if (!form.greeting) errs.greeting = 'Wajib diisi';
     if (!form.awareness_source_id) errs.awareness_source_id = 'Wajib diisi';
@@ -77,12 +95,16 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
     setLoading(true);
     try {
+      const fullPhone = '0' + form.phone.replace(/^0+/, '');
       const payload = {
         name: form.name.trim(),
-        phone: form.phone.trim(),
+        phone: fullPhone,
         email: form.email.trim() || null,
         gender: form.gender,
         greeting: form.greeting,
+        instansi: form.instansi.trim() || null,
+        birth_date: form.birthDate || null,
+        religion: form.religion || null,
         awareness_source_id: form.awareness_source_id,
         awareness_other_text: form.awareness_other_text.trim(),
         area_zone_id: form.area_zone_id,
@@ -128,32 +150,97 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
   const selectedZone = areaZones.find(a => a.id === form.area_zone_id);
   const isZoneOther = selectedZone?.is_other === 1 || selectedZone?.is_other === true;
 
+  const RadioBtn = ({ label, checked, onClick }) => (
+    <button onClick={onClick} type="button" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0' }}>
+      <div style={{ width: 20, height: 20, borderRadius: 10, border: `2px solid ${checked ? C.primary : C.n300}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {checked && <div style={{ width: 10, height: 10, borderRadius: 5, background: C.primary }} />}
+      </div>
+      <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{label}</span>
+    </button>
+  );
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title={isEdit ? "Edit Customer" : "Tambah Customer"} onBack={() => navigate('customer')} />
+      <TopBar title={isEdit ? "Edit Konsumen" : "Buat Konsumen Baru"} onBack={handleBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <Input label="Nama Lengkap *" value={form.name} onChange={set('name')} placeholder="Contoh: Budi Santoso" error={errors.name} />
+          {/* Nama Konsumen */}
+          <Input label="Nama Konsumen *" value={form.name} onChange={set('name')} placeholder="Nama Lengkap" error={errors.name} />
           
-          <Input label="Nomor HP *" value={form.phone} onChange={set('phone')} placeholder="08xxxxxxxxxx" inputMode="tel" error={errors.phone} />
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <Select label="Gender *" value={form.gender} onChange={set('gender')} options={[{ value: '', label: 'Pilih Gender' }, { value: 'male', label: 'Laki-laki' }, { value: 'female', label: 'Perempuan' }, { value: 'other', label: 'Lainnya' }]} />
-              {errors.gender && <div style={{ color: C.error, fontSize: 11, marginTop: 4 }}>{errors.gender}</div>}
+          {/* Nomor HP +62 prefix */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Nomor Handphone</div>
+            <div style={{ display: 'flex', borderRadius: 10, border: `1.5px solid ${errors.phone ? (C.error || '#DC2626') : C.n300}`, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 12px', background: C.n50, fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n700, borderRight: `1.5px solid ${C.n200}`, display: 'flex', alignItems: 'center' }}>+62</div>
+              <input
+                value={form.phone}
+                onChange={(e) => set('phone')(e.target.value.replace(/\D/g, ''))}
+                placeholder="857XXXXXXXXX"
+                inputMode="tel"
+                style={{ flex: 1, padding: '10px 12px', border: 'none', outline: 'none', fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: 'transparent' }}
+              />
             </div>
-            <div>
-              <Select label="Sapaan *" value={form.greeting} onChange={set('greeting')} options={[{ value: '', label: 'Pilih Sapaan' }, { value: 'Bapak', label: 'Bapak' }, { value: 'Ibu', label: 'Ibu' }, { value: 'Kak', label: 'Kak' }, { value: 'Mas', label: 'Mas' }, { value: 'Mbak', label: 'Mbak' }, { value: 'Other', label: 'Lainnya' }]} />
-              {errors.greeting && <div style={{ color: C.error, fontSize: 11, marginTop: 4 }}>{errors.greeting}</div>}
-            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 4 }}>Untuk kirim nota, pengingat deposit & promo secara otomatis. Wajib diisi jika daftar member.</div>
+            {errors.phone && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.phone}</div>}
           </div>
 
-          <Input label="Email (Opsional)" value={form.email} onChange={set('email')} type="email" placeholder="email@example.com" />
+          {/* Jenis Kelamin — Radio */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Jenis Kelamin *</div>
+            <div style={{ display: 'flex', gap: 20 }}>
+              <RadioBtn label="Laki-laki" checked={form.gender === 'male'} onClick={() => set('gender')('male')} />
+              <RadioBtn label="Perempuan" checked={form.gender === 'female'} onClick={() => set('gender')('female')} />
+            </div>
+            {errors.gender && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.gender}</div>}
+          </div>
 
-          <div style={{ height: 1, background: C.n100, margin: '20px 0' }} />
+          <div style={{ height: 1, background: C.n100, margin: '16px 0' }} />
 
-          {/* Pengalaman & Awareness */}
+          {/* ─── Data Opsional — collapsible ─── */}
+          <button onClick={() => setOptionalOpen(!optionalOpen)} type="button" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginBottom: optionalOpen ? 12 : 0 }}>
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Data Opsional</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>Berisi form instansi, email, tanggal lahir dan agama</div>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.n600} strokeWidth="2.5" strokeLinecap="round" style={{ transform: optionalOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', flexShrink: 0 }}><polyline points="6 9 12 15 18 9" /></svg>
+          </button>
+
+          {optionalOpen && (
+            <div>
+              {/* Alamat */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Alamat</div>
+                <button type="button" onClick={() => {}} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.primary }}>
+                  + Tambah Alamat
+                </button>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 4 }}>Untuk pengantaran / penjemputan ke lokasi konsumen</div>
+              </div>
+
+              {/* Sapaan */}
+              <Select label="Sapaan" value={form.greeting} onChange={set('greeting')} options={[{ value: '', label: 'Pilih...' }, { value: 'Pak', label: 'Pak' }, { value: 'Bu', label: 'Bu' }, { value: 'Kak', label: 'Kak' }, { value: 'Mas', label: 'Mas' }, { value: 'Mbak', label: 'Mbak' }]} />
+
+              {/* Instansi */}
+              <Input label="Instansi" value={form.instansi} onChange={set('instansi')} placeholder="Instansi Konsumen" />
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk pengkategorian konsumen berdasarkan instansi-nya</div>
+
+              {/* Email */}
+              <Input label="Email" value={form.email} onChange={set('email')} type="email" placeholder="Email konsumen" />
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk pengiriman promosi melalui email</div>
+
+              {/* Tanggal Lahir */}
+              <Input label="Tanggal Lahir" value={form.birthDate} onChange={set('birthDate')} type="date" placeholder="Atur Tanggal" />
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk keperluan promosi atau lainnya</div>
+
+              {/* Agama */}
+              <Select label="Agama" value={form.religion} onChange={set('religion')} options={[{ value: '', label: 'Pilih...' }, { value: 'islam', label: 'Islam' }, { value: 'kristen', label: 'Kristen' }, { value: 'katolik', label: 'Katolik' }, { value: 'hindu', label: 'Hindu' }, { value: 'buddha', label: 'Buddha' }, { value: 'konghucu', label: 'Konghucu' }]} />
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk keperluan promosi atau lainnya</div>
+            </div>
+          )}
+
+          <div style={{ height: 1, background: C.n100, margin: '16px 0' }} />
+
+          {/* ─── Informasi Pemasaran ─── */}
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Informasi Pemasaran</div>
           
           <div>
@@ -166,7 +253,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
                 ...awarenessSources.map(s => ({ value: s.id, label: s.name }))
               ]} 
             />
-            {errors.awareness_source_id && <div style={{ color: C.error, fontSize: 11, marginTop: 4 }}>{errors.awareness_source_id}</div>}
+            {errors.awareness_source_id && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.awareness_source_id}</div>}
           </div>
 
           {isAwarenessOther && (
@@ -175,9 +262,9 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
             </div>
           )}
 
-          <div style={{ height: 1, background: C.n100, margin: '20px 0' }} />
+          <div style={{ height: 1, background: C.n100, margin: '16px 0' }} />
 
-          {/* Alamat Lengkap */}
+          {/* ─── Alamat Lengkap ─── */}
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Alamat Tempat Tinggal</div>
 
           <div>
@@ -190,7 +277,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
                 ...areaZones.map(s => ({ value: s.id, label: s.name }))
               ]} 
             />
-            {errors.area_zone_id && <div style={{ color: C.error, fontSize: 11, marginTop: 4 }}>{errors.area_zone_id}</div>}
+            {errors.area_zone_id && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.area_zone_id}</div>}
           </div>
 
           {isZoneOther && (
@@ -225,31 +312,30 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
       {toast.visible && (
         <div style={{
-          position: 'fixed',
-          top: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 100,
+          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 100,
           background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2',
           color: toast.type === 'success' ? '#166534' : '#991B1B',
-          padding: '12px 20px',
-          borderRadius: 12,
-          fontFamily: 'Poppins',
-          fontSize: 13,
-          fontWeight: 600,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 8,
         }}>
           {toast.type === 'success' ? '✓' : '⚠'} {toast.message}
         </div>
       )}
 
-      <div style={{ padding: '12px 20px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: 10 }}>
-        <Btn variant="secondary" onClick={() => navigate('customer')} style={{ flex: 1 }}>Batal</Btn>
-        <Btn variant="primary" onClick={handleSave} loading={loading} style={{ flex: 2 }}>{isEdit ? "Simpan Perubahan" : "Simpan Customer"}</Btn>
+      <div style={{ padding: '12px 20px', background: C.white, borderTop: `1px solid ${C.n100}` }}>
+        <Btn variant="primary" onClick={handleSave} loading={loading} style={{ width: '100%' }}>{isEdit ? "Simpan Perubahan" : "Simpan Data Konsumen"}</Btn>
       </div>
+
+      {/* Unsaved Changes Guard Modal */}
+      <Modal visible={exitGuard} onClose={() => setExitGuard(false)} title="Ada Perubahan Belum Disimpan">
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n700, lineHeight: 1.6, marginBottom: 20 }}>
+          Data-data yang telah diubah <strong>tidak akan disimpan</strong> dan akan <strong>hilang</strong>. Lanjutkan untuk keluar?
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Btn variant="secondary" onClick={() => setExitGuard(false)} style={{ flex: 1 }}>Kembali</Btn>
+          <Btn variant="secondary" onClick={() => { setExitGuard(false); navigate('customer'); }} style={{ flex: 1, fontWeight: 700 }}>Ya, Tetap Keluar</Btn>
+        </div>
+      </Modal>
     </div>
   );
 }

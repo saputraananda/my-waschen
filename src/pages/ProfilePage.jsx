@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Kasir', produksi: 'Produksi', finance: 'Finance' };
 
-export default function ProfilePage({ navigate }) {
+export default function ProfilePage({ navigate, goBack }) {
   const { user, updateUserProfile, handleSwitchRole } = useApp();
   const isAdmin = (user?.originalRoleCode ?? user?.roleCode) === 'admin';
 
@@ -104,7 +104,7 @@ export default function ProfilePage({ navigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Profil Saya" onBack={() => navigate('settings')} />
+      <TopBar title="Profil Saya" onBack={goBack} />
 
       {/* Toast */}
       {toast.visible && (

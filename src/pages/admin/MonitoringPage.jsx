@@ -17,7 +17,7 @@ const COLS = [
   { key: 'diambil',label: 'Diambil', color: C.primary },
 ];
 
-export default function MonitoringPage({ navigate }) {
+export default function MonitoringPage({ navigate, goBack }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
@@ -86,7 +86,7 @@ export default function MonitoringPage({ navigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Monitoring" subtitle="Real-time status laundry" onBack={() => navigate('dashboard')} />
+      <TopBar title="Monitoring" subtitle="Real-time status laundry" onBack={goBack} />
 
       {/* Summary bar */}
       <div style={{ display: 'flex', padding: '12px 16px', gap: 10, background: C.white, borderBottom: `1px solid ${C.n100}` }}>

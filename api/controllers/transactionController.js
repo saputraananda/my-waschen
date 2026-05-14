@@ -58,6 +58,7 @@ export const checkoutTransaction = async (req, res) => {
       dueDate,
       pickup,
       delivery,
+      promoId: bodyPromoId,
     } = req.body;
 
     const { userId, outletId: tokenOutletId } = req.user;
@@ -98,7 +99,8 @@ export const checkoutTransaction = async (req, res) => {
     if (serviceIds.length > 0) {
       const ph = serviceIds.map(() => '?').join(',');
       const [svcRows] = await conn.execute(
-        `SELECT id, name AS service_name, unit_type AS unit, price, express_multiplier FROM mst_service WHERE id IN (${ph})`,
+        `SELECT id, name AS service_name, unit_type AS unit, price, express_multiplier, category_id
+         FROM mst_service WHERE id IN (${ph})`,
         serviceIds
       );
       svcRows.forEach((s) => { serviceMap[s.id] = s; });
@@ -113,9 +115,46 @@ export const checkoutTransaction = async (req, res) => {
       ? Number(payloadSubtotal)
       : items.reduce((s, i) => s + Number(i.price || 0) * Number(i.qty || 1), 0);
 
+    const manualDiscount = Number(discount || 0);
+    let promoDiscount = 0;
+    let resolvedPromoId = null;
+    if (bodyPromoId) {
+      const [promoRows] = await conn.execute(
+        `SELECT p.id, p.type, p.value, p.min_trx_amount, p.max_discount
+         FROM mst_promo p
+         LEFT JOIN mst_promo_outlet po ON po.promo_id = p.id AND po.is_active = 1
+         WHERE p.id = ? AND p.is_active = 1
+           AND p.valid_from <= NOW() AND p.valid_until >= NOW()
+           AND (p.is_global = 1 OR po.outlet_id = ?)
+         LIMIT 1`,
+        [bodyPromoId, outletId]
+      );
+      if (!promoRows.length) {
+        await conn.rollback();
+        return res.status(400).json({ success: false, message: 'Promo tidak berlaku atau tidak untuk outlet ini.' });
+      }
+      const pr = promoRows[0];
+      const minTrx = pr.min_trx_amount != null ? Number(pr.min_trx_amount) : null;
+      if (minTrx != null && computedSubtotal < minTrx) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `Minimal transaksi untuk promo ini Rp ${minTrx.toLocaleString('id-ID')}.`,
+        });
+      }
+      let d = pr.type === 'percent'
+        ? computedSubtotal * (Number(pr.value) / 100)
+        : Number(pr.value);
+      if (pr.max_discount != null) d = Math.min(d, Number(pr.max_discount));
+      d = Math.min(d, computedSubtotal);
+      if (!Number.isFinite(d) || d < 0) d = 0;
+      promoDiscount = Math.round(d * 100) / 100;
+      resolvedPromoId = pr.id;
+    }
+
     const computedTotal = payloadTotal != null
       ? Number(payloadTotal)
-      : computedSubtotal - Number(discount || 0) + pickupFee + deliveryFee;
+      : computedSubtotal - promoDiscount - manualDiscount + pickupFee + deliveryFee;
 
     let paidAmount;
     let changeAmount;
@@ -179,32 +218,76 @@ export const checkoutTransaction = async (req, res) => {
       : '';
     const combinedNotes = [notes?.trim() || '', intentSummary].filter(Boolean).join('\n') || null;
 
-    // ── Langkah 1: Insert tr_transaction ──────────────────────────────────────
-    await conn.execute(
-      `INSERT INTO tr_transaction (
-        id, outlet_id, customer_id, cashier_id, session_id,
-        transaction_no, source_channel, status, payment_status,
-        primary_payment_method, is_express, pickup_type,
-        subtotal, member_discount, promo_discount, manual_discount, delivery_fee, total,
-        paid_amount, change_amount,
-        estimated_done_at, notes, created_at, updated_at
-      ) VALUES (
-        ?, ?, ?, ?, NULL,
-        ?, 'kasir', 'pending', ?,
-        ?, ?, ?,
-        ?, ?, ?, ?, ?, ?,
-        ?, ?,
-        ?, ?, NOW(), NOW()
-      )`,
-      [
-        trxId, outletId, customerId, userId,
-        transactionNo, paymentStatus,
-        primaryPaymentMethod, isExpress, pickupType,
-        computedSubtotal, 0, 0, Number(discount || 0), pickupFee + deliveryFee, computedTotal,
-        paidAmount, changeAmount,
-        dueDate || null, combinedNotes,
-      ]
+    const finalEstimatedDone = dueDate || null;
+    const [[openSession]] = await conn.execute(
+      `SELECT id
+       FROM tr_cashier_session
+       WHERE cashier_id = ? AND outlet_id = ? AND status = 'open'
+       ORDER BY opened_at DESC
+       LIMIT 1`,
+      [userId, outletId]
     );
+    const sessionId = openSession?.id || null;
+
+    const hasTrxPromo = await hasColumn('tr_transaction', 'promo_id');
+
+    // ── Langkah 1: Insert tr_transaction ──────────────────────────────────────
+    if (hasTrxPromo) {
+      await conn.execute(
+        `INSERT INTO tr_transaction (
+          id, outlet_id, customer_id, cashier_id, session_id,
+          promo_id,
+          transaction_no, source_channel, status, payment_status,
+          primary_payment_method, is_express, pickup_type,
+          subtotal, member_discount, promo_discount, manual_discount, delivery_fee, total,
+          paid_amount, change_amount,
+          estimated_done_at, notes, created_at, updated_at
+        ) VALUES (
+          ?, ?, ?, ?, ?,
+          ?,
+          ?, 'kasir', 'pending', ?,
+          ?, ?, ?,
+          ?, ?, ?, ?, ?, ?,
+          ?, ?,
+          ?, ?, NOW(), NOW()
+        )`,
+        [
+          trxId, outletId, customerId, userId, sessionId,
+          resolvedPromoId,
+          transactionNo, paymentStatus,
+          primaryPaymentMethod, isExpress, pickupType,
+          computedSubtotal, 0, promoDiscount, manualDiscount, pickupFee + deliveryFee, computedTotal,
+          paidAmount, changeAmount,
+          finalEstimatedDone, combinedNotes,
+        ]
+      );
+    } else {
+      await conn.execute(
+        `INSERT INTO tr_transaction (
+          id, outlet_id, customer_id, cashier_id, session_id,
+          transaction_no, source_channel, status, payment_status,
+          primary_payment_method, is_express, pickup_type,
+          subtotal, member_discount, promo_discount, manual_discount, delivery_fee, total,
+          paid_amount, change_amount,
+          estimated_done_at, notes, created_at, updated_at
+        ) VALUES (
+          ?, ?, ?, ?, ?,
+          ?, 'kasir', 'pending', ?,
+          ?, ?, ?,
+          ?, ?, ?, ?, ?, ?,
+          ?, ?,
+          ?, ?, NOW(), NOW()
+        )`,
+        [
+          trxId, outletId, customerId, userId, sessionId,
+          transactionNo, paymentStatus,
+          primaryPaymentMethod, isExpress, pickupType,
+          computedSubtotal, 0, promoDiscount, manualDiscount, pickupFee + deliveryFee, computedTotal,
+          paidAmount, changeAmount,
+          finalEstimatedDone, combinedNotes,
+        ]
+      );
+    }
 
     // ── Langkah 2: Bulk insert tr_transaction_item ────────────────────────────
     for (let i = 0; i < items.length; i++) {
@@ -266,6 +349,47 @@ export const checkoutTransaction = async (req, res) => {
           itemQty
         ]
       );
+
+      // ── Pengurangan stok bahan (auto_deduct) per layanan ─────────────────────
+      try {
+        const [usageRows] = await conn.execute(
+          `SELECT inventory_id, qty_per_unit FROM mst_service_inventory_usage
+           WHERE service_id = ? AND usage_type = 'auto_deduct' AND is_active = 1`,
+          [serviceId]
+        );
+        for (const u of usageRows) {
+          const need = Math.abs(Number(u.qty_per_unit)) * itemQty;
+          if (!Number.isFinite(need) || need <= 0) continue;
+          const delta = -need;
+          const [stRows] = await conn.execute(
+            'SELECT id, stock_qty FROM mst_inventory_outlet_stock WHERE outlet_id = ? AND inventory_id = ? FOR UPDATE',
+            [outletId, u.inventory_id]
+          );
+          const st = stRows[0];
+          if (!st) continue;
+          const next = Number(st.stock_qty) + delta;
+          if (next < 0) continue;
+          await conn.execute(
+            'UPDATE mst_inventory_outlet_stock SET stock_qty = ?, last_updated_at = NOW() WHERE id = ?',
+            [next, st.id]
+          );
+          await conn.execute(
+            `INSERT INTO tr_inventory_movement (
+              id, outlet_id, inventory_id, movement_type, qty, transaction_id, transaction_item_id, notes, created_by, created_at
+            ) VALUES (?, ?, ?, 'auto_usage', ?, ?, ?, ?, ?, NOW())`,
+            [
+              randomUUID(),
+              outletId,
+              u.inventory_id,
+              delta,
+              trxId,
+              txItemId,
+              `Auto nota ${transactionNo}`,
+              userId,
+            ]
+          );
+        }
+      } catch { /* tabel usage/stok belum terpasang */ }
     }
 
     // ── Langkah 3: Insert tr_payment_item (amount harus > 0 per skema DB) ─────
@@ -533,10 +657,12 @@ export const getTransactionById = async (req, res) => {
         t.created_at AS createdAt,
         c.name AS customerName,
         c.phone AS customerPhone,
-        u.name AS cashierName
+        u.name AS cashierName,
+        o.name AS outletName
       FROM tr_transaction t
       JOIN mst_customer c ON c.id = t.customer_id
       JOIN mst_user u ON u.id = t.cashier_id
+      LEFT JOIN mst_outlet o ON o.id = t.outlet_id
       WHERE t.deleted_at IS NULL AND (t.id = ? OR t.transaction_no = ?)
       LIMIT 1`,
       [id, id]
@@ -655,6 +781,7 @@ export const getTransactionById = async (req, res) => {
       })),
       customerName: t.customerName,
       customerPhone: t.customerPhone,
+      outletName: t.outletName || null,
       payMethod: t.payMethod,
       notes: t.notes,
     };
@@ -841,11 +968,13 @@ export const getDashboardStats = async (req, res) => {
     const [todayRows] = await poolWaschenPos.execute(
       `SELECT
         COUNT(*) AS total,
+        COALESCE(SUM(t.total), 0) AS omset,
         SUM(CASE WHEN t.is_express = TRUE THEN 1 ELSE 0 END) AS expressCount,
         SUM(CASE WHEN t.status IN ('draft', 'pending', 'process') THEN 1 ELSE 0 END) AS pendingCount,
-        SUM(CASE WHEN t.status IN ('ready_for_pickup', 'ready_for_delivery', 'completed') THEN 1 ELSE 0 END) AS completedCount
+        SUM(CASE WHEN t.status IN ('ready_for_pickup', 'ready_for_delivery', 'completed') THEN 1 ELSE 0 END) AS completedCount,
+        SUM(CASE WHEN t.status = 'completed' THEN t.total ELSE 0 END) AS omsetLunas
       FROM tr_transaction t
-      WHERE t.deleted_at IS NULL AND DATE(t.created_at) = CURDATE()
+      WHERE t.deleted_at IS NULL AND t.status <> 'cancelled' AND DATE(t.created_at) = CURDATE()
       ${userOutletId ? 'AND t.outlet_id = ?' : ''}`,
       userOutletId ? [userOutletId] : []
     );
@@ -899,10 +1028,12 @@ export const getDashboardStats = async (req, res) => {
       success: true,
       data: {
         today: {
-          total: todayRows[0]?.total || 0,
-          express: todayRows[0]?.expressCount || 0,
-          pending: todayRows[0]?.pendingCount || 0,
-          completed: todayRows[0]?.completedCount || 0,
+          total: Number(todayRows[0]?.total || 0),
+          omset: Number(todayRows[0]?.omset || 0),
+          omsetLunas: Number(todayRows[0]?.omsetLunas || 0),
+          express: Number(todayRows[0]?.expressCount || 0),
+          pending: Number(todayRows[0]?.pendingCount || 0),
+          completed: Number(todayRows[0]?.completedCount || 0),
         },
         recent,
       },
@@ -983,14 +1114,18 @@ export const getProductionQueue = async (req, res) => {
         t.is_express AS isExpress,
         t.total,
         t.created_at AS createdAt,
-        c.name AS customerName
+        t.estimated_done_at AS estimatedDoneAt,
+        t.notes,
+        t.pickup_type AS pickupType,
+        c.name AS customerName,
+        c.phone AS customerPhone
       FROM tr_transaction t
       JOIN mst_customer c ON c.id = t.customer_id
       WHERE t.deleted_at IS NULL
       ${userOutletId ? 'AND t.outlet_id = ?' : ''}
       AND t.status IN ('draft', 'pending', 'process')
-      ORDER BY t.is_express DESC, t.created_at ASC
-      LIMIT 100`,
+      ORDER BY t.is_express DESC, t.estimated_done_at ASC, t.created_at ASC
+      LIMIT 200`,
       userOutletId ? [userOutletId] : []
     );
 
@@ -1033,11 +1168,17 @@ export const getProductionQueue = async (req, res) => {
         return {
           ...t,
           id: t.transactionNo || t.id,
+          transactionUuid: t.id,
           status: mapDbStatusToFrontend(t.dbStatus, t.pickedUpAt),
           date: new Date(t.createdAt).toISOString().slice(0, 10),
+          estimatedDoneAt: t.estimatedDoneAt ? new Date(t.estimatedDoneAt).toISOString() : null,
+          isExpress: t.isExpress === 1 || t.isExpress === true,
           items: items || [],
           total: Number(t.total),
           customerName: t.customerName,
+          customerPhone: t.customerPhone,
+          notes: t.notes || null,
+          pickupType: t.pickupType || 'pickup',
           progress,
         };
       })

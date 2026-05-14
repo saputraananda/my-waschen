@@ -218,10 +218,11 @@ export default function FinanceDashboardPage({ user, navigate }) {
             {/* ── Quick Menu ─────────────────────────────────────────── */}
             <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 14 }}>Menu Finance</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 8 }}>
                 {[
                   { label: 'Verifikasi', screen: 'verifikasi_payment', icon: '✅', color: C.success },
                   { label: 'Laporan', screen: 'laporan_keuangan', icon: '📊', color: '#0EA5E9' },
+                  { label: 'Shift kasir', screen: 'admin_shift', icon: '🕐', color: '#6366F1' },
                   { label: 'Monitoring', screen: 'monitoring', icon: '📈', color: C.primary },
                   { label: 'Member', screen: 'daftar_member', icon: '👥', color: '#8B5CF6' },
                 ].map((item) => (

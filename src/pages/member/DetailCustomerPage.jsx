@@ -4,7 +4,7 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Avatar, Divider } from '../../components/ui';
 
-export default function DetailCustomerPage({ navigate, screenParams }) {
+export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
   const customer = screenParams;
   const [customerTx, setCustomerTx] = useState([]);
   const [txLoading, setTxLoading] = useState(false);
@@ -61,7 +61,7 @@ export default function DetailCustomerPage({ navigate, screenParams }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Detail Customer" onBack={() => navigate('customer')} rightAction={() => navigate('topup_deposit', customer)} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>} />
+      <TopBar title="Detail Customer" onBack={goBack} rightAction={() => navigate('topup_deposit', customer)} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {/* Profile card */}

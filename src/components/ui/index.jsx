@@ -77,7 +77,7 @@ export const BottomNav = ({ role, active, navigate }) => {
           { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
           { id: 'approval', label: 'Approval', icon: NAV_ICONS.approval },
           { id: '_fab', label: '', icon: null },
-          { id: 'monitoring', label: 'Monitor', icon: NAV_ICONS.monitor },
+          { id: 'admin_laporan', label: 'Laporan', icon: NAV_ICONS.monitor },
           { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
         ];
 
@@ -352,10 +352,12 @@ export const Modal = ({ visible, onClose, title, children }) => (
 
 // ── StatCard ──────────────────────────────────────────────
 export const StatCard = ({ label, value, sub, icon, color = C.primary, onClick }) => (
-  <div onClick={onClick} style={{ background: C.white, borderRadius: 16, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)', cursor: onClick ? 'pointer' : 'default', width: '100%', boxSizing: 'border-box' }}>
-    <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10, color }}>{icon}</div>
-    <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: C.n900 }}>{value}</div>
-    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{label}</div>
+  <div onClick={onClick} style={{ background: C.white, borderRadius: 14, padding: '9px 11px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)', cursor: onClick ? 'pointer' : 'default', width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+      <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color }}>{icon}</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, lineHeight: 1.3 }}>{label}</div>
+    </div>
+    <div style={{ fontFamily: 'Poppins', fontSize: 17, fontWeight: 700, color: C.n900, lineHeight: 1 }}>{value}</div>
     {sub && <div style={{ fontFamily: 'Poppins', fontSize: 10, color, marginTop: 3, fontWeight: 500 }}>{sub}</div>}
   </div>
 );
@@ -436,7 +438,7 @@ export const ProgressTimeline = ({ progress }) => {
             </div>
             <div style={{ flex: 1, paddingBottom: i < STAGES.length - 1 ? 12 : 0 }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: done ? 600 : 400, color: done ? C.n900 : C.n600 }}>{stage}</div>
-              {info && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{info.pic} · {info.time.split(' ')[1]}</div>}
+              {info && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{info.pic || '-'} · {info.time ? info.time.split(' ')[1] || info.time : '-'}</div>}
             </div>
           </div>
         );

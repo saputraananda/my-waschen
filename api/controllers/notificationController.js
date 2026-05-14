@@ -147,6 +147,32 @@ export const getNotifications = async (req, res) => {
       });
     });
 
+    // ─── 6. Stok bahan di bawah minimum (kasir/produksi/admin outlet) ─────────
+    if (['kasir', 'produksi', 'admin'].includes(userRole) && userOutletId) {
+      try {
+        const [lowStock] = await poolWaschenPos.execute(
+          `SELECT i.name, COALESCE(st.stock_qty, 0) AS qty, COALESCE(st.min_stock, i.min_stock_default) AS minq
+           FROM mst_inventory_item i
+           LEFT JOIN mst_inventory_outlet_stock st ON st.inventory_id = i.id AND st.outlet_id = ?
+           WHERE i.is_active = 1 AND COALESCE(st.stock_qty, 0) <= COALESCE(st.min_stock, i.min_stock_default)
+           ORDER BY i.name
+           LIMIT 8`,
+          [userOutletId]
+        );
+        lowStock.forEach((r, idx) => {
+          notifications.push({
+            id: `stock-low-${idx}-${r.name}`,
+            type: 'warning',
+            title: 'Stok bahan rendah',
+            message: `${r.name}: sisa ${Number(r.qty).toLocaleString('id-ID')} (min ${Number(r.minq).toLocaleString('id-ID')})`,
+            time: 'Hari ini',
+            timestamp: new Date().toISOString(),
+            read: false,
+          });
+        });
+      } catch { /* inventaris belum dipakai */ }
+    }
+
     // Sort by timestamp descending
     notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 

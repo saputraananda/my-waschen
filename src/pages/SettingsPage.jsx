@@ -1,11 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { C } from '../utils/theme';
 import { Avatar, Btn, Divider } from '../components/ui';
 
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Kasir', produksi: 'Produksi', finance: 'Finance' };
 
+const fmtDate = (v) => {
+  if (!v) return '-';
+  try { return new Date(v).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return v; }
+};
+
 export default function SettingsPage({ user, navigate, onLogout, onSwitchRole }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [shiftStatus, setShiftStatus] = useState(null);
+  const [outletInfo, setOutletInfo] = useState(null);
 
   const isAdmin = (user?.originalRoleCode ?? user?.roleCode) === 'admin';
 
@@ -17,11 +25,27 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
   ];
 
   const MENUS = [
-    { label: 'Notifikasi',      icon: '🔔', screen: 'notifikasi' },
-    { label: 'Daftar Member',   icon: '👥', screen: 'daftar_member' },
-    { label: 'Bantuan',         icon: '❓', screen: null },
-    { label: 'Kebijakan Privasi', icon: '🔒', screen: null },
+    { label: 'Pengaturan Printer',  icon: '🖨️', screen: 'printer_settings' },
+    { label: 'Info Outlet',         icon: '🏪', screen: 'info_outlet', badge: outletInfo ? (outletInfo.isActive ? { text: '● Aktif', bg: '#DCFCE7', color: '#166534' } : { text: '● Nonaktif', bg: '#FEE2E2', color: '#991B1B' }) : null },
+    { label: 'Notifikasi',         icon: '🔔', screen: 'notifikasi' },
+    { label: 'Daftar Member',      icon: '👥', screen: 'daftar_member' },
+    { label: 'Bantuan',            icon: '❓', screen: null },
+    { label: 'Kebijakan Privasi',  icon: '🔒', screen: null },
   ];
+
+  useEffect(() => {
+    if (user?.role !== 'kasir') return;
+    axios.get('/api/shifts/status')
+      .then((r) => setShiftStatus(r?.data || null))
+      .catch(() => setShiftStatus(null));
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (!user?.outletId) return;
+    axios.get(`/api/outlets/${user.outletId}`)
+      .then((r) => setOutletInfo(r?.data?.data || null))
+      .catch(() => setOutletInfo(null));
+  }, [user?.outletId]);
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: C.n50 }}>
@@ -42,7 +66,21 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
             <span style={{ background: 'rgba(255,255,255,0.2)', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'white', padding: '2px 10px', borderRadius: 999 }}>
               {ROLE_LABEL[user?.role] || user?.role?.toUpperCase()}
             </span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>{user?.outlet?.name || ''}</span>
+            {user?.outlet?.name && (
+              <span style={{ background: 'rgba(255,255,255,0.15)', fontFamily: 'Poppins', fontSize: 11, color: 'white', padding: '2px 10px', borderRadius: 999 }}>
+                {user.outlet.name}
+              </span>
+            )}
+            {outletInfo && (
+              <span style={{
+                background: outletInfo.isActive ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)',
+                border: `1px solid ${outletInfo.isActive ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'}`,
+                fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: 'white',
+                padding: '2px 8px', borderRadius: 999
+              }}>
+                {outletInfo.isActive ? '● Aktif' : '● Nonaktif'}
+              </span>
+            )}
           </div>
         </div>
         <button
@@ -74,16 +112,72 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
           </div>
         )}
 
+
+        {/* Shift section */}
+        {user?.role === 'kasir' && (
+          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 10 }}>
+              SHIFT KASIR
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
+                  {shiftStatus?.isOpen ? 'Shift sedang aktif' : 'Shift belum aktif'}
+                </div>
+                {shiftStatus?.session?.openedAt && (
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
+                    Dibuka {new Date(shiftStatus.session.openedAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                  </div>
+                )}
+              </div>
+              <span style={{
+                padding: '4px 10px',
+                borderRadius: 999,
+                fontFamily: 'Poppins',
+                fontSize: 10,
+                fontWeight: 700,
+                background: shiftStatus?.isOpen ? '#DCFCE7' : '#FEE2E2',
+                color: shiftStatus?.isOpen ? '#166534' : '#991B1B',
+              }}>
+                {shiftStatus?.isOpen ? 'BUKA' : 'TUTUP'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn
+                variant="success"
+                style={{ flex: 1 }}
+                onClick={() => navigate('buka_shift')}
+                disabled={!!shiftStatus?.isOpen}
+              >
+                Buka Shift
+              </Btn>
+              <Btn
+                variant="danger"
+                style={{ flex: 1 }}
+                onClick={() => navigate('tutup_shift')}
+                disabled={!shiftStatus?.isOpen}
+              >
+                Tutup Shift
+              </Btn>
+            </div>
+          </div>
+        )}
+
         {/* Menu */}
         <div style={{ background: C.white, borderRadius: 16, padding: '4px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
           {MENUS.map((m, i) => (
             <div key={m.label}>
               <button
-                onClick={() => m.screen && navigate(m.screen)}
+                onClick={() => m.screen && navigate(m.screen, m.screen === 'info_outlet' ? { outletId: user?.outletId } : undefined)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', background: 'transparent', border: 'none', cursor: m.screen ? 'pointer' : 'default', textAlign: 'left' }}
               >
                 <span style={{ fontSize: 18, width: 28 }}>{m.icon}</span>
                 <span style={{ flex: 1, fontFamily: 'Poppins', fontSize: 14, color: C.n900 }}>{m.label}</span>
+                {m.badge && (
+                  <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: m.badge.bg, color: m.badge.color, marginRight: 4 }}>
+                    {m.badge.text}
+                  </span>
+                )}
                 {m.screen && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>}
               </button>
               {i < MENUS.length - 1 && <Divider mx={0} my={0} />}

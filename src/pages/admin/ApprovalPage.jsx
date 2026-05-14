@@ -4,7 +4,7 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Avatar, Btn, SearchBar, Chip } from '../../components/ui';
 
-export default function ApprovalPage({ navigate }) {
+export default function ApprovalPage({ navigate, goBack }) {
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
@@ -88,7 +88,7 @@ export default function ApprovalPage({ navigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Approval Center" subtitle={`${pending.length} menunggu`} onBack={() => navigate('dashboard')} />
+      <TopBar title="Approval Center" subtitle={`${pending.length} menunggu`} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px' }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari requester, tipe, atau alasan..." />

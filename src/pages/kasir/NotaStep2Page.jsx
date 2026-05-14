@@ -39,7 +39,7 @@ const genreMatcher = {
 
 const GENRE_ORDER = ['Cuci', 'Sepatu', 'Dry Clean', 'Setrika', 'Premium'];
 
-export default function NotaStep2Page() {
+export default function NotaStep2Page({ goBack }) {
   const { navigate, notaCustomer, notaCart, setNotaCart } = useApp();
   const [activeCategory, setActiveCategory] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,7 +128,7 @@ export default function NotaStep2Page() {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Buat Nota" subtitle="Langkah 2 dari 3 — Pilih Layanan" onBack={() => navigate('nota_step1')} />
+      <TopBar title="Buat Nota" subtitle="Langkah 2 dari 3 — Pilih Layanan" onBack={goBack} />
 
       <div style={{ padding: '8px 16px' }}>
         <div style={{ display: 'flex', gap: 6 }}>

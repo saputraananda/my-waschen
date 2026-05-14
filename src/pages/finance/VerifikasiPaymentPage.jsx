@@ -5,7 +5,7 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Avatar, SearchBar, Modal } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 
-export default function VerifikasiPaymentPage({ navigate }) {
+export default function VerifikasiPaymentPage({ navigate, goBack }) {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
@@ -79,7 +79,7 @@ export default function VerifikasiPaymentPage({ navigate }) {
       <TopBar
         title="Verifikasi Pembayaran"
         subtitle={filter === 'pending' ? `${pendingCount} menunggu · ${rp(totalPending)}` : `${filtered.length} data`}
-        onBack={() => navigate('dashboard')}
+        onBack={goBack}
       />
 
       {/* Filters */}

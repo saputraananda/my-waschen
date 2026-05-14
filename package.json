@@ -16,6 +16,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
+    "jsqr": "^1.4.0",
     "mysql2": "^3.9.7",
     "react": "^18.3.1",
     "react-datepicker": "^9.1.0",

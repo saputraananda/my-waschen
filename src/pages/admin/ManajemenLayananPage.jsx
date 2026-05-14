@@ -4,7 +4,7 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
 
-export default function ManajemenLayananPage({ navigate }) {
+export default function ManajemenLayananPage({ navigate, goBack }) {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -13,7 +13,9 @@ export default function ManajemenLayananPage({ navigate }) {
   const [query, setQuery] = useState('');
   const [modalAdd, setModalAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
+  const [form, setForm] = useState({
+    name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '',
+  });
 
   // Fetch services from API on mount
   useEffect(() => {
@@ -51,13 +53,21 @@ export default function ManajemenLayananPage({ navigate }) {
 
   const openAdd = () => {
     setEditingId(null);
-    setForm({ name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '' });
+    setForm({
+      name: '', category: 'Cuci', price: '', unit: 'kg', expressExtra: '',
+    });
     setModalAdd(true);
   };
 
   const openEdit = (s) => {
     setEditingId(s.id);
-    setForm({ name: s.name, category: s.category, price: s.price, unit: s.unit });
+    setForm({
+      name: s.name,
+      category: s.category,
+      price: String(s.price),
+      unit: s.unit,
+      expressExtra: s.expressExtra != null ? String(s.expressExtra) : '',
+    });
     setModalAdd(true);
   };
 
@@ -69,22 +79,17 @@ export default function ManajemenLayananPage({ navigate }) {
         name: form.name.trim(),
         category: form.category,
         price: Number(form.price),
-        unit: form.unit
+        unit: form.unit,
+        expressExtra: form.expressExtra ? Number(form.expressExtra) : 0,
       };
-      
+
       if (editingId) {
-        const res = await axios.put(`/api/services/${editingId}`, payload);
-        const updatedService = res?.data?.data;
-        if (updatedService) {
-          setServices((prev) => prev.map((s) => (s.id === editingId ? updatedService : s)));
-        }
+        await axios.put(`/api/services/${editingId}`, payload);
       } else {
-        const res = await axios.post('/api/services', payload);
-        const newService = res?.data?.data;
-        if (newService) {
-          setServices((prev) => [...prev, newService]);
-        }
+        await axios.post('/api/services', payload);
       }
+      const resList = await axios.get('/api/services');
+      setServices(resList?.data?.data || []);
       setModalAdd(false);
     } catch (error) {
       console.error('Failed to save service:', error);
@@ -124,7 +129,7 @@ export default function ManajemenLayananPage({ navigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
-      <TopBar title="Manajemen Layanan" onBack={() => navigate('dashboard')} rightAction={openAdd} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>} />
+      <TopBar title="Manajemen Layanan" onBack={goBack} rightAction={openAdd} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>} />
 
       <div style={{ padding: '12px 16px 0' }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama layanan, kategori, atau satuan..." />
@@ -166,7 +171,7 @@ export default function ManajemenLayananPage({ navigate }) {
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{s.category} · per {s.unit}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
                     <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary }}>{rp(s.price)}</span>
-                    {s.expressExtra && <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.warning, fontWeight: 600 }}>⚡ +{rp(s.expressExtra)}</span>}
+                    {s.expressExtra ? <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.warning, fontWeight: 600 }}>⚡ +{rp(s.expressExtra)}</span> : null}
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -202,6 +207,7 @@ export default function ManajemenLayananPage({ navigate }) {
           { value: 'package', label: 'Paket' },
           { value: 'other', label: 'Lainnya' }
         ]} />
+        <Input label="Express tambahan (Rp, opsional)" value={form.expressExtra} onChange={(v) => setForm((f) => ({ ...f, expressExtra: v }))} type="number" placeholder="0" />
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="secondary" onClick={() => setModalAdd(false)} style={{ flex: 1 }}>Batal</Btn>
           <Btn variant="primary" onClick={handleSave} loading={submitting} style={{ flex: 1 }}>Simpan</Btn>

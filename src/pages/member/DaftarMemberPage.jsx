@@ -4,7 +4,7 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, SearchBar, Avatar, Chip } from '../../components/ui';
 
-export default function DaftarMemberPage({ navigate }) {
+export default function DaftarMemberPage({ navigate, goBack }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -39,7 +39,7 @@ export default function DaftarMemberPage({ navigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Daftar Member" subtitle={`${totalMembers} member terdaftar`} onBack={() => navigate('dashboard')} />
+      <TopBar title="Daftar Member" subtitle={`${totalMembers} member terdaftar`} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
 

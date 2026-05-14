@@ -41,6 +41,16 @@ export const AppProvider = ({ children }) => {
   const [notaCustomer,  setNotaCustomer]  = useState(null);
   const [notaCart,      setNotaCart]      = useState([]);
 
+  // ── History stack — tombol back kembali ke halaman sebelumnya ─────────────
+  const [historyStack, setHistoryStack] = useState([]);
+
+  // Root screens: navigasi ke sini mereset stack (tidak punya "sebelumnya")
+  const ROOT_SCREENS = new Set([
+    'splash', 'login', 'dashboard', 'transaksi', 'customer', 'antrian',
+    'approval', 'monitoring', 'admin_laporan', 'history_produksi',
+    'verifikasi_payment', 'laporan_keuangan', 'settings',
+  ]);
+
   // ─── Repair user state on mount (handle stale localStorage) ────────────
   useEffect(() => {
     if (!user) return;
@@ -58,13 +68,39 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ─── navigate ───────────────────────────────────────────────────────────
+  const NAV_SCREENS = ['dashboard', 'transaksi', 'customer', 'settings', 'kasir_shift', 'antrian',
+                       'approval', 'monitoring', 'admin_laporan', 'history_produksi', 'nota_step1',
+                       'verifikasi_payment', 'laporan_keuangan'];
+
   const navigate = (to, params = null) => {
+    setHistoryStack(prev => {
+      if (ROOT_SCREENS.has(to)) return [];   // reset stack saat ke root
+      const last = prev[prev.length - 1];
+      // Hindari duplikat berturutan di stack
+      if (last?.screen === screen && JSON.stringify(last?.params) === JSON.stringify(screenParams)) return prev;
+      return [...prev, { screen, params: screenParams }];
+    });
     setScreen(to);
     setScreenParams(params);
-    const navScreens = ['dashboard', 'transaksi', 'customer', 'settings', 'antrian',
-                        'approval', 'monitoring', 'history_produksi', 'nota_step1',
-                        'verifikasi_payment', 'laporan_keuangan'];
-    if (navScreens.includes(to)) setNavActive(to);
+    if (NAV_SCREENS.includes(to)) setNavActive(to);
+  };
+
+  // ─── goBack — kembali ke halaman sebelumnya dari stack ──────────────────
+  const goBack = () => {
+    setHistoryStack(prev => {
+      if (prev.length === 0) {
+        setScreen('dashboard');
+        setScreenParams(null);
+        setNavActive('dashboard');
+        return [];
+      }
+      const next = [...prev];
+      const { screen: prevScreen, params: prevParams } = next.pop();
+      setScreen(prevScreen);
+      setScreenParams(prevParams);
+      if (NAV_SCREENS.includes(prevScreen)) setNavActive(prevScreen);
+      return next;
+    });
   };
 
   // ─── loginContext — dipanggil dari LoginPage setelah API berhasil ────────
@@ -134,11 +170,12 @@ export const AppProvider = ({ children }) => {
     } catch {}
     setToken(null);
     setUser(null);
+    setHistoryStack([]);
     setScreen('login');
     setNavActive('dashboard');
   };
 
-  // ─── handleSwitchRole — hanya untuk admin, ganti tampilan role tanpa ubah data ───
+  // ─── handleSwitchRole ───────────────────────────────────────────────────────
   const handleSwitchRole = (role) => {
     const updatedUser = {
       ...user,
@@ -146,6 +183,7 @@ export const AppProvider = ({ children }) => {
       // roleCode dan originalRoleCode TIDAK berubah — hanya tampilan (role) yang ganti
     };
     setUser(updatedUser);
+    setHistoryStack([]);
     try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch {}
     navigate('dashboard');
   };
@@ -192,7 +230,7 @@ export const AppProvider = ({ children }) => {
       value={{
         screen, screenParams, user, token, customers, transactions,
         navActive, notaCustomer, notaCart,
-        navigate, loginContext, handleLogin, handleLogout, handleSwitchRole, updateUserProfile,
+        navigate, goBack, loginContext, handleLogin, handleLogout, handleSwitchRole, updateUserProfile,
         addTransaction, addCustomer, cancelTransaction,
         setNotaCustomer, setNotaCart,
       }}

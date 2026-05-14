@@ -3,7 +3,7 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { TopBar, Avatar, Btn, Chip, Modal, Input, Select, Toast, SearchBar } from '../../components/ui';
 
-export default function ManajemenUserPage({ navigate }) {
+export default function ManajemenUserPage({ navigate, goBack }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -189,7 +189,7 @@ export default function ManajemenUserPage({ navigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
-      <TopBar title="Manajemen User" onBack={() => navigate('dashboard')} rightAction={() => setModalAdd(true)} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>} />
+      <TopBar title="Manajemen User" onBack={goBack} rightAction={() => setModalAdd(true)} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>} />
 
       <div style={{ padding: '12px 16px 0' }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama, username, email, atau outlet..." />

@@ -4,7 +4,7 @@ import { C } from '../../utils/theme';
 import { TopBar, SearchBar, Avatar, Btn, EmptyState } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 
-export default function NotaStep1Page() {
+export default function NotaStep1Page({ goBack }) {
   const { navigate, setNotaCustomer } = useApp();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -39,7 +39,7 @@ export default function NotaStep1Page() {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Buat Nota" subtitle="Langkah 1 dari 3 — Pilih Customer" onBack={() => navigate('dashboard')} />
+      <TopBar title="Buat Nota" subtitle="Langkah 1 dari 3 — Pilih Customer" onBack={goBack} />
 
       <div style={{ padding: '8px 16px' }}>
         <div style={{ display: 'flex', gap: 6 }}>

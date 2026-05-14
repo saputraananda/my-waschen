@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
@@ -7,7 +7,51 @@ import { useApp } from '../../context/AppContext';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
-export default function NotaStep3Page() {
+function todayKeyWib() {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function dateKeyWib(d) {
+  if (!d || !(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
+function minSelectableDateWib() {
+  const [y, m, d] = todayKeyWib().split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function isWeekendWib(d) {
+  const w = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', weekday: 'short' }).format(d);
+  return w === 'Sat' || w === 'Sun';
+}
+
+function isTodayWib(d) {
+  return dateKeyWib(d) === todayKeyWib();
+}
+
+function promoDiscountPreview(promo, subtotal) {
+  if (!promo || !subtotal) return 0;
+  const minTrx = promo.minTrxAmount;
+  if (minTrx != null && subtotal < minTrx) return 0;
+  let d = promo.type === 'percent' ? subtotal * (Number(promo.value) / 100) : Number(promo.value);
+  if (promo.maxDiscount != null) d = Math.min(d, Number(promo.maxDiscount));
+  d = Math.min(d, subtotal);
+  if (!Number.isFinite(d) || d < 0) return 0;
+  return Math.round(d * 100) / 100;
+}
+
+export default function NotaStep3Page({ goBack }) {
   const { navigate, user, notaCustomer, notaCart, setNotaCart, setNotaCustomer } = useApp();
   const [pickupType, setPickupType] = useState('self'); // 'self' | 'pickup' | 'delivery'
   const [scheduleDate, setScheduleDate] = useState(null);
@@ -23,6 +67,8 @@ export default function NotaStep3Page() {
   const [loading, setLoading] = useState(false);
   const [qrisModal, setQrisModal] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [promos, setPromos] = useState([]);
+  const [selectedPromoId, setSelectedPromoId] = useState('');
 
   // Fetch area zones for delivery fee calculation
   useEffect(() => {
@@ -35,10 +81,29 @@ export default function NotaStep3Page() {
     fetchZones();
   }, []);
 
+  useEffect(() => {
+    const oid = user?.outletId || user?.outlet?.id;
+    if (!oid) {
+      setPromos([]);
+      return;
+    }
+    axios.get(`/api/promos?outletId=${encodeURIComponent(oid)}`).then((r) => {
+      setPromos(r?.data?.data || []);
+    }).catch(() => setPromos([]));
+  }, [user?.outletId, user?.outlet?.id]);
+
   const selectedZone = areaZones.find((z) => z.id === areaZoneId);
   const logisticFee = pickupType === 'self' ? 0 : (selectedZone?.fee || 10000);
   const subtotal = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? c.expressExtra || 5000 : 0)) * c.qty, 0);
-  const total = subtotal + logisticFee;
+  const selectedPromo = useMemo(
+    () => promos.find((p) => p.id === selectedPromoId) || null,
+    [promos, selectedPromoId]
+  );
+  const promoDiscount = useMemo(
+    () => promoDiscountPreview(selectedPromo, subtotal),
+    [selectedPromo, subtotal]
+  );
+  const total = subtotal - promoDiscount + logisticFee;
 
   const showToast = (message, type = 'success') => {
     setToast({ visible: true, message, type });
@@ -97,6 +162,7 @@ export default function NotaStep3Page() {
         subtotal,
         discount: 0,
         total,
+        promoId: selectedPromoId && promoDiscount > 0 ? selectedPromoId : undefined,
         pickup:   pickupType === 'pickup',
         delivery: pickupType === 'delivery',
         pickupType,
@@ -150,6 +216,10 @@ export default function NotaStep3Page() {
         : total;
 
   const handleConfirm = () => {
+    if (selectedPromoId && promoDiscount <= 0) {
+      showToast('Promo tidak memenuhi syarat untuk subtotal saat ini.', 'error');
+      return;
+    }
     if (payPlan === 'dp' && (!dpAmountStr || dpNumPreview <= 0)) {
       showToast('Isi nominal DP', 'error');
       return;
@@ -179,6 +249,23 @@ export default function NotaStep3Page() {
     outline: 'none',
     boxSizing: 'border-box',
   };
+
+  const minDateForPicker = minSelectableDateWib();
+  const filterPastDates = (d) => dateKeyWib(d) >= todayKeyWib();
+
+  const calendarDayClassName = (date) => {
+    const parts = [];
+    if (isWeekendWib(date)) parts.push('nota-datepicker-weekend');
+    if (isTodayWib(date)) parts.push('nota-datepicker-is-today');
+    return parts.length ? parts.join(' ') : undefined;
+  };
+
+  const renderCalendarDayContents = (day, date) => (
+    <span className="nota-datepicker-day-wrap">
+      <span className="nota-datepicker-day-num">{day}</span>
+      {isTodayWib(date) && <span className="nota-datepicker-today-badge">Hari ini</span>}
+    </span>
+  );
 
   const renderCalendarHeader = ({ date, decreaseMonth, increaseMonth }) => (
     <div className="nota-datepicker-header">
@@ -252,11 +339,15 @@ export default function NotaStep3Page() {
         .nota-datepicker .react-datepicker__day {
           color: #0F172A;
           border-radius: 9px;
-          width: 2rem;
-          line-height: 2rem;
-          margin: 0.16rem;
+          width: 2.35rem;
+          min-height: 2.35rem;
+          line-height: 1.15;
+          margin: 0.14rem;
           font-size: 12px;
           transition: all 0.15s ease;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
         .nota-datepicker .react-datepicker__day:hover {
           background: #DBEAFE;
@@ -267,14 +358,55 @@ export default function NotaStep3Page() {
           color: #334155;
           font-weight: 700;
         }
+        .nota-datepicker .react-datepicker__day.nota-datepicker-weekend:not(.react-datepicker__day--selected):not(.react-datepicker__day--keyboard-selected) {
+          color: #5B21B6;
+          background: #EDE9FE;
+        }
+        .nota-datepicker .react-datepicker__day--outside-month {
+          opacity: 0.38;
+        }
+        .nota-datepicker .react-datepicker__day--disabled {
+          opacity: 0.28 !important;
+          cursor: not-allowed !important;
+          text-decoration: line-through;
+          background: transparent !important;
+        }
         .nota-datepicker .react-datepicker__day--selected,
         .nota-datepicker .react-datepicker__day--keyboard-selected {
           background: ${C.primary};
           color: #fff;
           font-weight: 700;
         }
+        .nota-datepicker .react-datepicker__day--selected .nota-datepicker-today-badge,
+        .nota-datepicker .react-datepicker__day--keyboard-selected .nota-datepicker-today-badge {
+          color: #fff;
+          background: rgba(255,255,255,0.28);
+        }
+        .nota-datepicker-day-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          padding: 2px 0;
+        }
+        .nota-datepicker-day-num {
+          font-size: 12px;
+          font-weight: 600;
+          line-height: 1;
+        }
+        .nota-datepicker-today-badge {
+          font-size: 7px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          color: #1D4ED8;
+          background: #DBEAFE;
+          padding: 1px 5px;
+          border-radius: 999px;
+          line-height: 1.2;
+        }
       `}</style>
-      <TopBar title="Buat Nota" subtitle="Langkah 3 dari 3 — Konfirmasi" onBack={() => navigate('nota_step2')} />
+      <TopBar title="Buat Nota" subtitle="Langkah 3 dari 3 — Konfirmasi" onBack={goBack} />
 
       <div style={{ padding: '8px 16px' }}>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -313,6 +445,32 @@ export default function NotaStep3Page() {
             <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Subtotal</span>
             <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{rp(subtotal)}</span>
           </div>
+          {promos.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 6 }}>PROMO</div>
+              <select
+                value={selectedPromoId}
+                onChange={(e) => setSelectedPromoId(e.target.value)}
+                style={{ width: '100%', height: 42, borderRadius: 10, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13 }}
+              >
+                <option value="">Tanpa promo</option>
+                {promos.map((p) => (
+                  <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
+                ))}
+              </select>
+              {selectedPromo && promoDiscount <= 0 && selectedPromo.minTrxAmount != null && (
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.warning, marginTop: 4 }}>
+                  Min. transaksi {rp(selectedPromo.minTrxAmount)} untuk promo ini
+                </div>
+              )}
+            </div>
+          )}
+          {promoDiscount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Diskon promo</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.success }}>-{rp(promoDiscount)}</span>
+            </div>
+          )}
           {pickupType !== 'self' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Ongkir ({pickupType === 'pickup' ? 'Jemput' : 'Antar'})</span>
@@ -366,8 +524,12 @@ export default function NotaStep3Page() {
                     placeholderText="Pilih tanggal"
                     calendarClassName="nota-datepicker"
                     renderCustomHeader={renderCalendarHeader}
+                    minDate={minDateForPicker}
+                    filterDate={filterPastDates}
+                    dayClassName={calendarDayClassName}
+                    renderDayContents={renderCalendarDayContents}
                     customInput={
-                      <input style={dateInputStyle} />
+                      <input style={dateInputStyle} readOnly />
                     }
                   />
                 </div>
@@ -483,8 +645,12 @@ export default function NotaStep3Page() {
               placeholderText="Pilih estimasi selesai"
               calendarClassName="nota-datepicker"
               renderCustomHeader={renderCalendarHeader}
+              minDate={minDateForPicker}
+              filterDate={filterPastDates}
+              dayClassName={calendarDayClassName}
+              renderDayContents={renderCalendarDayContents}
               customInput={
-                <input style={dateInputStyle} />
+                <input style={dateInputStyle} readOnly />
               }
             />
           </div>
