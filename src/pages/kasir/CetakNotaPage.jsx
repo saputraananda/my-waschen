@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
@@ -36,26 +36,47 @@ function getPageSize(cfg) {
 export default function CetakNotaPage({ navigate, goBack, screenParams }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const cfg = loadPrinterCfg();
   const pageSize = getPageSize(cfg);
 
-  useEffect(() => {
+  const fetchTrx = useCallback(async () => {
     if (!screenParams?.id) return;
-    const fetchTrx = async () => {
-      try {
-        const res = await axios.get(`/api/transactions/${screenParams.id}`);
-        setData(res.data.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTrx();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await axios.get(`/api/transactions/${screenParams.id}`);
+      setData(res.data.data);
+    } catch (err) {
+      console.error(err);
+      setError('Gagal memuat data. Tap untuk coba lagi.');
+    } finally {
+      setLoading(false);
+    }
   }, [screenParams?.id]);
+
+  useEffect(() => {
+    fetchTrx();
+  }, [fetchTrx]);
 
   if (loading) {
     return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'Poppins' }}>Loading Nota...</div>;
+  }
+
+  if (error) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
+        <TopBar title="Cetak Nota" onBack={goBack} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 24 }}>⚠️</span>
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Gagal Memuat Data</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
+          <Btn variant="primary" onClick={fetchTrx} style={{ marginTop: 8 }}>Coba Lagi</Btn>
+        </div>
+      </div>
+    );
   }
 
   if (!data) {

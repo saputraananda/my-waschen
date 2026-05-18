@@ -110,6 +110,43 @@ export const upgradeToPremium = async (req, res) => {
   }
 };
 
+// ─── Controller: POST /api/customers/:id/downgrade ───────────────────────────
+export const downgradeFromPremium = async (req, res) => {
+  const conn = await poolWaschenPos.getConnection();
+  try {
+    const { id } = req.params;
+
+    await conn.beginTransaction();
+
+    const [custRows] = await conn.execute('SELECT id, is_member FROM mst_customer WHERE id = ?', [id]);
+    if (custRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
+    }
+
+    if (!custRows[0].is_member) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: 'Customer ini bukan member Premium.' });
+    }
+
+    await conn.execute(
+      "UPDATE mst_membership SET status = 'expired', expired_at = NOW(), updated_at = NOW() WHERE customer_id = ? AND status = 'active'",
+      [id]
+    );
+
+    await conn.execute('UPDATE mst_customer SET is_member = 0, updated_at = NOW() WHERE id = ?', [id]);
+
+    await conn.commit();
+    return res.status(200).json({ success: true, message: 'Customer berhasil diturunkan menjadi member biasa.' });
+  } catch (error) {
+    await conn.rollback();
+    console.error('[downgradeFromPremium] Error:', error);
+    return res.status(500).json({ success: false, message: 'Gagal menurunkan status member.' });
+  } finally {
+    conn.release();
+  }
+};
+
 // ─── Helper: Get default awareness source id ──────────────────────────────────
 const getDefaultAwarenessSource = async () => {
   const [rows] = await poolWaschenPos.execute(
@@ -139,6 +176,22 @@ const getDefaultAreaZone = async () => {
   return newId;
 };
 
+const normalizeGreeting = (value) => {
+  if (!value) return 'Other';
+  const key = String(value).trim().toLowerCase();
+  const map = {
+    pak: 'Bapak',
+    bapak: 'Bapak',
+    bu: 'Ibu',
+    ibu: 'Ibu',
+    kak: 'Kak',
+    mas: 'Mas',
+    mbak: 'Mbak',
+    other: 'Other',
+  };
+  return map[key] || 'Other';
+};
+
 // ─── Helper: Generate customer number ───────────────────────────────────────────
 const generateCustomerNo = async () => {
   const prefix = 'CUS';
@@ -151,58 +204,80 @@ const generateCustomerNo = async () => {
   return `${prefix}-${dateStr}-${seq}`;
 };
 
+const CUSTOMER_SELECT = `
+  SELECT
+    c.id,
+    c.name,
+    c.phone,
+    c.email,
+    c.gender,
+    c.greeting,
+    c.awareness_source_id AS awareness_source_id,
+    c.awareness_other_text AS awareness_other_text,
+    c.area_zone_id AS area_zone_id,
+    c.address_housing AS addressHousing,
+    c.address_block AS addressBlock,
+    c.address_no AS addressNo,
+    c.address_detail AS addressDetail,
+    c.is_member AS isMember,
+    c.notes,
+    c.is_active AS active,
+    c.created_at AS createdAt,
+    c.updated_at AS updatedAt,
+    az.name AS areaZoneName,
+    COALESCE(w.balance, 0) AS deposit,
+    COALESCE(tx.total_tx, 0) AS totalTx
+  FROM mst_customer c
+  LEFT JOIN mst_area_zone az ON az.id = c.area_zone_id
+  LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
+  LEFT JOIN (
+    SELECT customer_id, COUNT(*) AS total_tx
+    FROM tr_transaction
+    WHERE deleted_at IS NULL AND status != 'cancelled'
+    GROUP BY customer_id
+  ) tx ON tx.customer_id = c.id`;
+
+const mapCustomerRow = (c) => ({
+  ...c,
+  avatar: (c.name || '')
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase(),
+  isPremium: c.isMember === 1 || c.isMember === true,
+  deposit: Number(c.deposit) || 0,
+  totalTx: Number(c.totalTx) || 0,
+});
+
 // ─── Controller: GET /api/customers ────────────────────────────────────────────
 export const getCustomers = async (req, res) => {
   try {
     const [rows] = await poolWaschenPos.execute(
-      `SELECT
-        c.id,
-        c.name,
-        c.phone,
-        c.email,
-        c.gender,
-        c.greeting,
-        c.address_housing AS addressHousing,
-        c.address_block AS addressBlock,
-        c.address_no AS addressNo,
-        c.address_detail AS addressDetail,
-        c.is_member AS isMember,
-        c.notes,
-        c.is_active AS active,
-        c.created_at AS createdAt,
-        c.updated_at AS updatedAt,
-        az.name AS areaZoneName,
-        COALESCE(w.balance, 0) AS deposit,
-        COALESCE(tx.total_tx, 0) AS totalTx
-      FROM mst_customer c
-      LEFT JOIN mst_area_zone az ON az.id = c.area_zone_id
-      LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
-      LEFT JOIN (
-        SELECT customer_id, COUNT(*) AS total_tx
-        FROM tr_transaction
-        WHERE deleted_at IS NULL AND status != 'cancelled'
-        GROUP BY customer_id
-      ) tx ON tx.customer_id = c.id
-      WHERE c.is_active = 1
-      ORDER BY c.name`
+      `${CUSTOMER_SELECT} WHERE c.is_active = 1 ORDER BY c.name`
     );
-
-    const customers = rows.map((c) => ({
-      ...c,
-      avatar: c.name
-        .split(' ')
-        .map((w) => w[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase(),
-      isPremium: c.isMember === 1 || c.isMember === true,
-      deposit: Number(c.deposit) || 0,
-      totalTx: Number(c.totalTx) || 0,
-    }));
-
-    return res.status(200).json({ success: true, data: customers });
+    return res.status(200).json({ success: true, data: rows.map(mapCustomerRow) });
   } catch (err) {
     console.error('[getCustomers] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal memuat data pelanggan.' });
+  }
+};
+
+// ─── Controller: GET /api/customers/:id ──────────────────────────────────────
+export const getCustomerById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await poolWaschenPos.execute(
+      `${CUSTOMER_SELECT} WHERE c.id = ? AND c.is_active = 1 LIMIT 1`,
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
+    }
+    return res.status(200).json({ success: true, data: mapCustomerRow(rows[0]) });
+  } catch (err) {
+    console.error('[getCustomerById] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat data pelanggan.' });
   }
 };
@@ -249,9 +324,10 @@ export const createCustomer = async (req, res) => {
     const id = randomUUID();
     const customerNo = await generateCustomerNo();
 
-    const finalEmail = email || null;
+    const finalEmail = email ? email.trim() : null;
     const finalNotes = notes || null;
     const finalAwarenessOther = awareness_other_text || null;
+    const finalGreeting = normalizeGreeting(greeting);
 
     await poolWaschenPos.execute(
       `INSERT INTO mst_customer (
@@ -261,7 +337,7 @@ export const createCustomer = async (req, res) => {
         is_member, notes, is_active, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, TRUE, NOW(), NOW())`,
       [
-        id, customerNo, name.trim(), phone.trim(), gender, greeting,
+        id, customerNo, name.trim(), phone.trim(), gender, finalGreeting,
         finalEmail, awareness_source_id, finalAwarenessOther, area_zone_id,
         address_housing, address_block, address_no, address_detail,
         finalNotes,
@@ -329,6 +405,12 @@ export const updateCustomer = async (req, res) => {
       addressDetail,
       awarenessSourceId,
       notes,
+      awareness_source_id,
+      area_zone_id,
+      address_housing,
+      address_block,
+      address_no,
+      address_detail,
     } = req.body;
 
     if (!name || !phone) {
@@ -344,8 +426,23 @@ export const updateCustomer = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Nomor HP sudah terdaftar pada customer lain' });
     }
 
-    const defaultAwareness = awarenessSourceId || await getDefaultAwarenessSource();
-    const defaultAreaZone = areaZoneId || await getDefaultAreaZone();
+    const defaultAwareness = awarenessSourceId || awareness_source_id || await getDefaultAwarenessSource();
+    const defaultAreaZone = areaZoneId || area_zone_id || await getDefaultAreaZone();
+    const finalGreeting = normalizeGreeting(greeting);
+    const finalEmail = email ? email.trim() : null;
+    const finalAddressHousing = typeof (addressHousing ?? address_housing) === 'string'
+      ? (addressHousing ?? address_housing).trim()
+      : (addressHousing ?? address_housing) || '';
+    const finalAddressBlock = typeof (addressBlock ?? address_block) === 'string'
+      ? (addressBlock ?? address_block).trim()
+      : (addressBlock ?? address_block) || '';
+    const finalAddressNo = typeof (addressNo ?? address_no) === 'string'
+      ? (addressNo ?? address_no).trim()
+      : (addressNo ?? address_no) || '';
+    const finalAddressDetail = typeof (addressDetail ?? address_detail) === 'string'
+      ? (addressDetail ?? address_detail).trim()
+      : (addressDetail ?? address_detail) || '';
+    const finalNotes = typeof notes === 'string' ? notes.trim() || null : notes || null;
 
     await poolWaschenPos.execute(
       `UPDATE mst_customer SET 
@@ -355,10 +452,10 @@ export const updateCustomer = async (req, res) => {
         notes = ?, updated_at = NOW()
        WHERE id = ?`,
       [
-        name.trim(), phone.trim(), gender || 'other', greeting || 'Other', email || null,
+        name.trim(), phone.trim(), gender || 'other', finalGreeting, finalEmail,
         defaultAwareness, defaultAreaZone,
-        addressHousing || '', addressBlock || '', addressNo || '', addressDetail || '',
-        notes || null, id
+        finalAddressHousing, finalAddressBlock, finalAddressNo, finalAddressDetail,
+        finalNotes, id
       ]
     );
 

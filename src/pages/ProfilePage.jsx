@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 import Cropper from 'react-easy-crop';
-import { C } from '../utils/theme';
+import { C, T } from '../utils/theme';
 import { compressImage, getCroppedImg } from '../utils/helpers';
 import { TopBar, Btn, Input } from '../components/ui';
+import { alertError, alertInfo, alertSuccess, alertWarning } from '../utils/alert';
 import { useApp } from '../context/AppContext';
 
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Kasir', produksi: 'Produksi', finance: 'Finance' };
@@ -31,7 +32,6 @@ export default function ProfilePage({ navigate, goBack }) {
 
   const [saving, setSaving]   = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
-  const [toast, setToast]     = useState({ visible: false, msg: '', type: 'success' });
   const fileRef = useRef();
 
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -40,17 +40,12 @@ export default function ProfilePage({ navigate, goBack }) {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ visible: true, msg, type });
-    setTimeout(() => setToast((t) => ({ ...t, visible: false })), 3000);
-  };
-
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      showToast('Menyiapkan gambar...', 'success');
+      alertInfo('Menyiapkan gambar...');
       // Compress sedikit sebelum masuk ke cropper untuk mencegah lag browser
       const compressedDataUrl = await compressImage(file, 1600, 1600, 0.85);
       setCropImageSrc(compressedDataUrl);
@@ -58,7 +53,7 @@ export default function ProfilePage({ navigate, goBack }) {
       setZoom(1);
       setCropModalOpen(true);
     } catch (error) {
-      showToast('Gagal memproses file gambar ini', 'error');
+      alertError('Gagal memproses file gambar ini');
     }
     
     if (fileRef.current) fileRef.current.value = '';
@@ -68,7 +63,7 @@ export default function ProfilePage({ navigate, goBack }) {
     .split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
   const handleSaveProfile = async () => {
-    if (!name.trim()) { showToast('Nama tidak boleh kosong', 'error'); return; }
+    if (!name.trim()) { alertWarning('Nama tidak boleh kosong'); return; }
     setSaving(true);
     try {
       await axios.patch('/api/users/me/profile', {
@@ -78,25 +73,25 @@ export default function ProfilePage({ navigate, goBack }) {
         photo,
       });
       updateUserProfile({ name: name.trim(), phone: phone.trim() || null, email: email.trim() || null, photo });
-      showToast('Profil berhasil disimpan');
+      alertSuccess('Profil berhasil disimpan');
     } catch (err) {
-      showToast(err?.response?.data?.message || 'Gagal menyimpan profil', 'error');
+      alertError(err?.response?.data?.message || 'Gagal menyimpan profil');
     } finally {
       setSaving(false);
     }
   };
 
   const handleChangePassword = async () => {
-    if (!oldPw || !newPw) { showToast('Password lama dan baru wajib diisi', 'error'); return; }
-    if (newPw !== confirmPw) { showToast('Konfirmasi password tidak cocok', 'error'); return; }
-    if (newPw.length < 6) { showToast('Password baru minimal 6 karakter', 'error'); return; }
+    if (!oldPw || !newPw) { alertWarning('Password lama dan baru wajib diisi'); return; }
+    if (newPw !== confirmPw) { alertWarning('Konfirmasi password tidak cocok'); return; }
+    if (newPw.length < 6) { alertWarning('Password baru minimal 6 karakter'); return; }
     setPwLoading(true);
     try {
       await axios.patch('/api/users/me/password', { oldPassword: oldPw, newPassword: newPw });
-      showToast('Password berhasil diubah');
+      alertSuccess('Password berhasil diubah');
       setOldPw(''); setNewPw(''); setConfirmPw('');
     } catch (err) {
-      showToast(err?.response?.data?.message || 'Gagal mengubah password', 'error');
+      alertError(err?.response?.data?.message || 'Gagal mengubah password');
     } finally {
       setPwLoading(false);
     }
@@ -106,16 +101,9 @@ export default function ProfilePage({ navigate, goBack }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Profil Saya" onBack={goBack} />
 
-      {/* Toast */}
-      {toast.visible && (
-        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1300, background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2', color: toast.type === 'success' ? '#166534' : '#991B1B', padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', whiteSpace: 'nowrap' }}>
-          {toast.type === 'success' ? '✓' : '⚠'} {toast.msg}
-        </div>
-      )}
-
       {cropModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#000', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '16px', background: '#111', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: C.n900, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '16px', background: C.n800, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <span style={{ color: 'white', fontFamily: 'Poppins', fontWeight: 600 }}>Sesuaikan Foto Profil</span>
           </div>
           
@@ -133,7 +121,7 @@ export default function ProfilePage({ navigate, goBack }) {
             />
           </div>
           
-          <div style={{ padding: '24px 20px', background: '#111', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ padding: '24px 20px', background: C.n800, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 16 }}>➖</span>
               <input 
@@ -149,14 +137,14 @@ export default function ProfilePage({ navigate, goBack }) {
               <span style={{ fontSize: 16 }}>➕</span>
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
-              <Btn variant="secondary" style={{ flex: 1, background: '#333', color: 'white', borderColor: '#444' }} onClick={() => setCropModalOpen(false)}>Batal</Btn>
+              <Btn variant="secondary" style={{ flex: 1, background: C.n700, color: 'white', borderColor: C.n600 }} onClick={() => setCropModalOpen(false)}>Batal</Btn>
               <Btn variant="primary" style={{ flex: 1 }} onClick={async () => {
                 try {
                   const croppedBase64 = await getCroppedImg(cropImageSrc, croppedAreaPixels, 800, 0.8);
                   setPhoto(croppedBase64);
                   setCropModalOpen(false);
                 } catch (err) {
-                  showToast('Gagal memotong foto', 'error');
+                  alertError('Gagal memotong foto');
                 }
               }}>Terapkan</Btn>
             </div>
@@ -167,7 +155,7 @@ export default function ProfilePage({ navigate, goBack }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, paddingBottom: 32 }}>
 
         {/* Foto Profil */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '24px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        <div style={{ ...T.card, padding: '24px 16px', marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           <div style={{ position: 'relative' }}>
             {photo ? (
               <img
@@ -214,7 +202,7 @@ export default function ProfilePage({ navigate, goBack }) {
         </div>
 
         {/* Informasi Akun */}
-        <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ ...T.card, marginBottom: 12 }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 14 }}>INFORMASI AKUN</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Input label="Nama Lengkap" value={name} onChange={setName} placeholder="Masukkan nama lengkap" />
@@ -227,7 +215,7 @@ export default function ProfilePage({ navigate, goBack }) {
         </div>
 
         {/* Info readonly */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '12px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ ...T.card, padding: '12px 16px', marginBottom: 12 }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 10 }}>INFO TIDAK BISA DIUBAH</div>
           {[
             { label: 'Username',  value: user?.username || '-' },
@@ -243,7 +231,7 @@ export default function ProfilePage({ navigate, goBack }) {
 
         {/* Switch Role — hanya admin */}
         {isAdmin && (
-          <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ ...T.card, marginBottom: 12 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 14 }}>TAMPIL SEBAGAI ROLE</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {ROLES.map((r) => (
@@ -274,7 +262,7 @@ export default function ProfilePage({ navigate, goBack }) {
         )}
 
         {/* Ubah Password */}
-        <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 8, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ ...T.card, marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showPw ? 14 : 0 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5 }}>UBAH PASSWORD</div>
             <button

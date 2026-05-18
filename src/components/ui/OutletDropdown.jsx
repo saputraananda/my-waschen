@@ -27,23 +27,23 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
   const label = selected ? selected.name : placeholder;
 
   return (
-    <div ref={ref} style={{ position: 'relative', marginBottom: 12, zIndex: 40 }}>
+    <div ref={ref} style={{ position: 'relative', marginBottom: 16, zIndex: 40 }}>
       {/* Trigger */}
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
-          width: '100%',
+          width: '100%', height: 48,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px',
+          padding: '0 14px',
           background: C.white,
-          border: `1.5px solid ${open ? C.primary : C.n300}`,
-          borderRadius: open ? '12px 12px 0 0' : 12,
-          fontFamily: 'Poppins', fontSize: 13, fontWeight: 500,
+          border: `${open ? 2 : 1.5}px solid ${open ? C.primary : C.n300}`,
+          borderRadius: open ? '10px 10px 0 0' : 10,
+          fontFamily: 'Poppins', fontSize: 14, fontWeight: 500,
           color: value ? C.n900 : C.n600,
           cursor: 'pointer',
           outline: 'none',
           transition: 'border-color 0.2s, border-radius 0.2s',
-          boxShadow: open ? `0 2px 12px ${C.primary}18` : '0 2px 6px rgba(15,23,42,0.06)',
+          boxShadow: open ? `0 2px 12px ${C.primary}15` : 'none',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -51,7 +51,7 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
         </span>
         <svg
           width="16" height="16" viewBox="0 0 24 24"
-          fill="none" stroke={open ? C.primary : C.n600}
+          fill="none" stroke={open ? C.primary : C.n500}
           strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
           style={{ flexShrink: 0, transition: 'transform 0.25s ease', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}
         >
@@ -68,7 +68,7 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
           borderBottom: open ? `1.5px solid ${C.primary}` : `1.5px solid transparent`,
           borderLeft: open ? `1.5px solid ${C.primary}` : `1.5px solid transparent`,
           borderTop: 'none',
-          borderRadius: '0 0 14px 14px',
+          borderRadius: '0 0 10px 10px',
           maxHeight: open ? 220 : 0,
           overflowY: 'auto',
           overflowX: 'hidden',

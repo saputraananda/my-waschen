@@ -46,6 +46,9 @@ export default function NotaStep2Page({ goBack }) {
   const [services, setServices] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(false);
+  // ── Carpet (m2) measurement ───────────────────────────────────────────────
+  const [measuringId, setMeasuringId] = useState(null);
+  const [carpetInputs, setCarpetInputs] = useState({}); // { [serviceId]: { panjang: '', lebar: '' } }
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -108,12 +111,31 @@ export default function NotaStep2Page({ goBack }) {
     });
   };
 
+  const addCarpetItem = (service, panjangCm, lebarCm) => {
+    const p = Number(panjangCm);
+    const l = Number(lebarCm);
+    if (!p || !l || p <= 0 || l <= 0) return;
+    const luas = Math.round((p * l / 10000) * 100) / 100; // m², 2 desimal
+    setNotaCart((prev) => {
+      const existing = prev.find((c) => c.id === service.id);
+      const carpetData = { carpetPanjangCm: p, carpetLebarCm: l };
+      if (existing) {
+        return prev.map((c) => c.id === service.id ? { ...c, qty: luas, ...carpetData } : c);
+      }
+      return [...prev, { ...service, qty: luas, ...carpetData, express: false }];
+    });
+    setMeasuringId(null);
+    setCarpetInputs((prev) => ({ ...prev, [service.id]: { panjang: '', lebar: '' } }));
+  };
+
   const removeItem = (id) => {
     setNotaCart((prev) => {
       const existing = prev.find((c) => c.id === id);
-      if (existing && existing.qty > 1) return prev.map((c) => (c.id === id ? { ...c, qty: c.qty - 1 } : c));
+      if (existing && existing.unit !== 'm2' && existing.qty > 1)
+        return prev.map((c) => (c.id === id ? { ...c, qty: c.qty - 1 } : c));
       return prev.filter((c) => c.id !== id);
     });
+    if (measuringId === id) setMeasuringId(null);
   };
 
   const toggleExpress = (id) => {
@@ -124,7 +146,7 @@ export default function NotaStep2Page({ goBack }) {
     setNotaCart((prev) => prev.map((c) => (c.id === id ? { ...c, materialId } : c)));
   };
 
-  const total = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? c.expressExtra || 5000 : 0)) * c.qty, 0);
+  const total = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? (c.expressExtra || 0) : 0)) * c.qty, 0);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
@@ -177,28 +199,147 @@ export default function NotaStep2Page({ goBack }) {
             subtitle="Ubah pencarian atau pilih genre lain. Jika kategori masih kosong, tambah master layanan & kategori di admin."
           />
         ) : filtered.map((s) => {
-          const qty = getQty(s.id);
-          const inCart = notaCart.find((c) => c.id === s.id);
+          const isM2     = s.unit === 'm2';
+          const qty      = getQty(s.id);
+          const inCart   = notaCart.find((c) => c.id === s.id);
+          const isMeasuring = measuringId === s.id;
+          const inp      = carpetInputs[s.id] || { panjang: '', lebar: '' };
+          const luas     = (inp.panjang && inp.lebar)
+            ? Math.round((Number(inp.panjang) * Number(inp.lebar) / 10000) * 100) / 100
+            : 0;
+
           return (
-            <div key={s.id} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
+            <div key={s.id} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)', border: inCart ? `1.5px solid ${C.primary}30` : '1.5px solid transparent' }}>
+              {/* ── Header row ── */}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{s.name}</div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
-                    {s.unit}
+                    {isM2 ? 'per m²' : s.unit}
                     {s.category ? <span> · {s.category}</span> : null}
+                    {isM2 && <span style={{ marginLeft: 6, background: '#E0F2FE', color: '#0369A1', borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>📐 Karpet</span>}
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary, marginTop: 4 }}>{rp(s.price)}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary, marginTop: 4 }}>
+                    {rp(s.price)}{isM2 ? <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, color: C.n500 }}> / m²</span> : null}
+                  </div>
                 </div>
+
+                {/* ── RIGHT SIDE ── */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {qty > 0 && (
-                    <button onClick={() => removeItem(s.id)} style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.n300}`, background: C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600, fontSize: 18 }}>−</button>
+                  {isM2 ? (
+                    inCart ? (
+                      // In cart: show remove button
+                      <button
+                        onClick={() => removeItem(s.id)}
+                        style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.danger}40`, background: '#FEF2F2', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.danger, fontSize: 16 }}
+                      >×</button>
+                    ) : isMeasuring ? null : (
+                      // Not in cart, not measuring: show Ukur button
+                      <button
+                        onClick={() => {
+                          setMeasuringId(s.id);
+                          setCarpetInputs((prev) => ({ ...prev, [s.id]: { panjang: '', lebar: '' } }));
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, background: C.primary, border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', color: 'white' }}
+                      >
+                        <span style={{ fontSize: 14 }}>📐</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700 }}>Ukur</span>
+                      </button>
+                    )
+                  ) : (
+                    // Normal +/- counter
+                    <>
+                      {qty > 0 && (
+                        <button onClick={() => removeItem(s.id)} style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.n300}`, background: C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600, fontSize: 18 }}>−</button>
+                      )}
+                      {qty > 0 && <span style={{ fontFamily: 'Poppins', fontWeight: 700, fontSize: 15, minWidth: 20, textAlign: 'center', color: C.n900 }}>{qty}</span>}
+                      <button onClick={() => addItem(s)} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: C.primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18 }}>+</button>
+                    </>
                   )}
-                  {qty > 0 && <span style={{ fontFamily: 'Poppins', fontWeight: 700, fontSize: 15, minWidth: 20, textAlign: 'center', color: C.n900 }}>{qty}</span>}
-                  <button onClick={() => addItem(s)} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: C.primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18 }}>+</button>
                 </div>
               </div>
-              {qty > 0 && (
+
+              {/* ── Carpet: in-cart summary ── */}
+              {isM2 && inCart && (
+                <div style={{ marginTop: 8, background: '#EFF6FF', borderRadius: 10, padding: '8px 12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#1E40AF' }}>
+                      📏 <strong>{inCart.carpetPanjangCm} cm × {inCart.carpetLebarCm} cm</strong>
+                      {' = '}<strong>{Number(inCart.qty).toFixed(2)} m²</strong>
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.primary }}>
+                      {rp(s.price * Number(inCart.qty))}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setMeasuringId(s.id);
+                      setCarpetInputs((prev) => ({
+                        ...prev,
+                        [s.id]: { panjang: String(inCart.carpetPanjangCm || ''), lebar: String(inCart.carpetLebarCm || '') },
+                      }));
+                    }}
+                    style={{ marginTop: 6, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11, color: '#1E40AF', padding: 0, textDecoration: 'underline' }}
+                  >✏️ Ubah ukuran</button>
+                </div>
+              )}
+
+              {/* ── Carpet: measurement input ── */}
+              {isM2 && isMeasuring && (
+                <div style={{ marginTop: 10, background: C.n50, borderRadius: 12, padding: '12px 14px', border: `1.5px solid ${C.primary}30` }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, marginBottom: 10 }}>📐 Ukur Karpet</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, marginBottom: 4 }}>Panjang (cm)</div>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={inp.panjang}
+                        onChange={(e) => setCarpetInputs((prev) => ({ ...prev, [s.id]: { ...prev[s.id], panjang: e.target.value } }))}
+                        placeholder="mis. 250"
+                        style={{ width: '100%', height: 40, borderRadius: 8, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 10px', boxSizing: 'border-box', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, marginBottom: 4 }}>Lebar (cm)</div>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={inp.lebar}
+                        onChange={(e) => setCarpetInputs((prev) => ({ ...prev, [s.id]: { ...prev[s.id], lebar: e.target.value } }))}
+                        placeholder="mis. 150"
+                        style={{ width: '100%', height: 40, borderRadius: 8, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 10px', boxSizing: 'border-box', outline: 'none' }}
+                      />
+                    </div>
+                  </div>
+                  {luas > 0 && (
+                    <div style={{ background: '#DBEAFE', borderRadius: 8, padding: '7px 12px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 12, color: '#1E40AF' }}>
+                        Luas: <strong>{luas.toFixed(2)} m²</strong>
+                      </span>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.primary }}>
+                        {rp(s.price * luas)}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => { setMeasuringId(null); setCarpetInputs((prev) => ({ ...prev, [s.id]: { panjang: '', lebar: '' } })); }}
+                      style={{ flex: 1, height: 36, borderRadius: 8, border: `1.5px solid ${C.n300}`, background: C.white, fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: C.n600 }}
+                    >Batal</button>
+                    <button
+                      onClick={() => addCarpetItem(s, inp.panjang, inp.lebar)}
+                      disabled={!luas}
+                      style={{ flex: 2, height: 36, borderRadius: 8, border: 'none', background: luas ? C.primary : C.n300, fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, cursor: luas ? 'pointer' : 'not-allowed', color: 'white' }}
+                    >
+                      {inCart ? '✓ Perbarui' : '+ Tambah'} {luas ? `${luas.toFixed(2)} m²` : ''}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Normal expanded: express + material (non-m2 only) ── */}
+              {!isM2 && qty > 0 && (
                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {Number(s.expressExtra) > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -211,7 +352,6 @@ export default function NotaStep2Page({ goBack }) {
                       </button>
                     </div>
                   )}
-
                   {((s.category || '').toLowerCase().includes('satuan')) && (
                     <div>
                       <Select 
@@ -221,6 +361,19 @@ export default function NotaStep2Page({ goBack }) {
                       />
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ── Express toggle for m2 (when in cart) ── */}
+              {isM2 && inCart && Number(s.expressExtra) > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    onClick={() => toggleExpress(s.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: inCart?.express ? '#FEF3C7' : C.n50, border: `1.5px solid ${inCart?.express ? C.warning : C.n300}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: inCart?.express ? C.warning : C.n600 }}
+                  >
+                    <span style={{ fontSize: 14 }}>⚡</span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>Express (+{rp(s.expressExtra)} / m²)</span>
+                  </button>
                 </div>
               )}
             </div>

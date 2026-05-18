@@ -23,7 +23,7 @@ axios.interceptors.response.use(
       if (code === 'TOKEN_EXPIRED' || code === 'TOKEN_INVALID') {
         localStorage.removeItem(AUTH_TOKEN_KEY);
         localStorage.removeItem('waschen_auth_user');
-        window.location.reload();
+        window.dispatchEvent(new CustomEvent('waschen:session-expired'));
       }
     }
     return Promise.reject(error);

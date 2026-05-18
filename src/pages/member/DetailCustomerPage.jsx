@@ -3,41 +3,94 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Avatar, Divider } from '../../components/ui';
+import { alertError, alertSuccess, confirmAction } from '../../utils/alert';
+
+const customerInitials = (c) => {
+  if (c?.avatar) return c.avatar;
+  const name = c?.name || '';
+  return name.split(' ').filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+};
 
 export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
-  const customer = screenParams;
+  const customerId = screenParams?.id;
+  const [customer, setCustomer] = useState(screenParams?.name ? screenParams : null);
+  const [customerLoading, setCustomerLoading] = useState(!!customerId && !screenParams?.name);
   const [customerTx, setCustomerTx] = useState([]);
   const [txLoading, setTxLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+  const [downgrading, setDowngrading] = useState(false);
+
+  useEffect(() => {
+    if (!customerId) {
+      setCustomer(null);
+      setCustomerLoading(false);
+      return;
+    }
+    if (screenParams?.name) {
+      setCustomer(screenParams);
+      setCustomerLoading(false);
+      return;
+    }
+    const fetchCustomer = async () => {
+      setCustomerLoading(true);
+      try {
+        const res = await axios.get(`/api/customers/${customerId}`);
+        setCustomer(res?.data?.data || null);
+      } catch {
+        setCustomer(null);
+      } finally {
+        setCustomerLoading(false);
+      }
+    };
+    fetchCustomer();
+  }, [customerId, screenParams?.name]);
 
   const handleUpgrade = async () => {
-    if (!window.confirm(`Upgrade ${customer.name} menjadi Member Premium? (Otomatis aktif 6 bulan)`)) return;
+    const ok = await confirmAction({ text: `Upgrade ${customer.name} menjadi Member Premium? (Otomatis aktif 6 bulan)` });
+    if (!ok) return;
     setUpgrading(true);
     try {
       await axios.post(`/api/customers/${customer.id}/upgrade`);
-      alert('Berhasil! Customer sekarang adalah Member Premium.');
+      await alertSuccess('Berhasil! Customer sekarang adalah Member Premium.');
       // Update data di lokal sementara, atau arahkan kembali ke customer list
       navigate('customer');
     } catch (error) {
       console.error('Failed to upgrade:', error);
-      alert('Gagal melakukan upgrade member.');
+      alertError('Gagal melakukan upgrade member.');
     } finally {
       setUpgrading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Yakin ingin menghapus customer ini?')) return;
+    const ok = await confirmAction({ text: 'Yakin ingin menghapus customer ini?' });
+    if (!ok) return;
     setDeleting(true);
     try {
       await axios.delete(`/api/customers/${customer.id}`);
-      alert('Customer berhasil dihapus');
+      await alertSuccess('Customer berhasil dihapus');
       navigate('customer');
     } catch (error) {
       console.error('Failed to delete customer:', error);
-      alert('Gagal menghapus customer.');
+      alertError('Gagal menghapus customer.');
       setDeleting(false);
+    }
+  };
+
+  const handleDowngrade = async () => {
+    const ok = await confirmAction({ text: `Turunkan ${customer.name} menjadi member biasa? Benefit premium akan berhenti.` });
+    if (!ok) return;
+    setDowngrading(true);
+    try {
+      await axios.post(`/api/customers/${customer.id}/downgrade`);
+      await alertSuccess('Customer berhasil diturunkan menjadi member biasa.');
+      navigate('customer');
+    } catch (error) {
+      console.error('Failed to downgrade:', error);
+      alertError('Gagal menurunkan status member.');
+    } finally {
+      setDowngrading(false);
     }
   };
 
@@ -57,6 +110,14 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
     fetch();
   }, [customer?.id]);
 
+  if (customerLoading) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Poppins', fontSize: 14, color: C.n600 }}>
+        Memuat data customer...
+      </div>
+    );
+  }
+
   if (!customer) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Btn onClick={() => navigate('customer')}>Kembali</Btn></div>;
 
   return (
@@ -66,7 +127,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {/* Profile card */}
         <div style={{ background: C.white, borderRadius: 16, padding: '20px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.07)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-          <Avatar initials={customer.avatar || customer.name.split(' ').map((w) => w[0]).join('').slice(0, 2)} size={60} />
+          <Avatar initials={customerInitials(customer)} size={60} />
           <div style={{ textAlign: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n900 }}>{customer.name}</div>
@@ -104,6 +165,14 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
           <div style={{ marginBottom: 12 }}>
             <Btn variant="secondary" onClick={handleUpgrade} loading={upgrading} fullWidth style={{ background: '#FEF3C7', color: '#B45309', border: 'none', fontWeight: 700 }}>
               ⭐ Upgrade ke Member Premium
+            </Btn>
+          </div>
+        )}
+
+        {customer.isPremium && (
+          <div style={{ marginBottom: 12 }}>
+            <Btn variant="secondary" onClick={handleDowngrade} loading={downgrading} fullWidth style={{ background: '#FEF2F2', color: C.danger, border: 'none', fontWeight: 700 }}>
+              ↩️ Turunkan ke Member Biasa
             </Btn>
           </div>
         )}

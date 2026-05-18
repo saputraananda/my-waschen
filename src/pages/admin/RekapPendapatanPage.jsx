@@ -1,40 +1,45 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Chip } from '../../components/ui';
+import { TopBar, Btn, Chip, Select, DateInput } from '../../components/ui';
+import { useApp } from '../../context/AppContext';
 
 const METHOD_LABEL = { cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit', ovo: 'OVO', gopay: 'GoPay', dana: 'DANA', shopeepay: 'ShopeePay' };
 const METHOD_ICON = { cash: '💵', transfer: '🏦', qris: '📱', deposit: '💰', ovo: '🟣', gopay: '🟢', dana: '🔵', shopeepay: '🟠' };
-const STATUS_LABEL = { draft: 'Draft', pending: 'Pending', process: 'Proses', ready_for_pickup: 'Siap Ambil', completed: 'Selesai', cancelled: 'Batal' };
-const STATUS_COLOR = { draft: '#64748B', pending: '#2563EB', process: '#D97706', ready_for_pickup: '#059669', completed: '#166534', cancelled: '#DC2626' };
+const METHOD_COLOR = { cash: '#10B981', transfer: '#0EA5E9', qris: '#8B5CF6', deposit: '#F59E0B', ovo: '#7C3AED', gopay: '#22C55E', dana: '#3B82F6', shopeepay: '#F97316' };
+const STATUS_LABEL = { draft: 'Draft', pending: 'Pending', process: 'Proses', ready_for_pickup: 'Siap Ambil', ready_for_delivery: 'Siap Antar', completed: 'Selesai', cancelled: 'Batal' };
+const STATUS_COLOR = { draft: '#64748B', pending: '#2563EB', process: '#D97706', ready_for_pickup: '#059669', ready_for_delivery: '#0284C7', completed: '#166534', cancelled: '#DC2626' };
+const STATUS_BG = { draft: '#F1F5F9', pending: '#DBEAFE', process: '#FEF3C7', ready_for_pickup: '#D1FAE5', ready_for_delivery: '#E0F2FE', completed: '#DCFCE7', cancelled: '#FEE2E2' };
+
+const F = { fontFamily: 'Poppins' };
 
 const fmtDate = (v) => {
   if (!v) return '-';
   try { return new Date(v).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }); } catch { return String(v); }
 };
+const fmtDateOnly = (v) => {
+  if (!v) return '-';
+  try { return new Date(v).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }); } catch { return String(v); }
+};
 
-const PER_PAGE_OPTIONS = [5, 10, 25, 50];
+const PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
 export default function RekapPendapatanPage({ navigate, goBack }) {
+  const { adminOutletId } = useApp();
   const [outlets, setOutlets] = useState([]);
-  const [outletId, setOutletId] = useState('');
+  const [outletId, setOutletId] = useState(adminOutletId && adminOutletId !== '_all' ? adminOutletId : '');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [perPage, setPerPage] = useState(5);
+  const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const [preset, setPreset] = useState('30d');
 
-  // Init dates: last 30 days
   useEffect(() => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 29);
-    setStartDate(start.toISOString().slice(0, 10));
-    setEndDate(end.toISOString().slice(0, 10));
-
+    applyPreset('30d');
     (async () => {
       try {
         const res = await axios.get('/api/master/outlets');
@@ -67,110 +72,151 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
     if (key === '7d') start.setDate(end.getDate() - 6);
     else if (key === '30d') start.setDate(end.getDate() - 29);
     else if (key === 'month') start.setDate(1);
-    else { start.setMonth(end.getMonth() - 2); start.setDate(1); }
+    else if (key === '3m') { start.setMonth(end.getMonth() - 2); start.setDate(1); }
+    else { start.setMonth(end.getMonth() - 5); start.setDate(1); }
     setStartDate(start.toISOString().slice(0, 10));
     setEndDate(end.toISOString().slice(0, 10));
     setPage(1);
+    setPreset(key);
   };
 
   const pag = data?.pagination;
   const summary = data?.summary;
   const transactions = data?.transactions || [];
 
+  const methodSummary = useMemo(() => {
+    if (!summary) return [];
+    return [
+      { method: 'cash', amount: Number(summary.totalCash || 0) },
+      { method: 'transfer', amount: Number(summary.totalTransfer || 0) },
+      { method: 'qris', amount: Number(summary.totalQris || 0) },
+      { method: 'deposit', amount: Number(summary.totalDeposit || 0) },
+    ].filter(m => m.amount > 0);
+  }, [summary]);
+
+  const methodTotal = methodSummary.reduce((s, m) => s + m.amount, 0) || 1;
+  const totalDays = startDate && endDate ? Math.max(1, Math.round((new Date(`${endDate}T00:00:00`) - new Date(`${startDate}T00:00:00`)) / 86400000) + 1) : 1;
+  const avgPerDay = summary?.grandTotal ? Math.round(Number(summary.grandTotal) / totalDays) : 0;
+  const avgPerTx = summary?.totalTx > 0 ? Math.round(Number(summary.grandTotal) / Number(summary.totalTx)) : 0;
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Rekap Pendapatan" subtitle="Detail transaksi · filter outlet & periode" onBack={goBack} />
+      <TopBar title="Rekap Pendapatan" subtitle="Detail transaksi tercatat per periode" onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
-
-        {/* ── Filter Outlet ── */}
-        <div style={{ background: C.white, borderRadius: 14, padding: '12px 14px', marginBottom: 10, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 6 }}>Outlet</div>
-          <select
-            value={outletId}
-            onChange={(e) => { setOutletId(e.target.value); setPage(1); }}
-            style={{ width: '100%', height: 44, borderRadius: 10, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 12px', background: C.white }}
-          >
-            <option value="">Semua outlet</option>
-            {outlets.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-        </div>
-
-        {/* ── Filter Periode ── */}
-        <div style={{ background: C.white, borderRadius: 14, padding: '12px 14px', marginBottom: 10, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 6 }}>Periode</div>
+        {/* Filter */}
+        <div style={{ background: C.white, borderRadius: 14, padding: 12, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-            {[{ key: '7d', label: '7 hari' }, { key: '30d', label: '30 hari' }, { key: 'month', label: 'Bulan ini' }, { key: '3m', label: '3 bulan' }].map((p) => (
-              <Chip key={p.key} label={p.label} onClick={() => applyPreset(p.key)} />
+            {[
+              { key: '7d', label: '7 hari' },
+              { key: '30d', label: '30 hari' },
+              { key: 'month', label: 'Bulan ini' },
+              { key: '3m', label: '3 bulan' },
+            ].map((p) => (
+              <Chip key={p.key} label={p.label} active={preset === p.key} onClick={() => applyPreset(p.key)} />
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <label style={{ flex: 1, fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>
-              Dari
-              <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} style={{ display: 'block', width: '100%', marginTop: 4, height: 40, borderRadius: 8, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 12, padding: '0 8px', boxSizing: 'border-box' }} />
-            </label>
-            <label style={{ flex: 1, fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>
-              Sampai
-              <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} style={{ display: 'block', width: '100%', marginTop: 4, height: 40, borderRadius: 8, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 12, padding: '0 8px', boxSizing: 'border-box' }} />
-            </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 8 }}>
+            <DateInput label="Dari" value={startDate} onChange={(v) => { setStartDate(v); setPage(1); setPreset(''); }} />
+            <DateInput label="Sampai" value={endDate} onChange={(v) => { setEndDate(v); setPage(1); setPreset(''); }} />
           </div>
+          <Select label="Outlet" value={outletId} onChange={(val) => { setOutletId(val); setPage(1); }}
+            options={[{ value: '', label: '🏪 Semua outlet' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]} />
         </div>
 
-        {/* ── Summary Cards ── */}
+        {/* Summary */}
         {summary && (
-          <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 10, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900, marginBottom: 10 }}>Ringkasan Keseluruhan</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-              <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: '#166534' }}>{rp(summary.grandTotal)}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#15803D' }}>Total Pendapatan</div>
-              </div>
-              <div style={{ background: '#F0F9FF', borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: '#0C4A6E' }}>{summary.totalTx}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#0369A1' }}>Total Transaksi</div>
+          <>
+            <div style={{
+              background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
+              borderRadius: 16, padding: '16px 18px', color: C.white, marginBottom: 12,
+              boxShadow: '0 4px 16px rgba(91,0,95,0.18)', position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: 40, background: 'rgba(255,255,255,0.1)' }} />
+              <div style={{ ...F, fontSize: 11, fontWeight: 600, opacity: 0.92, marginBottom: 4, letterSpacing: 0.5 }}>💎 PENDAPATAN PERIODE</div>
+              <div style={{ ...F, fontSize: 26, fontWeight: 800, lineHeight: 1.1, marginBottom: 6 }}>{rp(summary.grandTotal)}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11, ...F, opacity: 0.95 }}>
+                <span>📋 {summary.totalTx} transaksi</span>
+                <span>📅 {totalDays} hari</span>
+                <span>⚡ {rp(avgPerTx)}/trx</span>
+                <span>📈 {rp(avgPerDay)}/hari</span>
               </div>
             </div>
-            {/* Per-method summary */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {[
-                { label: 'Tunai', val: summary.totalCash, icon: '💵' },
-                { label: 'Transfer', val: summary.totalTransfer, icon: '🏦' },
-                { label: 'QRIS', val: summary.totalQris, icon: '📱' },
-                { label: 'Deposit', val: summary.totalDeposit, icon: '💰' },
-              ].filter((m) => m.val > 0).map((m) => (
-                <div key={m.label} style={{ background: C.n50, borderRadius: 8, padding: '6px 10px', fontFamily: 'Poppins', fontSize: 11 }}>
-                  <span>{m.icon} {m.label}: </span>
-                  <strong>{rp(m.val)}</strong>
+
+            {/* Payment Distribution */}
+            {methodSummary.length > 0 && (
+              <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 16 }}>💳</span>
+                  <h3 style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900, margin: 0 }}>Komposisi Pembayaran</h3>
                 </div>
-              ))}
-            </div>
-          </div>
+
+                <div style={{ display: 'flex', height: 24, borderRadius: 8, overflow: 'hidden', marginBottom: 12, background: C.n100 }}>
+                  {methodSummary.map((m) => {
+                    const pct = (m.amount / methodTotal) * 100;
+                    return (
+                      <div key={m.method} title={`${METHOD_LABEL[m.method]}: ${pct.toFixed(1)}%`}
+                        style={{ width: `${pct}%`, background: METHOD_COLOR[m.method] || C.n400 }} />
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+                  {methodSummary.map((m) => {
+                    const pct = (m.amount / methodTotal) * 100;
+                    return (
+                      <div key={m.method} style={{
+                        background: `${METHOD_COLOR[m.method]}10`, borderRadius: 10, padding: '10px 12px',
+                        borderLeft: `3px solid ${METHOD_COLOR[m.method]}`,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <span style={{ fontSize: 14 }}>{METHOD_ICON[m.method]}</span>
+                          <span style={{ ...F, fontSize: 11, fontWeight: 600, color: C.n700 }}>{METHOD_LABEL[m.method]}</span>
+                          <span style={{ ...F, fontSize: 10, fontWeight: 700, color: METHOD_COLOR[m.method], marginLeft: 'auto' }}>{pct.toFixed(1)}%</span>
+                        </div>
+                        <div style={{ ...F, fontSize: 14, fontWeight: 800, color: C.n900 }}>{rp(m.amount)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
-        {/* ── Per-page selector ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>
-            {pag ? `${pag.totalRecords} transaksi ditemukan` : 'Memuat...'}
+        {/* Transactions Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: C.white, borderRadius: 14, padding: '10px 14px', marginBottom: 8,
+          boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>📋</span>
+            <div>
+              <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900 }}>Daftar Transaksi</div>
+              <div style={{ ...F, fontSize: 10, color: C.n500 }}>
+                {pag ? `${pag.totalRecords.toLocaleString('id-ID')} transaksi ditemukan` : 'Memuat...'}
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Per halaman:</span>
-            <select
-              value={perPage}
-              onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
-              style={{ height: 30, borderRadius: 6, border: `1px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 11, padding: '0 4px' }}
-            >
-              {PER_PAGE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+          <div style={{ minWidth: 90 }}>
+            <Select value={String(perPage)} onChange={(val) => { setPerPage(Number(val)); setPage(1); }}
+              options={PER_PAGE_OPTIONS.map((n) => ({ value: String(n), label: `${n}/hal` }))} />
           </div>
         </div>
 
-        {/* ── Transaction List ── */}
+        {/* Transactions List */}
         {loading && (
-          <div style={{ textAlign: 'center', padding: 24, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</div>
+          <div style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n500 }}>
+            <div style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
+            Memuat transaksi...
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
         )}
 
         {!loading && transactions.length === 0 && (
-          <div style={{ background: C.white, borderRadius: 14, padding: 24, textAlign: 'center', fontFamily: 'Poppins', fontSize: 13, color: C.n500, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ background: C.white, borderRadius: 14, padding: 32, textAlign: 'center', ...F, fontSize: 13, color: C.n500, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+            <div style={{ fontSize: 40, marginBottom: 8, opacity: 0.4 }}>📭</div>
             Tidak ada transaksi pada periode ini.
           </div>
         )}
@@ -178,88 +224,100 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
         {!loading && transactions.map((tx, idx) => {
           const isExpanded = expandedId === tx.id;
           const globalIdx = ((pag?.page || 1) - 1) * perPage + idx + 1;
+          const statusBg = STATUS_BG[tx.status] || C.n100;
           const statusColor = STATUS_COLOR[tx.status] || C.n600;
+          const isCancelled = tx.status === 'cancelled';
+
           return (
-            <div key={tx.id} style={{ background: C.white, borderRadius: 14, marginBottom: 8, boxShadow: '0 2px 8px rgba(15,23,42,0.06)', overflow: 'hidden' }}>
-              {/* Row header */}
-              <button
-                onClick={() => setExpandedId(isExpanded ? null : tx.id)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-              >
-                <div style={{ width: 28, height: 28, borderRadius: 14, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.white }}>{globalIdx}</span>
-                </div>
+            <div key={tx.id} style={{
+              background: C.white, borderRadius: 12, marginBottom: 8, boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+              overflow: 'hidden', borderLeft: `3px solid ${statusColor}`,
+              opacity: isCancelled ? 0.7 : 1,
+            }}>
+              <button onClick={() => setExpandedId(isExpanded ? null : tx.id)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 16, background: `${statusColor}15`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  ...F, fontSize: 10, fontWeight: 700, color: statusColor,
+                }}>#{globalIdx}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.primary }}>{tx.transactionNo || tx.id}</span>
-                    {tx.isExpress && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, background: '#FEF3C7', color: '#92400E', padding: '1px 5px', borderRadius: 999 }}>⚡ Express</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900 }}>{tx.customerName || 'Tanpa nama'}</span>
+                    {tx.isExpress && <span style={{ ...F, fontSize: 9, fontWeight: 700, background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>}
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 1 }}>
-                    {tx.customerName} · {fmtDate(tx.createdAt)}
+                  <div style={{ ...F, fontSize: 10, color: C.n500, marginTop: 2 }}>
+                    {tx.transactionNo} · {fmtDate(tx.createdAt)}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>{rp(tx.total)}</div>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: statusColor }}>{STATUS_LABEL[tx.status] || tx.status}</span>
+                  <div style={{ ...F, fontSize: 14, fontWeight: 800, color: C.n900 }}>{rp(tx.total)}</div>
+                  <span style={{
+                    ...F, fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                    background: statusBg, color: statusColor, display: 'inline-block', marginTop: 3,
+                  }}>{STATUS_LABEL[tx.status] || tx.status}</span>
                 </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
                   <polyline points="6 9 12 15 18 9" />
                 </svg>
               </button>
 
-              {/* Expanded detail */}
               {isExpanded && (
-                <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}` }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 10, marginBottom: 10 }}>
+                <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: '#FAFAFA' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 12, marginBottom: 12 }}>
                     {[
-                      ['Outlet', tx.outletName || '-'],
-                      ['Kasir', tx.cashierName || '-'],
-                      ['Customer', tx.customerName],
-                      ['Telepon', tx.customerPhone || '-'],
+                      ['🏪 Outlet', tx.outletName || '—'],
+                      ['👤 Kasir', tx.cashierName || '—'],
+                      ['📞 Telepon', tx.customerPhone || '—'],
+                      ['📦 Pickup', tx.pickupType || 'self'],
                     ].map(([label, val]) => (
-                      <div key={label}>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{label}</div>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{val}</div>
+                      <div key={label} style={{ background: C.white, padding: '8px 10px', borderRadius: 8 }}>
+                        <div style={{ ...F, fontSize: 9, color: C.n500, fontWeight: 600 }}>{label}</div>
+                        <div style={{ ...F, fontSize: 12, fontWeight: 700, color: C.n900, marginTop: 2 }}>{val}</div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Price breakdown */}
-                  <div style={{ background: '#FAFAFA', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                  <div style={{ background: C.white, borderRadius: 10, padding: 12, marginBottom: 8 }}>
+                    <div style={{ ...F, fontSize: 10, fontWeight: 700, color: C.n500, marginBottom: 6, letterSpacing: 0.3 }}>💰 RINCIAN HARGA</div>
                     {[
                       ['Subtotal', rp(tx.subtotal)],
                       tx.discount > 0 ? ['Diskon', `- ${rp(tx.discount)}`] : null,
                       tx.deliveryFee > 0 ? ['Ongkir', rp(tx.deliveryFee)] : null,
                     ].filter(Boolean).map(([label, val]) => (
-                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontFamily: 'Poppins', fontSize: 12 }}>
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', ...F, fontSize: 12 }}>
                         <span style={{ color: C.n600 }}>{label}</span>
                         <span style={{ color: C.n900 }}>{val}</span>
                       </div>
                     ))}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', borderTop: `1.5px solid ${C.n200}`, marginTop: 4, fontFamily: 'Poppins', fontSize: 13 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', borderTop: `1.5px solid ${C.n200}`, marginTop: 6, ...F, fontSize: 13 }}>
                       <span style={{ fontWeight: 700, color: C.n900 }}>Total</span>
-                      <span style={{ fontWeight: 800, color: C.primary }}>{rp(tx.total)}</span>
+                      <span style={{ fontWeight: 800, color: C.primary, fontSize: 15 }}>{rp(tx.total)}</span>
                     </div>
                   </div>
 
-                  {/* Payment methods */}
-                  {tx.payments && tx.payments.length > 0 && (
-                    <div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 4 }}>Metode Pembayaran</div>
-                      {tx.payments.map((p) => (
-                        <div key={p.method} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', fontFamily: 'Poppins', fontSize: 12 }}>
-                          <span>{METHOD_ICON[p.method] || '💳'}</span>
-                          <span style={{ flex: 1, color: C.n800 }}>{METHOD_LABEL[p.method] || p.method}</span>
-                          <strong style={{ color: C.n900 }}>{rp(p.amount)}</strong>
+                  {tx.payments && tx.payments.length > 0 ? (
+                    <div style={{ background: C.white, borderRadius: 10, padding: 12 }}>
+                      <div style={{ ...F, fontSize: 10, fontWeight: 700, color: C.n500, marginBottom: 6, letterSpacing: 0.3 }}>💳 METODE PEMBAYARAN</div>
+                      {tx.payments.map((p, i) => (
+                        <div key={`${p.method}-${i}`} style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px',
+                          background: `${METHOD_COLOR[p.method] || C.n400}10`, borderRadius: 8, marginBottom: 4,
+                        }}>
+                          <span style={{ fontSize: 14 }}>{METHOD_ICON[p.method] || '💳'}</span>
+                          <span style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n800, flex: 1 }}>{METHOD_LABEL[p.method] || p.method}</span>
+                          <strong style={{ ...F, fontSize: 12, color: C.n900 }}>{rp(p.amount)}</strong>
                         </div>
                       ))}
                     </div>
-                  )}
-                  {(!tx.payments || tx.payments.length === 0) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>
-                      <span>{METHOD_ICON[tx.payMethod] || '💳'}</span>
-                      <span>{METHOD_LABEL[tx.payMethod] || tx.payMethod || '-'}</span>
-                      <span style={{ marginLeft: 'auto', fontWeight: 600, color: C.n900 }}>{rp(tx.total)}</span>
+                  ) : tx.payMethod && (
+                    <div style={{ background: C.white, borderRadius: 10, padding: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14 }}>{METHOD_ICON[tx.payMethod] || '💳'}</span>
+                      <span style={{ ...F, fontSize: 12, color: C.n800, flex: 1 }}>{METHOD_LABEL[tx.payMethod] || tx.payMethod}</span>
+                      <strong style={{ ...F, fontSize: 12, color: C.n900 }}>{rp(tx.total)}</strong>
                     </div>
                   )}
                 </div>
@@ -268,54 +326,31 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
           );
         })}
 
-        {/* ── Pagination ── */}
+        {/* Pagination */}
         {pag && pag.totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingBottom: 12 }}>
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage(1)}
-              style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}
-            >«</button>
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-              style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}
-            >‹</button>
-
-            {getPageNumbers(page, pag.totalPages).map((p, i) =>
-              p === '...' ? (
-                <span key={`dot-${i}`} style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n400, padding: '0 2px' }}>…</span>
-              ) : (
-                <button
-                  key={p}
-                  onClick={() => setPage(p)}
-                  style={{
+          <div style={{ background: C.white, borderRadius: 14, padding: 12, marginTop: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap' }}>
+              <button disabled={page <= 1} onClick={() => setPage(1)} style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}>«</button>
+              <button disabled={page <= 1} onClick={() => setPage(page - 1)} style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}>‹</button>
+              {getPageNumbers(page, pag.totalPages).map((p, i) =>
+                p === '...' ? (
+                  <span key={`dot-${i}`} style={{ ...F, fontSize: 12, color: C.n400, padding: '0 4px' }}>…</span>
+                ) : (
+                  <button key={p} onClick={() => setPage(p)} style={{
                     ...paginBtnStyle,
                     background: p === page ? C.primary : C.white,
                     color: p === page ? C.white : C.n700,
                     fontWeight: p === page ? 700 : 500,
                     border: p === page ? `1.5px solid ${C.primary}` : `1.5px solid ${C.n200}`,
-                  }}
-                >{p}</button>
-              )
-            )}
-
-            <button
-              disabled={page >= pag.totalPages}
-              onClick={() => setPage(page + 1)}
-              style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}
-            >›</button>
-            <button
-              disabled={page >= pag.totalPages}
-              onClick={() => setPage(pag.totalPages)}
-              style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}
-            >»</button>
-          </div>
-        )}
-
-        {pag && (
-          <div style={{ textAlign: 'center', fontFamily: 'Poppins', fontSize: 11, color: C.n500, paddingBottom: 8 }}>
-            Halaman {pag.page} dari {pag.totalPages} · {pag.totalRecords} record
+                  }}>{p}</button>
+                )
+              )}
+              <button disabled={page >= pag.totalPages} onClick={() => setPage(page + 1)} style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}>›</button>
+              <button disabled={page >= pag.totalPages} onClick={() => setPage(pag.totalPages)} style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}>»</button>
+            </div>
+            <div style={{ textAlign: 'center', ...F, fontSize: 10, color: C.n500, marginTop: 8 }}>
+              Halaman {pag.page} dari {pag.totalPages} · {pag.totalRecords.toLocaleString('id-ID')} record
+            </div>
           </div>
         )}
       </div>
@@ -326,7 +361,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
 const paginBtnStyle = {
   width: 32, height: 32, borderRadius: 8,
   border: `1.5px solid ${C.n200}`, background: C.white,
-  fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
+  ...F, fontSize: 12, fontWeight: 600,
   color: C.n700, cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 };

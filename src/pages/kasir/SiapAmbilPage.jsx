@@ -3,6 +3,7 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar } from '../../components/ui';
+import { alertError, alertSuccess } from '../../utils/alert';
 
 const fmtTime = (v) => {
   if (!v) return '-';
@@ -25,12 +26,6 @@ export default function SiapAmbilPage({ navigate, goBack }) {
   const [search, setSearch] = useState('');
   const [updating, setUpdating] = useState(null);
   const [confirmed, setConfirmed] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (msg, ok = true) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 2800);
-  };
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -46,11 +41,11 @@ export default function SiapAmbilPage({ navigate, goBack }) {
     setUpdating(tx.id);
     try {
       await axios.patch(`/api/transactions/${tx.id}/status`, { status: 'diambil' });
-      showToast(`${tx.transactionNo || tx.id} — Sudah diambil customer ✅`);
+      alertSuccess(`${tx.transactionNo || tx.id} sudah diambil customer.`);
       setConfirmed(null);
       fetchOrders();
     } catch (e) {
-      showToast(e?.response?.data?.message || 'Gagal konfirmasi', false);
+      alertError(e?.response?.data?.message || 'Gagal konfirmasi');
     } finally { setUpdating(null); }
   };
 
@@ -213,12 +208,6 @@ export default function SiapAmbilPage({ navigate, goBack }) {
         </div>
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div style={{ position: 'fixed', bottom: 90, left: 16, right: 16, background: toast.ok ? '#166534' : C.danger, color: 'white', borderRadius: 12, padding: '12px 16px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-          {toast.msg}
-        </div>
-      )}
     </div>
   );
 }

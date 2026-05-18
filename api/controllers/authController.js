@@ -59,7 +59,7 @@ export const login = async (req, res) => {
       [user.id]
     );
 
-    const JWT_SECRET = process.env.JWT_SECRET || 'waschen-secret-dev-2025';
+    const JWT_SECRET = process.env.JWT_SECRET;
     const token = jwt.sign(
       { userId: user.id, roleCode: user.role_code, outletId: user.outlet_id, username: user.username },
       JWT_SECRET,

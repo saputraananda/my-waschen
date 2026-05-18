@@ -3,6 +3,7 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar } from '../../components/ui';
+import { alertError, alertSuccess } from '../../utils/alert';
 
 const STATUS_META = {
   draft:            { label: 'Draft',      color: '#64748B', bg: '#F1F5F9', icon: '📝' },
@@ -41,12 +42,6 @@ export default function KasirAntrianPage({ navigate, goBack }) {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [updating, setUpdating] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (msg, ok = true) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 2800);
-  };
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -66,10 +61,10 @@ export default function KasirAntrianPage({ navigate, goBack }) {
     setUpdating(tx.id);
     try {
       await axios.patch(`/api/transactions/${tx.id}/status`, { status: 'ready_for_pickup' });
-      showToast(`${tx.transactionNo || tx.id} ditandai Siap Ambil ✅`);
+      alertSuccess(`${tx.transactionNo || tx.id} ditandai Siap Ambil.`);
       fetchOrders();
     } catch (e) {
-      showToast(e?.response?.data?.message || 'Gagal update status', false);
+      alertError(e?.response?.data?.message || 'Gagal update status');
     } finally { setUpdating(null); }
   };
 
@@ -180,12 +175,6 @@ export default function KasirAntrianPage({ navigate, goBack }) {
         })}
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div style={{ position: 'fixed', bottom: 90, left: 16, right: 16, background: toast.ok ? '#166534' : C.danger, color: 'white', borderRadius: 12, padding: '12px 16px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, zIndex: 999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-          {toast.msg}
-        </div>
-      )}
     </div>
   );
 }

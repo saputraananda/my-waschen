@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
 import http from 'http'
 import os from 'os'
 import path from 'path'
@@ -22,6 +23,9 @@ import inventoryRoutes from './api/routes/inventory.routes.js';
 import promoRoutes from './api/routes/promo.routes.js';
 import outletRoutes from './api/routes/outlet.routes.js';
 import cashDrawerRoutes from './api/routes/cashDrawer.routes.js';
+import reportRoutes from './api/routes/report.routes.js';
+import targetRoutes from './api/routes/targets.routes.js';
+import periodRoutes from './api/routes/periods.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +47,7 @@ function getLocalIPAddress() {
 }
 
 // Middleware
+app.use(helmet())
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
@@ -68,6 +73,17 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/promos', promoRoutes);
 app.use('/api/outlets', outletRoutes);
 app.use('/api/cash-drawer', cashDrawerRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/targets', targetRoutes);
+app.use('/api/periods', periodRoutes);
+
+// 404 handler for unknown API routes
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Endpoint tidak ditemukan: ${req.method} ${req.originalUrl}`,
+  })
+})
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
@@ -76,6 +92,17 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'))
   })
 }
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('[GlobalError]', err.stack || err)
+  res.status(err.status || 500).json({
+    success: false,
+    message: process.env.NODE_ENV === 'production'
+      ? 'Terjadi kesalahan pada server.'
+      : err.message || 'Internal Server Error',
+  })
+})
 
 const server = http.createServer(app);
 server.listen(PORT, () => {

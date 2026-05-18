@@ -1,4 +1,5 @@
-import { useToast, BottomNav, Toast } from './components/ui';
+import { useState, useEffect } from 'react';
+import { BottomNav, ErrorBoundary } from './components/ui';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { C } from './utils/theme';
@@ -33,12 +34,16 @@ import AdminShiftReportPage from './pages/admin/AdminShiftReportPage';
 import AdminPromoSlaStokPage from './pages/admin/AdminPromoSlaStokPage';
 import InfoOutletPage from './pages/admin/InfoOutletPage';
 import RekapPendapatanPage from './pages/admin/RekapPendapatanPage';
+import GeneralReportPage from './pages/admin/GeneralReportPage';
+import AdminTargetPage from './pages/admin/AdminTargetPage';
+import AdminPeriodClosePage from './pages/admin/AdminPeriodClosePage';
 
 // Produksi
 import ProduksiDashboardPage from './pages/produksi/DashboardPage';
 import DetailItemProduksiPage from './pages/produksi/DetailItemPage';
 import FotoKondisiPage from './pages/produksi/FotoKondisiPage';
 import ProduksiQRScanPage from './pages/produksi/QRScanPage';
+import ProduksiRiwayatPage from './pages/produksi/RiwayatPage';
 
 // Finance
 import FinanceDashboardPage from './pages/finance/DashboardPage';
@@ -65,7 +70,7 @@ const SCREENS_NO_NAV = new Set([
   'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'notifikasi',
   'manajemen_user', 'manajemen_layanan', 'admin_promo_sla', 'admin_promo', 'admin_stok', 'kasir_stok_bahan',
   'profil', 'buka_shift', 'tutup_shift', 'admin_laporan', 'admin_shift', 'info_outlet', 'rekap_pendapatan',
-  'kasir_antrian', 'kasir_siap_ambil', 'printer_settings'
+  'kasir_antrian', 'kasir_siap_ambil', 'printer_settings', 'general_report', 'admin_target', 'admin_period_close'
 ]);
 
 function AppInner() {
@@ -77,7 +82,13 @@ function AppInner() {
     setNotaCustomer, setNotaCart,
   } = useApp();
 
-  const [toast, showToast] = useToast();
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setSessionExpired(true);
+    window.addEventListener('waschen:session-expired', handler);
+    return () => window.removeEventListener('waschen:session-expired', handler);
+  }, []);
 
   const showNav = user && !SCREENS_NO_NAV.has(screen);
 
@@ -104,7 +115,7 @@ function AppInner() {
       case 'transaksi':
         return <TransaksiListPage navigate={navigate} />;
       case 'history_produksi':
-        return <TransaksiListPage navigate={navigate} historyOnly />;
+        return <ProduksiRiwayatPage navigate={navigate} goBack={goBack} />;
 
       case 'customer':
         return <CustomerListPage navigate={navigate} />;
@@ -170,6 +181,12 @@ function AppInner() {
         return <InfoOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'rekap_pendapatan':
         return <RekapPendapatanPage navigate={navigate} goBack={goBack} />;
+      case 'general_report':
+        return <GeneralReportPage navigate={navigate} goBack={goBack} />;
+      case 'admin_target':
+        return <AdminTargetPage navigate={navigate} goBack={goBack} />;
+      case 'admin_period_close':
+        return <AdminPeriodClosePage navigate={navigate} goBack={goBack} />;
 
       case 'verifikasi_payment':
         return <VerifikasiPaymentPage navigate={navigate} goBack={goBack} />;
@@ -177,7 +194,7 @@ function AppInner() {
         return <LaporanKeuanganPage navigate={navigate} goBack={goBack} />;
 
       case 'topup_deposit':
-        return <TopupDepositPage navigate={navigate} goBack={goBack} screenParams={screenParams} showToast={showToast} />;
+        return <TopupDepositPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
 
       case 'settings':
         return <SettingsPage user={user} navigate={navigate} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
@@ -214,13 +231,33 @@ function AppInner() {
         }
       `}</style>
 
-      {renderScreen()}
+      <ErrorBoundary>
+        {renderScreen()}
+      </ErrorBoundary>
 
       {showNav && (
         <BottomNav role={user.role} active={navActive} navigate={navigate} />
       )}
 
-      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
+      {sessionExpired && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ background: 'white', borderRadius: 20, padding: '32px 24px', maxWidth: 320, width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <span style={{ fontSize: 28 }}>🔒</span>
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Sesi Berakhir</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: '#475569', lineHeight: 1.6, marginBottom: 20 }}>
+              Sesi login Anda telah berakhir. Silakan login kembali untuk melanjutkan.
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ width: '100%', padding: '12px 0', fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: 'white', background: '#5B005F', border: 'none', borderRadius: 12, cursor: 'pointer' }}
+            >
+              Login Kembali
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

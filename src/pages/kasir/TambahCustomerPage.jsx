@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, Input, Btn, Select, Modal } from '../../components/ui';
+import { TopBar, Input, Btn, Select, Modal, DateInput } from '../../components/ui';
+import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
 
 export default function TambahCustomerPage({ navigate, screenParams }) {
@@ -32,7 +33,6 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   const [optionalOpen, setOptionalOpen] = useState(false);
   const [exitGuard, setExitGuard] = useState(false);
   const isDirty = useRef(false);
@@ -68,11 +68,6 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     }
   };
 
-  const showToast = (message, type = 'success') => {
-    setToast({ visible: true, message, type });
-    setTimeout(() => setToast({ visible: false, message: '', type }), 3000);
-  };
-
   const handleSave = async () => {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Wajib diisi';
@@ -89,7 +84,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
     if (Object.keys(errs).length) { 
       setErrors(errs); 
-      showToast('Harap lengkapi semua field yang wajib (*)', 'error');
+      alertWarning('Harap lengkapi semua field yang wajib (*)');
       return; 
     }
 
@@ -123,7 +118,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
       }
 
       if (res?.data?.success) {
-        showToast(isEdit ? 'Pelanggan berhasil diupdate' : 'Pelanggan berhasil ditambahkan', 'success');
+        alertSuccess(isEdit ? 'Pelanggan berhasil diupdate' : 'Pelanggan berhasil ditambahkan');
         setTimeout(() => {
           if (!isEdit && res.data.data) {
              setNotaCustomer(res.data.data);
@@ -133,12 +128,12 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
           }
         }, 800);
       } else {
-        showToast(res?.data?.message || 'Gagal memproses data pelanggan', 'error');
+        alertError(res?.data?.message || 'Gagal memproses data pelanggan');
       }
     } catch (error) {
       const msg = error?.response?.data?.message || 'Gagal memproses data pelanggan. Silakan coba lagi.';
       console.error('Failed to process customer:', error);
-      showToast(msg, 'error');
+      alertError(msg);
     } finally {
       setLoading(false);
     }
@@ -229,7 +224,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
               <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk pengiriman promosi melalui email</div>
 
               {/* Tanggal Lahir */}
-              <Input label="Tanggal Lahir" value={form.birthDate} onChange={set('birthDate')} type="date" placeholder="Atur Tanggal" />
+              <DateInput label="Tanggal Lahir" value={form.birthDate} onChange={set('birthDate')} placeholder="Atur Tanggal" />
               <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk keperluan promosi atau lainnya</div>
 
               {/* Agama */}
@@ -309,18 +304,6 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
           </div>
         )}
       </div>
-
-      {toast.visible && (
-        <div style={{
-          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 100,
-          background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2',
-          color: toast.type === 'success' ? '#166534' : '#991B1B',
-          padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          {toast.type === 'success' ? '✓' : '⚠'} {toast.message}
-        </div>
-      )}
 
       <div style={{ padding: '12px 20px', background: C.white, borderTop: `1px solid ${C.n100}` }}>
         <Btn variant="primary" onClick={handleSave} loading={loading} style={{ width: '100%' }}>{isEdit ? "Simpan Perubahan" : "Simpan Data Konsumen"}</Btn>

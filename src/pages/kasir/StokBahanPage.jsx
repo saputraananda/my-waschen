@@ -3,6 +3,7 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { TopBar, Btn, Modal, Input } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 export default function StokBahanPage({ goBack }) {
   const { navigate, user } = useApp();
@@ -39,7 +40,10 @@ export default function StokBahanPage({ goBack }) {
   const submitAdjust = async () => {
     if (!modal || !outletId) return;
     const q = Number(qtyStr);
-    if (!Number.isFinite(q) || q === 0) return;
+    if (!Number.isFinite(q) || q === 0) {
+      alertWarning('Perubahan qty tidak valid.');
+      return;
+    }
     setSaving(true);
     try {
       await axios.post('/api/inventory/adjust', {
@@ -52,8 +56,9 @@ export default function StokBahanPage({ goBack }) {
       setQtyStr('');
       setNoteStr('');
       await load();
+      alertSuccess('Stok berhasil disesuaikan.');
     } catch (e) {
-      alert(e?.response?.data?.message || 'Gagal menyimpan');
+      alertError(e?.response?.data?.message || 'Gagal menyimpan');
     } finally {
       setSaving(false);
     }

@@ -2,10 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Input, Select, Divider, Modal } from '../../components/ui';
+import { TopBar, Btn, Input, Select, Divider, Modal, DateInput } from '../../components/ui';
+import { alertError, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
 
 function todayKeyWib() {
   return new Intl.DateTimeFormat('sv-SE', {
@@ -16,6 +15,11 @@ function todayKeyWib() {
   }).format(new Date());
 }
 
+function minSelectableDateWib() {
+  const [y, m, d] = todayKeyWib().split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function dateKeyWib(d) {
   if (!d || !(d instanceof Date) || Number.isNaN(d.getTime())) return '';
   return new Intl.DateTimeFormat('sv-SE', {
@@ -24,20 +28,6 @@ function dateKeyWib(d) {
     month: '2-digit',
     day: '2-digit',
   }).format(d);
-}
-
-function minSelectableDateWib() {
-  const [y, m, d] = todayKeyWib().split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function isWeekendWib(d) {
-  const w = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', weekday: 'short' }).format(d);
-  return w === 'Sat' || w === 'Sun';
-}
-
-function isTodayWib(d) {
-  return dateKeyWib(d) === todayKeyWib();
 }
 
 function promoDiscountPreview(promo, subtotal) {
@@ -66,7 +56,6 @@ export default function NotaStep3Page({ goBack }) {
   const [dueDate, setDueDate] = useState(null);
   const [loading, setLoading] = useState(false);
   const [qrisModal, setQrisModal] = useState(false);
-  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   const [promos, setPromos] = useState([]);
   const [selectedPromoId, setSelectedPromoId] = useState('');
 
@@ -105,11 +94,6 @@ export default function NotaStep3Page({ goBack }) {
   );
   const total = subtotal - promoDiscount + logisticFee;
 
-  const showToast = (message, type = 'success') => {
-    setToast({ visible: true, message, type });
-    setTimeout(() => setToast({ visible: false, message: '', type }), 3000);
-  };
-
   const doCheckout = async () => {
     setLoading(true);
     try {
@@ -144,14 +128,16 @@ export default function NotaStep3Page({ goBack }) {
       const payload = {
         customerId: notaCustomer.id,
         items: notaCart.map((c) => ({
-          serviceId:   c.id,
-          serviceName: c.name,
-          unit:        c.unit,
-          qty:         c.qty,
-          price:       c.price + (c.express ? (c.expressExtra || 0) : 0),
-          subtotal:    (c.price + (c.express ? (c.expressExtra || 0) : 0)) * c.qty,
-          isExpress:   c.express || false,
-          notes:       c.notes  || null,
+          serviceId:       c.id,
+          serviceName:     c.name,
+          unit:            c.unit,
+          qty:             c.qty,
+          price:           c.price + (c.express ? (c.expressExtra || 0) : 0),
+          subtotal:        (c.price + (c.express ? (c.expressExtra || 0) : 0)) * c.qty,
+          isExpress:       c.express || false,
+          notes:           c.notes  || null,
+          carpetPanjangCm: c.carpetPanjangCm || null,
+          carpetLebarCm:   c.carpetLebarCm   || null,
         })),
         payment: paymentPayload,
         paymentIntent: {
@@ -196,12 +182,12 @@ export default function NotaStep3Page({ goBack }) {
         };
         navigate('nota_berhasil', nota);
       } else {
-        showToast(res?.data?.message || 'Gagal membuat nota', 'error');
+        alertError(res?.data?.message || 'Gagal membuat nota');
       }
     } catch (error) {
       const msg = error?.response?.data?.message || 'Gagal membuat nota. Silakan coba lagi.';
       console.error('Checkout error:', error);
-      showToast(msg, 'error');
+      alertError(msg);
     } finally {
       setLoading(false);
     }
@@ -217,11 +203,11 @@ export default function NotaStep3Page({ goBack }) {
 
   const handleConfirm = () => {
     if (selectedPromoId && promoDiscount <= 0) {
-      showToast('Promo tidak memenuhi syarat untuk subtotal saat ini.', 'error');
+      alertWarning('Promo tidak memenuhi syarat untuk subtotal saat ini.');
       return;
     }
     if (payPlan === 'dp' && (!dpAmountStr || dpNumPreview <= 0)) {
-      showToast('Isi nominal DP', 'error');
+      alertWarning('Isi nominal DP');
       return;
     }
     const runCheckout = () => doCheckout();
@@ -236,176 +222,11 @@ export default function NotaStep3Page({ goBack }) {
     }
   };
 
-  const dateInputStyle = {
-    width: '100%',
-    height: 48,
-    borderRadius: 10,
-    padding: '0 14px',
-    border: `1.5px solid ${C.n300}`,
-    fontFamily: 'Poppins',
-    fontSize: 14,
-    color: C.n900,
-    background: C.white,
-    outline: 'none',
-    boxSizing: 'border-box',
-  };
-
   const minDateForPicker = minSelectableDateWib();
   const filterPastDates = (d) => dateKeyWib(d) >= todayKeyWib();
 
-  const calendarDayClassName = (date) => {
-    const parts = [];
-    if (isWeekendWib(date)) parts.push('nota-datepicker-weekend');
-    if (isTodayWib(date)) parts.push('nota-datepicker-is-today');
-    return parts.length ? parts.join(' ') : undefined;
-  };
-
-  const renderCalendarDayContents = (day, date) => (
-    <span className="nota-datepicker-day-wrap">
-      <span className="nota-datepicker-day-num">{day}</span>
-      {isTodayWib(date) && <span className="nota-datepicker-today-badge">Hari ini</span>}
-    </span>
-  );
-
-  const renderCalendarHeader = ({ date, decreaseMonth, increaseMonth }) => (
-    <div className="nota-datepicker-header">
-      <button type="button" className="nota-datepicker-nav-btn" onClick={decreaseMonth} aria-label="Bulan sebelumnya">
-        ‹
-      </button>
-      <div className="nota-datepicker-month-label">
-        {date.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}
-      </div>
-      <button type="button" className="nota-datepicker-nav-btn" onClick={increaseMonth} aria-label="Bulan berikutnya">
-        ›
-      </button>
-    </div>
-  );
-
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <style>{`
-        .nota-datepicker {
-          border: 1px solid #E2E8F0;
-          border-radius: 14px;
-          font-family: Poppins, sans-serif;
-          box-shadow: 0 12px 28px rgba(15,23,42,0.14);
-          overflow: hidden;
-        }
-        .nota-datepicker .react-datepicker__triangle {
-          display: none;
-        }
-        .nota-datepicker .react-datepicker__month-container {
-          background: #F8FAFC;
-        }
-        .nota-datepicker-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          background: linear-gradient(135deg, ${C.primary}, ${C.primaryDark || C.primary});
-          color: #fff;
-          padding: 12px 10px;
-        }
-        .nota-datepicker-month-label {
-          font-size: 13px;
-          font-weight: 700;
-          text-transform: capitalize;
-        }
-        .nota-datepicker-nav-btn {
-          width: 28px;
-          height: 28px;
-          border: none;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.2);
-          color: #fff;
-          font-size: 20px;
-          line-height: 20px;
-          cursor: pointer;
-        }
-        .nota-datepicker-nav-btn:hover {
-          background: rgba(255,255,255,0.3);
-        }
-        .nota-datepicker .react-datepicker__day-names {
-          margin-top: 6px;
-          margin-bottom: 2px;
-        }
-        .nota-datepicker .react-datepicker__day-name {
-          color: #64748B;
-          font-size: 11px;
-          font-weight: 600;
-          width: 2rem;
-          line-height: 2rem;
-        }
-        .nota-datepicker .react-datepicker__day {
-          color: #0F172A;
-          border-radius: 9px;
-          width: 2.35rem;
-          min-height: 2.35rem;
-          line-height: 1.15;
-          margin: 0.14rem;
-          font-size: 12px;
-          transition: all 0.15s ease;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .nota-datepicker .react-datepicker__day:hover {
-          background: #DBEAFE;
-          color: #1D4ED8;
-        }
-        .nota-datepicker .react-datepicker__day--today {
-          background: #E2E8F0;
-          color: #334155;
-          font-weight: 700;
-        }
-        .nota-datepicker .react-datepicker__day.nota-datepicker-weekend:not(.react-datepicker__day--selected):not(.react-datepicker__day--keyboard-selected) {
-          color: #5B21B6;
-          background: #EDE9FE;
-        }
-        .nota-datepicker .react-datepicker__day--outside-month {
-          opacity: 0.38;
-        }
-        .nota-datepicker .react-datepicker__day--disabled {
-          opacity: 0.28 !important;
-          cursor: not-allowed !important;
-          text-decoration: line-through;
-          background: transparent !important;
-        }
-        .nota-datepicker .react-datepicker__day--selected,
-        .nota-datepicker .react-datepicker__day--keyboard-selected {
-          background: ${C.primary};
-          color: #fff;
-          font-weight: 700;
-        }
-        .nota-datepicker .react-datepicker__day--selected .nota-datepicker-today-badge,
-        .nota-datepicker .react-datepicker__day--keyboard-selected .nota-datepicker-today-badge {
-          color: #fff;
-          background: rgba(255,255,255,0.28);
-        }
-        .nota-datepicker-day-wrap {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 2px;
-          padding: 2px 0;
-        }
-        .nota-datepicker-day-num {
-          font-size: 12px;
-          font-weight: 600;
-          line-height: 1;
-        }
-        .nota-datepicker-today-badge {
-          font-size: 7px;
-          font-weight: 700;
-          letter-spacing: 0.02em;
-          color: #1D4ED8;
-          background: #DBEAFE;
-          padding: 1px 5px;
-          border-radius: 999px;
-          line-height: 1.2;
-        }
-      `}</style>
       <TopBar title="Buat Nota" subtitle="Langkah 3 dari 3 — Konfirmasi" onBack={goBack} />
 
       <div style={{ padding: '8px 16px' }}>
@@ -448,16 +269,14 @@ export default function NotaStep3Page({ goBack }) {
           {promos.length > 0 && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 6 }}>PROMO</div>
-              <select
+              <Select
                 value={selectedPromoId}
-                onChange={(e) => setSelectedPromoId(e.target.value)}
-                style={{ width: '100%', height: 42, borderRadius: 10, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13 }}
-              >
-                <option value="">Tanpa promo</option>
-                {promos.map((p) => (
-                  <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedPromoId(val)}
+                options={[
+                  { value: '', label: 'Tanpa promo' },
+                  ...promos.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` })),
+                ]}
+              />
               {selectedPromo && promoDiscount <= 0 && selectedPromo.minTrxAmount != null && (
                 <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.warning, marginTop: 4 }}>
                   Min. transaksi {rp(selectedPromo.minTrxAmount)} untuk promo ini
@@ -515,22 +334,15 @@ export default function NotaStep3Page({ goBack }) {
           {pickupType !== 'self' && (
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>Tanggal Jadwal</div>
-                  <DatePicker
-                    selected={scheduleDate}
-                    onChange={(date) => setScheduleDate(date)}
-                    dateFormat="dd/MM/yyyy"
-                    placeholderText="Pilih tanggal"
-                    calendarClassName="nota-datepicker"
-                    renderCustomHeader={renderCalendarHeader}
+                <div style={{ flex: 1 }}>
+                  <DateInput
+                    label="Tanggal Jadwal"
+                    value={scheduleDate}
+                    onChange={setScheduleDate}
+                    placeholder="Pilih tanggal"
                     minDate={minDateForPicker}
                     filterDate={filterPastDates}
-                    dayClassName={calendarDayClassName}
-                    renderDayContents={renderCalendarDayContents}
-                    customInput={
-                      <input style={dateInputStyle} readOnly />
-                    }
+                    returnDate
                   />
                 </div>
                 <div style={{ flex: 1 }}>
@@ -636,39 +448,18 @@ export default function NotaStep3Page({ goBack }) {
               Pelunasan dilakukan di kasir saat pengambilan atau saat laundry selesai — metode pembayaran bisa dipilih saat itu.
             </div>
           )}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>Estimasi Selesai</div>
-            <DatePicker
-              selected={dueDate}
-              onChange={(date) => setDueDate(date)}
-              dateFormat="dd/MM/yyyy"
-              placeholderText="Pilih estimasi selesai"
-              calendarClassName="nota-datepicker"
-              renderCustomHeader={renderCalendarHeader}
-              minDate={minDateForPicker}
-              filterDate={filterPastDates}
-              dayClassName={calendarDayClassName}
-              renderDayContents={renderCalendarDayContents}
-              customInput={
-                <input style={dateInputStyle} readOnly />
-              }
-            />
-          </div>
+          <DateInput
+            label="Estimasi Selesai"
+            value={dueDate}
+            onChange={setDueDate}
+            placeholder="Pilih estimasi selesai"
+            minDate={minDateForPicker}
+            filterDate={filterPastDates}
+            returnDate
+          />
           <Input label="Catatan (opsional)" value={notes} onChange={setNotes} placeholder="Catatan khusus..." />
         </div>
       </div>
-
-      {toast.visible && (
-        <div style={{
-          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 100,
-          background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2',
-          color: toast.type === 'success' ? '#166534' : '#991B1B',
-          padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          {toast.type === 'success' ? '✓' : '⚠'} {toast.message}
-        </div>
-      )}
 
       {/* QRIS EDC Loading Modal */}
       {qrisModal && (

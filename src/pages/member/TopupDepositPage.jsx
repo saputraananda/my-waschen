@@ -3,10 +3,11 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn } from '../../components/ui';
+import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 const PRESETS = [50000, 100000, 200000, 500000];
 
-export default function TopupDepositPage({ navigate, goBack, screenParams, showToast }) {
+export default function TopupDepositPage({ navigate, goBack, screenParams }) {
   const customer = screenParams;
   const [amount, setAmount] = useState('');
   const [payMethod, setPayMethod] = useState('cash');
@@ -15,7 +16,10 @@ export default function TopupDepositPage({ navigate, goBack, screenParams, showT
   if (!customer) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Btn onClick={() => navigate('customer')}>Kembali</Btn></div>;
 
   const handleTopUp = async () => {
-    if (!amount || Number(amount) < 1000) return;
+    if (!amount || Number(amount) < 1000) {
+      alertWarning('Nominal top up minimal Rp 1.000.');
+      return;
+    }
     setLoading(true);
     try {
       const res = await axios.post(`/api/customers/${customer.id}/topup`, {
@@ -23,11 +27,11 @@ export default function TopupDepositPage({ navigate, goBack, screenParams, showT
         payMethod,
       });
       const newBalance = res?.data?.data?.newBalance ?? (customer.deposit || 0) + Number(amount);
-      showToast(`Top up ${rp(Number(amount))} berhasil!`, 'success');
-      setTimeout(() => navigate('detail_customer', { ...customer, deposit: newBalance }), 800);
+      await alertSuccess(`Top up ${rp(Number(amount))} berhasil!`);
+      navigate('detail_customer', { ...customer, deposit: newBalance });
     } catch (err) {
       const msg = err?.response?.data?.message || 'Gagal melakukan top up.';
-      showToast(msg, 'error');
+      alertError(msg);
     } finally {
       setLoading(false);
     }

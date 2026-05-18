@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select } from '../../components/ui';
+import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select, DateInput } from '../../components/ui';
+import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 const PAY_METHOD_LABEL = {
   cash: 'Tunai',
@@ -39,7 +40,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [fetching, setFetching] = useState(false);
-  const [toast, setToast] = useState({ visible: false, message: '', type: 'error' });
 
   const [pelunasanModal, setPelunasanModal] = useState(false);
   const [pelMethod, setPelMethod] = useState('cash');
@@ -47,9 +47,51 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
   const [pelCashStr, setPelCashStr] = useState('');
   const [pelLoading, setPelLoading] = useState(false);
 
+  // Edit delivery type
+  const [deliveryModal, setDeliveryModal] = useState(false);
+  const [dlvType, setDlvType] = useState('self');
+  const [dlvSchedule, setDlvSchedule] = useState('');
+  const [dlvNotes, setDlvNotes] = useState('');
+  const [dlvLoading, setDlvLoading] = useState(false);
+
   // Collapsible sections
   const [itemsOpen, setItemsOpen] = useState(true);
   const [payOpen, setPayOpen] = useState(true);
+
+  // Packing info editor
+  const [packingModal, setPackingModal] = useState(null); // { id, name, packingNeeded, packingNotes }
+  const [pkgNeeded, setPkgNeeded] = useState(1);
+  const [pkgNotes, setPkgNotes] = useState('');
+  const [pkgSaving, setPkgSaving] = useState(false);
+
+  const openPackingModal = (item) => {
+    setPackingModal(item);
+    setPkgNeeded(Number(item.packingNeeded) || 1);
+    setPkgNotes(item.packingNotes || '');
+  };
+
+  const savePackingInfo = async () => {
+    if (!packingModal) return;
+    setPkgSaving(true);
+    try {
+      await axios.patch(`/api/transactions/${tx.id}/items/${packingModal.id}/packing`, {
+        packingNeeded: pkgNeeded,
+        packingNotes: pkgNotes || null,
+      });
+      setTx(prev => ({
+        ...prev,
+        items: (prev.items || []).map(i =>
+          i.id === packingModal.id ? { ...i, packingNeeded: pkgNeeded, packingNotes: pkgNotes } : i
+        ),
+      }));
+      setPackingModal(null);
+      alertSuccess('Info packing disimpan.');
+    } catch (err) {
+      alertError(err?.response?.data?.message || 'Gagal menyimpan info packing.');
+    } finally {
+      setPkgSaving(false);
+    }
+  };
 
   // Copy ID
   const [copied, setCopied] = useState(false);
@@ -80,11 +122,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       reader.readAsDataURL(file);
     };
     input.click();
-  };
-
-  const showToast = (message, type = 'error') => {
-    setToast({ visible: true, message, type });
-    setTimeout(() => setToast({ visible: false, message: '', type }), 3000);
   };
 
   useEffect(() => {
@@ -140,14 +177,13 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       });
       setApprovalModal(null);
       setApprovalReason('');
-      showToast(
+      alertSuccess(
         type === 'cancel_nota'
           ? 'Pengajuan pembatalan dikirim. Menunggu persetujuan Admin.'
           : 'Pengajuan penghapusan dikirim. Menunggu persetujuan Admin.',
-        'success'
       );
     } catch (err) {
-      showToast(err?.response?.data?.message || 'Gagal mengajukan.');
+      alertError(err?.response?.data?.message || 'Gagal mengajukan.');
     } finally {
       setLoading(false);
     }
@@ -155,12 +191,12 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
   const handleReschedule = async () => {
     if (!rescheduleDate || !rescheduleTime) {
-      showToast('Tanggal dan jam baru wajib diisi.');
+      alertWarning('Tanggal dan jam baru wajib diisi.');
       return;
     }
     const loOrder = logisticOrders.find((lo) => !['done', 'cancelled', 'failed'].includes(lo.status));
     if (!loOrder) {
-      showToast('Tidak ada order logistik yang bisa di-reschedule.');
+      alertWarning('Tidak ada order logistik yang bisa di-reschedule.');
       return;
     }
     setLoading(true);
@@ -173,12 +209,12 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       setRescheduleDate('');
       setRescheduleTime('');
       setRescheduleReason('');
-      showToast('Jadwal berhasil diubah.', 'success');
+      alertSuccess('Jadwal berhasil diubah.');
       // Refresh logistics
       const res = await axios.get(`/api/logistics?transactionId=${tx.id}`);
       setLogisticOrders(res?.data?.data || []);
     } catch (err) {
-      showToast(err?.response?.data?.message || 'Gagal mengubah jadwal.');
+      alertError(err?.response?.data?.message || 'Gagal mengubah jadwal.');
     } finally {
       setLoading(false);
     }
@@ -191,7 +227,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       setTx((prev) => ({ ...prev, status: 'diambil' }));
       setTimeout(() => setReviewModal(true), 500);
     } catch (err) {
-      showToast(err?.response?.data?.message || 'Gagal update status.');
+      alertError(err?.response?.data?.message || 'Gagal update status.');
     } finally {
       setActionLoading(null);
     }
@@ -204,10 +240,10 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         rating: reviewRating,
         comment: reviewNote
       });
-      showToast('Review berhasil disimpan!', 'success');
+      alertSuccess('Review berhasil disimpan!');
       setReviewModal(false);
     } catch (err) {
-      showToast('Gagal menyimpan review.');
+      alertError('Gagal menyimpan review.');
     } finally {
       setLoading(false);
     }
@@ -229,10 +265,41 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
     setPelunasanModal(true);
   };
 
+  const openDeliveryModal = () => {
+    const pt = tx?.pickupType || 'self';
+    setDlvType(pt);
+    setDlvSchedule('');
+    setDlvNotes('');
+    setDeliveryModal(true);
+  };
+
+  const submitDeliveryChange = async () => {
+    setDlvLoading(true);
+    try {
+      const tid = tx.transactionUuid || tx.id;
+      const body = { pickupType: dlvType, notes: dlvNotes || undefined };
+      if (dlvSchedule) body.scheduleAt = dlvSchedule;
+      const res = await axios.patch(`/api/transactions/${tid}/delivery-type`, body);
+      alertSuccess('Jenis pengantaran berhasil diubah.');
+      setDeliveryModal(false);
+      setTx((prev) => ({
+        ...prev,
+        pickupType: dlvType,
+        deliveryFee: res.data?.data?.deliveryFee ?? prev.deliveryFee,
+        total: res.data?.data?.total ?? prev.total,
+      }));
+      await refreshDetail();
+    } catch (err) {
+      alertError(err?.response?.data?.message || 'Gagal mengubah pengantaran.');
+    } finally {
+      setDlvLoading(false);
+    }
+  };
+
   const submitPelunasan = async () => {
     const payAmt = Number(pelAmountStr);
     if (!Number.isFinite(payAmt) || payAmt <= 0) {
-      showToast('Nominal tidak valid.');
+      alertWarning('Nominal tidak valid.');
       return;
     }
     const tid = tx.transactionUuid || tx.id;
@@ -246,11 +313,11 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         body.cashReceived = Number(pelCashStr);
       }
       await axios.post(`/api/transactions/${tid}/payments`, body);
-      showToast('Pembayaran berhasil dicatat.', 'success');
+      alertSuccess('Pembayaran berhasil dicatat.');
       setPelunasanModal(false);
       await refreshDetail();
     } catch (err) {
-      showToast(err?.response?.data?.message || 'Gagal mencatat pembayaran.');
+      alertError(err?.response?.data?.message || 'Gagal mencatat pembayaran.');
     } finally {
       setPelLoading(false);
     }
@@ -314,20 +381,47 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               {tx.items?.map((item, index) => {
                 const itemStatus = tx.status === 'selesai' || tx.status === 'diambil' ? 'Selesai' : tx.status === 'proses' ? 'Dalam proses pengerjaan' : 'Menunggu pengerjaan';
                 const itemStatusColor = tx.status === 'selesai' || tx.status === 'diambil' ? C.success : tx.status === 'proses' ? '#0EA5E9' : C.n500;
+                const pkgNeededVal = Number(item.packingNeeded) || 1;
+                const pkgDoneVal = Number(item.packingDone) || 0;
                 return (
-                  <div key={item.id || `item-${index}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: C.n50, borderRadius: 10, marginBottom: 6 }}>
-                    <div style={{ width: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.primary }}>{item.qty}</span>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, textTransform: 'uppercase' }}>{item.unit}</span>
-                    </div>
-                    <div style={{ flex: 1, borderLeft: `2px solid ${C.n200}`, paddingLeft: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{item.name || item.serviceName}</span>
-                        {item.express && <span style={{ background: '#FEF3C7', color: C.warning, fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⚡</span>}
+                  <div key={item.id || `item-${index}`} style={{ background: C.n50, borderRadius: 10, marginBottom: 6, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+                      <div style={{ width: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.primary }}>
+                          {item.unit === 'm2' ? Number(item.qty).toFixed(2) : item.qty}
+                        </span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, textTransform: 'uppercase' }}>{item.unit === 'm2' ? 'm²' : item.unit}</span>
                       </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: itemStatusColor, marginTop: 2 }}>{itemStatus}</div>
+                      <div style={{ flex: 1, borderLeft: `2px solid ${C.n200}`, paddingLeft: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{item.name || item.serviceName}</span>
+                          {item.express && <span style={{ background: '#FEF3C7', color: C.warning, fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⚡</span>}
+                          {item.unit === 'm2' && <span style={{ background: '#E0F2FE', color: '#0369A1', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>📐 Karpet</span>}
+                        </div>
+                        {/* Carpet dimensions */}
+                        {item.unit === 'm2' && item.carpetPanjangCm && item.carpetLebarCm && (
+                          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#0369A1', marginTop: 2 }}>
+                            📏 {item.carpetPanjangCm} cm × {item.carpetLebarCm} cm = {Number(item.qty).toFixed(2)} m²
+                          </div>
+                        )}
+                        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: itemStatusColor, marginTop: 2 }}>{itemStatus}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#5B21B6', background: '#EDE9FE', padding: '1px 7px', borderRadius: 999, fontWeight: 600 }}>
+                            📦 {pkgDoneVal}/{pkgNeededVal} paket
+                          </span>
+                          {item.packingNotes && (
+                            <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#92400E' }}>· {item.packingNotes}</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => openPackingModal(item)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 6 }}
+                        title="Edit packing"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
                     </div>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
                   </div>
                 );
               })}
@@ -487,17 +581,35 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
             </div>
           </div>
 
-          {/* Extra info */}
-          {[
-            tx.pickup && ['Layanan Jemput', '✅ Ya'],
-            tx.delivery && ['Layanan Antar', '✅ Ya'],
-            tx.notes && ['Catatan', tx.notes],
-          ].filter(Boolean).map(([label, val]) => (
-            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{label}</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900, textAlign: 'right', maxWidth: '55%' }}>{val}</span>
+          {/* Pengantaran row + edit button */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Jenis Pengantaran</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
+                {tx.pickupType === 'delivery' ? '🚚 Diantar Kurir' : tx.pickupType === 'pickup' ? '🛵 Dijemput' : '🏪 Ambil Sendiri'}
+              </span>
+              {tx.status !== 'dibatalkan' && tx.status !== 'diambil' && (
+                <button
+                  onClick={openDeliveryModal}
+                  style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primary, background: `${C.primary}12`, border: 'none', borderRadius: 8, padding: '3px 10px', cursor: 'pointer' }}
+                >
+                  Ubah
+                </button>
+              )}
             </div>
-          ))}
+          </div>
+          {tx.deliveryFee > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Biaya Pengantaran</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>{rp(tx.deliveryFee)}</span>
+            </div>
+          )}
+          {tx.notes && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Catatan</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900, textAlign: 'right', maxWidth: '55%' }}>{tx.notes}</span>
+            </div>
+          )}
         </div>
 
         {/* Progress */}
@@ -533,13 +645,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         )}
       </div>
 
-      {/* Toast */}
-      {toast.visible && (
-        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 100, background: toast.type === 'success' ? '#DCFCE7' : '#FEE2E2', color: toast.type === 'success' ? '#166534' : '#991B1B', padding: '12px 20px', borderRadius: 12, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-          {toast.type === 'success' ? '✓' : '⚠'} {toast.message}
-        </div>
-      )}
-
       {/* Bottom Actions */}
       <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900, textAlign: 'center', marginBottom: 2 }}>Aksi Untuk Transaksi Ini</div>
@@ -573,7 +678,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       <Modal visible={rescheduleModal} onClose={() => setRescheduleModal(false)} title="Ubah Jadwal Logistik">
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <div style={{ flex: 1 }}>
-            <Input label="Tanggal Baru" value={rescheduleDate} onChange={setRescheduleDate} type="date" />
+            <DateInput label="Tanggal Baru" value={rescheduleDate} onChange={setRescheduleDate} />
           </div>
           <div style={{ flex: 1 }}>
             <Input label="Jam" value={rescheduleTime} onChange={setRescheduleTime} type="time" />
@@ -622,6 +727,87 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
       </Modal>
 
+      {/* Edit Delivery Type Modal */}
+      {deliveryModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
+          onClick={() => setDeliveryModal(false)}
+        >
+          <div
+            style={{ width: '100%', background: C.white, borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', boxShadow: '0 -8px 32px rgba(15,23,42,0.15)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: C.n200, margin: '0 auto 16px' }} />
+            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, marginBottom: 4 }}>Ubah Jenis Pengantaran</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 16 }}>Pilih bagaimana customer mendapatkan laundry mereka.</div>
+
+            {/* Options */}
+            {[
+              { key: 'self',     label: '🏪 Ambil Sendiri',  desc: 'Customer datang langsung ke outlet',   fee: 'Gratis' },
+              { key: 'pickup',   label: '🛵 Dijemput Kurir', desc: 'Kurir menjemput laundry dari customer', fee: 'Rp 10.000' },
+              { key: 'delivery', label: '🚚 Diantar Kurir',  desc: 'Kurir mengantar laundry ke customer',   fee: 'Rp 10.000' },
+            ].map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setDlvType(opt.key)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '12px 14px', borderRadius: 12, marginBottom: 8, border: `2px solid ${dlvType === opt.key ? C.primary : C.n200}`, background: dlvType === opt.key ? `${C.primary}08` : C.white, cursor: 'pointer', textAlign: 'left' }}
+              >
+                <div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: dlvType === opt.key ? C.primary : C.n900 }}>{opt.label}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>{opt.desc}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: dlvType === opt.key ? C.primary : C.n600 }}>{opt.fee}</span>
+                  <div style={{ width: 18, height: 18, borderRadius: 9, border: `2px solid ${dlvType === opt.key ? C.primary : C.n300}`, background: dlvType === opt.key ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {dlvType === opt.key && <div style={{ width: 6, height: 6, borderRadius: 3, background: 'white' }} />}
+                  </div>
+                </div>
+              </button>
+            ))}
+
+            {/* Schedule (jika bukan self) */}
+            {dlvType !== 'self' && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Jadwal {dlvType === 'pickup' ? 'Penjemputan' : 'Pengiriman'} (opsional)</div>
+                <input
+                  type="datetime-local"
+                  value={dlvSchedule}
+                  onChange={(e) => setDlvSchedule(e.target.value)}
+                  style={{ width: '100%', height: 42, borderRadius: 10, border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 12px', boxSizing: 'border-box' }}
+                />
+              </div>
+            )}
+
+            {/* Notes */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Catatan perubahan (opsional)</div>
+              <input
+                value={dlvNotes}
+                onChange={(e) => setDlvNotes(e.target.value)}
+                placeholder="Mis: customer minta diantar sore hari"
+                style={{ width: '100%', height: 40, borderRadius: 10, border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 12px', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setDeliveryModal(false)}
+                style={{ flex: 1, height: 46, borderRadius: 12, border: `1.5px solid ${C.n200}`, background: C.white, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n700, cursor: 'pointer' }}
+              >
+                Batal
+              </button>
+              <button
+                onClick={submitDeliveryChange}
+                disabled={dlvLoading}
+                style={{ flex: 2, height: 46, borderRadius: 12, border: 'none', background: dlvLoading ? C.n300 : C.primary, fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: 'white', cursor: dlvLoading ? 'default' : 'pointer' }}
+              >
+                {dlvLoading ? 'Menyimpan…' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Review Modal */}
       <Modal visible={reviewModal} onClose={() => setReviewModal(false)} title="Customer Review">
         <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, marginBottom: 16, textAlign: 'center' }}>
@@ -642,6 +828,44 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
           <Btn variant="secondary" onClick={() => setReviewModal(false)} style={{ flex: 1 }}>Nanti Saja</Btn>
           <Btn variant="primary" onClick={handleSubmitReview} loading={loading} style={{ flex: 1 }}>Simpan Review</Btn>
+        </div>
+      </Modal>
+
+      {/* Modal Edit Packing */}
+      <Modal isOpen={!!packingModal} onClose={() => setPackingModal(null)} title={`📦 Info Packing — ${packingModal?.name || ''}`}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 16 }}>
+          Atur jumlah paket yang dibutuhkan dan catatan khusus untuk layanan ini. Informasi ini akan digunakan tim produksi saat tahap packing.
+        </div>
+
+        {/* Counter jumlah paket */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Butuh berapa paket?</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={() => setPkgNeeded(v => Math.max(1, v - 1))}
+              style={{ width: 40, height: 40, borderRadius: 20, border: `1.5px solid ${C.n300}`, background: C.n100, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: C.n700 }}
+            >−</button>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 32, fontWeight: 900, color: C.primary }}>{pkgNeeded}</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}> paket</span>
+            </div>
+            <button
+              onClick={() => setPkgNeeded(v => v + 1)}
+              style={{ width: 40, height: 40, borderRadius: 20, border: 'none', background: C.primary, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: 'white' }}
+            >+</button>
+          </div>
+        </div>
+
+        <Input
+          label="Catatan Packing (opsional)"
+          value={pkgNotes}
+          onChange={setPkgNotes}
+          placeholder="Contoh: pisahkan baju putih, masukkan plastik terpisah..."
+        />
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <Btn variant="secondary" onClick={() => setPackingModal(null)} style={{ flex: 1 }}>Batal</Btn>
+          <Btn variant="primary" onClick={savePackingInfo} loading={pkgSaving} style={{ flex: 1 }}>Simpan</Btn>
         </div>
       </Modal>
     </div>

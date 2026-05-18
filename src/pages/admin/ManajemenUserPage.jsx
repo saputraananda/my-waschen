@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, Avatar, Btn, Chip, Modal, Input, Select, Toast, SearchBar } from '../../components/ui';
+import { TopBar, Avatar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
+import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
 
 export default function ManajemenUserPage({ navigate, goBack }) {
   const [users, setUsers] = useState([]);
@@ -16,7 +17,6 @@ export default function ManajemenUserPage({ navigate, goBack }) {
   const [outlets, setOutlets] = useState([]);
   const [form, setForm] = useState({ name: '', role: 'kasir', outletId: '', username: '', email: '', password: '' });
   const [editForm, setEditForm] = useState({ name: '', role: 'kasir', outletId: '', username: '', email: '', active: true });
-  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
 
   // Fetch users from API on mount
   useEffect(() => {
@@ -28,7 +28,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         setUsers(data);
       } catch (error) {
         console.error('Failed to fetch users:', error);
-        showToast('Gagal memuat data user', 'error');
+        alertError('Gagal memuat data user');
       } finally {
         setLoading(false);
       }
@@ -47,11 +47,6 @@ export default function ManajemenUserPage({ navigate, goBack }) {
     };
     fetchOutlets();
   }, []);
-
-  const showToast = (message, type = 'success') => {
-    setToast({ visible: true, message, type });
-    setTimeout(() => setToast({ visible: false, message: '', type }), 3000);
-  };
 
   const filtered = users.filter((u) => {
     const matchRole = filter === 'semua' ? true : u.role === filter;
@@ -74,7 +69,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
 
   const handleAdd = async () => {
     if (!form.name.trim() || !form.username.trim() || !form.email.trim() || !form.password) {
-      showToast('Nama, username, email, dan password wajib diisi', 'error');
+      alertWarning('Nama, username, email, dan password wajib diisi');
       return;
     }
     setSubmitting(true);
@@ -101,14 +96,14 @@ export default function ManajemenUserPage({ navigate, goBack }) {
             .toUpperCase(),
         };
         setUsers((prev) => [...prev, userWithAvatar]);
-        showToast('User berhasil ditambahkan', 'success');
+        alertSuccess('User berhasil ditambahkan');
       }
       setModalAdd(false);
       setForm({ name: '', role: 'kasir', outletId: '', username: '', email: '', password: '' });
     } catch (error) {
       const msg = error?.response?.data?.message || 'Gagal menambahkan user. Silakan coba lagi.';
       console.error('Failed to add user:', error);
-      showToast(msg, 'error');
+      alertError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -120,10 +115,10 @@ export default function ManajemenUserPage({ navigate, goBack }) {
     try {
       await axios.patch(`/api/users/${id}/toggle`, { active: !user.active });
       setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, active: !u.active } : u)));
-      showToast(`User ${user.active ? 'dinonaktifkan' : 'diaktifkan'}`, 'success');
+      alertSuccess(`User ${user.active ? 'dinonaktifkan' : 'diaktifkan'}`);
     } catch (error) {
       console.error('Failed to toggle user:', error);
-      showToast('Gagal mengubah status user', 'error');
+      alertError('Gagal mengubah status user');
     }
   };
 
@@ -143,7 +138,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
 
   const handleEdit = async () => {
     if (!editForm.name.trim() || !editForm.username.trim() || !editForm.email.trim()) {
-      showToast('Nama, username, dan email wajib diisi', 'error');
+      alertWarning('Nama, username, dan email wajib diisi');
       return;
     }
     setSubmitting(true);
@@ -163,25 +158,26 @@ export default function ManajemenUserPage({ navigate, goBack }) {
       }
       setModalEdit(false);
       setEditingUserId(null);
-      showToast('User berhasil diupdate', 'success');
+      alertSuccess('User berhasil diupdate');
     } catch (error) {
       const msg = error?.response?.data?.message || 'Gagal mengupdate user.';
-      showToast(msg, 'error');
+      alertError(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Hapus akun ini? Akun resign akan diarsipkan dan tidak muncul di daftar.')) return;
+    const ok = await confirmAction({ text: 'Hapus akun ini? Akun resign akan diarsipkan dan tidak muncul di daftar.' });
+    if (!ok) return;
     setSubmitting(true);
     try {
       await axios.delete(`/api/users/${id}`);
       setUsers((prev) => prev.filter((u) => u.id !== id));
-      showToast('User berhasil dihapus', 'success');
+      alertSuccess('User berhasil dihapus');
     } catch (error) {
       const msg = error?.response?.data?.message || 'Gagal menghapus user.';
-      showToast(msg, 'error');
+      alertError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -256,8 +252,6 @@ export default function ManajemenUserPage({ navigate, goBack }) {
           </div>
         )}
       </div>
-
-      <Toast message={toast.message} type={toast.type} visible={toast.visible} />
 
       <Modal visible={modalAdd} onClose={() => setModalAdd(false)} title="Tambah User">
         <Input label="Nama Lengkap" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />

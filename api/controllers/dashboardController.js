@@ -15,14 +15,14 @@ export const getDashboardStats = async (req, res) => {
     const isGlobalRole = globalRoles.includes(userRole);
 
     let effectiveOutlet = null;
+    let isAllOutlets = false;
+
     if (isGlobalRole) {
       if (!queryOutletId) {
-        return res.status(400).json({
-          success: false,
-          message: 'Pilih outlet terlebih dahulu (kirim query outletId).',
-        });
+        isAllOutlets = true;
+      } else {
+        effectiveOutlet = queryOutletId;
       }
-      effectiveOutlet = queryOutletId;
     } else {
       effectiveOutlet = userOutletId;
       if (queryOutletId && queryOutletId !== userOutletId) {
@@ -33,14 +33,17 @@ export const getDashboardStats = async (req, res) => {
       }
     }
 
-    const outletParam = [effectiveOutlet];
-    const baseWhere = `t.status <> 'cancelled' AND t.deleted_at IS NULL AND t.outlet_id = ?`;
+    const outletParam = isAllOutlets ? [] : [effectiveOutlet];
+    const outletFilter = isAllOutlets ? '' : 'AND t.outlet_id = ?';
+    const baseWhere = `t.status <> 'cancelled' AND t.deleted_at IS NULL ${outletFilter}`;
+    const pendingOutletFilter = isAllOutlets ? '' : 'AND outlet_id = ?';
 
     const [[totals], [todayAgg], [monthAgg], [summary], [customerRow]] = await Promise.all([
       poolWaschenPos.execute(
         `SELECT
           COALESCE(SUM(t.total), 0) AS total_omset,
-          COUNT(t.id) AS total_transaksi
+          COUNT(t.id) AS total_transaksi,
+          COALESCE(SUM(t.paid_amount), 0) AS total_pelunasan
          FROM tr_transaction t
          WHERE ${baseWhere}`,
         outletParam
@@ -48,7 +51,8 @@ export const getDashboardStats = async (req, res) => {
       poolWaschenPos.execute(
         `SELECT
           COALESCE(SUM(t.total), 0) AS omset,
-          COUNT(t.id) AS cnt
+          COUNT(t.id) AS cnt,
+          COALESCE(SUM(t.paid_amount), 0) AS pelunasan
          FROM tr_transaction t
          WHERE ${baseWhere} AND DATE(t.created_at) = CURDATE()`,
         outletParam
@@ -56,7 +60,8 @@ export const getDashboardStats = async (req, res) => {
       poolWaschenPos.execute(
         `SELECT
           COALESCE(SUM(t.total), 0) AS omset,
-          COUNT(t.id) AS cnt
+          COUNT(t.id) AS cnt,
+          COALESCE(SUM(t.paid_amount), 0) AS pelunasan
          FROM tr_transaction t
          WHERE ${baseWhere}
            AND YEAR(t.created_at) = YEAR(CURDATE())
@@ -67,7 +72,7 @@ export const getDashboardStats = async (req, res) => {
         `SELECT COUNT(id) AS pending_transactions
          FROM tr_transaction
          WHERE status IN ('pending', 'process', 'ready_for_pickup', 'ready_for_delivery')
-           AND deleted_at IS NULL AND outlet_id = ?`,
+           AND deleted_at IS NULL ${pendingOutletFilter}`,
         outletParam
       ),
       poolWaschenPos.execute(`SELECT COUNT(*) AS total_customers FROM mst_customer WHERE is_active = 1`),
@@ -106,13 +111,16 @@ export const getDashboardStats = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        outletId: effectiveOutlet,
+        outletId: isAllOutlets ? '_all' : effectiveOutlet,
         period,
         total_omset: Number(totalsRow.total_omset ?? 0),
         total_transaksi: Number(totalsRow.total_transaksi ?? 0),
+        total_pelunasan: Number(totalsRow.total_pelunasan ?? 0),
         omset_today: Number(todayRow.omset ?? 0),
+        pelunasan_today: Number(todayRow.pelunasan ?? 0),
         transaksi_today: Number(todayRow.cnt ?? 0),
         omset_month: Number(monthRow.omset ?? 0),
+        pelunasan_month: Number(monthRow.pelunasan ?? 0),
         transaksi_month: Number(monthRow.cnt ?? 0),
         pending_transactions: Number(summaryRow.pending_transactions ?? 0),
         total_customers: Number(custRow.total_customers ?? 0),

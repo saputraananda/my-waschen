@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { STAGES } from '../../utils/helpers';
-import { Avatar, Badge } from '../../components/ui';
+import { Avatar, Badge, Btn } from '../../components/ui';
+import { alertInfo } from '../../utils/alert';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 const getSLAInfo = (estimatedDoneAt, isExpress) => {
@@ -17,10 +18,10 @@ const getSLAInfo = (estimatedDoneAt, isExpress) => {
 };
 
 const SLA_COLORS = {
-  overdue: { bg: '#FEE2E2', text: '#991B1B', dot: '#EF4444' },
-  urgent:  { bg: '#FEF3C7', text: '#92400E', dot: '#F59E0B' },
+  overdue: { bg: '#FEE2E2', text: '#991B1B', dot: C.danger },
+  urgent:  { bg: '#FEF3C7', text: '#92400E', dot: C.warning },
   warning: { bg: '#EFF6FF', text: '#1E40AF', dot: '#3B82F6' },
-  ok:      { bg: '#ECFDF5', text: '#065F46', dot: '#10B981' },
+  ok:      { bg: '#ECFDF5', text: '#065F46', dot: C.success },
 };
 
 function getCurrentStageLabel(progress) {
@@ -32,6 +33,46 @@ function getCurrentStageLabel(progress) {
 function getProgressPercent(progress) {
   const done = (progress || []).length;
   return Math.round((done / STAGES.length) * 100);
+}
+
+// ── Item Sub-Row (satu layanan di dalam nota) ─────────────────────────────────
+function ItemSubRow({ item, onPress }) {
+  const isDone = item.isDone;
+  const stage = item.currentStage;
+  const pct = Math.round((item.progress.length / STAGES.length) * 100);
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onPress(item); }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '9px 10px', borderRadius: 10, marginBottom: 5,
+        border: `1.5px solid ${isDone ? '#10B981' : '#E2E8F0'}`,
+        background: isDone ? '#F0FDF4' : '#F8FAFC',
+        cursor: 'pointer', width: '100%', textAlign: 'left',
+      }}
+    >
+      <span style={{ fontSize: 18, flexShrink: 0 }}>{STAGE_ICONS[stage] || '⬜'}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: isDone ? '#065F46' : '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {item.name}{item.isExpress ? ' ⚡' : ''}
+        </div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#64748B', marginTop: 1 }}>
+          {item.qty} {item.unit} · {isDone ? '✅ Selesai' : stage}
+        </div>
+        <div style={{ height: 3, background: '#E2E8F0', borderRadius: 2, marginTop: 4, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: isDone ? '#10B981' : '#5B005F', borderRadius: 2, transition: 'width 0.4s' }} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+        {STAGES.map(s => {
+          const done = item.progress.some(p => p.stage === s);
+          const cur = s === stage;
+          return <div key={s} style={{ width: 5, height: 5, borderRadius: '50%', background: done ? '#5B005F' : cur ? '#C084FC' : '#E2E8F0' }} />;
+        })}
+      </div>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  );
 }
 
 const STAGE_ICONS = {
@@ -67,114 +108,80 @@ function SLABanner({ transactions }) {
 }
 
 // ── Order Card ────────────────────────────────────────────────────────────────
-function OrderCard({ tx, onPress }) {
-  const sla = getSLAInfo(tx.estimatedDoneAt, tx.isExpress);
+function OrderCard({ tx, onItemPress }) {
+  const items = tx.items || [];
+  const allDone = items.length > 0 && items.every(i => i.isDone);
+  const anyExpress = tx.isExpress || items.some(i => i.isExpress);
+  const sla = getSLAInfo(tx.estimatedDoneAt, anyExpress);
   const slaC = sla ? SLA_COLORS[sla.level] : null;
-  const currentStage = getCurrentStageLabel(tx.progress);
-  const pct = getProgressPercent(tx.progress);
-  const done = pct === 100;
+  const doneCount = items.filter(i => i.isDone).length;
 
-  const borderColor = done ? '#10B981'
+  const borderColor = allDone ? '#10B981'
     : sla?.level === 'overdue' ? '#EF4444'
     : sla?.level === 'urgent'  ? '#F59E0B'
     : C.n200;
 
   return (
-    <div
-      onClick={() => onPress(tx)}
-      style={{
-        background: 'white', borderRadius: 16, padding: '14px 14px 12px',
-        boxShadow: '0 2px 10px rgba(15,23,42,0.07)',
-        border: `2px solid ${borderColor}`,
-        cursor: 'pointer', transition: 'transform 0.1s, box-shadow 0.1s',
-        position: 'relative', overflow: 'hidden',
-      }}
-      onTouchStart={e => e.currentTarget.style.transform = 'scale(0.98)'}
-      onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
-    >
-      {/* Express badge */}
-      {tx.isExpress && (
-        <div style={{ position: 'absolute', top: 10, right: 10, background: '#FEF3C7', color: '#92400E', fontFamily: 'Poppins', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999 }}>
-          ⚡ EXPRESS
+    <div style={{
+      background: 'white', borderRadius: 16, padding: '12px 12px 8px',
+      boxShadow: '0 2px 10px rgba(15,23,42,0.07)',
+      border: `2px solid ${borderColor}`,
+      position: 'relative',
+    }}>
+      {/* Header nota */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <Avatar initials={tx.customerName?.split(' ').map(w => w[0]).join('').slice(0, 2)} size={34} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {tx.customerName}
+            {anyExpress && <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 999 }}>⚡ EXPRESS</span>}
+            {tx.pickupType === 'delivery' && <span style={{ background: '#EDE9FE', color: '#5B21B6', fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>🚗 Antar</span>}
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{tx.id} · {tx.date}</div>
         </div>
-      )}
-
-      {/* Customer info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, marginRight: tx.isExpress ? 80 : 0 }}>
-        <Avatar initials={tx.customerName?.split(' ').map(w => w[0]).join('').slice(0, 2)} size={38} />
-        <div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>{tx.customerName}</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>{tx.id} · {tx.date}</div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          {sla && (
+            <div style={{ background: slaC.bg, padding: '2px 8px', borderRadius: 999, marginBottom: 2 }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: slaC.text }}>{sla.label}</span>
+            </div>
+          )}
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: allDone ? '#10B981' : C.n500, fontWeight: 600 }}>
+            {doneCount}/{items.length} selesai
+          </div>
         </div>
       </div>
 
-      {/* Current stage prominent */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '8px 12px', background: done ? '#ECFDF5' : '#EFF6FF', borderRadius: 10 }}>
-        <span style={{ fontSize: 20 }}>{STAGE_ICONS[currentStage] || '⬜'}</span>
-        <div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, fontWeight: 500 }}>TAHAP SEKARANG</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: done ? '#065F46' : C.primary }}>{currentStage}</div>
-        </div>
-        {sla && (
-          <div style={{ marginLeft: 'auto', background: slaC.bg, padding: '3px 10px', borderRadius: 999 }}>
-            <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: slaC.text }}>{sla.label}</span>
-          </div>
+      {/* Per-item rows */}
+      <div>
+        {items.map(item => (
+          <ItemSubRow key={item.itemId} item={item} onPress={item => onItemPress(tx, item)} />
+        ))}
+        {items.length === 0 && (
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400, textAlign: 'center', padding: '8px 0' }}>Belum ada layanan</div>
         )}
       </div>
 
-      {/* Progress bar */}
-      <div style={{ height: 6, background: C.n100, borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
-        <div style={{
-          height: '100%', width: `${pct}%`,
-          background: done ? '#10B981' : `linear-gradient(90deg, ${C.primaryLight}, ${C.primary})`,
-          borderRadius: 3, transition: 'width 0.6s ease',
-        }} />
-      </div>
-
-      {/* Stage dots */}
-      <div style={{ display: 'flex', gap: 4, justifyContent: 'space-between' }}>
-        {STAGES.map(s => {
-          const isDone = (tx.progress || []).some(p => p.stage === s);
-          const isCurrent = s === currentStage;
-          return (
-            <div key={s} style={{ flex: 1, textAlign: 'center' }}>
-              <div style={{
-                height: 4, borderRadius: 2,
-                background: isDone ? C.primary : isCurrent ? C.primaryLight : C.n100,
-                marginBottom: 2,
-              }} />
-              <div style={{ fontFamily: 'Poppins', fontSize: 8, color: isDone ? C.primary : C.n400, fontWeight: isDone ? 700 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s}</div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Notes */}
       {tx.notes && (
-        <div style={{ marginTop: 8, padding: '6px 10px', background: '#FEF3C7', borderRadius: 8 }}>
+        <div style={{ marginTop: 6, padding: '5px 10px', background: '#FEF3C7', borderRadius: 8 }}>
           <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#92400E' }}>📝 {tx.notes}</span>
-        </div>
-      )}
-
-      {/* Pickup type */}
-      {tx.pickupType === 'delivery' && (
-        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#7C3AED', fontWeight: 600 }}>🚗 Dikirim ke customer</span>
         </div>
       )}
     </div>
   );
 }
 
-// ── Stats bar ─────────────────────────────────────────────────────────────────
+// ── Stats bar ────────────────────────────────────────────────────────────────
 function StatsBar({ transactions }) {
   const byStage = {};
   STAGES.forEach(s => byStage[s] = 0);
 
+  // Hitung per-layanan (per item), bukan per nota
   transactions.forEach(tx => {
-    const stage = getCurrentStageLabel(tx.progress);
-    if (byStage[stage] !== undefined) byStage[stage]++;
-    else byStage['Selesai'] = (byStage['Selesai'] || 0) + 1;
+    (tx.items || []).forEach(item => {
+      const stage = item.currentStage || 'Diterima';
+      if (byStage[stage] !== undefined) byStage[stage]++;
+      else byStage['Selesai'] = (byStage['Selesai'] || 0) + 1;
+    });
   });
 
   const active = STAGES.slice(0, -1); // exclude 'Selesai'
@@ -196,10 +203,10 @@ export default function ProduksiDashboardPage({ user, navigate }) {
   const [filter, setFilter] = useState('aktif');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
   
   const [workstation, setWorkstation] = useState(() => localStorage.getItem('produksi_workstation') || 'Semua');
-  const [newOrderAlert, setNewOrderAlert] = useState(false);
   const prevTxIds = useRef(new Set());
 
   const handleWorkstationChange = (ws) => {
@@ -208,7 +215,7 @@ export default function ProduksiDashboardPage({ user, navigate }) {
   };
 
   const fetchQueue = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+    if (!silent) { setError(null); setLoading(true); }
     try {
       const res = await axios.get('/api/transactions/production/queue');
       const data = res?.data?.data || [];
@@ -217,13 +224,12 @@ export default function ProduksiDashboardPage({ user, navigate }) {
         const currentIds = new Set(data.map(t => t.id));
         const hasNew = data.some(t => !prevTxIds.current.has(t.id) && t.status === 'baru');
         if (hasNew && prevTxIds.current.size > 0) {
-          setNewOrderAlert(true);
+          alertInfo('Cucian baru saja ditambahkan oleh kasir.', { title: 'Order Baru Masuk!' });
           try {
             // Coba play notifikasi suara jika browser mengizinkan
             const audio = new Audio('data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq');
             audio.play().catch(() => {});
           } catch(e) {}
-          setTimeout(() => setNewOrderAlert(false), 5000);
         }
         prevTxIds.current = currentIds;
       } else if (!silent) {
@@ -234,6 +240,7 @@ export default function ProduksiDashboardPage({ user, navigate }) {
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Failed to fetch production queue:', error);
+      if (!silent) setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -246,8 +253,18 @@ export default function ProduksiDashboardPage({ user, navigate }) {
     return () => clearInterval(interval);
   }, [fetchQueue]);
 
-  const allActive = transactions.filter(t => t.status === 'baru' || t.status === 'proses');
-  const allDone   = transactions.filter(t => t.status === 'selesai');
+  // Nota aktif = masih ada item yang belum selesai
+  const allActive = transactions.filter(t => {
+    const items = t.items || [];
+    return items.length === 0 || !items.every(i => i.isDone);
+  });
+  // Nota selesai = semua item selesai
+  const allDone = transactions.filter(t => {
+    const items = t.items || [];
+    return items.length > 0 && items.every(i => i.isDone);
+  });
+  // Total layanan aktif (untuk stats badge di header)
+  const activeItemCount = allActive.reduce((s, t) => s + (t.items || []).filter(i => !i.isDone).length, 0);
 
   const displayList = filter === 'aktif'  ? allActive
                     : filter === 'selesai' ? allDone
@@ -273,7 +290,7 @@ export default function ProduksiDashboardPage({ user, navigate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
               <div style={{ background: 'rgba(255,255,255,0.15)', padding: '3px 10px', borderRadius: 999 }}>
                 <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: 'white' }}>
-                  {allActive.length} aktif
+                  {allActive.length} nota · {activeItemCount} layanan
                 </span>
               </div>
               {urgentCount > 0 && (
@@ -319,18 +336,6 @@ export default function ProduksiDashboardPage({ user, navigate }) {
         </div>
       </div>
 
-      {/* New Order Notification */}
-      {newOrderAlert && (
-        <div style={{ background: '#10B981', color: 'white', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, position: 'absolute', top: 16, left: 16, right: 16, borderRadius: 12, zIndex: 100, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)', animation: 'slideDown 0.3s ease-out' }}>
-          <span style={{ fontSize: 20 }}>🔔</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700 }}>Order Baru Masuk!</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, opacity: 0.9 }}>Cucian baru saja ditambahkan oleh kasir.</div>
-          </div>
-          <button onClick={() => setNewOrderAlert(false)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: 16, cursor: 'pointer' }}>✕</button>
-        </div>
-      )}
-
       {/* SLA Alert */}
       <SLABanner transactions={allActive} />
 
@@ -375,7 +380,17 @@ export default function ProduksiDashboardPage({ user, navigate }) {
             Memuat antrian... 🔄
           </div>
         )}
-        {!loading && displayList.length === 0 && (
+        {!loading && error && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 24 }}>⚠️</span>
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Gagal Memuat Data</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
+            <Btn variant="primary" onClick={() => fetchQueue()} style={{ marginTop: 8 }}>Coba Lagi</Btn>
+          </div>
+        )}
+        {!loading && !error && displayList.length === 0 && (
           <div style={{ textAlign: 'center', padding: '48px 24px' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, marginBottom: 4 }}>
@@ -391,11 +406,11 @@ export default function ProduksiDashboardPage({ user, navigate }) {
             )}
           </div>
         )}
-        {!loading && displayList.map(tx => (
+        {!loading && !error && displayList.map(tx => (
           <OrderCard
             key={tx.id}
             tx={tx}
-            onPress={t => navigate('detail_item_produksi', t)}
+            onItemPress={(t, item) => navigate('detail_item_produksi', { ...t, item })}
           />
         ))}
         {lastRefresh && displayList.length > 0 && (
@@ -405,21 +420,6 @@ export default function ProduksiDashboardPage({ user, navigate }) {
         )}
       </div>
 
-      {/* Floating QR Scanner Button */}
-      <button
-        onClick={() => navigate('produksi_qr_scan')}
-        style={{
-          position: 'absolute', bottom: 24, right: 24, width: 64, height: 64, borderRadius: 32,
-          background: `linear-gradient(135deg, ${C.primaryLight}, ${C.primary})`,
-          boxShadow: '0 4px 20px rgba(37, 99, 235, 0.4)',
-          border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 50, transition: 'transform 0.2s'
-        }}
-        onTouchStart={e => e.currentTarget.style.transform = 'scale(0.9)'}
-        onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
-      >
-        <span style={{ fontSize: 28 }}>📷</span>
-      </button>
 
       <style>{`
         @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

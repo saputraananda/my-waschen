@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../utils/theme';
-import { TopBar } from '../components/ui';
+import { TopBar, Btn } from '../components/ui';
 
 const TYPE_ICONS = {
-  selesai:  { icon: '✅', bg: '#DCFCE7', color: '#10B981' },
-  info:     { icon: 'ℹ️', bg: '#F3E6F5', color: '#5B005F' },
+  selesai:  { icon: '✅', bg: '#DCFCE7', color: C.success },
+  info:     { icon: 'ℹ️', bg: C.primaryLight, color: C.primary },
   payment:  { icon: '💳', bg: '#FEF3C7', color: '#B45309' },
-  warning:  { icon: '⚠️', bg: '#FEE2E2', color: '#EF4444' },
+  warning:  { icon: '⚠️', bg: '#FEE2E2', color: C.danger },
   pickup:   { icon: '🚗', bg: '#E0F2FE', color: '#0369A1' },
   promo:    { icon: '🎉', bg: '#FEF3C7', color: '#B45309' },
 };
@@ -15,21 +15,25 @@ const TYPE_ICONS = {
 export default function NotifikasiPage({ navigate, goBack }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchNotifications = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/notifications');
+      setNotifications(res?.data?.data || []);
+    } catch (err) {
+      console.error('[NotifikasiPage] Error:', err);
+      setError('Gagal memuat data. Tap untuk coba lagi.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      setLoading(true);
-      try {
-        const res = await axios.get('/api/notifications');
-        setNotifications(res?.data?.data || []);
-      } catch (err) {
-        console.error('[NotifikasiPage] Error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchNotifications();
-  }, []);
+  }, [fetchNotifications]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -47,6 +51,15 @@ export default function NotifikasiPage({ navigate, goBack }) {
             {[1, 2, 3, 4].map((i) => (
               <div key={i} style={{ background: C.white, borderRadius: 14, padding: '14px 14px', height: 72, animation: 'pulse 1.5s infinite', boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }} />
             ))}
+          </div>
+        ) : error ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 24 }}>⚠️</span>
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Gagal Memuat Data</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
+            <Btn variant="primary" onClick={fetchNotifications} style={{ marginTop: 8 }}>Coba Lagi</Btn>
           </div>
         ) : notifications.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>

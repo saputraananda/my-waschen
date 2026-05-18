@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { C } from '../../utils/theme';
+import { C, T } from '../../utils/theme';
 import { TopBar, Btn } from '../../components/ui';
+import { alertSuccess, confirmAction } from '../../utils/alert';
 
 const STORAGE_KEY = 'waschen_printer_config';
 
@@ -123,9 +124,7 @@ function Field({ label, children }) {
 }
 
 const inputStyle = {
-  width: '100%', height: 40, borderRadius: 10,
-  border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins',
-  fontSize: 13, padding: '0 12px', boxSizing: 'border-box',
+  ...T.input,
 };
 
 // ── Live Receipt Preview ────────────────────────────────────────────────────
@@ -231,10 +230,12 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleReset = () => {
-    if (!window.confirm('Reset ke pengaturan default?')) return;
+  const handleReset = async () => {
+    const ok = await confirmAction({ text: 'Reset ke pengaturan default?' });
+    if (!ok) return;
     setCfg({ ...DEFAULT_CONFIG });
     localStorage.removeItem(STORAGE_KEY);
+    alertSuccess('Pengaturan berhasil direset.');
   };
 
   // Update charPerLine otomatis saat ganti printer type

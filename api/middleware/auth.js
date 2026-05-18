@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'waschen-secret-dev-2025';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is required. Set it in your .env file.');
 
 // ─── Middleware: verifikasi token JWT ─────────────────────────────────────────
 export const authenticate = (req, res, next) => {
@@ -71,10 +72,10 @@ export const isCashier = requireRole('kasir');
 
 // ─── Middleware: outlet guard (user hanya bisa akses data outletnya sendiri) ──
 export const requireSameOutlet = (req, res, next) => {
-  const targetOutletId = req.params.outletId || req.query.outletId || req.body.outletId;
+  const targetOutletId = req.params.outletId || req.params.id || req.query.outletId || req.body.outletId;
 
-  if (!targetOutletId) return next(); // kalau tidak ada filter outlet, lanjut
-  if (req.user.roleCode === 'admin') return next(); // admin bisa akses semua outlet
+  if (!targetOutletId) return next();
+  if (req.user.roleCode === 'admin') return next();
 
   if (req.user.outletId !== targetOutletId) {
     return res.status(403).json({

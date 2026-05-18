@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { Avatar, Badge, SectionHeader } from '../../components/ui';
 
@@ -11,10 +11,10 @@ const SHIFT_LABEL = { pagi: 'Pagi', siang: 'Siang', malam: 'Malam', full: 'Full 
 const STATUS_META = {
   baru:             { label: 'Baru',       color: '#2563EB', bg: '#EFF6FF' },
   diproses:         { label: 'Proses',     color: '#D97706', bg: '#FFFBEB' },
-  selesai:          { label: 'Selesai',    color: '#059669', bg: '#ECFDF5' },
+  selesai:          { label: 'Selesai',    color: C.success, bg: '#ECFDF5' },
   siap_diambil:     { label: 'Siap Ambil', color: '#7C3AED', bg: '#F5F3FF' },
-  selesai_diambil:  { label: 'Diambil',   color: '#64748B', bg: '#F1F5F9' },
-  dibatalkan:       { label: 'Batal',      color: '#DC2626', bg: '#FEF2F2' },
+  selesai_diambil:  { label: 'Diambil',   color: C.n500, bg: '#F1F5F9' },
+  dibatalkan:       { label: 'Batal',      color: C.danger, bg: '#FEF2F2' },
 };
 
 function fmtElapsed(openedAt) {
@@ -32,9 +32,12 @@ function fmtTime(v) {
 }
 
 export default function KasirDashboardPage({ user, navigate }) {
-  const [stats, setStats] = useState({ total: 0, omset: 0, express: 0, pending: 0, completed: 0 });
+  const [stats, setStats] = useState({ total: 0, omset: 0, totalPelunasan: 0, express: 0, pending: 0, completed: 0 });
   const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [target, setTarget] = useState(null); // { targetAmount, actualAmount, pct, monthName, year }
+  const [periodAlert, setPeriodAlert] = useState(null); // { periodLabel, daysLeft, isClosing }
+  const [alertDismissed, setAlertDismissed] = useState(false);
   const [clock, setClock] = useState(() => {
     const n = new Date();
     return { date: WIB_FORMATTER.format(n), time: WIB_TIME.format(n) };
@@ -57,15 +60,28 @@ export default function KasirDashboardPage({ user, navigate }) {
     (async () => {
       setLoading(true);
       try {
-        const [resStats, resShift] = await Promise.all([
+        const [resStats, resShift, resTarget] = await Promise.all([
           axios.get('/api/transactions/dashboard/stats'),
           axios.get('/api/shifts/status'),
+          axios.get('/api/targets/progress').catch(() => null),
         ]);
         if (resStats?.data?.data) {
           setStats(resStats.data.data.today);
           setRecent(resStats.data.data.recent || []);
         }
         if (resShift?.data?.success !== false) setShift(resShift.data);
+        if (resTarget?.data?.data) setTarget(resTarget.data.data);
+
+        // Ambil info periode untuk alert tutup buku
+        try {
+          const resPeriod = await axios.get('/api/periods/current');
+          const pd = resPeriod?.data?.data;
+          if (pd && !pd.alreadyClosed && pd.daysLeft <= 3) {
+            // Cek apakah sudah di-dismiss hari ini
+            const dismissKey = `period_alert_dismissed_${pd.periodStart}`;
+            if (!sessionStorage.getItem(dismissKey)) setPeriodAlert(pd);
+          }
+        } catch (_) {}
       } catch (e) {
         console.error(e);
       } finally {
@@ -78,11 +94,11 @@ export default function KasirDashboardPage({ user, navigate }) {
 
   const QUICK = [
     { label: 'Nota Baru',    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>, action: () => shiftOpen ? navigate('nota_step1') : navigate('kasir_shift'), color: C.primary },
-    { label: 'Antrian',      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>, action: () => navigate('kasir_antrian'), color: '#0EA5E9', badge: stats.pending > 0 ? stats.pending : null },
+    { label: 'Antrian',      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>, action: () => navigate('kasir_antrian'), color: C.info, badge: stats.pending > 0 ? stats.pending : null },
     { label: 'Siap Ambil',   icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>, action: () => navigate('kasir_siap_ambil'), color: C.success },
     { label: 'Cari Nota',    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>, action: () => navigate('transaksi'), color: '#7C3AED' },
     { label: 'Top Up',       icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>, action: () => navigate('topup_deposit', {}), color: '#EC4899' },
-    { label: 'Customer',     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>, action: () => navigate('customer'), color: '#0EA5E9' },
+    { label: 'Customer',     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>, action: () => navigate('customer'), color: C.info },
     { label: 'Transaksi',    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-3.5" /></svg>, action: () => navigate('transaksi'), color: C.success },
     { label: 'Shift',        icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>, action: () => navigate('kasir_shift'), color: C.warning },
     { label: 'Stok Bahan',   icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>, action: () => navigate('kasir_stok_bahan'), color: '#64748B' },
@@ -91,7 +107,7 @@ export default function KasirDashboardPage({ user, navigate }) {
   const STAT_ITEMS = [
     { label: 'Transaksi', value: stats.total,     color: C.primary,  icon: '🧾' },
     { label: 'Omset',     value: rp(stats.omset), color: C.success,  icon: '💰', wide: true },
-    { label: 'Proses',    value: stats.pending,   color: '#0EA5E9',  icon: '⏳' },
+    { label: 'Proses',    value: stats.pending,   color: C.info,  icon: '⏳' },
     { label: 'Express',   value: stats.express,   color: C.warning,  icon: '⚡' },
     { label: 'Selesai',   value: stats.completed, color: C.success,  icon: '✅' },
   ];
@@ -151,42 +167,65 @@ export default function KasirDashboardPage({ user, navigate }) {
       {/* ── OMSET HERO CARD ── */}
       <div style={{ padding: '0 16px', marginTop: -18, position: 'relative', zIndex: 2 }}>
         <div style={{ background: C.white, borderRadius: 18, padding: '20px 18px 16px', boxShadow: '0 4px 24px rgba(15,23,42,0.13)', marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'stretch', gap: 12 }}>
-            {/* Omset */}
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: `${C.primary}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          {/* Top row: Total Transaksi + Divider + Total Pelunasan */}
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: 12 }}>
+            {/* Total Transaksi */}
+            <div style={{ flex: 1, paddingRight: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                <div style={{ width: 24, height: 24, borderRadius: 7, background: `${C.primary}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600 }}>Omset Hari Ini</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n500 }}>Total Transaksi</span>
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: C.primary, letterSpacing: '-0.5px' }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 19, fontWeight: 800, color: C.primary, letterSpacing: '-0.5px' }}>
                 {loading ? '—' : rp(stats.omset)}
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 3 }}>Total pendapatan masuk</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400, marginTop: 2 }}>Nilai semua nota hari ini</div>
             </div>
-            {/* Divider */}
-            <div style={{ width: 1, background: C.n100, flexShrink: 0 }} />
-            {/* Transaksi */}
-            <div style={{ flexShrink: 0, textAlign: 'center', minWidth: 76 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 6 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#0EA5E915', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <div style={{ width: 1, background: C.n100, flexShrink: 0, alignSelf: 'stretch' }} />
+            {/* Total Pelunasan */}
+            <div style={{ flex: 1, paddingLeft: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+                <div style={{ width: 24, height: 24, borderRadius: 7, background: `${C.success}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.success} strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                 </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600 }}>Nota</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n500 }}>Total Pelunasan</span>
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 26, fontWeight: 800, color: C.n900 }}>
-                {loading ? '—' : stats.total}
+              <div style={{ fontFamily: 'Poppins', fontSize: 19, fontWeight: 800, color: C.success, letterSpacing: '-0.5px' }}>
+                {loading ? '—' : rp(stats.totalPelunasan)}
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 3 }}>transaksi dibuat</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400, marginTop: 2 }}>Uang sudah diterima kasir</div>
             </div>
+          </div>
+
+          {/* Piutang bar */}
+          {!loading && stats.omset > 0 && (
+            <div style={{ background: C.n50, borderRadius: 10, padding: '7px 12px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.warning} strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600 }}>Belum terbayar (piutang)</span>
+              </div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: stats.omset - stats.totalPelunasan > 0 ? C.warning : C.success }}>
+                {rp(Math.max(0, stats.omset - stats.totalPelunasan))}
+              </span>
+            </div>
+          )}
+
+          {/* Nota count inline */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: `${C.info}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.info} strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </div>
+            <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>
+              <strong style={{ color: C.n900 }}>{loading ? '—' : stats.total}</strong> nota dibuat hari ini
+            </span>
           </div>
 
           {/* Mini stat row */}
           <div style={{ display: 'flex', gap: 0, marginTop: 12, borderTop: `1px solid ${C.n100}`, paddingTop: 10 }}>
             {[
               { label: 'Express', desc: 'Layanan kilat', val: stats.express, color: C.warning, icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> },
-              { label: 'Proses',  desc: 'Sedang dikerjakan', val: stats.pending, color: '#0EA5E9', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+              { label: 'Proses',  desc: 'Sedang dikerjakan', val: stats.pending, color: C.info, icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
               { label: 'Selesai', desc: 'Siap diambil', val: stats.completed, color: C.success, icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> },
             ].map((s, i) => (
               <div key={s.label} style={{ flex: 1, textAlign: 'center', borderRight: i < 2 ? `1px solid ${C.n100}` : 'none', padding: '0 4px' }}>
@@ -202,10 +241,86 @@ export default function KasirDashboardPage({ user, navigate }) {
         </div>
       </div>
 
+      {/* ── ALERT TUTUP BUKU ── */}
+      {periodAlert && !alertDismissed && (
+        <div style={{ padding: '0 16px', marginTop: 4, marginBottom: 2 }}>
+          <div style={{ background: periodAlert.daysLeft <= 1 ? '#FEE2E2' : '#FEF3C7', borderRadius: 14, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10, boxShadow: '0 2px 8px rgba(15,23,42,0.08)', border: `1.5px solid ${periodAlert.daysLeft <= 1 ? '#FCA5A5' : '#FDE68A'}` }}>
+            <div style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{periodAlert.daysLeft <= 1 ? '🚨' : '⚠️'}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: periodAlert.daysLeft <= 1 ? '#991B1B' : '#92400E' }}>
+                {periodAlert.daysLeft === 0 ? 'Hari ini terakhir!' : `${periodAlert.daysLeft} hari lagi tutup buku`}
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: periodAlert.daysLeft <= 1 ? '#7F1D1D' : '#78350F', marginTop: 2 }}>
+                Periode <strong>{periodAlert.periodLabel}</strong> berakhir {periodAlert.daysLeft === 0 ? 'hari ini' : `${periodAlert.daysLeft} hari lagi`}. Hubungi admin untuk tutup buku.
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setAlertDismissed(true);
+                sessionStorage.setItem(`period_alert_dismissed_${periodAlert.periodStart}`, '1');
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: periodAlert.daysLeft <= 1 ? '#991B1B' : '#92400E', fontSize: 18, padding: '0 2px', flexShrink: 0, lineHeight: 1 }}
+            >×</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── TARGET CAPAIAN CARD ── */}
+      {target && (
+        <div style={{ padding: '0 16px', marginBottom: 14, marginTop: 2 }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: '0 2px 10px rgba(15,23,42,0.08)', border: `2px solid ${
+            target.pct >= 100 ? '#059669' : target.pct >= 80 ? '#10B981' : target.pct >= 50 ? '#F59E0B' : '#EF4444'
+          }20` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700 }}>🎯 Capaian Target Bulan Ini</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{target.monthName} {target.year}</div>
+              </div>
+              <div style={{
+                background: target.pct >= 100 ? '#DCFCE7' : target.pct >= 80 ? '#D1FAE5' : target.pct >= 50 ? '#FEF3C7' : '#FEE2E2',
+                padding: '4px 12px', borderRadius: 999
+              }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 900,
+                  color: target.pct >= 100 ? '#059669' : target.pct >= 80 ? '#10B981' : target.pct >= 50 ? '#F59E0B' : '#EF4444' }}>
+                  {target.pct}%
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1, background: C.n50, borderRadius: 10, padding: '8px 12px' }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: C.n500, letterSpacing: 0.5 }}>REALISASI</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 800,
+                  color: target.pct >= 100 ? '#059669' : target.pct >= 50 ? '#F59E0B' : '#EF4444' }}>
+                  {rp(target.actualAmount)}
+                </div>
+              </div>
+              <div style={{ flex: 1, background: C.n50, borderRadius: 10, padding: '8px 12px' }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: C.n500, letterSpacing: 0.5 }}>TARGET</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 800, color: C.n700 }}>{rp(target.targetAmount)}</div>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div style={{ height: 8, background: C.n100, borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, target.pct)}%`,
+                background: target.pct >= 100 ? '#059669' : target.pct >= 80 ? '#10B981' : target.pct >= 50 ? '#F59E0B' : '#EF4444',
+                borderRadius: 4, transition: 'width 0.6s ease' }} />
+            </div>
+            {target.pct >= 100 && (
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: '#059669', textAlign: 'center', marginTop: 8 }}>
+                🎉 Target tercapai! Semangat terus!
+              </div>
+            )}
+            {target.notes && (
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#92400E', marginTop: 8 }}>📝 {target.notes}</div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: '0 16px', paddingBottom: 20 }}>
 
         {/* ── QUICK ACTIONS ── */}
-        <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ ...T.card, marginBottom: 16 }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 14 }}>Aksi Cepat</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {QUICK.map((q) => (

@@ -255,7 +255,7 @@ export const getRevenueRecap = async (req, res) => {
         t.transaction_no AS transactionNo,
         t.total,
         t.subtotal,
-        t.discount,
+        (COALESCE(t.member_discount,0) + COALESCE(t.promo_discount,0) + COALESCE(t.manual_discount,0)) AS discount,
         t.delivery_fee AS deliveryFee,
         t.primary_payment_method AS payMethod,
         t.status,
@@ -271,8 +271,8 @@ export const getRevenueRecap = async (req, res) => {
       LEFT JOIN mst_user u ON u.id = t.cashier_id
       WHERE ${where}
       ORDER BY t.created_at DESC
-      LIMIT ? OFFSET ?`,
-      [...params, perPage, offset]
+      LIMIT ${parseInt(perPage, 10)} OFFSET ${parseInt(offset, 10)}`,
+      params
     );
 
     // Per-row: fetch payment items for each transaction
@@ -361,6 +361,7 @@ export const getFinanceReport = async (req, res) => {
           DATE_FORMAT(t.created_at, '%Y-%m') AS period,
           COUNT(*) AS txCount,
           COALESCE(SUM(t.total), 0) AS revenue,
+          COALESCE(SUM(t.paid_amount), 0) AS pelunasan,
           COALESCE(SUM(CASE WHEN t.primary_payment_method = 'cash' THEN t.total ELSE 0 END), 0) AS cashRevenue,
           COALESCE(SUM(CASE WHEN t.primary_payment_method = 'transfer' THEN t.total ELSE 0 END), 0) AS transferRevenue,
           COALESCE(SUM(CASE WHEN t.primary_payment_method = 'qris' THEN t.total ELSE 0 END), 0) AS qrisRevenue,
@@ -378,6 +379,7 @@ export const getFinanceReport = async (req, res) => {
           DATE(t.created_at) AS date,
           COUNT(*) AS txCount,
           COALESCE(SUM(t.total), 0) AS revenue,
+          COALESCE(SUM(t.paid_amount), 0) AS pelunasan,
           COALESCE(SUM(CASE WHEN t.primary_payment_method = 'cash' THEN t.total ELSE 0 END), 0) AS cashRevenue,
           COALESCE(SUM(CASE WHEN t.primary_payment_method = 'transfer' THEN t.total ELSE 0 END), 0) AS transferRevenue,
           COALESCE(SUM(CASE WHEN t.primary_payment_method = 'qris' THEN t.total ELSE 0 END), 0) AS qrisRevenue,
@@ -422,6 +424,7 @@ export const getFinanceReport = async (req, res) => {
       date: r.date ? new Date(r.date).toISOString().slice(0, 10) : null,
       txCount: Number(r.txCount),
       revenue: Number(r.revenue),
+      pelunasan: Number(r.pelunasan || 0),
       cashRevenue: Number(r.cashRevenue),
       transferRevenue: Number(r.transferRevenue),
       qrisRevenue: Number(r.qrisRevenue),
@@ -432,6 +435,7 @@ export const getFinanceReport = async (req, res) => {
       period: r.period,
       txCount: Number(r.txCount),
       revenue: Number(r.revenue),
+      pelunasan: Number(r.pelunasan || 0),
       cashRevenue: Number(r.cashRevenue),
       transferRevenue: Number(r.transferRevenue),
       qrisRevenue: Number(r.qrisRevenue),
@@ -440,6 +444,7 @@ export const getFinanceReport = async (req, res) => {
 
     const series = byMonth ? monthly : daily;
     const totalRevenue = series.reduce((s, d) => s + d.revenue, 0);
+    const totalPelunasan = series.reduce((s, d) => s + d.pelunasan, 0);
     const totalTx = series.reduce((s, d) => s + d.txCount, 0);
 
     return res.json({
@@ -447,7 +452,7 @@ export const getFinanceReport = async (req, res) => {
       data: {
         period: { start, end },
         groupBy: byMonth ? 'month' : 'day',
-        summary: { totalRevenue, totalTx },
+        summary: { totalRevenue, totalPelunasan, totalTx },
         daily,
         monthly,
         byOutlet: outletRows.map((r) => ({ ...r, txCount: Number(r.txCount), revenue: Number(r.revenue) })),

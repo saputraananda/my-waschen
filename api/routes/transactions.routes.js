@@ -13,6 +13,8 @@ import {
   saveItemCondition,
   saveReview,
   requestApproval,
+  updateDeliveryType,
+  updatePackingInfo,
 } from '../controllers/transactionController.js';
 
 const router = Router();
@@ -30,16 +32,16 @@ router.get('/production/queue', authenticate, requireRole('kasir', 'produksi', '
 router.get('/:id', authenticate, getTransactionById);
 
 // PUT /api/transactions/:id/status — update status transaksi
-router.put('/:id/status', authenticate, updateTransactionStatus);
+router.put('/:id/status', authenticate, requireRole('kasir', 'produksi', 'admin'), updateTransactionStatus);
 
 // POST /api/transactions/checkout — buat nota (kasir / admin / finance; bukan produksi)
 router.post('/checkout', authenticate, requireRole('kasir', 'admin', 'finance'), checkoutTransaction);
 
 // POST /api/transactions/:id/payments — pelunasan / pembayaran lanjutan (kasir & admin)
-router.post('/:id/payments', authenticate, recordTransactionPayment);
+router.post('/:id/payments', authenticate, requireRole('kasir', 'admin', 'finance'), recordTransactionPayment);
 
 // PATCH /api/transactions/:id/cancel — batalkan transaksi
-router.patch('/:id/cancel', authenticate, cancelTransaction);
+router.patch('/:id/cancel', authenticate, requireRole('kasir', 'admin'), cancelTransaction);
 
 // PATCH /api/transactions/:id/production-stage — catat progress produksi
 router.patch('/:id/production-stage', authenticate, requireRole('produksi', 'admin'), updateProductionStage);
@@ -52,5 +54,11 @@ router.post('/:id/review', authenticate, saveReview);
 
 // POST /api/transactions/:id/request-approval — ajukan pembatalan/penghapusan via approval
 router.post('/:id/request-approval', authenticate, requestApproval);
+
+// PATCH /api/transactions/:id/delivery-type — ubah jenis pengiriman (self/pickup/delivery)
+router.patch('/:id/delivery-type', authenticate, requireRole('kasir', 'admin'), updateDeliveryType);
+
+// PATCH /api/transactions/:id/items/:itemId/packing — set packing requirement (kasir) atau update packing_done (produksi)
+router.patch('/:id/items/:itemId/packing', authenticate, requireRole('kasir', 'produksi', 'admin'), updatePackingInfo);
 
 export default router;

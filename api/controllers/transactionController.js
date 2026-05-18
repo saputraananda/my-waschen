@@ -316,8 +316,10 @@ export const checkoutTransaction = async (req, res) => {
           id, transaction_id, service_id, item_no,
           service_name_snapshot, unit_type_snapshot,
           qty, price, express_multiplier, is_express,
-          subtotal, notes, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          subtotal, notes, packing_needed, packing_notes,
+          carpet_panjang_cm, carpet_lebar_cm,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [
           txItemId,
           trxId,
@@ -331,6 +333,10 @@ export const checkoutTransaction = async (req, res) => {
           itemIsExpress,
           itemSubtotal,
           item.notes || null,
+          Math.max(1, Number(item.packingNeeded) || 1),
+          item.packingNotes || null,
+          item.carpetPanjangCm ? Number(item.carpetPanjangCm) : null,
+          item.carpetLebarCm  ? Number(item.carpetLebarCm)  : null,
         ]
       );
 
@@ -522,8 +528,11 @@ const mapDbStatusToFrontend = (status, pickedUpAt) => {
 // ─── GET /api/transactions ─────────────────────────────────────────────────────
 export const getTransactions = async (req, res) => {
   try {
-    const { status, outletId, customerId } = req.query;
+    const { status, outletId, customerId, page = 1, limit = 50 } = req.query;
     const userOutletId = req.user?.outletId;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
+    const offset = (pageNum - 1) * limitNum;
 
     let sql = `
       SELECT
@@ -579,12 +588,17 @@ export const getTransactions = async (req, res) => {
       sql += " AND t.status <> 'cancelled'";
     }
 
-    sql += ' ORDER BY t.created_at DESC LIMIT 200';
+    // Count total for pagination
+    const countSql = sql.replace(/SELECT[\s\S]*?FROM/, 'SELECT COUNT(*) AS total FROM');
+    const [countResult] = await poolWaschenPos.execute(countSql, params);
+    const total = countResult[0]?.total || 0;
+
+    sql += ` ORDER BY t.created_at DESC LIMIT ${limitNum} OFFSET ${offset}`;
 
     const [rows] = await poolWaschenPos.execute(sql, params);
 
     if (rows.length === 0) {
-      return res.status(200).json({ success: true, data: [] });
+      return res.status(200).json({ success: true, data: [], pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } });
     }
 
     const txIds = rows.map(r => r.id);
@@ -626,7 +640,7 @@ export const getTransactions = async (req, res) => {
       deliveryFee: Number(t.deliveryFee),
     }));
 
-    return res.status(200).json({ success: true, data: transactions });
+    return res.status(200).json({ success: true, data: transactions, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } });
   } catch (err) {
     console.error('[getTransactions] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat transaksi.' });
@@ -673,14 +687,27 @@ export const getTransactionById = async (req, res) => {
     }
 
     const hasItemActiveFlag = await hasColumn('tr_transaction_item', 'is_active');
+    const hasPackingCols = await hasColumn('tr_transaction_item', 'packing_needed');
+    const hasPackingDone = await hasColumn('tr_item_unit', 'packing_done');
+    const hasCarpetCols  = await hasColumn('tr_transaction_item', 'carpet_panjang_cm');
+
+    const packingTiSelect = hasPackingCols
+      ? ', COALESCE(ti.packing_needed, 1) AS packingNeeded, ti.packing_notes AS packingNotes' : '';
+    const packingIuSelect = hasPackingDone
+      ? ', COALESCE(iu_p.packing_done, 0) AS packingDone' : '';
+    const packingJoin = hasPackingDone
+      ? 'LEFT JOIN tr_item_unit iu_p ON iu_p.transaction_item_id = ti.id' : '';
+    const carpetSelect = hasCarpetCols
+      ? ', ti.carpet_panjang_cm AS carpetPanjangCm, ti.carpet_lebar_cm AS carpetLebarCm' : '';
+
     const [items] = await poolWaschenPos.execute(
-      `SELECT
-        id, service_id AS serviceId, service_name_snapshot AS name,
-        unit_type_snapshot AS unit, qty, price,
-        is_express AS express, express_multiplier AS expressMultiplier, subtotal
-      FROM tr_transaction_item
-      WHERE transaction_id = ?
-      ${hasItemActiveFlag ? 'AND is_active = 1' : ''}`,
+      `SELECT ti.id, ti.service_id AS serviceId, ti.service_name_snapshot AS name,
+              ti.unit_type_snapshot AS unit, ti.qty, ti.price,
+              ti.is_express AS express, ti.express_multiplier AS expressMultiplier, ti.subtotal
+              ${packingTiSelect}${packingIuSelect}${carpetSelect}
+       FROM tr_transaction_item ti ${packingJoin}
+       WHERE ti.transaction_id = ?
+       ${hasItemActiveFlag ? 'AND ti.is_active = 1' : ''}`,
       [trxRows[0].id]
     );
 
@@ -969,6 +996,7 @@ export const getDashboardStats = async (req, res) => {
       `SELECT
         COUNT(*) AS total,
         COALESCE(SUM(t.total), 0) AS omset,
+        COALESCE(SUM(t.paid_amount), 0) AS totalPelunasan,
         SUM(CASE WHEN t.is_express = TRUE THEN 1 ELSE 0 END) AS expressCount,
         SUM(CASE WHEN t.status IN ('draft', 'pending', 'process') THEN 1 ELSE 0 END) AS pendingCount,
         SUM(CASE WHEN t.status IN ('ready_for_pickup', 'ready_for_delivery', 'completed') THEN 1 ELSE 0 END) AS completedCount,
@@ -1030,6 +1058,7 @@ export const getDashboardStats = async (req, res) => {
         today: {
           total: Number(todayRows[0]?.total || 0),
           omset: Number(todayRows[0]?.omset || 0),
+          totalPelunasan: Number(todayRows[0]?.totalPelunasan || 0),
           omsetLunas: Number(todayRows[0]?.omsetLunas || 0),
           express: Number(todayRows[0]?.expressCount || 0),
           pending: Number(todayRows[0]?.pendingCount || 0),
@@ -1129,60 +1158,127 @@ export const getProductionQueue = async (req, res) => {
       userOutletId ? [userOutletId] : []
     );
 
+    if (rows.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const txIds = rows.map((r) => r.id);
+    const placeholders = txIds.map(() => '?').join(',');
+
     const hasItemActiveFlag = await hasColumn('tr_transaction_item', 'is_active');
-    const transactions = await Promise.all(
-      rows.map(async (t) => {
-        const [items] = await poolWaschenPos.execute(
-          `SELECT service_name_snapshot AS name, is_express AS express
-           FROM tr_transaction_item
-           WHERE transaction_id = ?
-           ${hasItemActiveFlag ? 'AND is_active = 1' : ''}`,
-          [t.id]
-        );
+    const hasPackingCols = await hasColumn('tr_transaction_item', 'packing_needed');
+    const hasPackingDone = await hasColumn('tr_item_unit', 'packing_done');
 
-        // PERBAIKAN: Ambil riwayat urut dari tabel LOG (bukan dari tr_item_unit yang cuma 1 baris)
-        const [logRows] = await poolWaschenPos.execute(
-          `SELECT pl.stage, pl.started_at
-           FROM tr_production_log pl
-           JOIN tr_item_unit iu ON iu.id = pl.item_unit_id
-           WHERE iu.transaction_id = ?
-           ORDER BY pl.started_at ASC`,
-          [t.id]
-        );
+    const packingQueueSelect = hasPackingCols
+      ? ', COALESCE(ti.packing_needed, 1) AS packingNeeded, ti.packing_notes AS packingNotes' : '';
+    const packingDoneSelect = hasPackingDone
+      ? ', COALESCE(MAX(iu_pk.packing_done), 0) AS packingDone' : '';
+    const packingDoneJoin = hasPackingDone
+      ? `LEFT JOIN tr_item_unit iu_pk ON iu_pk.transaction_item_id = ti.id` : '';
+    const packingGroupBy = (hasPackingCols || hasPackingDone)
+      ? `GROUP BY ti.id, ti.transaction_id, ti.service_name_snapshot, ti.unit_type_snapshot, ti.qty, ti.is_express${hasPackingCols ? ', ti.packing_needed, ti.packing_notes' : ''}` : '';
 
-        // Map status bahasa inggris (MySQL) kembali ke Frontend (Bahasa Indonesia)
-        const reverseMap = {
-          'received': 'Diterima',
-          'washing': 'Cuci',
-          'drying': 'Pengeringan',
-          'ironing': 'Setrika',
-          'packing': 'Packing',
-          'ready': 'Selesai'
-        };
-
-        const progress = (logRows || []).map((l) => ({
-          stage: reverseMap[l.stage] || l.stage,
-          timestamp: l.started_at,
-        }));
-
-        return {
-          ...t,
-          id: t.transactionNo || t.id,
-          transactionUuid: t.id,
-          status: mapDbStatusToFrontend(t.dbStatus, t.pickedUpAt),
-          date: new Date(t.createdAt).toISOString().slice(0, 10),
-          estimatedDoneAt: t.estimatedDoneAt ? new Date(t.estimatedDoneAt).toISOString() : null,
-          isExpress: t.isExpress === 1 || t.isExpress === true,
-          items: items || [],
-          total: Number(t.total),
-          customerName: t.customerName,
-          customerPhone: t.customerPhone,
-          notes: t.notes || null,
-          pickupType: t.pickupType || 'pickup',
-          progress,
-        };
-      })
+    const [allItems] = await poolWaschenPos.execute(
+      `SELECT ti.id AS itemId, ti.transaction_id,
+              ti.service_name_snapshot AS name, ti.unit_type_snapshot AS unit,
+              ti.qty, ti.is_express AS isExpress
+              ${packingQueueSelect}${packingDoneSelect}
+       FROM tr_transaction_item ti ${packingDoneJoin}
+       WHERE ti.transaction_id IN (${placeholders})
+       ${hasItemActiveFlag ? 'AND ti.is_active = 1' : ''}
+       ${packingGroupBy}`,
+      txIds
     );
+
+    const [allLogs] = await poolWaschenPos.execute(
+      `SELECT iu.transaction_id, iu.transaction_item_id, pl.stage, pl.started_at
+       FROM tr_production_log pl
+       JOIN tr_item_unit iu ON iu.id = pl.item_unit_id
+       WHERE iu.transaction_id IN (${placeholders})
+       ORDER BY pl.started_at ASC`,
+      txIds
+    );
+
+    const reverseMap = {
+      'received': 'Diterima', 'washing': 'Cuci', 'drying': 'Pengeringan',
+      'ironing': 'Setrika', 'packing': 'Packing', 'ready': 'Selesai',
+    };
+    const STAGE_ORDER = ['Diterima', 'Cuci', 'Pengeringan', 'Setrika', 'Packing', 'Selesai'];
+
+    // Build per-item progress map (deduplicated by stage)
+    const logsByItemId = new Map();
+    for (const log of allLogs) {
+      const itemId = log.transaction_item_id;
+      const stageLabel = reverseMap[log.stage] || log.stage;
+      const list = logsByItemId.get(itemId) || [];
+      if (!list.some((l) => l.stage === stageLabel)) {
+        list.push({ stage: stageLabel, timestamp: log.started_at });
+      }
+      logsByItemId.set(itemId, list);
+    }
+
+    // Build per-transaction items map
+    const itemsByTxId = new Map();
+    for (const item of allItems) {
+      const list = itemsByTxId.get(item.transaction_id) || [];
+      list.push(item);
+      itemsByTxId.set(item.transaction_id, list);
+    }
+
+    const transactions = rows.map((t) => {
+      const rawItems = itemsByTxId.get(t.id) || [];
+
+      const items = rawItems.map((item) => {
+        const progress = logsByItemId.get(item.itemId) || [];
+        const doneStages = progress.map((p) => p.stage);
+        const currentStage = STAGE_ORDER.find((s) => !doneStages.includes(s)) || 'Selesai';
+        const packingNeeded = Number(item.packingNeeded) || 1;
+        const packingDone = Number(item.packingDone) || 0;
+        return {
+          itemId: item.itemId,
+          name: item.name,
+          unit: item.unit,
+          qty: Number(item.qty || 1),
+          isExpress: item.isExpress === 1 || item.isExpress === true,
+          progress,
+          currentStage,
+          isDone: currentStage === 'Selesai',
+          packingNeeded,
+          packingDone,
+          packingNotes: item.packingNotes || null,
+        };
+      });
+
+      // Overall current stage = the stage the slowest item is at
+      const overallCurrentStage = items.reduce((slowest, item) => {
+        const itemIdx = STAGE_ORDER.indexOf(item.currentStage);
+        const slowestIdx = STAGE_ORDER.indexOf(slowest);
+        return itemIdx < slowestIdx ? item.currentStage : slowest;
+      }, 'Selesai');
+
+      // Legacy flat progress = stages that ALL items have completed (for overall bar)
+      const legacyProgress = STAGE_ORDER.filter((stage) =>
+        items.length > 0 && items.every((item) => item.progress.some((p) => p.stage === stage))
+      ).map((stage) => ({ stage, timestamp: null }));
+
+      return {
+        ...t,
+        id: t.transactionNo || t.id,
+        transactionUuid: t.id,
+        status: mapDbStatusToFrontend(t.dbStatus, t.pickedUpAt),
+        date: new Date(t.createdAt).toISOString().slice(0, 10),
+        estimatedDoneAt: t.estimatedDoneAt ? new Date(t.estimatedDoneAt).toISOString() : null,
+        isExpress: t.isExpress === 1 || t.isExpress === true,
+        items,
+        total: Number(t.total),
+        customerName: t.customerName,
+        customerPhone: t.customerPhone,
+        notes: t.notes || null,
+        pickupType: t.pickupType || 'pickup',
+        progress: legacyProgress,
+        overallCurrentStage,
+      };
+    });
 
     return res.status(200).json({ success: true, data: transactions });
   } catch (err) {
@@ -1276,54 +1372,125 @@ const VALID_STAGES = ['Diterima', 'Cuci', 'Pengeringan', 'Setrika', 'Packing', '
 export const updateProductionStage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { stage } = req.body;
+    const { stage, itemId } = req.body;
 
-    // Pastikan kata yang dikirim Frontend ada di daftar VALID_STAGES
     if (!VALID_STAGES.includes(stage)) {
       return res.status(400).json({ success: false, message: `Stage tidak valid. Pilih: ${VALID_STAGES.join(', ')}` });
     }
 
-    // 1. MAPPING DATA
-    // Translate bahasa Frontend ke ENUM MySQL
     const stageMap = {
-      'Diterima': 'received',
-      'Cuci': 'washing',
-      'Pengeringan': 'drying',
-      'Setrika': 'ironing',
-      'Packing': 'packing',
-      'Selesai': 'ready'
+      'Diterima': 'received', 'Cuci': 'washing', 'Pengeringan': 'drying',
+      'Setrika': 'ironing', 'Packing': 'packing', 'Selesai': 'ready',
     };
-
+    const reverseMap = {
+      'received': 'Diterima', 'washing': 'Cuci', 'drying': 'Pengeringan',
+      'ironing': 'Setrika', 'packing': 'Packing', 'ready': 'Selesai',
+    };
     const dbStatus = stageMap[stage] || 'received';
 
-    // Cari transaksi
     const [rows] = await poolWaschenPos.execute(
       `SELECT id, pickup_type FROM tr_transaction
        WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
       [id, id]
     );
-
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
     }
-
     const txId = rows[0].id;
     const pickupType = rows[0].pickup_type;
 
-    // 2. JALANKAN UPDATE (Bukan Insert!)
-    // Merubah status unit item di transaksi ini
+    // ── Per-item mode (itemId dikirim) ──────────────────────────────────────
+    if (itemId) {
+      const [itemCheck] = await poolWaschenPos.execute(
+        `SELECT id FROM tr_transaction_item WHERE id = ? AND transaction_id = ? LIMIT 1`,
+        [itemId, txId]
+      );
+      if (!itemCheck.length) {
+        return res.status(400).json({ success: false, message: 'Item tidak ditemukan dalam transaksi ini.' });
+      }
+
+      await poolWaschenPos.execute(
+        `UPDATE tr_item_unit SET production_status = ?, updated_at = NOW() WHERE transaction_item_id = ?`,
+        [dbStatus, itemId]
+      );
+
+      const [unitRows] = await poolWaschenPos.execute(
+        `SELECT id FROM tr_item_unit WHERE transaction_item_id = ?`,
+        [itemId]
+      );
+      for (const unit of unitRows) {
+        await poolWaschenPos.execute(
+          `INSERT INTO tr_production_log (id, item_unit_id, pic_id, stage, status, notes, started_at, created_at)
+           VALUES (?, ?, ?, ?, 'done', ?, NOW(), NOW())`,
+          [randomUUID(), unit.id, req.user?.userId, dbStatus, `[Per-item] Stage: ${stage}`]
+        );
+      }
+
+      // Cek apakah SEMUA unit di transaksi ini sudah ready
+      const [doneCheck] = await poolWaschenPos.execute(
+        `SELECT COUNT(*) AS total,
+                SUM(CASE WHEN production_status = 'ready' THEN 1 ELSE 0 END) AS readyCount
+         FROM tr_item_unit WHERE transaction_id = ?`,
+        [txId]
+      );
+      const { total, readyCount } = doneCheck[0] || {};
+      const allDone = Number(total) > 0 && Number(total) === Number(readyCount);
+
+      if (allDone) {
+        const nextStatus = pickupType === 'delivery' ? 'ready_for_delivery' : 'ready_for_pickup';
+        await poolWaschenPos.execute(
+          `UPDATE tr_transaction SET status = ?, updated_at = NOW() WHERE id = ?`,
+          [nextStatus, txId]
+        );
+        try {
+          await poolWaschenPos.execute(
+            `INSERT INTO tr_notification (id, transaction_id, type, recipient_customer_id, wa_number, message_body, status, sent_by, created_at, updated_at)
+             SELECT ?, t.id, 'selesai', t.customer_id, COALESCE(c.phone,'-'),
+               CONCAT('Cucian Anda (', t.transaction_no, ') sudah selesai dan siap ', IF(t.pickup_type='delivery','diantar.','diambil di outlet.')),
+               'opened', ?, NOW(), NOW()
+             FROM tr_transaction t JOIN mst_customer c ON c.id=t.customer_id WHERE t.id=?`,
+            [randomUUID(), req.user?.userId, txId]
+          );
+        } catch (_) { /* notifikasi tidak bloking */ }
+      } else {
+        await poolWaschenPos.execute(
+          `UPDATE tr_transaction SET status = 'process', updated_at = NOW() WHERE id = ? AND status IN ('draft','pending')`,
+          [txId]
+        );
+      }
+
+      // Kembalikan progress item ini (deduplicated)
+      const [logRows] = await poolWaschenPos.execute(
+        `SELECT pl.stage, pl.started_at AS timestamp
+         FROM tr_production_log pl
+         JOIN tr_item_unit iu ON iu.id = pl.item_unit_id
+         WHERE iu.transaction_item_id = ?
+         ORDER BY pl.started_at ASC`,
+        [itemId]
+      );
+      const seen = new Set();
+      const progress = [];
+      for (const l of logRows) {
+        const s = reverseMap[l.stage] || l.stage;
+        if (!seen.has(s)) { seen.add(s); progress.push({ stage: s, timestamp: l.timestamp }); }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Stage '${stage}' berhasil dicatat untuk layanan ini.`,
+        data: { progress, allDone },
+      });
+    }
+
+    // ── Fallback: update semua item di transaksi (mode lama) ─────────────────
     await poolWaschenPos.execute(
       `UPDATE tr_item_unit SET production_status = ?, updated_at = NOW() WHERE transaction_id = ?`,
       [dbStatus, txId]
     );
-
-    // 3. JALANKAN INSERT LOG TIMELINE
-    // Mencatat siapa yang mengerjakan ke dalam riwayat Log
     const [unitRows] = await poolWaschenPos.execute(
       `SELECT id FROM tr_item_unit WHERE transaction_id = ?`,
       [txId]
     );
-
     for (const unit of unitRows) {
       await poolWaschenPos.execute(
         `INSERT INTO tr_production_log (id, item_unit_id, pic_id, stage, status, notes, started_at, created_at)
@@ -1332,33 +1499,22 @@ export const updateProductionStage = async (req, res) => {
       );
     }
 
-    // 4. SYNC TRANSAKSI DAN NOTIFIKASI
     if (dbStatus === 'packing' || dbStatus === 'ready') {
       const nextStatus = pickupType === 'delivery' ? 'ready_for_delivery' : 'ready_for_pickup';
-
       await poolWaschenPos.execute(
         `UPDATE tr_transaction SET status = ?, updated_at = NOW() WHERE id = ?`,
         [nextStatus, txId]
       );
-
-      // --- OTOMATIS KIRIM NOTIFIKASI KE CUSTOMER ---
       try {
-        const notifId = randomUUID();
         await poolWaschenPos.execute(
-          `INSERT INTO tr_notification (
-             id, transaction_id, type, recipient_customer_id, wa_number,
-             message_body, status, sent_by, created_at, updated_at
-           )
-           SELECT
-             ?, t.id, 'selesai', t.customer_id, COALESCE(c.phone, '-'),
-             CONCAT('Cucian Anda dengan nota ', t.transaction_no, ' sudah selesai dipacking dan siap ', IF(t.pickup_type='delivery', 'diantar oleh kurir kami.', 'diambil di outlet.')),
+          `INSERT INTO tr_notification (id, transaction_id, type, recipient_customer_id, wa_number, message_body, status, sent_by, created_at, updated_at)
+           SELECT ?, t.id, 'selesai', t.customer_id, COALESCE(c.phone,'-'),
+             CONCAT('Cucian Anda dengan nota ', t.transaction_no, ' sudah selesai dan siap ', IF(t.pickup_type='delivery','diantar oleh kurir kami.','diambil di outlet.')),
              'opened', ?, NOW(), NOW()
-           FROM tr_transaction t
-           JOIN mst_customer c ON c.id = t.customer_id
-           WHERE t.id = ?`,
-          [notifId, req.user?.userId, txId]
+           FROM tr_transaction t JOIN mst_customer c ON c.id=t.customer_id WHERE t.id=?`,
+          [randomUUID(), req.user?.userId, txId]
         );
-      } catch (err) { /* Abaikan jika notifikasi gagal, produksi tetap jalan */ }
+      } catch (_) { /* notifikasi tidak bloking */ }
     } else {
       await poolWaschenPos.execute(
         `UPDATE tr_transaction SET status = 'process', updated_at = NOW() WHERE id = ? AND status IN ('draft','pending')`,
@@ -1366,7 +1522,6 @@ export const updateProductionStage = async (req, res) => {
       );
     }
 
-    // Ambil progress terbaru setelah diupdate dari tr_production_log
     const [logRows] = await poolWaschenPos.execute(
       `SELECT pl.stage, pl.started_at AS timestamp
        FROM tr_production_log pl
@@ -1375,9 +1530,7 @@ export const updateProductionStage = async (req, res) => {
        ORDER BY pl.started_at ASC`,
       [txId]
     );
-
-    const reverseMap = { 'received': 'Diterima', 'washing': 'Cuci', 'drying': 'Pengeringan', 'ironing': 'Setrika', 'packing': 'Packing', 'ready': 'Selesai' };
-    const progress = logRows.map(l => ({ stage: reverseMap[l.stage] || l.stage, timestamp: l.timestamp }));
+    const progress = logRows.map((l) => ({ stage: reverseMap[l.stage] || l.stage, timestamp: l.timestamp }));
 
     return res.status(200).json({
       success: true,
@@ -1523,5 +1676,156 @@ export const saveReview = async (req, res) => {
   } catch (err) {
     console.error('[saveReview] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal menyimpan review.' });
+  }
+};
+
+// ─── PATCH /api/transactions/:id/delivery-type ───────────────────────────────
+export const updateDeliveryType = async (req, res) => {
+  const conn = await poolWaschenPos.getConnection();
+  try {
+    const { id } = req.params;
+    const { pickupType, pickupFee = 10000, deliveryFee = 10000, scheduleAt, areaZoneId, notes } = req.body;
+
+    const VALID_TYPES = ['self', 'pickup', 'delivery'];
+    if (!VALID_TYPES.includes(pickupType)) {
+      conn.release();
+      return res.status(400).json({ success: false, message: `pickupType harus salah satu dari: ${VALID_TYPES.join(', ')}` });
+    }
+
+    // Cari transaksi
+    const [[tx]] = await conn.execute(
+      `SELECT id, transaction_no, status, pickup_type, delivery_fee, total, subtotal,
+              member_discount, promo_discount, manual_discount
+       FROM tr_transaction WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+      [id]
+    );
+    if (!tx) {
+      conn.release();
+      return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
+    }
+    if (['cancelled', 'completed'].includes(tx.status)) {
+      conn.release();
+      return res.status(400).json({ success: false, message: 'Transaksi yang sudah selesai / dibatalkan tidak bisa diubah.' });
+    }
+
+    await conn.beginTransaction();
+
+    // Hitung delivery_fee baru
+    const newDeliveryFee = pickupType === 'self' ? 0
+      : pickupType === 'pickup' ? Number(pickupFee)
+      : Number(deliveryFee); // 'delivery'
+
+    // Hitung ulang total
+    const discountTotal = Number(tx.member_discount || 0) + Number(tx.promo_discount || 0) + Number(tx.manual_discount || 0);
+    const newTotal = Number(tx.subtotal) - discountTotal + newDeliveryFee;
+
+    // Update transaksi
+    await conn.execute(
+      `UPDATE tr_transaction
+         SET pickup_type = ?, delivery_fee = ?, total = ?, updated_at = NOW()
+         ${notes != null ? ', notes = CONCAT(IFNULL(notes,""), IF(notes IS NULL OR notes="","", " | "), ?)' : ''}
+       WHERE id = ?`,
+      notes != null
+        ? [pickupType, newDeliveryFee, newTotal, `[Edit pengantaran: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] ${notes}`]
+        : [pickupType, newDeliveryFee, newTotal, id]
+    );
+
+    // Batalkan logistic orders lama yang masih pending
+    await conn.execute(
+      `UPDATE tr_logistic_order SET status = 'cancelled', updated_at = NOW()
+       WHERE transaction_id = ? AND status IN ('pending','assigned')`,
+      [tx.id]
+    );
+
+    // Buat logistic order baru jika bukan self
+    const logisticSchedule = scheduleAt ? new Date(scheduleAt) : new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const userId = req.user?.userId;
+
+    if (pickupType === 'pickup') {
+      await conn.execute(
+        `INSERT INTO tr_logistic_order (id, transaction_id, type, area_zone_id, delivery_fee, scheduled_at, status, created_by, created_at, updated_at)
+         VALUES (?, ?, 'pickup', ?, ?, ?, 'pending', ?, NOW(), NOW())`,
+        [randomUUID(), tx.id, areaZoneId || null, Number(pickupFee), logisticSchedule, userId]
+      );
+    } else if (pickupType === 'delivery') {
+      await conn.execute(
+        `INSERT INTO tr_logistic_order (id, transaction_id, type, area_zone_id, delivery_fee, scheduled_at, status, created_by, created_at, updated_at)
+         VALUES (?, ?, 'delivery', ?, ?, ?, 'pending', ?, NOW(), NOW())`,
+        [randomUUID(), tx.id, areaZoneId || null, Number(deliveryFee), logisticSchedule, userId]
+      );
+    }
+
+    await conn.commit();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Jenis pengantaran berhasil diubah.',
+      data: { pickupType, deliveryFee: newDeliveryFee, total: newTotal },
+    });
+  } catch (err) {
+    await conn.rollback();
+    console.error('[updateDeliveryType] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengubah jenis pengantaran.' });
+  } finally {
+    conn.release();
+  }
+};
+
+// ─── PATCH /api/transactions/:id/items/:itemId/packing ────────────────────────
+export const updatePackingInfo = async (req, res) => {
+  try {
+    const { id, itemId } = req.params;
+    const { packingNeeded, packingNotes, packingDone } = req.body;
+
+    // Resolve transaction UUID
+    const [txRows] = await poolWaschenPos.execute(
+      `SELECT t.id FROM tr_transaction t
+       JOIN tr_transaction_item ti ON ti.transaction_id = t.id AND ti.id = ?
+       WHERE t.deleted_at IS NULL AND (t.id = ? OR t.transaction_no = ?) LIMIT 1`,
+      [itemId, id, id]
+    );
+    if (!txRows.length) {
+      return res.status(404).json({ success: false, message: 'Transaksi atau item tidak ditemukan.' });
+    }
+
+    // Update packing requirement di tr_transaction_item (kasir saat penerimaan)
+    if (packingNeeded !== undefined || packingNotes !== undefined) {
+      const fields = [];
+      const vals = [];
+      if (packingNeeded !== undefined) { fields.push('packing_needed = ?'); vals.push(Math.max(1, Number(packingNeeded) || 1)); }
+      if (packingNotes !== undefined) { fields.push('packing_notes = ?'); vals.push(packingNotes || null); }
+      vals.push(itemId);
+      await poolWaschenPos.execute(
+        `UPDATE tr_transaction_item SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
+        vals
+      );
+    }
+
+    // Update progress packing di tr_item_unit (produksi saat packing)
+    if (packingDone !== undefined) {
+      await poolWaschenPos.execute(
+        `UPDATE tr_item_unit SET packing_done = ?, updated_at = NOW() WHERE transaction_item_id = ?`,
+        [Math.max(0, Number(packingDone) || 0), itemId]
+      );
+    }
+
+    // Kembalikan data terbaru
+    const [result] = await poolWaschenPos.execute(
+      `SELECT ti.packing_needed AS packingNeeded, ti.packing_notes AS packingNotes,
+              COALESCE(iu.packing_done, 0) AS packingDone
+       FROM tr_transaction_item ti
+       LEFT JOIN tr_item_unit iu ON iu.transaction_item_id = ti.id
+       WHERE ti.id = ? LIMIT 1`,
+      [itemId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Info packing diperbarui.',
+      data: result[0] || { packingNeeded: 1, packingNotes: null, packingDone: 0 },
+    });
+  } catch (err) {
+    console.error('[updatePackingInfo] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal memperbarui info packing.' });
   }
 };

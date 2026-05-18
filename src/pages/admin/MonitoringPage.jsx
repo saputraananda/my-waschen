@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Avatar, SearchBar, Chip } from '../../components/ui';
+import { TopBar, Avatar, SearchBar, Chip, Btn } from '../../components/ui';
 
 const NEXT_STATUS = {
   baru:   { label: 'Mulai Proses', next: 'proses' },
@@ -20,6 +20,7 @@ const COLS = [
 export default function MonitoringPage({ navigate, goBack }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('semua');
@@ -38,12 +39,14 @@ export default function MonitoringPage({ navigate, goBack }) {
   };
 
   const fetchTransactions = useCallback(async () => {
+    setError(null);
     setLoading(true);
     try {
       const res = await axios.get('/api/transactions');
       setTransactions(res?.data?.data || []);
     } catch (error) {
       console.error('Failed to fetch transactions:', error);
+      setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -102,6 +105,15 @@ export default function MonitoringPage({ navigate, goBack }) {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 12 }}>
           <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
           <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</span>
+        </div>
+      ) : error ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 24 }}>⚠️</span>
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Gagal Memuat Data</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
+          <Btn variant="primary" onClick={fetchTransactions} style={{ marginTop: 8 }}>Coba Lagi</Btn>
         </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px' }}>

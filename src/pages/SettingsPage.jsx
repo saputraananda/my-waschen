@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { C } from '../utils/theme';
+import { C, T } from '../utils/theme';
 import { Avatar, Btn, Divider } from '../components/ui';
 
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Kasir', produksi: 'Produksi', finance: 'Finance' };
@@ -24,14 +24,46 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
     { id: 'finance',  label: 'Finance',  icon: '💰' },
   ];
 
-  const MENUS = [
-    { label: 'Pengaturan Printer',  icon: '🖨️', screen: 'printer_settings' },
-    { label: 'Info Outlet',         icon: '🏪', screen: 'info_outlet', badge: outletInfo ? (outletInfo.isActive ? { text: '● Aktif', bg: '#DCFCE7', color: '#166534' } : { text: '● Nonaktif', bg: '#FEE2E2', color: '#991B1B' }) : null },
-    { label: 'Notifikasi',         icon: '🔔', screen: 'notifikasi' },
-    { label: 'Daftar Member',      icon: '👥', screen: 'daftar_member' },
-    { label: 'Bantuan',            icon: '❓', screen: null },
-    { label: 'Kebijakan Privasi',  icon: '🔒', screen: null },
-  ];
+  const role = user?.role;
+  const outletBadge = outletInfo ? (outletInfo.isActive ? { text: '● Aktif', bg: '#DCFCE7', color: C.success } : { text: '● Nonaktif', bg: '#FEE2E2', color: C.danger }) : null;
+
+  const MENUS = (() => {
+    const base = [];
+
+    if (role === 'kasir') {
+      base.push(
+        { label: 'Pengaturan Printer', icon: '🖨️', screen: 'printer_settings' },
+        { label: 'Info Outlet', icon: '🏪', screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
+        { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
+        { label: 'Daftar Member', icon: '👥', screen: 'daftar_member' },
+      );
+    } else if (role === 'produksi') {
+      base.push(
+        { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
+      );
+    } else if (role === 'finance') {
+      base.push(
+        { label: 'Info Outlet', icon: '🏪', screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
+        { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
+        { label: 'Daftar Member', icon: '👥', screen: 'daftar_member' },
+      );
+    } else {
+      base.push(
+        { label: 'Pengaturan Printer', icon: '🖨️', screen: 'printer_settings' },
+        { label: 'Manajemen Outlet', icon: '🏪', screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
+        { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
+        { label: 'Data Pegawai', icon: '👨‍💼', screen: 'manajemen_user' },
+        { label: 'Manajemen Layanan', icon: '🧺', screen: 'manajemen_layanan' },
+      );
+    }
+
+    base.push(
+      { label: 'Bantuan', icon: '❓', screen: null },
+      { label: 'Kebijakan Privasi', icon: '🔒', screen: null },
+    );
+
+    return base;
+  })();
 
   useEffect(() => {
     if (user?.role !== 'kasir') return;
@@ -95,7 +127,7 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
 
         {/* Switch role — hanya admin */}
         {isAdmin && (
-          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}>
+          <div style={{ ...T.card, padding: '14px 16px', marginBottom: 12 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 12 }}>GANTI TAMPILAN ROLE</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {ADMIN_ROLES.map((r) => (
@@ -114,8 +146,8 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
 
 
         {/* Shift section */}
-        {user?.role === 'kasir' && (
-          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}>
+        {role === 'kasir' && (
+          <div style={{ ...T.card, padding: '14px 16px', marginBottom: 12 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 10 }}>
               SHIFT KASIR
             </div>
@@ -164,11 +196,11 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
         )}
 
         {/* Menu */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '4px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
+        <div style={{ ...T.card, padding: '4px 16px', marginBottom: 12 }}>
           {MENUS.map((m, i) => (
             <div key={m.label}>
               <button
-                onClick={() => m.screen && navigate(m.screen, m.screen === 'info_outlet' ? { outletId: user?.outletId } : undefined)}
+                onClick={() => m.screen && navigate(m.screen, m.params || undefined)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', background: 'transparent', border: 'none', cursor: m.screen ? 'pointer' : 'default', textAlign: 'left' }}
               >
                 <span style={{ fontSize: 18, width: 28 }}>{m.icon}</span>

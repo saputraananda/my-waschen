@@ -1,6 +1,30 @@
 export const rp = (n) => 'Rp ' + Number(n).toLocaleString('id-ID');
 
 /**
+ * Check if a date string falls within a period relative to today.
+ * @param {string} dateStr - Date string (ISO or locale)
+ * @param {'hari_ini'|'minggu_ini'|'bulan_ini'|'semua'} period
+ * @returns {boolean}
+ */
+export const inPeriod = (dateStr, period) => {
+  if (!period || period === 'semua') return true;
+  const d = new Date(dateStr);
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === 'hari_ini') return d >= startOfDay;
+  if (period === 'minggu_ini') {
+    const day = now.getDay() || 7;
+    const startOfWeek = new Date(startOfDay);
+    startOfWeek.setDate(startOfWeek.getDate() - day + 1);
+    return d >= startOfWeek;
+  }
+  if (period === 'bulan_ini') {
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+  return true;
+};
+
+/**
  * Formats a string of numbers into a Rupiah currency format (e.g., "100.000").
  * @param {string} value - The number string to format.
  * @param {string} prefix - The currency prefix.

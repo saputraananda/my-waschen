@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { TopBar, SearchBar, Avatar, Btn, EmptyState } from '../../components/ui';
@@ -7,23 +7,26 @@ export default function CustomerListPage({ navigate }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
+  const [error, setError] = useState(null);
 
-  // Fetch customers from API on mount
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      setLoading(true);
-      try {
-        const res = await axios.get('/api/customers');
-        const data = res?.data?.data || [];
-        setCustomers(data);
-      } catch (error) {
-        console.error('Failed to fetch customers:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCustomers();
+  const fetchCustomers = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/customers');
+      const data = res?.data?.data || [];
+      setCustomers(data);
+    } catch (error) {
+      console.error('Failed to fetch customers:', error);
+      setError('Gagal memuat data. Tap untuk coba lagi.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const filtered = customers.filter(
     (c) =>
@@ -42,6 +45,15 @@ export default function CustomerListPage({ navigate }) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
             <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
             <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</span>
+          </div>
+        ) : error ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 24 }}>⚠️</span>
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Gagal Memuat Data</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
+            <Btn variant="primary" onClick={fetchCustomers} style={{ marginTop: 8 }}>Coba Lagi</Btn>
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState title="Customer tidak ditemukan" subtitle="Coba ubah kata kunci pencarian" action={() => navigate('tambah_customer')} actionLabel="+ Tambah Customer" />

@@ -33,9 +33,15 @@ function getSLAStatus(estimatedDoneAt) {
 
 export default function DetailItemProduksiPage({ navigate, goBack, screenParams, user }) {
   const tx = screenParams;
+  // item = layanan spesifik yang dipilih dari dashboard produksi
+  const item = tx?.item || null;
+
+  const initProgress = item ? (item.progress || []) : (tx?.progress || []);
   const [updating, setUpdating] = useState(false);
-  const [localProgress, setLocalProgress] = useState(tx?.progress || []);
+  const [localProgress, setLocalProgress] = useState(initProgress);
   const [stageError, setStageError] = useState('');
+  const [packingDone, setPackingDone] = useState(Number(item?.packingDone) || 0);
+  const [packingUpdating, setPackingUpdating] = useState(false);
   const [showProblem, setShowProblem] = useState(false);
   const [problemText, setProblemText] = useState('');
   const [customProblem, setCustomProblem] = useState('');
@@ -56,15 +62,34 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
   const progressPct = Math.round((doneStages.length / STAGES.length) * 100);
   const sla = getSLAStatus(tx.estimatedDoneAt);
   
+  const packingNeeded = Number(item?.packingNeeded) || 1;
+  const packingNotes = item?.packingNotes || '';
+  const packingComplete = packingDone >= packingNeeded;
+
   const workstation = localStorage.getItem('produksi_workstation') || 'Semua';
-  const canUpdateStage = workstation === 'Semua' || workstation === nextStage || (nextStage === 'Diterima' && workstation === 'Cuci');
+  const canUpdateStage = (workstation === 'Semua' || workstation === nextStage || (nextStage === 'Diterima' && workstation === 'Cuci'))
+    && (nextStage !== 'Packing' || packingComplete);
+
+  const handlePackingCount = async (newDone) => {
+    const clamped = Math.max(0, Math.min(newDone, packingNeeded));
+    setPackingDone(clamped);
+    if (!item?.itemId) return;
+    setPackingUpdating(true);
+    try {
+      await axios.patch(`/api/transactions/${tx.id}/items/${item.itemId}/packing`, { packingDone: clamped });
+    } catch (_) {}
+    finally { setPackingUpdating(false); }
+  };
 
   const handleUpdateStage = async () => {
     if (!nextStage || !canUpdateStage) return;
     setUpdating(true);
     setStageError('');
     try {
-      const res = await axios.patch(`/api/transactions/${tx.id}/production-stage`, { stage: nextStage });
+      const body = item
+        ? { stage: nextStage, itemId: item.itemId }
+        : { stage: nextStage };
+      const res = await axios.patch(`/api/transactions/${tx.id}/production-stage`, body);
       const updatedProgress = res?.data?.data?.progress || [
         ...localProgress,
         { stage: nextStage, timestamp: new Date().toISOString() },
@@ -98,7 +123,10 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Detail Order" onBack={goBack}
+      <TopBar
+        title={item ? item.name : 'Detail Order'}
+        subtitle={item ? `${item.qty} ${item.unit} · Nota ${tx.id}` : tx.id}
+        onBack={goBack}
         rightAction={() => navigate('foto_kondisi', tx)}
         rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
       />
@@ -197,6 +225,43 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
             );
           })}
         </div>
+
+        {/* Packing Tracker — tampil saat tahap Packing tiba atau setelahnya */}
+        {item && (nextStage === 'Packing' || doneStages.includes('Packing')) && (
+          <div style={{ background: 'white', borderRadius: 16, padding: '16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)', border: `2px solid ${packingComplete ? '#10B981' : '#F59E0B'}` }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5, marginBottom: 12 }}>📦 PROGRESS PACKING</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <button
+                onClick={() => handlePackingCount(packingDone - 1)}
+                disabled={packingDone <= 0 || packingUpdating}
+                style={{ width: 44, height: 44, borderRadius: 22, border: `2px solid ${C.n300}`, background: packingDone > 0 ? C.n100 : C.n50, cursor: packingDone > 0 ? 'pointer' : 'default', fontFamily: 'Poppins', fontSize: 22, fontWeight: 700, color: C.n700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >−</button>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 36, fontWeight: 900, color: packingComplete ? '#10B981' : '#F59E0B', lineHeight: 1 }}>
+                  {packingDone}<span style={{ fontSize: 18, color: C.n400 }}> / {packingNeeded}</span>
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>paket selesai dipacking</div>
+              </div>
+              <button
+                onClick={() => handlePackingCount(packingDone + 1)}
+                disabled={packingDone >= packingNeeded || packingUpdating}
+                style={{ width: 44, height: 44, borderRadius: 22, border: 'none', background: packingDone < packingNeeded ? C.primary : C.n100, cursor: packingDone < packingNeeded ? 'pointer' : 'default', fontFamily: 'Poppins', fontSize: 22, fontWeight: 700, color: packingDone < packingNeeded ? 'white' : C.n400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >+</button>
+            </div>
+            <div style={{ height: 8, background: C.n100, borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+              <div style={{ height: '100%', width: `${Math.min(100, (packingDone / packingNeeded) * 100)}%`, background: packingComplete ? '#10B981' : '#F59E0B', borderRadius: 4, transition: 'width 0.4s ease' }} />
+            </div>
+            {packingNotes && (
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400E', background: '#FEF3C7', borderRadius: 8, padding: '6px 10px', marginBottom: 8 }}>
+                📝 {packingNotes}
+              </div>
+            )}
+            {packingComplete
+              ? <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: '#065F46', textAlign: 'center' }}>✅ Semua paket sudah dipacking! Lanjutkan ke tahap berikutnya.</div>
+              : <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400E', textAlign: 'center' }}>Selesaikan semua {packingNeeded} paket untuk lanjut tahap berikutnya.</div>
+            }
+          </div>
+        )}
 
         {/* Items laundry */}
         <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>

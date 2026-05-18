@@ -1,6 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Component, forwardRef } from 'react';
 import { C, T } from '../../utils/theme';
 import { STATUS_COLORS, STAGES, rp } from '../../utils/helpers';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 // ── useToast ─────────────────────────────────────────────
 export const useToast = () => {
@@ -85,7 +87,7 @@ export const BottomNav = ({ role, active, navigate }) => {
     role === 'kasir'
       ? () => navigate('nota_step1')
       : role === 'produksi'
-      ? () => navigate('antrian')
+      ? () => navigate('produksi_qr_scan')
       : role === 'finance'
       ? () => navigate('verifikasi_payment')
       : () => navigate('approval');
@@ -100,7 +102,11 @@ export const BottomNav = ({ role, active, navigate }) => {
                 onClick={fabAction}
                 style={{ width: 52, height: 52, borderRadius: 26, background: `linear-gradient(135deg, ${C.primarySoft}, ${C.primary})`, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 16px ${C.primary}55`, color: C.white, marginBottom: 8 }}
               >
-                <svg style={{ pointerEvents: 'none' }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                {role === 'produksi' ? (
+                  <svg style={{ pointerEvents: 'none' }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                ) : (
+                  <svg style={{ pointerEvents: 'none' }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                )}
               </button>
             </div>
           );
@@ -169,6 +175,128 @@ export const Input = ({ label, value, onChange, type = 'text', error, placeholde
         />
         {rightIcon && <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: C.n600 }}>{rightIcon}</div>}
       </div>
+      {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
+    </div>
+  );
+};
+
+// ── DateInput (shared calendar picker) ───────────────────
+const _dateInputStyleId = 'waschen-datepicker-styles';
+const _dateInputStyles = `
+.wdp{border:1px solid #E2E8F0;border-radius:14px;font-family:Poppins,sans-serif;box-shadow:0 12px 28px rgba(15,23,42,0.14);overflow:hidden}
+.wdp .react-datepicker__triangle{display:none}
+.wdp .react-datepicker__month-container{background:#F8FAFC}
+.wdp-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;background:linear-gradient(135deg,${C.primary},${C.primaryDark||C.primary});color:#fff;padding:12px 10px}
+.wdp-ml{font-size:13px;font-weight:700;text-transform:capitalize}
+.wdp-nav{width:28px;height:28px;border:none;border-radius:999px;background:rgba(255,255,255,0.2);color:#fff;font-size:20px;line-height:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.wdp-nav:hover{background:rgba(255,255,255,0.3)}
+.wdp .react-datepicker__day-names{margin-top:6px;margin-bottom:2px}
+.wdp .react-datepicker__day-name{color:#64748B;font-size:11px;font-weight:600;width:2rem;line-height:2rem}
+.wdp .react-datepicker__day{color:#0F172A;border-radius:9px;width:2.35rem;min-height:2.35rem;line-height:1.15;margin:0.14rem;font-size:12px;transition:all 0.15s ease;display:inline-flex;align-items:center;justify-content:center}
+.wdp .react-datepicker__day:hover{background:#DBEAFE;color:#1D4ED8}
+.wdp .react-datepicker__day--today{background:#E2E8F0;color:#334155;font-weight:700}
+.wdp .react-datepicker__day.wdp-wknd:not(.react-datepicker__day--selected):not(.react-datepicker__day--keyboard-selected){color:#5B21B6;background:#EDE9FE}
+.wdp .react-datepicker__day--outside-month{opacity:0.38}
+.wdp .react-datepicker__day--disabled{opacity:0.28!important;cursor:not-allowed!important;text-decoration:line-through;background:transparent!important}
+.wdp .react-datepicker__day--selected,.wdp .react-datepicker__day--keyboard-selected{background:${C.primary};color:#fff;font-weight:700}
+.wdp .react-datepicker__day--selected .wdp-tb,.wdp .react-datepicker__day--keyboard-selected .wdp-tb{color:#fff;background:rgba(255,255,255,0.28)}
+.wdp-dw{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px 0}
+.wdp-dn{font-size:12px;font-weight:600;line-height:1}
+.wdp-tb{font-size:7px;font-weight:700;letter-spacing:0.02em;color:#1D4ED8;background:#DBEAFE;padding:1px 5px;border-radius:999px;line-height:1.2}
+`;
+
+function _ensureDateStyles() {
+  if (typeof document === 'undefined') return;
+  if (!document.getElementById(_dateInputStyleId)) {
+    const s = document.createElement('style');
+    s.id = _dateInputStyleId;
+    s.textContent = _dateInputStyles;
+    document.head.appendChild(s);
+  }
+}
+
+function _todayKey() {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+function _dateKey(d) {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+function _isToday(d) { return _dateKey(d) === _todayKey(); }
+function _isWeekend(d) {
+  const dow = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', weekday: 'short' }).format(d);
+  return dow === 'Sat' || dow === 'Sun';
+}
+
+const DateInputCustom = forwardRef(({ value, onClick, placeholder, focused }, ref) => (
+  <div onClick={onClick} ref={ref} style={{
+    width: '100%', height: 48, borderRadius: 10,
+    padding: '0 14px',
+    border: `${focused ? 2 : 1.5}px solid ${focused ? C.primary : C.n300}`,
+    fontFamily: 'Poppins', fontSize: 14, color: value ? C.n900 : C.n500,
+    background: C.white, outline: 'none', boxSizing: 'border-box',
+    transition: 'border-color 0.2s', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  }}>
+    <span>{value || placeholder || 'Pilih tanggal'}</span>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.n500} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  </div>
+));
+
+export const DateInput = ({ label, value, onChange, placeholder, minDate, maxDate, filterDate, error, returnDate = false }) => {
+  _ensureDateStyles();
+  const [focused, setFocused] = useState(false);
+
+  const selected = value ? (value instanceof Date ? value : new Date(value + 'T00:00:00')) : null;
+
+  const handleChange = (date) => {
+    if (!date) { onChange(returnDate ? null : ''); return; }
+    if (returnDate) { onChange(date); return; }
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    onChange(`${y}-${m}-${d}`);
+  };
+
+  const dayClassName = (date) => {
+    const parts = [];
+    if (_isWeekend(date)) parts.push('wdp-wknd');
+    return parts.length ? parts.join(' ') : undefined;
+  };
+
+  const renderDayContents = (day, date) => (
+    <span className="wdp-dw">
+      <span className="wdp-dn">{day}</span>
+      {_isToday(date) && <span className="wdp-tb">Hari ini</span>}
+    </span>
+  );
+
+  const renderHeader = ({ date, decreaseMonth, increaseMonth }) => (
+    <div className="wdp-hdr">
+      <button type="button" className="wdp-nav" onClick={decreaseMonth} aria-label="Bulan sebelumnya">&#8249;</button>
+      <div className="wdp-ml">{date.toLocaleString('id-ID', { month: 'long', year: 'numeric' })}</div>
+      <button type="button" className="wdp-nav" onClick={increaseMonth} aria-label="Bulan berikutnya">&#8250;</button>
+    </div>
+  );
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
+      <DatePicker
+        selected={selected}
+        onChange={handleChange}
+        dateFormat="dd/MM/yyyy"
+        placeholderText={placeholder || 'Pilih tanggal'}
+        calendarClassName="wdp"
+        renderCustomHeader={renderHeader}
+        minDate={minDate}
+        maxDate={maxDate}
+        filterDate={filterDate}
+        dayClassName={dayClassName}
+        renderDayContents={renderDayContents}
+        onCalendarOpen={() => setFocused(true)}
+        onCalendarClose={() => setFocused(false)}
+        customInput={<DateInputCustom focused={focused} placeholder={placeholder} />}
+      />
       {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
     </div>
   );
@@ -446,3 +574,60 @@ export const ProgressTimeline = ({ progress }) => {
     </div>
   );
 };
+
+// ── ConfirmDialog ────────────────────────────────────────
+export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Ya', cancelLabel = 'Batal', onConfirm, onCancel, danger = false }) => {
+  if (!open) return null;
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}>
+      <div style={{ background: C.white, borderRadius: 20, padding: '28px 22px 20px', maxWidth: 320, width: '88%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, marginBottom: 8 }}>{title || 'Konfirmasi'}</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, lineHeight: 1.6, marginBottom: 24 }}>{message}</div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: '11px 0', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n700, background: C.n100, border: 'none', borderRadius: 10, cursor: 'pointer' }}>
+            {cancelLabel}
+          </button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '11px 0', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.white, background: danger ? C.danger : C.primary, border: 'none', borderRadius: 10, cursor: 'pointer' }}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── ErrorBoundary ────────────────────────────────────────
+export class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary]', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', gap: 16, textAlign: 'center', background: '#FCF9FC', minHeight: '100vh' }}>
+          <div style={{ width: 72, height: 72, borderRadius: 36, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 32 }}>❌</span>
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: '#0F172A' }}>Terjadi Kesalahan</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, color: '#475569', maxWidth: 300, lineHeight: 1.6 }}>
+            Aplikasi mengalami error. Silakan muat ulang halaman.
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ marginTop: 8, padding: '12px 32px', fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: 'white', background: '#5B005F', border: 'none', borderRadius: 12, cursor: 'pointer' }}
+          >
+            Muat Ulang
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}

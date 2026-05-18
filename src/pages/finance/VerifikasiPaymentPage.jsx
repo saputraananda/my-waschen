@@ -4,6 +4,7 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Avatar, SearchBar, Modal } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
+import { alertError, alertSuccess } from '../../utils/alert';
 
 export default function VerifikasiPaymentPage({ navigate, goBack }) {
   const [payments, setPayments] = useState([]);
@@ -49,9 +50,10 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
     try {
       await axios.patch(`/api/finance/payments/${id}/verify`);
       setPayments((prev) => prev.filter((p) => p.id !== id));
+      alertSuccess('Pembayaran berhasil diverifikasi.');
     } catch (err) {
       console.error('[VerifikasiPayment] verify error:', err);
-      alert(err?.response?.data?.message || 'Gagal memverifikasi pembayaran');
+      alertError(err?.response?.data?.message || 'Gagal memverifikasi pembayaran');
     } finally {
       setActionLoading(null);
     }

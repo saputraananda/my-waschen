@@ -3,6 +3,7 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { compressImage } from '../../utils/helpers';
 import { TopBar, Btn } from '../../components/ui';
+import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
   const tx = screenParams;
@@ -21,13 +22,13 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
       const compressedUrl = await compressImage(file, 1024, 1024, 0.7);
       setPhotos((prev) => [...prev, { url: compressedUrl, type, label: type === 'before' ? 'Sebelum Cuci' : 'Sesudah Cuci' }]);
     } catch (err) {
-      alert('Gagal mengompres atau memproses foto.');
+      alertError('Gagal mengompres atau memproses foto.');
     }
   };
 
   const handleSave = async () => {
     if (photos.length === 0 && !note) {
-      alert('Tambahkan foto atau catatan terlebih dahulu.');
+      alertWarning('Tambahkan foto atau catatan terlebih dahulu.');
       return;
     }
     
@@ -38,10 +39,10 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
         notes: note,
         isDamage: isDamage
       });
-      alert('Kondisi awal pakaian berhasil dicatat!');
+      await alertSuccess('Kondisi awal pakaian berhasil dicatat!');
       navigate('detail_item_produksi', tx);
     } catch (err) {
-      alert('Gagal menyimpan kondisi pakaian.');
+      alertError('Gagal menyimpan kondisi pakaian.');
     } finally {
       setLoading(false);
     }

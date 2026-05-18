@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { Avatar, Badge, StatCard, Btn, SectionHeader } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
@@ -52,7 +52,7 @@ const TrendBadge = ({ current, previous, label }) => {
   return (
     <span style={{
       fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
-      color: isUp ? '#10B981' : '#EF4444',
+      color: isUp ? C.success : C.danger,
       background: isUp ? '#DCFCE744' : '#FEE2E244',
       padding: '2px 8px', borderRadius: 999,
       display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -67,9 +67,11 @@ export default function FinanceDashboardPage({ user, navigate }) {
   const [chartData, setChartData] = useState([]);
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [outletId, setOutletId] = useState('');
 
   const fetchStats = useCallback(async () => {
+    setError(null);
     setLoading(true);
     try {
       const params = outletId ? `?outletId=${outletId}` : '';
@@ -81,7 +83,6 @@ export default function FinanceDashboardPage({ user, navigate }) {
       if (statsRes?.data?.data) setStats(statsRes.data.data);
 
       if (reportRes?.data?.data?.daily) {
-        // Ensure we have exactly 7 days of data (fill gaps)
         const dailyMap = {};
         reportRes.data.data.daily.forEach((d) => { dailyMap[d.date] = d; });
 
@@ -93,13 +94,13 @@ export default function FinanceDashboardPage({ user, navigate }) {
         setChartData(days);
       }
 
-      // Fetch recent transactions for preview
       try {
         const txRes = await axios.get(`/api/transactions?${outletId ? `outletId=${outletId}&` : ''}status=semua`);
         setRecentTx((txRes?.data?.data || []).slice(0, 5));
       } catch { /* ignore */ }
     } catch (err) {
       console.error('[FinanceDash] fetchStats error:', err);
+      setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -161,11 +162,20 @@ export default function FinanceDashboardPage({ user, navigate }) {
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</div>
+        ) : error ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 24 }}>⚠️</span>
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Gagal Memuat Data</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
+            <Btn variant="primary" onClick={fetchStats} style={{ marginTop: 8 }}>Coba Lagi</Btn>
+          </div>
         ) : stats && (
           <>
             {/* ── Stat Cards Row ─────────────────────────────────────── */}
             <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, marginBottom: 16, scrollbarWidth: 'none' }}>
-              <StatCard label="Minggu Ini" value={rp(stats.week.revenue).replace('Rp ', 'Rp')} sub={`${stats.week.txCount} transaksi`} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} color="#0EA5E9" />
+              <StatCard label="Minggu Ini" value={rp(stats.week.revenue).replace('Rp ', 'Rp')} sub={`${stats.week.txCount} transaksi`} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} color={C.info} />
               <StatCard label="Bulan Ini" value={rp(stats.month.revenue).replace('Rp ', 'Rp')} sub={`${stats.month.txCount} transaksi`} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.21 15.89A10 10 0 118 2.83" /><path d="M22 12A10 10 0 0012 2v10z" /></svg>} color={C.success} />
               <StatCard
                 label="Perlu Verifikasi"
@@ -221,7 +231,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 8 }}>
                 {[
                   { label: 'Verifikasi', screen: 'verifikasi_payment', icon: '✅', color: C.success },
-                  { label: 'Laporan', screen: 'laporan_keuangan', icon: '📊', color: '#0EA5E9' },
+                  { label: 'Laporan', screen: 'laporan_keuangan', icon: '📊', color: C.info },
                   { label: 'Shift kasir', screen: 'admin_shift', icon: '🕐', color: '#6366F1' },
                   { label: 'Monitoring', screen: 'monitoring', icon: '📈', color: C.primary },
                   { label: 'Member', screen: 'daftar_member', icon: '👥', color: '#8B5CF6' },
@@ -245,7 +255,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
                   { label: 'Hari Ini', value: rp(stats.today.revenue), count: `${stats.today.txCount} transaksi`, color: C.primary, icon: '📅' },
-                  { label: 'Minggu Ini', value: rp(stats.week.revenue), count: `${stats.week.txCount} transaksi`, color: '#0EA5E9', icon: '📆' },
+                  { label: 'Minggu Ini', value: rp(stats.week.revenue), count: `${stats.week.txCount} transaksi`, color: C.info, icon: '📆' },
                   { label: 'Bulan Ini', value: rp(stats.month.revenue), count: `${stats.month.txCount} transaksi`, color: C.success, icon: '🗓️' },
                 ].map((item) => (
                   <div key={item.label} style={{

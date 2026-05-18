@@ -32,6 +32,17 @@ const generateServiceCode = async () => {
   return `SVC-${String(rows[0].cnt + 1).padStart(4, '0')}`;
 };
 
+const hasServiceSlaColumns = async () => {
+  try {
+    const [rows] = await poolWaschenPos.execute(
+      "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mst_service' AND COLUMN_NAME = 'sla_regular_hours'"
+    );
+    return rows[0]?.cnt > 0;
+  } catch {
+    return false;
+  }
+};
+
 // ─── GET /api/services
 export const getServices = async (req, res) => {
   try {
@@ -69,6 +80,27 @@ export const getServices = async (req, res) => {
 
     const finalParams = [...favParams, ...params];
 
+    let hasSlaColumns = true;
+    let hasPinTable = true;
+
+    hasSlaColumns = await hasServiceSlaColumns();
+
+    try {
+      const [tblCheck] = await poolWaschenPos.execute(
+        `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mst_service_pin'`
+      );
+      hasPinTable = tblCheck[0]?.cnt > 0;
+    } catch { hasPinTable = false; }
+
+    const slaSelect = hasSlaColumns
+      ? 's.sla_regular_hours AS slaRegular, s.sla_express_hours AS slaExpress,'
+      : 'NULL AS slaRegular, NULL AS slaExpress,';
+
+    const pinJoin = hasPinTable
+      ? 'LEFT JOIN mst_service_pin sp ON sp.service_id = s.id AND sp.outlet_id = s.outlet_id'
+      : '';
+    const pinSelect = hasPinTable ? 'sp.pin_context,' : 'NULL AS pin_context,';
+
     const [rows] = await poolWaschenPos.execute(
       `SELECT 
         s.id,
@@ -78,16 +110,20 @@ export const getServices = async (req, res) => {
         c.sort_order AS categorySort,
         s.price,
         s.unit_type AS unit,
+        s.min_qty AS minQty,
+        s.express_multiplier AS expressMultiplier,
         ROUND(s.price * (s.express_multiplier - 1)) AS expressExtra,
+        s.is_express_eligible AS expressEligible,
         s.is_active AS active,
         s.outlet_id AS outletId,
-        sp.pin_context,
+        ${slaSelect}
+        ${pinSelect}
         ${favSelect},
         s.created_at AS createdAt,
         s.updated_at AS updatedAt
       FROM mst_service s
       JOIN mst_service_category c ON c.id = s.category_id
-      LEFT JOIN mst_service_pin sp ON sp.service_id = s.id AND sp.outlet_id = s.outlet_id
+      ${pinJoin}
       ${favJoin}
       WHERE s.is_active = 1 ${outletFilter}
       ORDER BY c.sort_order, c.name, s.name`,
@@ -103,7 +139,7 @@ export const getServices = async (req, res) => {
 // ─── POST /api/services
 export const createService = async (req, res) => {
   try {
-    const { name, category, price, unit, expressExtra, active } = req.body;
+    const { name, category, price, unit, expressExtra, active, expressEligible, minQty, slaRegular, slaExpress } = req.body;
 
     if (!name || !price || !unit) {
       return res.status(400).json({ success: false, message: 'Nama, harga, dan satuan wajib diisi' });
@@ -112,7 +148,6 @@ export const createService = async (req, res) => {
     const id = randomUUID();
     const outletId = await getDefaultOutlet();
 
-    // Check if the service was soft-deleted
     const [[existing]] = await poolWaschenPos.execute(
       `SELECT id, is_active FROM mst_service WHERE outlet_id = ? AND name = ? LIMIT 1`,
       [outletId, name.trim()]
@@ -120,35 +155,60 @@ export const createService = async (req, res) => {
 
     const categoryId = await getOrCreateCategory(category);
     const isActive = active !== undefined ? active : true;
+    const isExpressEligible = expressEligible !== undefined ? expressEligible : true;
     const basePrice = Number(price);
     const expressNominal = expressExtra ? Number(expressExtra) : 0;
     const expressMul = basePrice > 0 ? 1 + (expressNominal / basePrice) : 1.0;
+    const minQ = minQty ? Number(minQty) : 1;
+    const slaReg = slaRegular ? Number(slaRegular) : null;
+    const slaExp = slaExpress ? Number(slaExpress) : null;
+
+    const hasSlaColumns = await hasServiceSlaColumns();
 
     if (existing) {
       if (existing.is_active === 1) {
         return res.status(400).json({ success: false, message: 'Layanan dengan nama yang sama sudah ada.' });
       } else {
-        // Resurrect soft-deleted service
-        await poolWaschenPos.execute(
-          `UPDATE mst_service 
-           SET category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_active = ?, updated_at = NOW() 
-           WHERE id = ?`,
-          [categoryId, unit, basePrice, expressMul, isActive ? 1 : 0, existing.id]
-        );
-        const updService = { id: existing.id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive };
+        if (hasSlaColumns) {
+          await poolWaschenPos.execute(
+            `UPDATE mst_service 
+             SET category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_express_eligible = ?,
+                 min_qty = ?, sla_regular_hours = ?, sla_express_hours = ?, is_active = ?, updated_at = NOW() 
+             WHERE id = ?`,
+            [categoryId, unit, basePrice, expressMul, isExpressEligible ? 1 : 0, minQ, slaReg, slaExp, isActive ? 1 : 0, existing.id]
+          );
+        } else {
+          await poolWaschenPos.execute(
+            `UPDATE mst_service 
+             SET category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_express_eligible = ?,
+                 min_qty = ?, is_active = ?, updated_at = NOW() 
+             WHERE id = ?`,
+            [categoryId, unit, basePrice, expressMul, isExpressEligible ? 1 : 0, minQ, isActive ? 1 : 0, existing.id]
+          );
+        }
+        const updService = { id: existing.id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp };
         return res.status(201).json({ success: true, message: 'Layanan yang sempat terhapus berhasil diaktifkan kembali.', data: updService });
       }
     }
 
     const serviceCode = await generateServiceCode();
-    await poolWaschenPos.execute(
-      `INSERT INTO mst_service 
-        (id, outlet_id, category_id, service_code, name, unit_type, price, express_multiplier, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [id, outletId, categoryId, serviceCode, name.trim(), unit, basePrice, expressMul, isActive ? 1 : 0]
-    );
+    if (hasSlaColumns) {
+      await poolWaschenPos.execute(
+        `INSERT INTO mst_service 
+          (id, outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, sla_regular_hours, sla_express_hours, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [id, outletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, slaReg, slaExp, isActive ? 1 : 0]
+      );
+    } else {
+      await poolWaschenPos.execute(
+        `INSERT INTO mst_service 
+          (id, outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [id, outletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, isActive ? 1 : 0]
+      );
+    }
 
-    const newService = { id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive };
+    const newService = { id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp };
     return res.status(201).json({ success: true, message: 'Layanan berhasil ditambahkan', data: newService });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -163,7 +223,7 @@ export const createService = async (req, res) => {
 export const updateService = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, category, price, unit, expressExtra, active } = req.body;
+    const { name, category, price, unit, expressExtra, active, expressEligible, minQty, slaRegular, slaExpress } = req.body;
 
     if (!name || !price || !unit) {
       return res.status(400).json({ success: false, message: 'Nama, harga, dan satuan wajib diisi' });
@@ -174,15 +234,32 @@ export const updateService = async (req, res) => {
     const expressNominal = expressExtra ? Number(expressExtra) : 0;
     const expressMul = basePrice > 0 ? 1 + (expressNominal / basePrice) : 1.0;
     const isActive = active !== undefined ? active : true;
+    const isExpressEligible = expressEligible !== undefined ? expressEligible : true;
+    const minQ = minQty ? Number(minQty) : 1;
+    const slaReg = slaRegular ? Number(slaRegular) : null;
+    const slaExp = slaExpress ? Number(slaExpress) : null;
 
-    await poolWaschenPos.execute(
-      `UPDATE mst_service 
-       SET name = ?, category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_active = ?, updated_at = NOW() 
-       WHERE id = ?`,
-      [name.trim(), categoryId, unit, basePrice, expressMul, isActive ? 1 : 0, id]
-    );
+    const hasSlaColumns = await hasServiceSlaColumns();
 
-    const updatedService = { id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive };
+    if (hasSlaColumns) {
+      await poolWaschenPos.execute(
+        `UPDATE mst_service 
+         SET name = ?, category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_express_eligible = ?,
+             min_qty = ?, sla_regular_hours = ?, sla_express_hours = ?, is_active = ?, updated_at = NOW() 
+         WHERE id = ?`,
+        [name.trim(), categoryId, unit, basePrice, expressMul, isExpressEligible ? 1 : 0, minQ, slaReg, slaExp, isActive ? 1 : 0, id]
+      );
+    } else {
+      await poolWaschenPos.execute(
+        `UPDATE mst_service 
+         SET name = ?, category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_express_eligible = ?,
+             min_qty = ?, is_active = ?, updated_at = NOW() 
+         WHERE id = ?`,
+        [name.trim(), categoryId, unit, basePrice, expressMul, isExpressEligible ? 1 : 0, minQ, isActive ? 1 : 0, id]
+      );
+    }
+
+    const updatedService = { id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp };
     return res.status(200).json({ success: true, message: 'Layanan berhasil diupdate', data: updatedService });
   } catch (err) {
     console.error('[updateService] Error:', err);

@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Input } from '../../components/ui';
+import { TopBar, Btn, Input, Select } from '../../components/ui';
+import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
 
 const METHOD_LABEL = {
   cash: 'Tunai',
@@ -137,8 +138,9 @@ export default function KasirShiftPage({ navigate, goBack }) {
       });
       setOpeningCash('');
       await loadStatus();
+      alertSuccess('Shift berhasil dibuka.');
     } catch (e) {
-      alert(e?.response?.data?.message || 'Gagal buka shift.');
+      alertError(e?.response?.data?.message || 'Gagal buka shift.');
     } finally {
       setLoading(false);
     }
@@ -147,7 +149,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
   const handleCloseShift = async () => {
     const cash = Number(closingCash || 0);
     if (!Number.isFinite(cash) || cash < 0) {
-      alert('Total uang tunai di laci tidak valid.');
+      alertWarning('Total uang tunai di laci tidak valid.');
       return;
     }
     setLoading(true);
@@ -160,8 +162,9 @@ export default function KasirShiftPage({ navigate, goBack }) {
       setClosingCash('');
       setNotes('');
       await loadStatus();
+      alertSuccess('Shift berhasil ditutup.');
     } catch (e) {
-      alert(e?.response?.data?.message || 'Gagal tutup shift.');
+      alertError(e?.response?.data?.message || 'Gagal tutup shift.');
     } finally {
       setLoading(false);
     }
@@ -190,12 +193,13 @@ export default function KasirShiftPage({ navigate, goBack }) {
   };
 
   const handleDeleteEntry = async (id) => {
-    if (!window.confirm('Hapus entri kas ini?')) return;
+    const ok = await confirmAction({ text: 'Hapus entri kas ini?' });
+    if (!ok) return;
     try {
       await axios.delete(`/api/cash-drawer/entry/${id}`);
       await loadDrawerEntries();
     } catch (e) {
-      alert(e?.response?.data?.message || 'Gagal menghapus entri.');
+      alertError(e?.response?.data?.message || 'Gagal menghapus entri.');
     }
   };
 
@@ -209,9 +213,9 @@ export default function KasirShiftPage({ navigate, goBack }) {
       <TopBar title="Shift Kasir" subtitle="Buka/tutup shift dan rekap pembayaran harian" onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12 }}>
+        <div style={{ ...T.card, marginBottom: 12 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '4px 10px', background: isOpen ? '#DCFCE7' : '#FEE2E2' }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: isOpen ? '#166534' : '#991B1B', animation: isOpen ? 'pulse 2s ease-in-out infinite' : 'none' }} />
+            <span style={{ width: 6, height: 6, borderRadius: 3, background: isOpen ? C.success : C.danger, animation: isOpen ? 'pulse 2s ease-in-out infinite' : 'none' }} />
             <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: isOpen ? '#166534' : '#991B1B' }}>
               {isOpen ? `Shift aktif sejak ${fmtTimeOnly(activeSession?.openedAt)}` : 'Shift belum aktif'}
             </span>
@@ -229,17 +233,19 @@ export default function KasirShiftPage({ navigate, goBack }) {
         </div>
 
         {!isOpen && (
-          <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12 }}>
+          <div style={{ ...T.card, marginBottom: 12 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Buka shift</div>
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 6 }}>Jenis shift</div>
-              <select value={shiftType} onChange={(e) => setShiftType(e.target.value)} style={{ width: '100%', height: 42, borderRadius: 10, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins' }}>
-                <option value="full">Full hari</option>
-                <option value="pagi">Pagi</option>
-                <option value="siang">Siang</option>
-                <option value="malam">Malam</option>
-              </select>
-            </div>
+            <Select
+              label="Jenis shift"
+              value={shiftType}
+              onChange={(val) => setShiftType(val)}
+              options={[
+                { value: 'full', label: 'Full hari' },
+                { value: 'pagi', label: 'Pagi' },
+                { value: 'siang', label: 'Siang' },
+                { value: 'malam', label: 'Malam' },
+              ]}
+            />
             <Input label="Modal awal laci (Rp)" type="number" value={openingCash} onChange={setOpeningCash} placeholder="0" />
             <Btn variant="success" fullWidth loading={loading} onClick={handleOpenShift}>Buka shift sekarang</Btn>
           </div>
@@ -350,29 +356,21 @@ export default function KasirShiftPage({ navigate, goBack }) {
                   </div>
 
                   {/* Kategori */}
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Kategori</div>
-                    <select
-                      value={entryForm.category}
-                      onChange={(e) => setEntryForm(f => ({ ...f, category: e.target.value }))}
-                      style={{ width: '100%', height: 40, borderRadius: 10, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 10px', background: C.white }}
-                    >
-                      {entryForm.type === 'out' ? (
-                        <>
-                          <option value="pengeluaran_operasional">Pengeluaran Operasional</option>
-                          <option value="setoran_bank">Setoran Bank</option>
-                          <option value="cash_adjustment">Penyesuaian Kas</option>
-                          <option value="lainnya">Lainnya</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="modal">Modal / Tambah Kas</option>
-                          <option value="cash_adjustment">Penyesuaian Kas</option>
-                          <option value="lainnya">Lainnya</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
+                  <Select
+                    label="Kategori"
+                    value={entryForm.category}
+                    onChange={(val) => setEntryForm(f => ({ ...f, category: val }))}
+                    options={entryForm.type === 'out' ? [
+                      { value: 'pengeluaran_operasional', label: 'Pengeluaran Operasional' },
+                      { value: 'setoran_bank', label: 'Setoran Bank' },
+                      { value: 'cash_adjustment', label: 'Penyesuaian Kas' },
+                      { value: 'lainnya', label: 'Lainnya' },
+                    ] : [
+                      { value: 'modal', label: 'Modal / Tambah Kas' },
+                      { value: 'cash_adjustment', label: 'Penyesuaian Kas' },
+                      { value: 'lainnya', label: 'Lainnya' },
+                    ]}
+                  />
 
                   {/* Jumlah */}
                   <div style={{ marginBottom: 10 }}>
@@ -382,7 +380,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
                       value={entryForm.amount}
                       onChange={(e) => setEntryForm(f => ({ ...f, amount: e.target.value }))}
                       placeholder="0"
-                      style={{ width: '100%', height: 42, borderRadius: 10, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, padding: '0 12px', boxSizing: 'border-box' }}
+                      style={{ ...T.input, fontSize: 16, fontWeight: 700 }}
                     />
                   </div>
 
@@ -394,16 +392,16 @@ export default function KasirShiftPage({ navigate, goBack }) {
                       value={entryForm.description}
                       onChange={(e) => setEntryForm(f => ({ ...f, description: e.target.value }))}
                       placeholder="Contoh: Beli detergen Rinso 2kg"
-                      style={{ width: '100%', height: 40, borderRadius: 10, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 12px', boxSizing: 'border-box' }}
+                      style={{ ...T.input }}
                     />
                   </div>
 
-                  {entryError && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#DC2626', marginBottom: 8 }}>{entryError}</div>}
+                  {entryError && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginBottom: 8 }}>{entryError}</div>}
 
                   <button
                     onClick={handleAddEntry}
                     disabled={entryLoading}
-                    style={{ width: '100%', height: 42, borderRadius: 10, background: entryForm.type === 'out' ? '#DC2626' : '#16A34A', color: 'white', border: 'none', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: entryLoading ? 0.6 : 1 }}
+                    style={{ width: '100%', height: 48, borderRadius: 10, background: entryForm.type === 'out' ? C.danger : C.success, color: 'white', border: 'none', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: entryLoading ? 0.6 : 1 }}
                   >
                     {entryLoading ? 'Menyimpan...' : `Simpan ${entryForm.type === 'out' ? 'Pengeluaran' : 'Kas Masuk'}`}
                   </button>
@@ -459,7 +457,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
                 value={closingCash}
                 onChange={(e) => setClosingCash(e.target.value)}
                 placeholder="0"
-                style={{ width: '100%', height: 48, borderRadius: 12, border: `1.5px solid ${C.n300}`, padding: '0 14px', fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, boxSizing: 'border-box', marginBottom: 12 }}
+                style={{ ...T.input, fontSize: 16, fontWeight: 700, marginBottom: 12 }}
               />
 
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Catatan (opsional)</div>
@@ -498,7 +496,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
               {[
                 ['Modal awal', rp(lastClosed.openingCash || 0), null],
                 ['+ Penjualan tunai', rp((lastClosed.systemCash || 0) - (lastClosed.openingCash || 0) + (lastClosed.totalExpense || 0)), '#166534'],
-                ['− Pengeluaran kas', lastClosed.totalExpense != null ? rp(lastClosed.totalExpense) : '-', '#DC2626'],
+                ['− Pengeluaran kas', lastClosed.totalExpense != null ? rp(lastClosed.totalExpense) : '-', C.danger],
                 ['= Sistem (seharusnya)', rp(lastClosed.systemCash || 0), '#1D4ED8'],
                 ['Fisik di laci', rp(lastClosed.closingCash || 0), null],
               ].map(([label, val, color]) => (
@@ -509,7 +507,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', borderTop: `1.5px solid ${C.n200}`, marginTop: 4, fontFamily: 'Poppins', fontSize: 13 }}>
                 <span style={{ fontWeight: 700, color: C.n900 }}>Selisih</span>
-                <strong style={{ color: Math.abs(Number(lastClosed.difference ?? lastClosed.cashDiff ?? 0)) >= 10000 ? '#DC2626' : '#166534' }}>
+                <strong style={{ color: Math.abs(Number(lastClosed.difference ?? lastClosed.cashDiff ?? 0)) >= 10000 ? C.danger : C.success }}>
                   {rp(lastClosed.difference ?? lastClosed.cashDiff ?? 0)}
                 </strong>
               </div>

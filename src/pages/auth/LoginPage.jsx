@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { MOCK_DATA } from '../../utils/mockData';
@@ -14,7 +13,6 @@ const ROLES = [
 ];
 
 export default function LoginPage({ onLogin }) {
-  const navigate = useNavigate();
   const { loginContext } = useApp();
 
   const [step, setStep]                 = useState(1);
@@ -69,14 +67,6 @@ export default function LoginPage({ onLogin }) {
     });
 
     if (onLogin) onLogin({ ...payload, roleCode: finalRole });
-
-    const rolePathMap = {
-      kasir: '/kasir/dashboard',
-      produksi: '/produksi/dashboard',
-      admin: '/admin/dashboard',
-      finance: '/finance/dashboard',
-    };
-    navigate(rolePathMap[finalRole] || '/kasir/dashboard');
   };
 
   const handleLogin = async () => {
