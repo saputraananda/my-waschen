@@ -74,7 +74,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     if (!form.phone.trim()) errs.phone = 'Wajib diisi';
     else if (!/^\d{8,13}$/.test(form.phone)) errs.phone = 'Nomor tidak valid (8–13 digit)';
     if (!form.gender) errs.gender = 'Wajib diisi';
-    if (!form.greeting) errs.greeting = 'Wajib diisi';
+    // greeting opsional — tidak wajib
     if (!form.awareness_source_id) errs.awareness_source_id = 'Wajib diisi';
     if (!form.area_zone_id) errs.area_zone_id = 'Wajib diisi';
     if (!form.address_housing.trim()) errs.address_housing = 'Wajib diisi';
@@ -193,16 +193,26 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
           <div style={{ height: 1, background: C.n100, margin: '16px 0' }} />
 
           {/* ─── Data Opsional — collapsible ─── */}
-          <button onClick={() => setOptionalOpen(!optionalOpen)} type="button" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', marginBottom: optionalOpen ? 12 : 0 }}>
-            <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Data Opsional</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>Berisi form instansi, email, tanggal lahir dan agama</div>
+          <button onClick={() => setOptionalOpen(!optionalOpen)} type="button" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+            background: optionalOpen ? `${C.primary}08` : C.n50,
+            border: `1.5px solid ${optionalOpen ? `${C.primary}30` : C.n200}`,
+            borderRadius: 12, cursor: 'pointer', padding: '12px 14px',
+            marginBottom: optionalOpen ? 16 : 0,
+            transition: 'all 0.2s',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: optionalOpen ? `${C.primary}15` : C.n100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, transition: 'background 0.2s' }}>📝</div>
+              <div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: optionalOpen ? C.primary : '#475569', textAlign: 'left' }}>Data Opsional</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#64748B', marginTop: 1, textAlign: 'left' }}>Instansi, email, tanggal lahir, agama</div>
+              </div>
             </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.n600} strokeWidth="2.5" strokeLinecap="round" style={{ transform: optionalOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', flexShrink: 0 }}><polyline points="6 9 12 15 18 9" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={optionalOpen ? C.primary : '#64748B'} strokeWidth="2.5" strokeLinecap="round" style={{ transform: optionalOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', flexShrink: 0 }}><polyline points="6 9 12 15 18 9" /></svg>
           </button>
 
           {optionalOpen && (
-            <div>
+            <div style={{ background: '#FAFBFC', borderRadius: 12, padding: '16px 14px', border: `1px solid ${C.n100}` }}>
               {/* Alamat */}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Alamat</div>
@@ -236,7 +246,13 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
           <div style={{ height: 1, background: C.n100, margin: '16px 0' }} />
 
           {/* ─── Informasi Pemasaran ─── */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Informasi Pemasaran</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📣</div>
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>Informasi Pemasaran</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#64748B' }}>Dari mana customer tahu Waschen</div>
+            </div>
+          </div>
           
           <div>
             <Select 
@@ -260,7 +276,13 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
           <div style={{ height: 1, background: C.n100, margin: '16px 0' }} />
 
           {/* ─── Alamat Lengkap ─── */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Alamat Tempat Tinggal</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📍</div>
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>Alamat Tempat Tinggal</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#64748B' }}>Untuk penjemputan & pengantaran</div>
+            </div>
+          </div>
 
           <div>
             <Select 

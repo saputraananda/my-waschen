@@ -9,39 +9,41 @@ export const getFinanceStats = async (req, res) => {
     const outletFilter = outletId ? 'AND t.outlet_id = ?' : '';
     const params = outletId ? [outletId] : [];
 
-    const [[todayRow], [weekRow], [monthRow]] = await Promise.all([
-      // Hari ini
-      poolWaschenPos.execute(
-        `SELECT
-          COALESCE(SUM(t.total), 0) AS revenue,
-          COUNT(*) AS txCount
-        FROM tr_transaction t
-        WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
-          AND DATE(t.created_at) = CURDATE() ${outletFilter}`,
-        params
-      ),
-      // Minggu ini
-      poolWaschenPos.execute(
-        `SELECT
-          COALESCE(SUM(t.total), 0) AS revenue,
-          COUNT(*) AS txCount
-        FROM tr_transaction t
-        WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
-          AND YEARWEEK(t.created_at, 1) = YEARWEEK(CURDATE(), 1) ${outletFilter}`,
-        params
-      ),
-      // Bulan ini
-      poolWaschenPos.execute(
-        `SELECT
-          COALESCE(SUM(t.total), 0) AS revenue,
-          COUNT(*) AS txCount
-        FROM tr_transaction t
-        WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
-          AND MONTH(t.created_at) = MONTH(CURDATE())
-          AND YEAR(t.created_at) = YEAR(CURDATE()) ${outletFilter}`,
-        params
-      ),
-    ]);
+    // Jalankan sequential untuk menghindari ECONNRESET ke DB remote
+    const [todayRows] = await poolWaschenPos.execute(
+      `SELECT
+        COALESCE(SUM(t.total), 0) AS revenue,
+        COUNT(*) AS txCount
+      FROM tr_transaction t
+      WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+        AND DATE(t.created_at) = CURDATE() ${outletFilter}`,
+      params
+    );
+
+    const [weekRows] = await poolWaschenPos.execute(
+      `SELECT
+        COALESCE(SUM(t.total), 0) AS revenue,
+        COUNT(*) AS txCount
+      FROM tr_transaction t
+      WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+        AND YEARWEEK(t.created_at, 1) = YEARWEEK(CURDATE(), 1) ${outletFilter}`,
+      params
+    );
+
+    const [monthRows] = await poolWaschenPos.execute(
+      `SELECT
+        COALESCE(SUM(t.total), 0) AS revenue,
+        COUNT(*) AS txCount
+      FROM tr_transaction t
+      WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+        AND MONTH(t.created_at) = MONTH(CURDATE())
+        AND YEAR(t.created_at) = YEAR(CURDATE()) ${outletFilter}`,
+      params
+    );
+
+    const todayRow = todayRows;
+    const weekRow  = weekRows;
+    const monthRow = monthRows;
 
     // Pembayaran belum diverifikasi — graceful jika kolom belum ada
     let pendingRow = [{ cnt: 0, amount: 0 }];
@@ -149,8 +151,8 @@ export const getPayments = async (req, res) => {
       ${verifierJoin}
       WHERE ${where}
       ORDER BY ${orderCol} t.created_at DESC
-      LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+      LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+      params
     );
 
     const data = rows.map((r) => ({
@@ -202,6 +204,71 @@ export const verifyPayment = async (req, res) => {
   } catch (err) {
     console.error('[verifyPayment] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memverifikasi pembayaran.' });
+  }
+};
+
+// ─── PATCH /api/finance/payments/bulk-verify ────────────────────────────────
+// Bulk verify multiple payments at once
+export const bulkVerifyPayments = async (req, res) => {
+  const conn = await poolWaschenPos.getConnection();
+  try {
+    const { ids } = req.body;
+    const verifiedBy = req.user?.userId;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      conn.release();
+      return res.status(400).json({ success: false, message: 'IDs wajib berupa array dan tidak kosong.' });
+    }
+    if (ids.length > 100) {
+      conn.release();
+      return res.status(400).json({ success: false, message: 'Maksimal 100 item per bulk operation.' });
+    }
+
+    await conn.beginTransaction();
+
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await conn.execute(
+      `SELECT id, payment_verified, transaction_no FROM tr_transaction
+       WHERE deleted_at IS NULL
+         AND (id IN (${placeholders}) OR transaction_no IN (${placeholders}))`,
+      [...ids, ...ids]
+    );
+
+    const toVerify = rows.filter(r => r.payment_verified !== 1);
+    const alreadyVerified = rows.filter(r => r.payment_verified === 1);
+    const notFound = ids.length - rows.length;
+
+    if (toVerify.length > 0) {
+      const ph = toVerify.map(() => '?').join(',');
+      await conn.execute(
+        `UPDATE tr_transaction
+         SET payment_verified = 1,
+             payment_verified_by = ?,
+             payment_verified_at = NOW(),
+             updated_at = NOW()
+         WHERE id IN (${ph})`,
+        [verifiedBy, ...toVerify.map(r => r.id)]
+      );
+    }
+
+    await conn.commit();
+
+    return res.json({
+      success: true,
+      message: `${toVerify.length} pembayaran berhasil diverifikasi.`,
+      data: {
+        verified: toVerify.length,
+        alreadyVerified: alreadyVerified.length,
+        notFound,
+        verifiedIds: toVerify.map(r => r.transaction_no || r.id),
+      },
+    });
+  } catch (err) {
+    await conn.rollback();
+    console.error('[bulkVerifyPayments] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal memverifikasi pembayaran (bulk).' });
+  } finally {
+    conn.release();
   }
 };
 
@@ -271,7 +338,7 @@ export const getRevenueRecap = async (req, res) => {
       LEFT JOIN mst_user u ON u.id = t.cashier_id
       WHERE ${where}
       ORDER BY t.created_at DESC
-      LIMIT ${parseInt(perPage, 10)} OFFSET ${parseInt(offset, 10)}`,
+      LIMIT ${Number(perPage)} OFFSET ${Number(offset)}`,
       params
     );
 

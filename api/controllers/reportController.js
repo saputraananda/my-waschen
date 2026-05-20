@@ -35,26 +35,29 @@ export const getExecutiveSummary = async (req, res) => {
     const baseParams = [startDate, endDate, ...outlet.params];
     const prevParams = [prevStart, prevEnd, ...outlet.params];
 
-    const [[currentAgg], [prevAgg], [dailyRows], [hourlyRows], [methodRows]] = await Promise.all([
-      poolWaschenPos.execute(
-        `SELECT COALESCE(SUM(t.total),0) AS revenue, COUNT(t.id) AS txCount
-         FROM tr_transaction t WHERE ${base} ${outlet.where}`, baseParams),
-      poolWaschenPos.execute(
-        `SELECT COALESCE(SUM(t.total),0) AS revenue, COUNT(t.id) AS txCount
-         FROM tr_transaction t WHERE ${base} ${outlet.where}`, prevParams),
-      poolWaschenPos.execute(
-        `SELECT DATE(t.created_at) AS date, COALESCE(SUM(t.total),0) AS revenue, COUNT(t.id) AS txCount
-         FROM tr_transaction t WHERE ${base} ${outlet.where}
-         GROUP BY DATE(t.created_at) ORDER BY date`, baseParams),
-      poolWaschenPos.execute(
-        `SELECT HOUR(t.created_at) AS hour, COUNT(t.id) AS txCount, COALESCE(SUM(t.total),0) AS revenue
-         FROM tr_transaction t WHERE ${base} ${outlet.where}
-         GROUP BY HOUR(t.created_at) ORDER BY hour`, baseParams),
-      poolWaschenPos.execute(
-        `SELECT t.primary_payment_method AS method, COALESCE(SUM(t.total),0) AS amount, COUNT(t.id) AS cnt
-         FROM tr_transaction t WHERE ${base} ${outlet.where}
-         GROUP BY t.primary_payment_method ORDER BY amount DESC`, baseParams),
-    ]);
+    // Jalankan sequential untuk menghindari ECONNRESET ke DB remote
+    const [currentAgg] = await poolWaschenPos.execute(
+      `SELECT COALESCE(SUM(t.total),0) AS revenue, COUNT(t.id) AS txCount
+       FROM tr_transaction t WHERE ${base} ${outlet.where}`, baseParams);
+
+    const [prevAgg] = await poolWaschenPos.execute(
+      `SELECT COALESCE(SUM(t.total),0) AS revenue, COUNT(t.id) AS txCount
+       FROM tr_transaction t WHERE ${base} ${outlet.where}`, prevParams);
+
+    const [dailyRows] = await poolWaschenPos.execute(
+      `SELECT DATE(t.created_at) AS date, COALESCE(SUM(t.total),0) AS revenue, COUNT(t.id) AS txCount
+       FROM tr_transaction t WHERE ${base} ${outlet.where}
+       GROUP BY DATE(t.created_at) ORDER BY date`, baseParams);
+
+    const [hourlyRows] = await poolWaschenPos.execute(
+      `SELECT HOUR(t.created_at) AS hour, COUNT(t.id) AS txCount, COALESCE(SUM(t.total),0) AS revenue
+       FROM tr_transaction t WHERE ${base} ${outlet.where}
+       GROUP BY HOUR(t.created_at) ORDER BY hour`, baseParams);
+
+    const [methodRows] = await poolWaschenPos.execute(
+      `SELECT t.primary_payment_method AS method, COALESCE(SUM(t.total),0) AS amount, COUNT(t.id) AS cnt
+       FROM tr_transaction t WHERE ${base} ${outlet.where}
+       GROUP BY t.primary_payment_method ORDER BY amount DESC`, baseParams);
 
     const cur = currentAgg[0] || {};
     const prev = prevAgg[0] || {};
@@ -332,5 +335,377 @@ export const getCustomerInsights = async (req, res) => {
   } catch (err) {
     console.error('[getCustomerInsights]', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat customer insights.' });
+  }
+};
+
+// ─── GET /api/reports/comparison ─────────────────────────────────────────────
+// Bandingkan 2 periode side-by-side: current vs previous (atau custom)
+// Query params: startDate, endDate, compareStart, compareEnd, outletId
+export const getComparisonReport = async (req, res) => {
+  try {
+    const outlet = buildOutletFilter(req);
+    const { startDate, endDate, days } = parseDates(req.query);
+
+    // Period B: custom atau auto-previous
+    const periodBEnd = req.query.compareEnd || (() => {
+      const d = new Date(`${startDate}T00:00:00`);
+      d.setDate(d.getDate() - 1);
+      return d.toISOString().slice(0, 10);
+    })();
+    const periodBStart = req.query.compareStart || (() => {
+      const d = new Date(`${periodBEnd}T00:00:00`);
+      d.setDate(d.getDate() - (days - 1));
+      return d.toISOString().slice(0, 10);
+    })();
+
+    const base = `t.status <> 'cancelled' AND t.deleted_at IS NULL AND DATE(t.created_at) BETWEEN ? AND ?`;
+
+    // Fetch both periods in parallel (sequential to avoid ECONNRESET)
+    const [currentAgg] = await poolWaschenPos.execute(
+      `SELECT COALESCE(SUM(t.total),0) AS revenue, COUNT(t.id) AS txCount,
+              COALESCE(SUM(t.paid_amount),0) AS pelunasan,
+              COUNT(DISTINCT t.customer_id) AS uniqueCustomers
+       FROM tr_transaction t WHERE ${base} ${outlet.where}`,
+      [startDate, endDate, ...outlet.params]
+    );
+
+    const [prevAgg] = await poolWaschenPos.execute(
+      `SELECT COALESCE(SUM(t.total),0) AS revenue, COUNT(t.id) AS txCount,
+              COALESCE(SUM(t.paid_amount),0) AS pelunasan,
+              COUNT(DISTINCT t.customer_id) AS uniqueCustomers
+       FROM tr_transaction t WHERE ${base} ${outlet.where}`,
+      [periodBStart, periodBEnd, ...outlet.params]
+    );
+
+    // Daily breakdown for both periods (normalized to day index 1..N)
+    const [currentDaily] = await poolWaschenPos.execute(
+      `SELECT DATE(t.created_at) AS date,
+              COALESCE(SUM(t.total),0) AS revenue,
+              COUNT(t.id) AS txCount
+       FROM tr_transaction t WHERE ${base} ${outlet.where}
+       GROUP BY DATE(t.created_at) ORDER BY date`,
+      [startDate, endDate, ...outlet.params]
+    );
+
+    const [prevDaily] = await poolWaschenPos.execute(
+      `SELECT DATE(t.created_at) AS date,
+              COALESCE(SUM(t.total),0) AS revenue,
+              COUNT(t.id) AS txCount
+       FROM tr_transaction t WHERE ${base} ${outlet.where}
+       GROUP BY DATE(t.created_at) ORDER BY date`,
+      [periodBStart, periodBEnd, ...outlet.params]
+    );
+
+    // Normalize to day index for overlay chart
+    const normalizeDaily = (rows, startStr) => {
+      const startMs = new Date(`${startStr}T00:00:00`).getTime();
+      return rows.map(r => ({
+        dayIndex: Math.round((new Date(r.date).getTime() - startMs) / 86400000) + 1,
+        date: r.date,
+        revenue: Number(r.revenue),
+        txCount: Number(r.txCount),
+      }));
+    };
+
+    const currentNorm = normalizeDaily(currentDaily, startDate);
+    const prevNorm = normalizeDaily(prevDaily, periodBStart);
+
+    // Merge into comparison array
+    const maxDays = Math.max(currentNorm.length, prevNorm.length, days);
+    const comparisonData = Array.from({ length: maxDays }, (_, i) => {
+      const day = i + 1;
+      const cur = currentNorm.find(d => d.dayIndex === day);
+      const prev = prevNorm.find(d => d.dayIndex === day);
+      return {
+        day,
+        current: cur?.revenue || 0,
+        previous: prev?.revenue || 0,
+        currentTx: cur?.txCount || 0,
+        previousTx: prev?.txCount || 0,
+      };
+    });
+
+    const cur = currentAgg[0] || {};
+    const prev = prevAgg[0] || {};
+    const pctChange = (c, p) => {
+      const cv = Number(c || 0), pv = Number(p || 0);
+      if (pv === 0 && cv === 0) return 0;
+      if (pv === 0) return 100;
+      return Number((((cv - pv) / pv) * 100).toFixed(1));
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        periodA: { start: startDate, end: endDate, days },
+        periodB: { start: periodBStart, end: periodBEnd, days },
+        current: {
+          revenue: Number(cur.revenue || 0),
+          txCount: Number(cur.txCount || 0),
+          pelunasan: Number(cur.pelunasan || 0),
+          uniqueCustomers: Number(cur.uniqueCustomers || 0),
+          avgPerTx: Number(cur.txCount) > 0 ? Math.round(Number(cur.revenue) / Number(cur.txCount)) : 0,
+        },
+        previous: {
+          revenue: Number(prev.revenue || 0),
+          txCount: Number(prev.txCount || 0),
+          pelunasan: Number(prev.pelunasan || 0),
+          uniqueCustomers: Number(prev.uniqueCustomers || 0),
+          avgPerTx: Number(prev.txCount) > 0 ? Math.round(Number(prev.revenue) / Number(prev.txCount)) : 0,
+        },
+        changes: {
+          revenue: pctChange(cur.revenue, prev.revenue),
+          txCount: pctChange(cur.txCount, prev.txCount),
+          pelunasan: pctChange(cur.pelunasan, prev.pelunasan),
+          uniqueCustomers: pctChange(cur.uniqueCustomers, prev.uniqueCustomers),
+        },
+        comparisonData,
+      },
+    });
+  } catch (err) {
+    console.error('[getComparisonReport]', err);
+    return res.status(500).json({ success: false, message: 'Gagal memuat comparison report.' });
+  }
+};
+
+// ─── GET /api/reports/cohort ──────────────────────────────────────────────────
+// Customer cohort analysis: retention rate, repeat purchase, lifetime value
+export const getCohortAnalysis = async (req, res) => {
+  try {
+    const outlet = buildOutletFilter(req);
+    const { startDate, endDate } = parseDates(req.query);
+
+    // 1. New customers per month (cohort groups)
+    const [cohortGroups] = await poolWaschenPos.execute(
+      `SELECT DATE_FORMAT(c.created_at, '%Y-%m') AS cohort_month,
+              COUNT(DISTINCT c.id) AS new_customers
+       FROM mst_customer c
+       WHERE c.is_active = 1
+         AND DATE(c.created_at) BETWEEN ? AND ?
+       GROUP BY cohort_month
+       ORDER BY cohort_month`,
+      [startDate, endDate]
+    );
+
+    // 2. Retention: customers who transacted in month N after first transaction
+    const [retentionData] = await poolWaschenPos.execute(
+      `SELECT
+         DATE_FORMAT(first_tx.first_date, '%Y-%m') AS cohort_month,
+         TIMESTAMPDIFF(MONTH, first_tx.first_date, t.created_at) AS months_after,
+         COUNT(DISTINCT t.customer_id) AS retained_customers
+       FROM tr_transaction t
+       JOIN (
+         SELECT customer_id, MIN(created_at) AS first_date
+         FROM tr_transaction
+         WHERE deleted_at IS NULL AND status <> 'cancelled'
+         GROUP BY customer_id
+       ) first_tx ON first_tx.customer_id = t.customer_id
+       WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+         AND DATE(first_tx.first_date) BETWEEN ? AND ?
+         ${outlet.where.replace('AND t.outlet_id', 'AND first_tx.customer_id IN (SELECT customer_id FROM tr_transaction WHERE outlet_id')}
+       GROUP BY cohort_month, months_after
+       ORDER BY cohort_month, months_after`,
+      [startDate, endDate, ...outlet.params]
+    );
+
+    // 3. Repeat purchase rate
+    const [repeatData] = await poolWaschenPos.execute(
+      `SELECT
+         COUNT(DISTINCT CASE WHEN tx_count > 1 THEN customer_id END) AS repeat_customers,
+         COUNT(DISTINCT customer_id) AS total_customers,
+         AVG(tx_count) AS avg_tx_per_customer,
+         MAX(tx_count) AS max_tx_per_customer
+       FROM (
+         SELECT t.customer_id, COUNT(t.id) AS tx_count
+         FROM tr_transaction t
+         WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+           AND DATE(t.created_at) BETWEEN ? AND ?
+           ${outlet.where}
+         GROUP BY t.customer_id
+       ) sub`,
+      [startDate, endDate, ...outlet.params]
+    );
+
+    // 4. Customer Lifetime Value (CLV) — avg revenue per customer
+    const [clvData] = await poolWaschenPos.execute(
+      `SELECT
+         AVG(customer_revenue) AS avg_clv,
+         MAX(customer_revenue) AS max_clv,
+         MIN(customer_revenue) AS min_clv,
+         STDDEV(customer_revenue) AS stddev_clv
+       FROM (
+         SELECT t.customer_id, SUM(t.total) AS customer_revenue
+         FROM tr_transaction t
+         WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+           AND DATE(t.created_at) BETWEEN ? AND ?
+           ${outlet.where}
+         GROUP BY t.customer_id
+       ) sub`,
+      [startDate, endDate, ...outlet.params]
+    );
+
+    // 5. Top returning customers
+    const [topReturning] = await poolWaschenPos.execute(
+      `SELECT c.name, c.phone, c.is_member AS isMember,
+              COUNT(t.id) AS txCount,
+              SUM(t.total) AS totalSpend,
+              MAX(t.created_at) AS lastVisit,
+              MIN(t.created_at) AS firstVisit
+       FROM tr_transaction t
+       JOIN mst_customer c ON c.id = t.customer_id
+       WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+         AND DATE(t.created_at) BETWEEN ? AND ?
+         ${outlet.where}
+       GROUP BY t.customer_id, c.name, c.phone, c.is_member
+       HAVING txCount > 1
+       ORDER BY txCount DESC, totalSpend DESC
+       LIMIT 10`,
+      [startDate, endDate, ...outlet.params]
+    );
+
+    const repeat = repeatData[0] || {};
+    const clv = clvData[0] || {};
+    const totalCust = Number(repeat.total_customers || 0);
+    const repeatCust = Number(repeat.repeat_customers || 0);
+
+    return res.json({
+      success: true,
+      data: {
+        period: { start: startDate, end: endDate },
+        summary: {
+          totalCustomers: totalCust,
+          repeatCustomers: repeatCust,
+          repeatRate: totalCust > 0 ? Number(((repeatCust / totalCust) * 100).toFixed(1)) : 0,
+          avgTxPerCustomer: Number(Number(repeat.avg_tx_per_customer || 0).toFixed(1)),
+          avgCLV: Math.round(Number(clv.avg_clv || 0)),
+          maxCLV: Math.round(Number(clv.max_clv || 0)),
+        },
+        cohortGroups: cohortGroups.map(r => ({
+          cohortMonth: r.cohort_month,
+          newCustomers: Number(r.new_customers),
+        })),
+        retentionData: retentionData.map(r => ({
+          cohortMonth: r.cohort_month,
+          monthsAfter: Number(r.months_after),
+          retainedCustomers: Number(r.retained_customers),
+        })),
+        topReturning: topReturning.map(r => ({
+          name: r.name,
+          phone: r.phone,
+          isMember: r.isMember === 1,
+          txCount: Number(r.txCount),
+          totalSpend: Number(r.totalSpend),
+          lastVisit: r.lastVisit,
+          firstVisit: r.firstVisit,
+        })),
+      },
+    });
+  } catch (err) {
+    console.error('[getCohortAnalysis]', err);
+    return res.status(500).json({ success: false, message: 'Gagal memuat cohort analysis.' });
+  }
+};
+
+// ─── GET /api/reports/forecast ────────────────────────────────────────────────
+// Simple revenue forecast menggunakan linear regression dari data historis
+export const getForecast = async (req, res) => {
+  try {
+    const outlet = buildOutletFilter(req);
+    const months = Math.min(12, Math.max(3, parseInt(req.query.months) || 6));
+    const forecastMonths = Math.min(6, Math.max(1, parseInt(req.query.forecastMonths) || 3));
+
+    // Ambil data historis N bulan terakhir
+    const [historicalData] = await poolWaschenPos.execute(
+      `SELECT
+         DATE_FORMAT(t.created_at, '%Y-%m') AS month,
+         COALESCE(SUM(t.total), 0) AS revenue,
+         COUNT(t.id) AS txCount
+       FROM tr_transaction t
+       WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+         AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+         ${outlet.where}
+       GROUP BY month
+       ORDER BY month`,
+      [months, ...outlet.params]
+    );
+
+    if (historicalData.length < 2) {
+      return res.json({
+        success: true,
+        data: { historical: [], forecast: [], message: 'Data historis tidak cukup untuk forecast (minimal 2 bulan).' },
+      });
+    }
+
+    // Linear regression: y = a + b*x
+    const n = historicalData.length;
+    const xs = historicalData.map((_, i) => i);
+    const ys = historicalData.map(r => Number(r.revenue));
+
+    const sumX = xs.reduce((s, x) => s + x, 0);
+    const sumY = ys.reduce((s, y) => s + y, 0);
+    const sumXY = xs.reduce((s, x, i) => s + x * ys[i], 0);
+    const sumX2 = xs.reduce((s, x) => s + x * x, 0);
+
+    const b = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const a = (sumY - b * sumX) / n;
+
+    // R² untuk confidence
+    const yMean = sumY / n;
+    const ssTot = ys.reduce((s, y) => s + (y - yMean) ** 2, 0);
+    const ssRes = ys.reduce((s, y, i) => s + (y - (a + b * xs[i])) ** 2, 0);
+    const r2 = ssTot > 0 ? Math.max(0, 1 - ssRes / ssTot) : 0;
+
+    // Generate forecast
+    const lastMonth = historicalData[historicalData.length - 1].month;
+    const [lastY, lastM] = lastMonth.split('-').map(Number);
+
+    const forecast = Array.from({ length: forecastMonths }, (_, i) => {
+      const xIdx = n + i;
+      const predicted = Math.max(0, Math.round(a + b * xIdx));
+      const m = ((lastM + i) % 12) || 12;
+      const y = lastY + Math.floor((lastM + i - 1) / 12);
+      const month = `${y}-${String(m).padStart(2, '0')}`;
+
+      // Confidence interval (±1 std error)
+      const stdErr = Math.sqrt(ssRes / Math.max(1, n - 2));
+      const margin = Math.round(stdErr * 1.5);
+
+      return {
+        month,
+        predicted,
+        low: Math.max(0, predicted - margin),
+        high: predicted + margin,
+        isForecast: true,
+      };
+    });
+
+    // Trend direction
+    const trendPct = ys[0] > 0 ? ((ys[n - 1] - ys[0]) / ys[0]) * 100 : 0;
+    const trend = b > 0 ? 'naik' : b < 0 ? 'turun' : 'stabil';
+
+    return res.json({
+      success: true,
+      data: {
+        historical: historicalData.map((r, i) => ({
+          month: r.month,
+          revenue: Number(r.revenue),
+          txCount: Number(r.txCount),
+          trend: Math.round(a + b * i),
+          isForecast: false,
+        })),
+        forecast,
+        model: {
+          r2: Number(r2.toFixed(3)),
+          confidence: r2 >= 0.8 ? 'tinggi' : r2 >= 0.5 ? 'sedang' : 'rendah',
+          trend,
+          trendPct: Number(trendPct.toFixed(1)),
+          slope: Number(b.toFixed(0)),
+          intercept: Number(a.toFixed(0)),
+        },
+      },
+    });
+  } catch (err) {
+    console.error('[getForecast]', err);
+    return res.status(500).json({ success: false, message: 'Gagal membuat forecast.' });
   }
 };

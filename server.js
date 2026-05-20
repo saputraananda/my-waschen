@@ -7,6 +7,28 @@ import os from 'os'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+// ─── Environment validation ──────────────────────────────────────────────────
+// Crash early jika env penting hilang, daripada error runtime nanti
+const REQUIRED_ENV = [
+  'JWT_SECRET',
+  'HOST_WASCHEN_POS',
+  'PORT_WASCHEN_POS',
+  'USER_WASCHEN_POS',
+  'PASS_WASCHEN_POS',
+  'DB_WASCHEN_POS',
+];
+const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missingEnv.length > 0) {
+  console.error('\n❌ Missing required environment variables:');
+  missingEnv.forEach(k => console.error(`   - ${k}`));
+  console.error('\nCek file .env atau set environment variables sebelum start server.\n');
+  process.exit(1);
+}
+if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32 && process.env.NODE_ENV === 'production') {
+  console.error('\n❌ JWT_SECRET terlalu pendek untuk production (minimum 32 karakter).');
+  process.exit(1);
+}
+
 import authRoutes from './api/routes/auth.routes.js'
 import userRoutes from './api/routes/user.routes.js'
 import serviceRoutes from './api/routes/services.routes.js'
@@ -26,6 +48,7 @@ import cashDrawerRoutes from './api/routes/cashDrawer.routes.js';
 import reportRoutes from './api/routes/report.routes.js';
 import targetRoutes from './api/routes/targets.routes.js';
 import periodRoutes from './api/routes/periods.routes.js';
+import auditRoutes from './api/routes/audit.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,15 +71,54 @@ function getLocalIPAddress() {
 
 // Middleware
 app.use(helmet())
+
+// CORS — support multiple origins (HP, iPad, browser desktop)
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests without origin (mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // In development, allow any localhost / local network IP
+    if (process.env.NODE_ENV !== 'production') {
+      if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(origin)) {
+        return callback(null, true);
+      }
+    }
+    return callback(new Error(`CORS blocked: ${origin}`));
+  },
   credentials: true,
 }))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ limit: '10mb', extended: true }))
 
 // API Routes
-app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'My Waschen API is running' }))
+import { poolWaschenPos } from './api/db/connection.js'
+
+app.get('/api/health', async (req, res) => {
+  try {
+    // Cek DB connection juga
+    await poolWaschenPos.query('SELECT 1');
+    res.json({
+      status: 'OK',
+      message: 'My Waschen API is running',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+      env: process.env.NODE_ENV || 'development',
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'DEGRADED',
+      message: 'API running but database is unreachable',
+      database: 'disconnected',
+      error: process.env.NODE_ENV === 'production' ? 'DB unreachable' : err.message,
+    });
+  }
+})
 app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/services', serviceRoutes)
@@ -76,6 +138,7 @@ app.use('/api/cash-drawer', cashDrawerRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/targets', targetRoutes);
 app.use('/api/periods', periodRoutes);
+app.use('/api/audit-log', auditRoutes);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (req, res) => {

@@ -44,7 +44,11 @@ function getPeriodBounds(refDate = new Date()) {
 export const getCurrentPeriod = async (req, res) => {
   try {
     const outletId = req.query.outletId || req.user?.outletId;
-    if (!outletId) return res.status(400).json({ success: false, message: 'outletId diperlukan.' });
+
+    // Kalau tidak ada outletId (misal admin global tanpa outlet), return null gracefully
+    if (!outletId) {
+      return res.json({ success: true, data: null });
+    }
 
     const now = new Date();
     const { periodStart, periodEnd, periodLabel, startStr, endStr } = getPeriodBounds(now);
@@ -66,7 +70,7 @@ export const getCurrentPeriod = async (req, res) => {
          COALESCE(SUM(total), 0)                                           AS totalOmset,
          COALESCE(SUM(paid_amount), 0)                                     AS totalPelunasan,
          COUNT(id)                                                          AS totalTransaksi,
-         SUM(CASE WHEN status IN ('selesai','diambil') THEN 1 ELSE 0 END)  AS totalSelesai
+         SUM(CASE WHEN status IN ('completed','ready_for_pickup','ready_for_delivery') THEN 1 ELSE 0 END) AS totalSelesai
        FROM tr_transaction
        WHERE outlet_id = ?
          AND deleted_at IS NULL
@@ -171,7 +175,7 @@ export const closePeriod = async (req, res) => {
          COALESCE(SUM(total), 0)                                           AS totalOmset,
          COALESCE(SUM(paid_amount), 0)                                     AS totalPelunasan,
          COUNT(id)                                                          AS totalTransaksi,
-         SUM(CASE WHEN status IN ('selesai','diambil') THEN 1 ELSE 0 END)  AS totalSelesai
+         SUM(CASE WHEN status IN ('completed','ready_for_pickup','ready_for_delivery') THEN 1 ELSE 0 END) AS totalSelesai
        FROM tr_transaction
        WHERE outlet_id = ? AND deleted_at IS NULL AND status <> 'cancelled'
          AND created_at >= ? AND created_at <= ?`,

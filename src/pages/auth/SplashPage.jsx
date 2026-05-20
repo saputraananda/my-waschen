@@ -20,14 +20,27 @@ export default function SplashPage({ onDone }) {
       <div style={{ position: 'absolute', bottom: 80, left: -80, width: 260, height: 260, borderRadius: '50%', background: 'rgba(255,255,255,0.03)' }} />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 80, height: 80, borderRadius: 24, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8, border: '1.5px solid rgba(255,255,255,0.2)' }}>
-          <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="18" stroke="white" strokeWidth="2.5" fill="none" opacity="0.3" />
-            <path d="M14 24 C14 18, 20 14, 24 20 C28 14, 34 18, 34 24 C34 30, 28 35, 24 38 C20 35, 14 30, 14 24Z" fill="white" opacity="0.9" />
-            <circle cx="24" cy="22" r="4" fill="white" opacity="0.6" />
+        {/* Logo Wäschen — same as login page */}
+        <div style={{ width: 240, marginBottom: 12 }}>
+          <svg viewBox="0 0 320 100" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: 'auto' }}>
+            {/* Bubbles */}
+            <circle cx="28" cy="52" r="14" fill="none" stroke="#E85D04" strokeWidth="3.5"/>
+            <circle cx="18" cy="72" r="8" fill="none" stroke="#E85D04" strokeWidth="3"/>
+            <circle cx="38" cy="78" r="5" fill="#E85D04"/>
+            <circle cx="48" cy="38" r="5" fill="#E85D04"/>
+            {/* Text "Wäschen" */}
+            <text x="52" y="68" fontFamily="'Poppins', Arial, sans-serif" fontSize="46" fontWeight="800" fill="white" letterSpacing="-1">
+              W<tspan fontSize="42">ä</tspan>schen
+            </text>
+            {/* ® symbol */}
+            <text x="285" y="42" fontFamily="'Poppins', Arial, sans-serif" fontSize="14" fontWeight="700" fill="rgba(255,255,255,0.7)">®</text>
+            {/* Tagline bar */}
+            <rect x="52" y="76" width="195" height="18" rx="2" fill="#E85D04"/>
+            <text x="150" y="89" fontFamily="'Poppins', Arial, sans-serif" fontSize="10" fontWeight="700" fill="white" textAnchor="middle" letterSpacing="0.5">
+              EXPERT LAUNDRY SOLUTIONS
+            </text>
           </svg>
         </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 32, fontWeight: 700, color: 'white', letterSpacing: '-0.5px' }}>Waschen</div>
         <div style={{ fontFamily: 'Poppins', fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: 400, letterSpacing: '1.5px', textTransform: 'uppercase' }}>Smart Laundry Management</div>
       </div>
 

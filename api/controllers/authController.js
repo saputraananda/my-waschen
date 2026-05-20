@@ -100,6 +100,53 @@ export const logout = (req, res) => {
   return res.status(200).json({ success: true, message: 'Logout berhasil' });
 };
 
+// ─── Controller: POST /api/auth/refresh ───────────────────────────────────────
+// Issue token baru jika token lama masih valid. Frontend bisa panggil ini
+// secara periodik (tiap 30 menit misal) untuk refresh sesi tanpa logout.
+export const refreshToken = async (req, res) => {
+  try {
+    // req.user sudah di-set oleh `authenticate` middleware
+    const { userId } = req.user;
+
+    // Re-fetch user data terbaru (untuk pastikan masih aktif & role belum berubah)
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT u.id, u.username, u.is_active,
+              r.code AS role_code,
+              o.id AS outlet_id
+       FROM mst_user u
+       JOIN mst_role r ON r.id = u.primary_role_id
+       LEFT JOIN mst_outlet o ON o.id = u.outlet_id
+       WHERE u.id = ? LIMIT 1`,
+      [userId]
+    );
+
+    if (!rows.length || !rows[0].is_active) {
+      return res.status(401).json({ success: false, message: 'Akun tidak aktif. Silakan login ulang.' });
+    }
+
+    const user = rows[0];
+    const JWT_SECRET = process.env.JWT_SECRET;
+    const newToken = jwt.sign(
+      {
+        userId: user.id,
+        roleCode: user.role_code,
+        outletId: user.outlet_id,
+        username: user.username,
+      },
+      JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+    );
+
+    return res.json({
+      success: true,
+      data: { token: newToken },
+    });
+  } catch (err) {
+    console.error('[refreshToken] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal refresh token.' });
+  }
+};
+
 // ─── Controller: GET /api/auth/outlets ────────────────────────────────────────
 export const getOutlets = async (req, res) => {
   try {

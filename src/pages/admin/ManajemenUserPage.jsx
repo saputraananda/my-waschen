@@ -185,7 +185,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
-      <TopBar title="Manajemen User" onBack={goBack} rightAction={() => setModalAdd(true)} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>} />
+      <TopBar title="Manajemen User" onBack={goBack} />
 
       <div style={{ padding: '12px 16px 0' }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama, username, email, atau outlet..." />
@@ -252,6 +252,29 @@ export default function ManajemenUserPage({ navigate, goBack }) {
           </div>
         )}
       </div>
+
+      {/* Floating Action Button — Tambah User */}
+      <button
+        onClick={() => setModalAdd(true)}
+        aria-label="Tambah User"
+        style={{
+          position: 'absolute', bottom: 24, right: 20,
+          width: 56, height: 56, borderRadius: 28,
+          background: 'linear-gradient(135deg, #7C3AED, #5B21B6)',
+          border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(91,33,182,0.45)',
+          zIndex: 50,
+          transition: 'transform 0.15s, box-shadow 0.15s',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(91,33,182,0.55)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(91,33,182,0.45)'; }}
+      >
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </button>
 
       <Modal visible={modalAdd} onClose={() => setModalAdd(false)} title="Tambah User">
         <Input label="Nama Lengkap" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />

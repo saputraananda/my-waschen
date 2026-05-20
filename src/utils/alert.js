@@ -75,3 +75,19 @@ export const confirmAction = async ({
   });
   return res.isConfirmed;
 };
+
+// Shorthand: alertConfirm('Yakin hapus data ini?')
+export const alertConfirm = async (text, opts = {}) => {
+  const res = await fire({
+    title: opts.title || 'Konfirmasi',
+    text,
+    icon: opts.icon || 'warning',
+    iconColor: opts.iconColor || C.warning,
+    showCancelButton: true,
+    confirmButtonText: opts.confirmText || 'Ya, Lanjutkan',
+    cancelButtonText: opts.cancelText || 'Batal',
+    allowOutsideClick: false,
+    ...opts,
+  });
+  return res.isConfirmed;
+};

@@ -1,6 +1,8 @@
 import { poolWaschenPos } from '../db/connection.js';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
+import { writeAudit } from '../utils/auditLog.js';
+import { validatePassword, validateEmail, validateUsername, validatePhone } from '../utils/validation.js';
 
 const schemaColumnCache = new Map();
 const hasColumn = async (tableName, columnName) => {
@@ -120,8 +122,15 @@ export const changeMyPassword = async (req, res) => {
     if (!oldPassword || !newPassword) {
       return res.status(400).json({ success: false, message: 'Password lama dan baru wajib diisi.' });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Password baru minimal 6 karakter.' });
+
+    // Validasi complexity password baru
+    const passErr = validatePassword(newPassword);
+    if (passErr) {
+      return res.status(400).json({ success: false, message: passErr });
+    }
+
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ success: false, message: 'Password baru tidak boleh sama dengan password lama.' });
     }
 
     const [rows] = await poolWaschenPos.execute(
@@ -198,6 +207,16 @@ export const registerUser = async (req, res) => {
       });
     }
 
+    // Validasi format
+    const usernameErr = validateUsername(username);
+    if (usernameErr) return res.status(400).json({ success: false, message: usernameErr });
+
+    const emailErr = validateEmail(email);
+    if (emailErr) return res.status(400).json({ success: false, message: emailErr });
+
+    const passErr = validatePassword(password, username);
+    if (passErr) return res.status(400).json({ success: false, message: passErr });
+
     // Cek username sudah ada
     const [existing] = await poolWaschenPos.execute(
       'SELECT id FROM mst_user WHERE username = ?',
@@ -273,6 +292,13 @@ export const updateUser = async (req, res) => {
         message: 'Nama, username, email, dan role wajib diisi',
       });
     }
+
+    // Validasi format
+    const usernameErr = validateUsername(username);
+    if (usernameErr) return res.status(400).json({ success: false, message: usernameErr });
+
+    const emailErr = validateEmail(email);
+    if (emailErr) return res.status(400).json({ success: false, message: emailErr });
 
     const hasDeletedAt = await hasColumn('mst_user', 'deleted_at');
     const [targetRows] = await poolWaschenPos.execute(
@@ -422,6 +448,17 @@ export const deleteUser = async (req, res) => {
         [usernameSuffix, emailSuffix, id]
       );
     }
+
+    // Audit log — sensitif security
+    writeAudit(poolWaschenPos, {
+      userId: requesterId,
+      outletId: req.user?.outletId,
+      entityType: 'user',
+      entityId: id,
+      action: 'delete_user',
+      oldData: { username: rows[0].username, email: rows[0].email },
+      req,
+    }).catch(() => {});
 
     return res.json({ success: true, message: 'User berhasil dihapus.' });
   } catch (err) {

@@ -1,9 +1,14 @@
+import { useEffect } from 'react';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { Btn } from '../../components/ui';
+import { hapticSuccess } from '../../utils/haptic';
 
 export default function NotaBerhasilPage({ navigate, screenParams }) {
   const nota = screenParams;
+
+  // Haptic feedback on mount — checkout success
+  useEffect(() => { hapticSuccess(); }, []);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C.n50, padding: 24 }}>

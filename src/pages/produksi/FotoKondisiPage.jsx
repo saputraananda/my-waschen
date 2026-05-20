@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { compressImage } from '../../utils/helpers';
+import { uploadImage, formatFileSize } from '../../utils/imageUpload';
 import { TopBar, Btn } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
@@ -19,10 +19,17 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const compressedUrl = await compressImage(file, 1024, 1024, 0.7);
-      setPhotos((prev) => [...prev, { url: compressedUrl, type, label: type === 'before' ? 'Sebelum Cuci' : 'Sesudah Cuci' }]);
+      // Use 'damage' preset — high quality for claim/dispute evidence
+      const result = await uploadImage(file, 'damage');
+      setPhotos((prev) => [...prev, {
+        url: result.dataUrl,
+        type,
+        label: type === 'before' ? 'Sebelum Cuci' : 'Sesudah Cuci',
+        sizeKb: result.sizeKb,
+        compressed: result.ratio > 0,
+      }]);
     } catch (err) {
-      alertError('Gagal mengompres atau memproses foto.');
+      alertError(err.message || 'Gagal memproses foto.');
     }
   };
 

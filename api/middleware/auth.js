@@ -75,9 +75,12 @@ export const requireSameOutlet = (req, res, next) => {
   const targetOutletId = req.params.outletId || req.params.id || req.query.outletId || req.body.outletId;
 
   if (!targetOutletId) return next();
-  if (req.user.roleCode === 'admin') return next();
 
-  if (req.user.outletId !== targetOutletId) {
+  // Role-role global boleh akses semua outlet
+  const GLOBAL_ROLES = new Set(['admin', 'superadmin', 'owner', 'finance']);
+  if (GLOBAL_ROLES.has(req.user.roleCode)) return next();
+
+  if (String(req.user.outletId) !== String(targetOutletId)) {
     return res.status(403).json({
       success: false,
       message: 'Akses ditolak. Anda hanya bisa mengakses data outlet Anda sendiri.',

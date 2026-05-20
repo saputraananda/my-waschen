@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
@@ -35,8 +35,8 @@ export default function KasirDashboardPage({ user, navigate }) {
   const [stats, setStats] = useState({ total: 0, omset: 0, totalPelunasan: 0, express: 0, pending: 0, completed: 0 });
   const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [target, setTarget] = useState(null); // { targetAmount, actualAmount, pct, monthName, year }
-  const [periodAlert, setPeriodAlert] = useState(null); // { periodLabel, daysLeft, isClosing }
+  const [target, setTarget] = useState(null);
+  const [periodAlert, setPeriodAlert] = useState(null);
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [clock, setClock] = useState(() => {
     const n = new Date();
@@ -44,6 +44,34 @@ export default function KasirDashboardPage({ user, navigate }) {
   });
   const [shift, setShift] = useState(null);
   const [elapsed, setElapsed] = useState('');
+
+  // ── Top Up: customer picker bottom sheet ──────────────────────────────────
+  const [topupSheet, setTopupSheet] = useState(false);
+  const [topupSearch, setTopupSearch] = useState('');
+  const [topupCustomers, setTopupCustomers] = useState([]);
+  const [topupSearching, setTopupSearching] = useState(false);
+  const topupDebounce = useRef(null);
+
+  const openTopupSheet = () => {
+    setTopupSearch('');
+    setTopupCustomers([]);
+    setTopupSheet(true);
+  };
+
+  useEffect(() => {
+    if (!topupSheet) return;
+    clearTimeout(topupDebounce.current);
+    if (!topupSearch.trim()) { setTopupCustomers([]); return; }
+    topupDebounce.current = setTimeout(async () => {
+      setTopupSearching(true);
+      try {
+        const res = await axios.get(`/api/customers/lookup?q=${encodeURIComponent(topupSearch)}&limit=10`);
+        setTopupCustomers(res?.data?.data || []);
+      } catch { setTopupCustomers([]); }
+      finally { setTopupSearching(false); }
+    }, 250);
+    return () => clearTimeout(topupDebounce.current);
+  }, [topupSearch, topupSheet]);
 
   useEffect(() => {
     const tick = () => {
@@ -97,7 +125,7 @@ export default function KasirDashboardPage({ user, navigate }) {
     { label: 'Antrian',      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>, action: () => navigate('kasir_antrian'), color: C.info, badge: stats.pending > 0 ? stats.pending : null },
     { label: 'Siap Ambil',   icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>, action: () => navigate('kasir_siap_ambil'), color: C.success },
     { label: 'Cari Nota',    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>, action: () => navigate('transaksi'), color: '#7C3AED' },
-    { label: 'Top Up',       icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>, action: () => navigate('topup_deposit', {}), color: '#EC4899' },
+    { label: 'Top Up',       icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>, action: () => openTopupSheet(), color: '#EC4899' },
     { label: 'Customer',     icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>, action: () => navigate('customer'), color: C.info },
     { label: 'Transaksi',    icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-3.5" /></svg>, action: () => navigate('transaksi'), color: C.success },
     { label: 'Shift',        icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>, action: () => navigate('kasir_shift'), color: C.warning },
@@ -397,5 +425,112 @@ export default function KasirDashboardPage({ user, navigate }) {
         </div>
       </div>
     </div>
+
+    {/* ── Top Up: Customer Picker Bottom Sheet ── */}
+    {topupSheet && (
+      <>
+        <div
+          onClick={() => setTopupSheet(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 300 }}
+        />
+        <div
+          style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            background: C.white, borderRadius: '20px 20px 0 0',
+            padding: '16px 20px 36px',
+            boxShadow: '0 -8px 32px rgba(15,23,42,0.15)',
+            zIndex: 301,
+            maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Handle */}
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: C.n200, margin: '0 auto 14px' }} />
+
+          {/* Title */}
+          <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, marginBottom: 4 }}>
+            💳 Top Up Deposit
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, marginBottom: 14 }}>
+            Cari nama atau nomor HP customer
+          </div>
+
+          {/* Search input */}
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              autoFocus
+              value={topupSearch}
+              onChange={(e) => setTopupSearch(e.target.value)}
+              placeholder="Nama atau nomor HP…"
+              style={{
+                width: '100%', height: 44, borderRadius: 12,
+                border: `1.5px solid ${C.n200}`, background: C.n50,
+                fontFamily: 'Poppins', fontSize: 13,
+                paddingLeft: 36, paddingRight: 12,
+                boxSizing: 'border-box', outline: 'none',
+              }}
+            />
+            {topupSearching && (
+              <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, border: `2px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            )}
+          </div>
+
+          {/* Results */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {!topupSearch.trim() && (
+              <div style={{ textAlign: 'center', padding: '24px 0', fontFamily: 'Poppins', fontSize: 13, color: C.n400 }}>
+                Ketik nama atau nomor HP customer
+              </div>
+            )}
+            {topupSearch.trim() && !topupSearching && topupCustomers.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Customer tidak ditemukan</div>
+                <button
+                  onClick={() => { setTopupSheet(false); navigate('tambah_customer'); }}
+                  style={{ marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary }}
+                >
+                  + Daftarkan customer baru
+                </button>
+              </div>
+            )}
+            {topupCustomers.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => { setTopupSheet(false); navigate('topup_deposit', c); }}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '11px 12px', borderRadius: 12, border: 'none',
+                  background: C.white, cursor: 'pointer', textAlign: 'left',
+                  marginBottom: 6, boxShadow: '0 1px 4px rgba(15,23,42,0.07)',
+                }}
+              >
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: `${C.primary}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.primary }}>
+                    {(c.name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{c.name}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 1 }}>
+                    {c.phone || '-'}
+                    {c.deposit != null && (
+                      <span style={{ marginLeft: 8, color: C.success, fontWeight: 600 }}>
+                        Deposit: {rp(c.deposit)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n300} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            ))}
+          </div>
+        </div>
+      </>
+    )}
   );
 }

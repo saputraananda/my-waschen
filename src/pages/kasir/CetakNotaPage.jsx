@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, EmptyState } from '../../components/ui';
+import { TopBar, Btn, EmptyState, QRCodeView } from '../../components/ui';
 
 const STORAGE_KEY = 'waschen_printer_config';
 const DEFAULT_CFG = {
@@ -183,11 +183,12 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
             {cfg.showNotes && data.notes && <div style={{ marginTop: 6, fontSize: 10, opacity: 0.8 }}>Catatan: {data.notes}</div>}
           </div>
 
-          {/* Barcode placeholder */}
+          {/* Barcode / QR — real scannable */}
           {cfg.barcodeEnabled && (
-            <div style={{ textAlign: 'center', margin: '10px 0', padding: '8px 0', borderTop: '1px dashed #999', borderBottom: '1px dashed #999' }}>
-              <div style={{ fontWeight: 'bold', letterSpacing: 4, fontSize: 14 }}>▮▯▮▯▮▮▯▯▮▯▮</div>
-              <div style={{ fontSize: 9, marginTop: 2, opacity: 0.65 }}>{data.transactionNo || data.id} · {cfg.barcodeType.toUpperCase()}</div>
+            <div style={{ textAlign: 'center', margin: '10px 0', padding: '10px 0', borderTop: '1px dashed #999', borderBottom: '1px dashed #999', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <QRCodeView value={data.transactionNo || data.id} size={96} level="M" />
+              <div style={{ fontSize: 9, marginTop: 2, opacity: 0.65, fontFamily: 'monospace' }}>{data.transactionNo || data.id}</div>
+              <div style={{ fontSize: 8, opacity: 0.5 }}>Scan untuk cek status</div>
             </div>
           )}
 
@@ -208,6 +209,12 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
                 <div style={{ padding: '6px 0', borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '6px 0', letterSpacing: 3, fontSize: 15, fontWeight: 'bold' }}>
                   {unit.unitNo}
                 </div>
+
+                {/* QR Code untuk scan di produksi — encode unit_no atau transaction_no */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                  <QRCodeView value={unit.unitNo || data.transactionNo || data.id} size={88} level="M" />
+                </div>
+
                 <div style={{ fontSize: 9, marginTop: 6, opacity: 0.75 }}>
                   Masuk: {data.createdAt ? new Date(data.createdAt).toLocaleDateString('id-ID') : '-'}<br />
                   Item {idx + 1} dari {data.units.length}

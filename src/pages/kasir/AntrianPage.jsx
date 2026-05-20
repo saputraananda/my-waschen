@@ -60,7 +60,7 @@ export default function KasirAntrianPage({ navigate, goBack }) {
   const markReady = async (tx) => {
     setUpdating(tx.id);
     try {
-      await axios.patch(`/api/transactions/${tx.id}/status`, { status: 'ready_for_pickup' });
+      await axios.put(`/api/transactions/${tx.id}/status`, { status: 'ready_for_pickup' });
       alertSuccess(`${tx.transactionNo || tx.id} ditandai Siap Ambil.`);
       fetchOrders();
     } catch (e) {

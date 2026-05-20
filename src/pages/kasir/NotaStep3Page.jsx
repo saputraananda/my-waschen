@@ -5,6 +5,7 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Input, Select, Divider, Modal, DateInput } from '../../components/ui';
 import { alertError, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
+import { hapticSuccess, hapticError } from '../../utils/haptic';
 
 function todayKeyWib() {
   return new Intl.DateTimeFormat('sv-SE', {
@@ -182,9 +183,11 @@ export default function NotaStep3Page({ goBack }) {
         };
         navigate('nota_berhasil', nota);
       } else {
+        hapticError();
         alertError(res?.data?.message || 'Gagal membuat nota');
       }
     } catch (error) {
+      hapticError();
       const msg = error?.response?.data?.message || 'Gagal membuat nota. Silakan coba lagi.';
       console.error('Checkout error:', error);
       alertError(msg);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BottomNav, ErrorBoundary } from './components/ui';
+import { BottomNav, ErrorBoundary, OfflineIndicator } from './components/ui';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { C } from './utils/theme';
@@ -37,6 +37,8 @@ import RekapPendapatanPage from './pages/admin/RekapPendapatanPage';
 import GeneralReportPage from './pages/admin/GeneralReportPage';
 import AdminTargetPage from './pages/admin/AdminTargetPage';
 import AdminPeriodClosePage from './pages/admin/AdminPeriodClosePage';
+import ComparisonReportPage from './pages/admin/ComparisonReportPage';
+import ForecastPage from './pages/admin/ForecastPage';
 
 // Produksi
 import ProduksiDashboardPage from './pages/produksi/DashboardPage';
@@ -84,6 +86,40 @@ function AppInner() {
 
   const [sessionExpired, setSessionExpired] = useState(false);
 
+  // Online status — inline (no external import needed)
+  const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  useEffect(() => {
+    const onUp = () => setOnline(true);
+    const onDown = () => setOnline(false);
+    window.addEventListener('online', onUp);
+    window.addEventListener('offline', onDown);
+    return () => { window.removeEventListener('online', onUp); window.removeEventListener('offline', onDown); };
+  }, []);
+
+  // Keyboard shortcuts — inline (no external import needed)
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.key) return;
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      const parts = [];
+      if (e.ctrlKey || e.metaKey) parts.push('ctrl');
+      if (e.shiftKey) parts.push('shift');
+      parts.push(e.key.toLowerCase());
+      const combo = parts.join('+');
+      const shortcuts = {
+        'ctrl+n': () => navigate('nota_step1'),
+        'ctrl+shift+c': () => navigate('customer'),
+        'ctrl+shift+t': () => navigate('transaksi'),
+        'ctrl+shift+d': () => navigate('dashboard'),
+        'escape': () => goBack(),
+      };
+      if (shortcuts[combo]) { e.preventDefault(); shortcuts[combo](); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [navigate, goBack]);
+
   useEffect(() => {
     const handler = () => setSessionExpired(true);
     window.addEventListener('waschen:session-expired', handler);
@@ -104,11 +140,11 @@ function AppInner() {
         return <TutupShiftPage goBack={goBack} />;
       case 'dashboard':
         if (!user) return <LoginPage onLogin={handleLogin} />;
-        if (user.role === 'admin')
+        if (user.roleCode === 'admin' || user.role === 'admin')
           return <AdminDashboardPage user={user} navigate={navigate} />;
-        if (user.role === 'finance')
+        if (user.roleCode === 'finance' || user.role === 'finance')
           return <FinanceDashboardPage user={user} navigate={navigate} />;
-        if (user.role === 'produksi')
+        if (user.roleCode === 'produksi' || user.role === 'produksi')
           return <ProduksiDashboardPage user={user} navigate={navigate} />;
         return <KasirDashboardPage user={user} navigate={navigate} />;
 
@@ -187,6 +223,10 @@ function AppInner() {
         return <AdminTargetPage navigate={navigate} goBack={goBack} />;
       case 'admin_period_close':
         return <AdminPeriodClosePage navigate={navigate} goBack={goBack} />;
+      case 'comparison_report':
+        return <ComparisonReportPage navigate={navigate} goBack={goBack} />;
+      case 'forecast':
+        return <ForecastPage navigate={navigate} goBack={goBack} />;
 
       case 'verifikasi_payment':
         return <VerifikasiPaymentPage navigate={navigate} goBack={goBack} />;
@@ -213,7 +253,7 @@ function AppInner() {
   return (
     <div className="app-inner">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; }
         body { margin: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -228,15 +268,47 @@ function AppInner() {
           position: relative;
           background: ${C.n50};
           font-family: 'Poppins', sans-serif;
+          font-size: 14px;
+        }
+        /* Prevent horizontal overflow on all direct children */
+        .app-inner > * {
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+        /* Scrollable areas should clip content */
+        .app-inner [style*="overflowY: auto"],
+        .app-inner [style*="overflow-y: auto"] {
+          overflow-x: hidden !important;
+        }
+        /* Tablet / iPad — scale up font & touch targets */
+        @media (min-width: 768px) {
+          .app-inner {
+            font-size: 15px;
+          }
+          .app-inner button {
+            min-height: 44px;
+          }
+        }
+        /* Large tablet / iPad Pro */
+        @media (min-width: 1024px) {
+          .app-inner {
+            font-size: 16px;
+          }
+        }
+        /* Datepicker popper must escape overflow */
+        .react-datepicker-popper {
+          z-index: 9999 !important;
         }
       `}</style>
 
-      <ErrorBoundary>
+      <ErrorBoundary key={screen}>
         {renderScreen()}
       </ErrorBoundary>
 
+      <OfflineIndicator online={online} />
+
       {showNav && (
-        <BottomNav role={user.role} active={navActive} navigate={navigate} />
+        <BottomNav role={user.roleCode || user.role} active={navActive} navigate={navigate} />
       )}
 
       {sessionExpired && (
@@ -266,15 +338,24 @@ export default function App() {
   return (
     <div className="app-wrapper">
       <style>{`
+        html, body {
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+          width: 100%;
+          height: 100%;
+        }
         .app-wrapper {
           width: 100vw;
           height: 100vh;
           overflow: hidden;
+          background: #F1F5F9;
         }
         .app-content {
           width: 100%;
           height: 100%;
           overflow: hidden;
+          position: relative;
         }
       `}</style>
       <div className="app-content">

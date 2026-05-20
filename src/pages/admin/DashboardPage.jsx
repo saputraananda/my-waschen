@@ -197,7 +197,7 @@ export default function AdminDashboardPage({ user, navigate }) {
           <StatCard
             label={period === 'today' ? 'Total Pelunasan Hari Ini' : period === 'month' ? 'Total Pelunasan Bulan Ini' : 'Total Pelunasan (Akumulasi)'}
             value={rp(period === 'today' ? stats.pelunasan_today : period === 'month' ? stats.pelunasan_month : stats.total_pelunasan).replace('Rp ', 'Rp')}
-            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>}
+            icon={<span style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800 }}>Rp</span>}
             color={C.success}
             sub="Uang yang sudah diterima"
           />
@@ -260,6 +260,8 @@ export default function AdminDashboardPage({ user, navigate }) {
               { label: 'General Report', screen: 'general_report', icon: '📋', color: '#7C3AED' },
               { label: 'Capaian Target', screen: 'admin_target', icon: '🎯', color: '#EA580C' },
               { label: 'Tutup Buku', screen: 'admin_period_close', icon: '📒', color: '#6366F1' },
+              { label: 'Comparison', screen: 'comparison_report', icon: '⚖️', color: '#0891B2' },
+              { label: 'Forecast', screen: 'forecast', icon: '🔮', color: '#7C3AED' },
             ].map((item) => (
               <button key={item.label} onClick={() => {
                 if (item.needsOutlet) {

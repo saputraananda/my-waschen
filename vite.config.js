@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // ─── HMR: disable untuk menghindari duplicate React di browser ──────
+    // Kalau mau enable HMR lagi, ubah ke: hmr: { overlay: false }
+    hmr: false,
     // ─── Proxy: semua request /api/* diteruskan ke backend Express ──────
     proxy: {
       '/api': {

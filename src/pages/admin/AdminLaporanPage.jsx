@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Chip, Select, DateInput } from '../../components/ui';
+import { TopBar, Btn, Chip, Select, DateInput, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import { exportToExcel, exportToPDF, fmtCurrency, fmtDate } from '../../utils/exportReport';
+import { DATE_PRESETS, getDateRangePreset } from '../../utils/filterPresets';
 
 const METHOD_LABEL = {
   cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit',
@@ -168,6 +170,63 @@ export default function AdminLaporanPage({ navigate, goBack }) {
 
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
+  // ── Export handlers ──────────────────────────────────────
+  const handleExportExcel = async () => {
+    if (!report) return;
+    try {
+      const rows = (report.groupBy === 'month' ? report.monthly : report.daily) || [];
+      await exportToExcel(rows, {
+        filename: `laporan_${report.groupBy}_${startDate}_${endDate}`,
+        sheetName: 'Laporan',
+        title: `Laporan Keuangan Wäschen — ${startDate} s/d ${endDate}`,
+        columns: [
+          { key: report.groupBy === 'month' ? 'period' : 'date', header: 'Periode', width: 14 },
+          { key: 'txCount', header: 'Jumlah Transaksi', width: 18 },
+          { key: 'revenue', header: 'Total Omset (Rp)', width: 20 },
+          { key: 'pelunasan', header: 'Total Pelunasan (Rp)', width: 22 },
+          { key: 'cashRevenue', header: 'Tunai (Rp)', width: 16 },
+          { key: 'transferRevenue', header: 'Transfer (Rp)', width: 16 },
+          { key: 'qrisRevenue', header: 'QRIS (Rp)', width: 14 },
+        ],
+      });
+    } catch (e) {
+      console.error('Export Excel failed:', e);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!report) return;
+    try {
+      const rows = (report.groupBy === 'month' ? report.monthly : report.daily) || [];
+      const outletLabel = outletId ? outlets.find(o => o.id === outletId)?.name || 'Outlet' : 'Semua Outlet';
+      await exportToPDF(rows, {
+        filename: `laporan_${startDate}_${endDate}`,
+        title: 'Laporan Keuangan Wäschen',
+        subtitle: `${outletLabel} · ${startDate} s/d ${endDate}`,
+        orientation: 'landscape',
+        summary: [
+          { label: 'Total Omset', value: fmtCurrency(totalRevenue) },
+          { label: 'Total Pelunasan', value: fmtCurrency(totalPelunasan) },
+          { label: 'Total Transaksi', value: totalTx.toLocaleString('id-ID') },
+          { label: 'Rata-rata/Trx', value: fmtCurrency(avgPerTx) },
+          { label: 'Rata-rata/Hari', value: fmtCurrency(avgPerDay) },
+          { label: 'Piutang', value: fmtCurrency(piutang) },
+        ],
+        columns: [
+          { key: report.groupBy === 'month' ? 'period' : 'date', header: 'Periode', width: 22 },
+          { key: 'txCount', header: 'Trx', width: 12 },
+          { key: 'revenue', header: 'Omset (Rp)', width: 28 },
+          { key: 'pelunasan', header: 'Pelunasan (Rp)', width: 28 },
+          { key: 'cashRevenue', header: 'Tunai (Rp)', width: 24 },
+          { key: 'transferRevenue', header: 'Transfer (Rp)', width: 24 },
+          { key: 'qrisRevenue', header: 'QRIS (Rp)', width: 22 },
+        ],
+      });
+    } catch (e) {
+      console.error('Export PDF failed:', e);
+    }
+  };
+
   const chartPoints = useMemo(() => {
     if (!report) return [];
     if (report.groupBy === 'month' && report.monthly?.length) {
@@ -268,64 +327,52 @@ export default function AdminLaporanPage({ navigate, goBack }) {
               )}
             </div>
 
-            {/* Trend Chart */}
+            {/* Trend Chart — Recharts AreaChart */}
             <SectionCard
               icon="📈"
-              title={`Tren ${report.groupBy === 'month' ? 'Bulanan' : 'Harian'} — Transaksi vs Pelunasan`}
-              action={<span style={{ ...F, fontSize: 10, color: C.n500, background: C.n100, padding: '3px 8px', borderRadius: 999, fontWeight: 600 }}>{chartPoints.length} titik data</span>}
+              title={`Tren ${report.groupBy === 'month' ? 'Bulanan' : 'Harian'} — Omset vs Pelunasan`}
+              action={
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <span style={{ ...F, fontSize: 10, color: C.n500, background: C.n100, padding: '3px 8px', borderRadius: 999, fontWeight: 600 }}>{chartPoints.length} titik</span>
+                  <button
+                    onClick={() => handleExportExcel()}
+                    style={{ ...F, fontSize: 10, fontWeight: 600, color: C.success, background: '#DCFCE7', border: 'none', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}
+                  >⬇ Excel</button>
+                  <button
+                    onClick={() => handleExportPDF()}
+                    style={{ ...F, fontSize: 10, fontWeight: 600, color: '#991B1B', background: '#FEE2E2', border: 'none', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}
+                  >⬇ PDF</button>
+                </div>
+              }
             >
-              <DualBarChart points={chartPoints} labelKey="label" maxBars={report.groupBy === 'month' ? 12 : 14} height={160} />
+              <RevenueAreaChart
+                data={chartPoints.map(p => ({ date: p.label, revenue: p.revenue, pelunasan: p.pelunasan }))}
+                height={180}
+              />
             </SectionCard>
 
-            {/* Payment Mix */}
+            {/* Payment Mix — Recharts PieChart */}
             {(report.byMethod || []).length > 0 && (
               <SectionCard icon="💳" title="Distribusi Metode Pembayaran">
-                {/* Stacked horizontal bar */}
-                <div style={{ display: 'flex', height: 28, borderRadius: 10, overflow: 'hidden', marginBottom: 12, background: C.n100 }}>
-                  {(report.byMethod || []).map((m) => {
-                    const pct = (Number(m.revenue) / methodTotalRevenue) * 100;
-                    return (
-                      <div key={m.method} title={`${METHOD_LABEL[m.method] || m.method}: ${pct.toFixed(1)}%`}
-                        style={{ width: `${pct}%`, background: METHOD_COLOR[m.method] || C.n400 }} />
-                    );
-                  })}
-                </div>
-
-                {/* Table */}
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', ...F, fontSize: 12 }}>
-                    <thead>
-                      <tr style={{ borderBottom: `1.5px solid ${C.n200}` }}>
-                        <th style={thStyle}>Metode</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Trx</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Omset</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>% Share</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(report.byMethod || []).map((m) => {
-                        const pct = (Number(m.revenue) / methodTotalRevenue) * 100;
-                        return (
-                          <tr key={m.method || '-'} style={{ borderBottom: `1px solid ${C.n100}` }}>
-                            <td style={tdStyle}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ width: 8, height: 8, borderRadius: 4, background: METHOD_COLOR[m.method] || C.n400, flexShrink: 0 }} />
-                                <span>{METHOD_ICON[m.method] || '💳'} {METHOD_LABEL[m.method] || m.method || '—'}</span>
-                              </span>
-                            </td>
-                            <td style={{ ...tdStyle, textAlign: 'right' }}>{m.txCount}</td>
-                            <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>{rp(m.revenue)}</td>
-                            <td style={{ ...tdStyle, textAlign: 'right' }}>
-                              <span style={{
-                                ...F, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
-                                background: `${METHOD_COLOR[m.method] || C.n400}18`, color: METHOD_COLOR[m.method] || C.n600,
-                              }}>{pct.toFixed(1)}%</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'center' }}>
+                  <PaymentPieChart data={report.byMethod || []} height={180} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {(report.byMethod || []).map((m) => {
+                      const pct = (Number(m.revenue) / methodTotalRevenue) * 100;
+                      return (
+                        <div key={m.method || '-'} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 12 }}>{METHOD_ICON[m.method] || '💳'}</span>
+                            <span style={{ ...F, fontSize: 11, color: C.n700 }}>{METHOD_LABEL[m.method] || m.method}</span>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ ...F, fontSize: 11, fontWeight: 700, color: C.n900 }}>{rp(m.revenue)}</div>
+                            <div style={{ ...F, fontSize: 9, color: C.n500 }}>{pct.toFixed(1)}% · {m.txCount} trx</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </SectionCard>
             )}

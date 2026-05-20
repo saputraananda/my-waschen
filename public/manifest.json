@@ -1,0 +1,45 @@
+{
+  "name": "Wäschen POS",
+  "short_name": "Wäschen",
+  "description": "Smart Laundry POS System — Expert Laundry Solutions",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8FAFC",
+  "theme_color": "#5B005F",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "id",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Buat Nota",
+      "short_name": "Nota",
+      "description": "Buat nota laundry baru",
+      "url": "/nota-step1",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Antrian",
+      "short_name": "Antrian",
+      "description": "Lihat antrian produksi",
+      "url": "/antrian",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

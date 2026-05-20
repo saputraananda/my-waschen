@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, SearchBar, Avatar, Btn, EmptyState } from '../../components/ui';
+import { TopBar, SearchBar, Avatar, Btn, EmptyState, SkeletonList } from '../../components/ui';
+import { useDebounce } from '../../utils/hooks';
 import { useApp } from '../../context/AppContext';
 
 export default function NotaStep1Page({ goBack }) {
@@ -9,28 +10,31 @@ export default function NotaStep1Page({ goBack }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query, 250);
 
+  // Fetch with server-side search & pagination
   useEffect(() => {
+    let cancelled = false;
     const fetchCustomers = async () => {
       setLoading(true);
       try {
-        const res = await axios.get('/api/customers');
-        const data = res?.data?.data || [];
-        setCustomers(data);
+        const url = debouncedQuery.trim()
+          ? `/api/customers?search=${encodeURIComponent(debouncedQuery.trim())}&limit=50`
+          : `/api/customers?limit=50`;
+        const res = await axios.get(url);
+        if (!cancelled) {
+          setCustomers(res?.data?.data || []);
+        }
       } catch (error) {
         console.error('Failed to fetch customers:', error);
+        if (!cancelled) setCustomers([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchCustomers();
-  }, []);
-
-  const filtered = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(query.toLowerCase()) ||
-      c.phone.includes(query)
-  );
+    return () => { cancelled = true; };
+  }, [debouncedQuery]);
 
   const selectCustomer = (c) => {
     setNotaCustomer(c);
@@ -53,15 +57,12 @@ export default function NotaStep1Page({ goBack }) {
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama atau nomor HP..." />
 
         {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
-            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</span>
-          </div>
-        ) : filtered.length === 0 ? (
+          <SkeletonList count={5} avatar lines={3} />
+        ) : customers.length === 0 ? (
           <EmptyState title="Customer tidak ditemukan" subtitle="Tambah customer baru?" action={() => navigate('tambah_customer')} actionLabel="+ Tambah Customer" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map((c) => (
+            {customers.map((c) => (
               <div
                 key={c.id}
                 onClick={() => selectCustomer(c)}

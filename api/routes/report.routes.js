@@ -6,14 +6,24 @@ import {
   getServiceAnalytics,
   getCashierPerformance,
   getCustomerInsights,
+  getComparisonReport,
+  getCohortAnalysis,
+  getForecast,
 } from '../controllers/reportController.js';
 
 const router = Router();
 
-router.get('/executive-summary', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance'), getExecutiveSummary);
-router.get('/outlet-performance', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance'), getOutletPerformance);
-router.get('/service-analytics', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance'), getServiceAnalytics);
-router.get('/cashier-performance', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance'), getCashierPerformance);
-router.get('/customer-insights', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance'), getCustomerInsights);
+const adminOnly = requireRole('admin', 'superadmin', 'owner', 'finance');
+
+router.get('/executive-summary',  authenticate, adminOnly, getExecutiveSummary);
+router.get('/outlet-performance', authenticate, adminOnly, getOutletPerformance);
+router.get('/service-analytics',  authenticate, adminOnly, getServiceAnalytics);
+router.get('/cashier-performance',authenticate, adminOnly, getCashierPerformance);
+router.get('/customer-insights',  authenticate, adminOnly, getCustomerInsights);
+
+// New endpoints
+router.get('/comparison',         authenticate, adminOnly, getComparisonReport);
+router.get('/cohort',             authenticate, adminOnly, getCohortAnalysis);
+router.get('/forecast',           authenticate, adminOnly, getForecast);
 
 export default router;

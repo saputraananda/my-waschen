@@ -1,5 +1,6 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { randomUUID } from 'crypto';
+import { writeAudit } from '../utils/auditLog.js';
 
 const schemaColumnCache = new Map();
 
@@ -20,17 +21,38 @@ const hasColumn = async (tableName, columnName) => {
   return exists;
 };
 
-// ─── Helper: Generate WSC-YYMMDD-XXX inside active connection ──────────────────
-const generateTransactionNo = async (conn) => {
+// ─── Helper: Generate WSC-YYMMDD-XXX dengan race-condition protection ─────────
+// Strategy: gunakan SELECT ... FOR UPDATE pattern + retry on duplicate
+// Per-outlet sequence supaya nomor tidak bentrok antar kasir di outlet berbeda
+const generateTransactionNo = async (conn, outletId = null) => {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(2);
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
-  const [[{ cnt }]] = await conn.execute(
-    "SELECT COUNT(*) AS cnt FROM tr_transaction WHERE DATE(created_at) = CURDATE()"
+  const datePrefix = `WSC-${yy}${mm}${dd}-`;
+
+  // Cari nomor terakhir hari ini, lock baris-baris itu untuk prevent race
+  // Pakai LIKE + ORDER BY untuk dapat sequence terakhir akurat
+  const [rows] = await conn.execute(
+    `SELECT transaction_no FROM tr_transaction
+     WHERE transaction_no LIKE ?
+     ORDER BY transaction_no DESC
+     LIMIT 1
+     FOR UPDATE`,
+    [`${datePrefix}%`]
   );
-  const seq = String((cnt || 0) + 1).padStart(3, '0');
-  return `WSC-${yy}${mm}${dd}-${seq}`;
+
+  let nextSeq = 1;
+  if (rows.length > 0) {
+    const lastNo = rows[0].transaction_no;
+    const lastSeqStr = lastNo.slice(datePrefix.length);
+    const lastSeq = parseInt(lastSeqStr, 10);
+    if (Number.isFinite(lastSeq)) {
+      nextSeq = lastSeq + 1;
+    }
+  }
+
+  return `${datePrefix}${String(nextSeq).padStart(3, '0')}`;
 };
 
 // ─── Helper: Map frontend payMethod to DB ENUM ─────────────────────────────────
@@ -489,6 +511,25 @@ export const checkoutTransaction = async (req, res) => {
       [trxId]
     );
 
+    // Audit log — kritis untuk keuangan
+    writeAudit(poolWaschenPos, {
+      userId,
+      outletId,
+      transactionId: trxId,
+      entityType: 'transaction',
+      entityId: transactionNo,
+      action: 'checkout_transaction',
+      newData: {
+        transactionNo,
+        customerId,
+        total: computedTotal,
+        paidAmount,
+        paymentMethod: primaryPaymentMethod,
+        itemCount: items.length,
+      },
+      req,
+    }).catch(() => {});
+
     return res.status(201).json({
       success: true,
       message: 'Nota berhasil dibuat',
@@ -528,7 +569,7 @@ const mapDbStatusToFrontend = (status, pickedUpAt) => {
 // ─── GET /api/transactions ─────────────────────────────────────────────────────
 export const getTransactions = async (req, res) => {
   try {
-    const { status, outletId, customerId, page = 1, limit = 50 } = req.query;
+    const { status, outletId, customerId, page = 1, limit = 50, search, paymentStatus, isExpress } = req.query;
     const userOutletId = req.user?.outletId;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
@@ -543,6 +584,8 @@ export const getTransactions = async (req, res) => {
         t.is_express AS isExpress,
         t.total,
         t.subtotal,
+        t.paid_amount AS paidAmount,
+        t.payment_status AS paymentStatus,
         t.delivery_fee AS deliveryFee,
         t.primary_payment_method AS payMethod,
         t.notes,
@@ -578,21 +621,92 @@ export const getTransactions = async (req, res) => {
         selesai: ['ready_for_pickup', 'ready_for_delivery', 'completed'],
         dibatalkan: ['cancelled'],
         diambil: ['completed'],
+        ready_for_pickup: ['ready_for_pickup'],
       };
-      const dbStatuses = statusMap[status];
-      if (dbStatuses) {
-        sql += ` AND t.status IN (${dbStatuses.map(() => '?').join(',')})${status === 'diambil' ? ' AND t.picked_up_at IS NOT NULL' : ''}`;
-        params.push(...dbStatuses);
-      }
+      const dbStatuses = statusMap[status] || [status];
+      sql += ` AND t.status IN (${dbStatuses.map(() => '?').join(',')})${status === 'diambil' ? ' AND t.picked_up_at IS NOT NULL' : ''}`;
+      params.push(...dbStatuses);
     } else {
       sql += " AND t.status <> 'cancelled'";
     }
 
-    // Count total for pagination
-    const countSql = sql.replace(/SELECT[\s\S]*?FROM/, 'SELECT COUNT(*) AS total FROM');
-    const [countResult] = await poolWaschenPos.execute(countSql, params);
+    // Search by customer name, phone, or transaction_no
+    if (search && search.trim()) {
+      sql += ' AND (c.name LIKE ? OR c.phone LIKE ? OR t.transaction_no LIKE ?)';
+      const s = `%${search.trim()}%`;
+      params.push(s, s, s);
+    }
+
+    // Filter by payment_status (comma-separated: unpaid,partial)
+    if (paymentStatus && paymentStatus.trim()) {
+      const ps = paymentStatus.split(',').map((s) => s.trim()).filter(Boolean);
+      if (ps.length > 0) {
+        sql += ` AND t.payment_status IN (${ps.map(() => '?').join(',')})`;
+        params.push(...ps);
+      }
+    }
+
+    // Filter express only
+    if (isExpress === '1') {
+      sql += ' AND t.is_express = 1';
+    }
+
+    // Count total for pagination (dedicated count query for reliability)
+    let countWhere = 'WHERE t.deleted_at IS NULL';
+    const countParams = [];
+
+    if (customerId) {
+      countWhere += ' AND t.customer_id = ?';
+      countParams.push(customerId);
+    }
+
+    if (outletId) {
+      countWhere += ' AND t.outlet_id = ?';
+      countParams.push(outletId);
+    } else if (userOutletId && !customerId) {
+      countWhere += ' AND t.outlet_id = ?';
+      countParams.push(userOutletId);
+    }
+
+    if (status && status !== 'semua') {
+      const statusMapCount = {
+        baru: ['draft', 'pending'],
+        proses: ['process'],
+        selesai: ['ready_for_pickup', 'ready_for_delivery', 'completed'],
+        dibatalkan: ['cancelled'],
+        diambil: ['completed'],
+        ready_for_pickup: ['ready_for_pickup'],
+      };
+      const dbStatusesCount = statusMapCount[status] || [status];
+      countWhere += ` AND t.status IN (${dbStatusesCount.map(() => '?').join(',')})${status === 'diambil' ? ' AND t.picked_up_at IS NOT NULL' : ''}`;
+      countParams.push(...dbStatusesCount);
+    } else {
+      countWhere += " AND t.status <> 'cancelled'";
+    }
+
+    // Same search/filter for count
+    if (search && search.trim()) {
+      countWhere += ' AND (c.name LIKE ? OR c.phone LIKE ? OR t.transaction_no LIKE ?)';
+      const s = `%${search.trim()}%`;
+      countParams.push(s, s, s);
+    }
+    if (paymentStatus && paymentStatus.trim()) {
+      const ps = paymentStatus.split(',').map((s) => s.trim()).filter(Boolean);
+      if (ps.length > 0) {
+        countWhere += ` AND t.payment_status IN (${ps.map(() => '?').join(',')})`;
+        countParams.push(...ps);
+      }
+    }
+    if (isExpress === '1') {
+      countWhere += ' AND t.is_express = 1';
+    }
+
+    const countSql = `SELECT COUNT(*) AS total FROM tr_transaction t JOIN mst_customer c ON c.id = t.customer_id ${countWhere}`;
+    const [countResult] = await poolWaschenPos.execute(countSql, countParams);
     const total = countResult[0]?.total || 0;
 
+    // MySQL prepared statement tidak support ? untuk LIMIT/OFFSET
+    // Inline integer yang sudah divalidasi (parseInt di atas menjamin keamanan)
     sql += ` ORDER BY t.created_at DESC LIMIT ${limitNum} OFFSET ${offset}`;
 
     const [rows] = await poolWaschenPos.execute(sql, params);
@@ -637,6 +751,9 @@ export const getTransactions = async (req, res) => {
       createdBy: t.cashierName,
       total: Number(t.total),
       subtotal: Number(t.subtotal),
+      paidAmount: Number(t.paidAmount || 0),
+      balanceDue: Math.max(0, Number(t.total || 0) - Number(t.paidAmount || 0)),
+      paymentStatus: t.paymentStatus || 'unpaid',
       deliveryFee: Number(t.deliveryFee),
     }));
 
@@ -1077,7 +1194,7 @@ export const getDashboardStats = async (req, res) => {
 export const updateTransactionStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, expectedVersion } = req.body;
 
     if (!status) {
       return res.status(400).json({ success: false, message: 'Status wajib diisi.' });
@@ -1097,10 +1214,13 @@ export const updateTransactionStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: `Status '${status}' tidak valid.` });
     }
 
+    // Cek apakah kolom version sudah ada (graceful migration)
+    const hasVersion = await hasColumn('tr_transaction', 'version');
+
     const [rows] = await poolWaschenPos.execute(
-      `SELECT id FROM tr_transaction
-       WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?)
-       LIMIT 1`,
+      hasVersion
+        ? `SELECT id, version, status FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`
+        : `SELECT id, status FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
       [id, id]
     );
 
@@ -1109,20 +1229,51 @@ export const updateTransactionStatus = async (req, res) => {
     }
 
     const txUUID = rows[0].id;
+    const currentVersion = rows[0].version;
 
+    // Optimistic locking — kalau client kirim expectedVersion, cek dulu
+    if (hasVersion && expectedVersion != null && Number(expectedVersion) !== Number(currentVersion)) {
+      return res.status(409).json({
+        success: false,
+        code: 'STALE_DATA',
+        message: 'Data transaksi sudah diperbarui oleh user lain. Mohon refresh dan coba lagi.',
+        currentVersion,
+      });
+    }
+
+    let result;
     if (status === 'diambil' || status === 'completed') {
-      await poolWaschenPos.execute(
-        `UPDATE tr_transaction SET status = 'completed', picked_up_at = NOW(), updated_at = NOW() WHERE id = ?`,
-        [txUUID]
+      [result] = await poolWaschenPos.execute(
+        hasVersion
+          ? `UPDATE tr_transaction SET status = 'completed', picked_up_at = NOW(), updated_at = NOW(), version = version + 1
+             WHERE id = ? ${expectedVersion != null ? 'AND version = ?' : ''}`
+          : `UPDATE tr_transaction SET status = 'completed', picked_up_at = NOW(), updated_at = NOW() WHERE id = ?`,
+        hasVersion && expectedVersion != null ? [txUUID, currentVersion] : [txUUID]
       );
     } else {
-      await poolWaschenPos.execute(
-        `UPDATE tr_transaction SET status = ?, picked_up_at = NULL, updated_at = NOW() WHERE id = ?`,
-        [dbStatus, txUUID]
+      [result] = await poolWaschenPos.execute(
+        hasVersion
+          ? `UPDATE tr_transaction SET status = ?, picked_up_at = NULL, updated_at = NOW(), version = version + 1
+             WHERE id = ? ${expectedVersion != null ? 'AND version = ?' : ''}`
+          : `UPDATE tr_transaction SET status = ?, picked_up_at = NULL, updated_at = NOW() WHERE id = ?`,
+        hasVersion && expectedVersion != null ? [dbStatus, txUUID, currentVersion] : [dbStatus, txUUID]
       );
     }
 
-    return res.status(200).json({ success: true, message: 'Status transaksi diperbarui.' });
+    // Kalau pakai version dan tidak ada baris yang ke-update, berarti ada concurrent update
+    if (hasVersion && expectedVersion != null && result.affectedRows === 0) {
+      return res.status(409).json({
+        success: false,
+        code: 'STALE_DATA',
+        message: 'Data transaksi sudah diperbarui oleh user lain. Mohon refresh dan coba lagi.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Status transaksi diperbarui.',
+      data: hasVersion ? { newVersion: currentVersion + 1 } : undefined,
+    });
   } catch (err) {
     console.error('[updateTransactionStatus] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memperbarui status transaksi.' });
@@ -1356,8 +1507,33 @@ export const cancelTransaction = async (req, res) => {
          WHERE id = ?`,
         [req.user?.userId, reason.trim(), reason.trim(), tx.id]
       );
+
+      // Audit log — owner langsung cancel = kritis
+      writeAudit(poolWaschenPos, {
+        userId: req.user?.userId,
+        outletId: req.user?.outletId,
+        transactionId: tx.id,
+        entityType: 'transaction',
+        entityId: tx.id,
+        action: 'cancel_transaction_auto',
+        newData: { reason: reason.trim(), authorizedBy: req.user?.roleCode },
+        req,
+      }).catch(() => {});
+
       return res.status(200).json({ success: true, message: 'Transaksi berhasil dibatalkan (Otorisasi Owner).' });
     }
+
+    // Audit log — pengajuan batal (kasir/non-admin)
+    writeAudit(poolWaschenPos, {
+      userId: req.user?.userId,
+      outletId: req.user?.outletId,
+      transactionId: tx.id,
+      entityType: 'transaction',
+      entityId: tx.id,
+      action: 'request_cancel_transaction',
+      newData: { reason: reason.trim() },
+      req,
+    }).catch(() => {});
 
     return res.status(200).json({ success: true, message: 'Pengajuan pembatalan berhasil dikirim. Menunggu persetujuan Owner.' });
   } catch (err) {

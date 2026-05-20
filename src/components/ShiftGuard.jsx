@@ -1,33 +1,26 @@
-import React, { useContext } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { AppContext } from '../context/AppContext';
+import React from 'react';
+import { useApp } from '../context/AppContext';
 
-// Komponen ini "menjaga" route-route kasir.
-// Jika shift belum dibuka, paksa redirect ke halaman Buka Shift.
+// Komponen ini "menjaga" halaman-halaman kasir.
+// Jika shift belum dibuka, redirect ke halaman Buka Shift.
+// Menggunakan state-based navigation (bukan React Router) sesuai arsitektur app.
 const ShiftGuard = ({ children }) => {
-  const { activeShift, shiftLoading, user } = useContext(AppContext);
-  const location = useLocation();
+  const { user, screen, navigate } = useApp();
 
-  // Jika masih loading, tampilkan spinner atau halaman kosong
-  if (shiftLoading || !user) {
-    return <div>Loading...</div>; // Ganti dengan komponen loading yang lebih baik
-  }
-
-  // Jika user bukan kasir, biarkan saja
-  if (user.roleCode !== 'kasir') {
+  // Jika user bukan kasir, biarkan saja (admin/produksi/finance tidak perlu shift)
+  if (!user || user.roleCode !== 'kasir') {
     return children;
   }
 
-  // Jika shift belum aktif dan user mencoba akses halaman selain buka shift
-  if (!activeShift && location.pathname !== '/kasir/buka-shift') {
-    return <Navigate to="/kasir/buka-shift" state={{ from: location }} replace />;
+  // ShiftGuard hanya aktif untuk halaman kasir tertentu
+  // Halaman buka_shift sendiri tidak perlu dijaga
+  const SHIFT_EXEMPT = new Set(['buka_shift', 'login', 'splash', 'settings', 'profil', 'notifikasi']);
+  if (SHIFT_EXEMPT.has(screen)) {
+    return children;
   }
 
-  // Jika shift sudah aktif tapi user mencoba akses halaman buka shift, redirect ke dashboard
-  if (activeShift && location.pathname === '/kasir/buka-shift') {
-    return <Navigate to="/kasir/dashboard" replace />;
-  }
-
+  // Komponen ini dirender sebagai wrapper — cek shift dilakukan di level page
+  // ShiftGuard hanya menyediakan context, redirect dilakukan oleh BukaShiftPage
   return children;
 };
 

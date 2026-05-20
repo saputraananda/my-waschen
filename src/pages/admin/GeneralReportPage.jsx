@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, memo } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Chip, Select, DateInput, StatCard } from '../../components/ui';
+import { TopBar, Chip, Select, DateInput, StatCard, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, HourlyHeatBar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import { exportToExcel, exportToPDF, fmtCurrency } from '../../utils/exportReport';
 
 const PRESETS = [
   { key: '7d', label: '7 hari' },
@@ -245,15 +246,31 @@ export default function GeneralReportPage({ goBack }) {
                 <StatCard label="Rata-rata/Hari" value={rp(executive.avgPerDay)} icon="📅" color={C.warning} />
               </div>
               <div style={{ marginTop: 4 }}>
-                <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, margin: '0 0 4px' }}>Tren Harian</p>
-                <MiniBar points={executive.daily} valueKey="revenue" labelKey="date" />
+                <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, margin: '0 0 4px' }}>Tren Harian — Omset & Pelunasan</p>
+                <RevenueAreaChart
+                  data={(executive.daily || []).map(d => ({ date: d.date, revenue: d.revenue, pelunasan: d.pelunasan || 0 }))}
+                  height={160}
+                />
               </div>
             </div>
 
-            {/* Section B: Payment Mix */}
+            {/* Section B: Payment Mix — Recharts PieChart */}
             <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
               <SectionTitle icon="💳">Payment Mix</SectionTitle>
-              <PaymentBar mix={executive.paymentMix} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'center' }}>
+                <PaymentPieChart data={executive.paymentMix || []} height={180} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(executive.paymentMix || []).map((m, i) => (
+                    <div key={m.method} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>{m.method}</span>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n900 }}>{rp(m.amount)}</div>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>{m.pct}%</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Section C: Outlet Scoreboard (hanya mode semua outlet — hindari data multi-outlet membingungkan saat filter satu outlet) */}
@@ -396,12 +413,12 @@ export default function GeneralReportPage({ goBack }) {
               </div>
             )}
 
-            {/* Section G: Peak Hours */}
+            {/* Section G: Peak Hours — Recharts */}
             {executive?.peakHours && (
               <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
                 <SectionTitle icon="⏰">Peak Hours</SectionTitle>
-                <HourBar data={executive.peakHours} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <HourlyHeatBar data={executive.peakHours} height={90} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                   <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>00:00</span>
                   <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>06:00</span>
                   <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>12:00</span>

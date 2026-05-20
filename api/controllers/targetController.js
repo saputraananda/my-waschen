@@ -5,7 +5,8 @@ const MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
 // Transaksi yang dianggap "selesai" untuk perhitungan capaian
-const DONE_STATUSES = `('selesai', 'diambil', 'ready_for_pickup', 'ready_for_delivery')`;
+// Gunakan status DB yang sebenarnya (bukan label frontend)
+const DONE_STATUSES = `('completed', 'ready_for_pickup', 'ready_for_delivery')`;
 
 // ── GET /api/targets — list semua target (admin) ──────────────────────────────
 export const listTargets = async (req, res) => {

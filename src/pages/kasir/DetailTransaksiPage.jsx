@@ -112,14 +112,22 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setDocPhotos((prev) => [...prev, { id: Date.now(), src: ev.target.result, name: file.name }]);
-      };
-      reader.readAsDataURL(file);
+      try {
+        // Compress dengan preset documentation (1024x1024, 75% quality, max ~800KB)
+        const { uploadImage } = await import('../../utils/imageUpload');
+        const result = await uploadImage(file, 'documentation');
+        setDocPhotos((prev) => [...prev, {
+          id: Date.now(),
+          src: result.dataUrl,
+          name: file.name,
+          sizeKb: result.sizeKb,
+        }]);
+      } catch (err) {
+        alertError(err.message || 'Gagal mengompres foto.');
+      }
     };
     input.click();
   };
@@ -337,43 +345,50 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {/* Header card */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ background: `linear-gradient(135deg, ${C.primary}08, ${C.white})`, borderRadius: 16, padding: '16px 16px', marginBottom: 14, boxShadow: '0 2px 12px rgba(15,23,42,0.08)', border: `1px solid ${C.n100}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{tx.customerName || 'Pelanggan'}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900 }}>{tx.customerName || 'Pelanggan'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.n500} strokeWidth="2" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{tx.customerPhone || '-'}</span>
               </div>
             </div>
             <Badge status={tx.status || 'baru'} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.primary }}>
-              {rp(tx.total || 0)} <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 500, color: C.n600 }}>{tx.isExpress ? 'Express' : 'Reguler'}</span>
+
+          {/* Total + Type — prominent */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, padding: '10px 14px', background: C.white, borderRadius: 12, border: `1.5px solid ${C.n100}` }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color: C.primary }}>
+              {rp(tx.total || 0)}
             </div>
+            <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: tx.isExpress ? '#92400E' : C.n600, background: tx.isExpress ? '#FEF3C7' : C.n100, padding: '3px 10px', borderRadius: 999 }}>
+              {tx.isExpress ? '⚡ Express' : '📦 Reguler'}
+            </span>
           </div>
+
           {/* Transaction ID + Copy */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 10px', background: C.n50, borderRadius: 10 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n500} strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+            <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {tx.id || tx.transactionNo}
             </span>
-            <button onClick={handleCopyId} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: `1px solid ${C.n200}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: copied ? C.success : C.primary }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
-              {copied ? 'Tersalin!' : 'Salin ID'}
+            <button onClick={handleCopyId} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: `1px solid ${C.n200}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: copied ? C.success : C.primary }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+              {copied ? 'Tersalin!' : 'Salin'}
             </button>
           </div>
         </div>
 
         {/* Rincian Transaksi — collapsible */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <button onClick={() => setItemsOpen(!itemsOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: itemsOpen ? 10 : 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600 }}>Rincian Transaksi</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#EFF6FF', color: '#1D4ED8' }}>{tx.items?.length || 0} Layanan</span>
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <button onClick={() => setItemsOpen(!itemsOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: itemsOpen ? 12 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🧺</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Rincian Layanan</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#EFF6FF', color: '#1D4ED8' }}>{tx.items?.length || 0}</span>
             </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2.5" strokeLinecap="round" style={{ transform: itemsOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2.5" strokeLinecap="round" style={{ transform: itemsOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9" /></svg>
           </button>
           {itemsOpen && (
             <>
@@ -435,10 +450,13 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
 
         {/* Dokumentasi Transaksi */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600 }}>Dokumentasi Transaksi</span>
-            <button onClick={handleAddPhoto} style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, background: 'none', border: 'none', cursor: 'pointer' }}>Tambah</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📷</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Dokumentasi</span>
+            </div>
+            <button onClick={handleAddPhoto} style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primary, background: `${C.primary}10`, border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>+ Tambah</button>
           </div>
           {docPhotos.length > 0 ? (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -456,10 +474,11 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
 
         {/* Status Pembayaran — collapsible */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <button onClick={() => setPayOpen(!payOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: payOpen ? 10 : 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600 }}>Status Pembayaran</span>
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <button onClick={() => setPayOpen(!payOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: payOpen ? 12 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: paymentStatus === 'paid' ? '#DCFCE7' : paymentStatus === 'partial' ? '#FEF3C7' : '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>💰</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Pembayaran</span>
               <span style={{
                 fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
                 padding: '2px 8px', borderRadius: 999,
@@ -469,7 +488,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                 {PAY_STATUS_LABEL[paymentStatus] || paymentStatus}
               </span>
             </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2.5" strokeLinecap="round" style={{ transform: payOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2.5" strokeLinecap="round" style={{ transform: payOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9" /></svg>
           </button>
           {payOpen && (
             <>
@@ -536,8 +555,11 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
 
         {/* Detail Transaksi — timeline + info */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10, textDecoration: 'underline' }}>Detail Transaksi</div>
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📋</div>
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Informasi Order</span>
+          </div>
 
           {/* Status message */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: C.n50, borderRadius: 10, marginBottom: 12 }}>
@@ -604,26 +626,37 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>{rp(tx.deliveryFee)}</span>
             </div>
           )}
-          {tx.notes && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Catatan</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900, textAlign: 'right', maxWidth: '55%' }}>{tx.notes}</span>
-            </div>
-          )}
+          {(() => {
+            // Strip metadata [Bayar:...] dari notes, tampilkan hanya catatan user
+            const userNotes = (tx.notes || '').replace(/\[Bayar:[^\]]*\]/g, '').trim();
+            if (!userNotes) return null;
+            return (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Catatan</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900, textAlign: 'right', maxWidth: '55%' }}>{userNotes}</span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Progress */}
         {tx.progress && tx.progress.length > 0 && (
-          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>PROGRESS PRODUKSI</div>
+          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🔄</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Progress Produksi</span>
+            </div>
             <ProgressTimeline progress={tx.progress} />
           </div>
         )}
 
         {/* Logistics Info */}
         {hasLogistics && (
-          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>LOGISTIK</div>
+          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🚚</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Logistik</span>
+            </div>
             {logisticOrders.map((lo) => (
               <div key={lo.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.n50}` }}>
                 <div>

@@ -1,38 +1,36 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, SearchBar, Avatar, Btn, EmptyState } from '../../components/ui';
+import { TopBar, SearchBar, Avatar, Btn, EmptyState, SkeletonList } from '../../components/ui';
+import { useDebounce } from '../../utils/hooks';
 
 export default function CustomerListPage({ navigate }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [error, setError] = useState(null);
+  const debouncedQuery = useDebounce(query, 250);
 
   const fetchCustomers = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
-      const res = await axios.get('/api/customers');
-      const data = res?.data?.data || [];
-      setCustomers(data);
+      const url = debouncedQuery.trim()
+        ? `/api/customers?search=${encodeURIComponent(debouncedQuery.trim())}&limit=100`
+        : `/api/customers?limit=100`;
+      const res = await axios.get(url);
+      setCustomers(res?.data?.data || []);
     } catch (error) {
       console.error('Failed to fetch customers:', error);
       setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedQuery]);
 
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
-
-  const filtered = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(query.toLowerCase()) ||
-      c.phone.includes(query)
-  );
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
@@ -42,10 +40,7 @@ export default function CustomerListPage({ navigate }) {
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama atau nomor HP..." />
 
         {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
-            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</span>
-          </div>
+          <SkeletonList count={5} avatar lines={2} />
         ) : error ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
             <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -55,11 +50,13 @@ export default function CustomerListPage({ navigate }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
             <Btn variant="primary" onClick={fetchCustomers} style={{ marginTop: 8 }}>Coba Lagi</Btn>
           </div>
-        ) : filtered.length === 0 ? (
+        ) : loading ? (
+          <SkeletonList count={5} avatar lines={2} />
+        ) : customers.length === 0 ? (
           <EmptyState title="Customer tidak ditemukan" subtitle="Coba ubah kata kunci pencarian" action={() => navigate('tambah_customer')} actionLabel="+ Tambah Customer" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map((c) => (
+            {customers.map((c) => (
               <div
                 key={c.id}
                 onClick={() => navigate('detail_customer', c)}

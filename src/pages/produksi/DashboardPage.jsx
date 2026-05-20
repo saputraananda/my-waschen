@@ -161,11 +161,15 @@ function OrderCard({ tx, onItemPress }) {
         )}
       </div>
 
-      {tx.notes && (
-        <div style={{ marginTop: 6, padding: '5px 10px', background: '#FEF3C7', borderRadius: 8 }}>
-          <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#92400E' }}>📝 {tx.notes}</span>
-        </div>
-      )}
+      {(() => {
+        const userNotes = (tx.notes || '').replace(/\[Bayar:[^\]]*\]/g, '').trim();
+        if (!userNotes) return null;
+        return (
+          <div style={{ marginTop: 6, padding: '5px 10px', background: '#FEF3C7', borderRadius: 8 }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#92400E' }}>📝 {userNotes}</span>
+          </div>
+        );
+      })()}
     </div>
   );
 }

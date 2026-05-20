@@ -231,20 +231,41 @@ export default function AdminShiftReportPage({ navigate, goBack }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Shift Kasir" subtitle="Monitoring buka/tutup shift & selisih kas" onBack={goBack} />
 
-      {/* Filters */}
-      <div style={{ padding: '12px 16px 4px', background: C.white, borderBottom: `1px solid ${C.n100}` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 8 }}>
-          <DateInput label="Dari" value={dateFrom} onChange={setDateFrom} />
-          <DateInput label="Sampai" value={dateTo} onChange={setDateTo} />
+      {/* Filters — compact inline card */}
+      <div style={{ padding: '12px 16px 0', background: C.n50 }}>
+        <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          {/* Date row — side by side, no arrow */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <DateInput label="Dari" value={dateFrom} onChange={setDateFrom} />
+            <DateInput label="Sampai" value={dateTo} onChange={setDateTo} />
+          </div>
+          {/* Outlet selector */}
           <Select label="Outlet" value={outletId} onChange={setOutletId}
             options={[{ value: '', label: '🏪 Semua outlet' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]} />
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ padding: '12px 16px 6px', display: 'flex', gap: 8, overflowX: 'auto' }}>
-        <Chip label="📋 Riwayat Shift" active={tab === 'sessions'} onClick={() => setTab('sessions')} />
-        <Chip label="🏪 Per Outlet" active={tab === 'outlet'} onClick={() => setTab('outlet')} />
+      {/* Tabs — attached below filter */}
+      <div style={{ padding: '12px 16px 6px', display: 'flex', gap: 8 }}>
+        {[
+          { key: 'sessions', label: 'Riwayat Shift', icon: '📋' },
+          { key: 'outlet', label: 'Per Outlet', icon: '🏪' },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: tab === t.key ? C.primary : C.white,
+              color: tab === t.key ? 'white' : C.n700,
+              fontFamily: 'Poppins', fontSize: 13, fontWeight: tab === t.key ? 700 : 500,
+              boxShadow: tab === t.key ? `0 4px 12px ${C.primary}30` : '0 1px 4px rgba(15,23,42,0.06)',
+              transition: 'all 0.2s',
+            }}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
       </div>
 
       {err && (
@@ -254,95 +275,77 @@ export default function AdminShiftReportPage({ navigate, goBack }) {
       )}
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 24px' }}>
-        {/* ===== KPI Summary Strip ===== */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 14 }}>
-          <Card style={{ padding: '10px 12px' }} accentColor={C.info}>
-            <StatBlock label="TOTAL SHIFT" value={aggregateTotals.totalShift} />
-          </Card>
-          <Card style={{ padding: '10px 12px' }} accentColor={C.success}>
-            <StatBlock label="SUDAH TUTUP" value={aggregateTotals.totalClosed} color={C.success} />
-          </Card>
-          <Card style={{ padding: '10px 12px' }} accentColor="#F59E0B">
-            <StatBlock label="MASIH BUKA" value={aggregateTotals.totalOpen} color={aggregateTotals.totalOpen > 0 ? '#D97706' : C.n900} />
-          </Card>
-          <Card style={{ padding: '10px 12px' }} accentColor={aggregateTotals.totalBigDiff > 0 ? C.danger : C.n300}>
-            <StatBlock label="SELISIH ≥50RB" value={aggregateTotals.totalBigDiff} color={aggregateTotals.totalBigDiff > 0 ? C.danger : C.n900} />
-          </Card>
+        {/* ===== KPI Summary — Clean horizontal strip ===== */}
+        <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, textAlign: 'center' }}>
+            {[
+              { label: 'Total', value: aggregateTotals.totalShift, color: C.n900 },
+              { label: 'Tutup', value: aggregateTotals.totalClosed, color: C.success },
+              { label: 'Buka', value: aggregateTotals.totalOpen, color: aggregateTotals.totalOpen > 0 ? '#D97706' : C.n400 },
+              { label: '≥50rb', value: aggregateTotals.totalBigDiff, color: aggregateTotals.totalBigDiff > 0 ? C.danger : C.n400 },
+            ].map((kpi, i) => (
+              <div key={kpi.label} style={{ padding: '4px 0', borderRight: i < 3 ? `1px solid ${C.n100}` : 'none' }}>
+                <div style={{ ...F, fontSize: 22, fontWeight: 800, color: kpi.color, lineHeight: 1.2 }}>{kpi.value}</div>
+                <div style={{ ...F, fontSize: 10, color: C.n500, fontWeight: 500, marginTop: 2 }}>{kpi.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* ===== Insight Cards ===== */}
-        <SectionHeader icon="💡" title="Insight Utama" subtitle="Ringkasan berdasarkan periode terpilih" />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 6 }}>
-          <InsightCard
-            emoji="🏆"
-            title="OUTLET PALING DISIPLIN"
-            badge={disciplinedOutlet && (disciplinedOutlet.avgAbsCashDiff || 0) <= 10000 ? 'AMAN' : 'PANTAU'}
-            badgeColor={disciplinedOutlet && (disciplinedOutlet.avgAbsCashDiff || 0) <= 10000 ? C.success : '#D97706'}
-            accentColor={C.success}
-          >
-            {disciplinedOutlet ? (
-              <>
-                <div style={{ ...F, fontSize: 16, fontWeight: 800, color: C.n900, marginBottom: 10 }}>{disciplinedOutlet.outletName}</div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <StatBlock label="RATA-RATA SELISIH" value={rp(disciplinedOutlet.avgAbsCashDiff)} color={C.success} />
-                  <StatBlock label="SHIFT TUTUP" value={disciplinedOutlet.closedCount} />
-                  {trendDiscipline && <StatBlock label="VS LALU" value={`${trendDiscipline.arrow} ${trendDiscipline.label}`} color={trendDiscipline.color} />}
-                </div>
-              </>
-            ) : (
-              <div style={{ ...F, fontSize: 12, color: C.n500 }}>Belum ada shift tertutup pada periode ini.</div>
-            )}
-          </InsightCard>
+        {/* ===== Insight Cards — Compact version ===== */}
+        {(disciplinedOutlet || problematicOutlet || staleCashiers.length > 0) && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ ...F, fontSize: 12, fontWeight: 700, color: C.n600, marginBottom: 8, paddingLeft: 2 }}>Insight Periode Ini</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-          <InsightCard
-            emoji="⚠️"
-            title="OUTLET PALING SERING SELISIH"
-            badge={problematicOutlet ? ((problematicOutlet.largeDiffCount || 0) >= 3 ? 'TINGGI' : 'SEDANG') : 'RENDAH'}
-            badgeColor={problematicOutlet ? ((problematicOutlet.largeDiffCount || 0) >= 3 ? C.danger : '#D97706') : C.success}
-            accentColor={problematicOutlet && (problematicOutlet.largeDiffCount || 0) >= 3 ? C.danger : '#D97706'}
-          >
-            {problematicOutlet ? (
-              <>
-                <div style={{ ...F, fontSize: 16, fontWeight: 800, color: C.n900, marginBottom: 10 }}>{problematicOutlet.outletName}</div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <StatBlock label="SELISIH ≥50RB" value={`${problematicOutlet.largeDiffCount}x`} color={C.danger} />
-                  <StatBlock label="RATA-RATA" value={problematicOutlet.avgAbsCashDiff != null ? rp(problematicOutlet.avgAbsCashDiff) : '—'} />
-                  {trendProblem && <StatBlock label="VS LALU" value={`${trendProblem.arrow} ${trendProblem.label}`} color={trendProblem.color} />}
-                </div>
-              </>
-            ) : (
-              <div style={{ ...F, fontSize: 12, color: C.n500 }}>Tidak ada data selisih periode ini.</div>
-            )}
-          </InsightCard>
-
-          {staleCashiers.length > 0 && (
-            <InsightCard
-              emoji="🚨"
-              title={`SHIFT TERBUKA > 24 JAM`}
-              badge={`${staleCashiers.length} ALERT`}
-              badgeColor={C.danger}
-              accentColor={C.danger}
-            >
-              <div style={{ ...F, fontSize: 10, color: staleTrend.color, fontWeight: 700, marginBottom: 8 }}>
-                {staleTrend.arrow} {staleTrend.label} vs periode lalu
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {staleCashiers.slice(0, 5).map((s) => (
-                  <div key={s.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '8px 10px', background: '#FEF2F2', borderRadius: 8,
-                  }}>
-                    <span style={{ ...F, fontSize: 12, fontWeight: 700, color: C.n900, flex: 1 }}>{s.cashierName}</span>
-                    <span style={{ ...F, fontSize: 10, color: C.n600 }}>{s.outletName}</span>
-                    <span style={{ ...F, fontSize: 11, fontWeight: 800, color: C.danger, background: C.white, padding: '2px 8px', borderRadius: 999 }}>
-                      {hoursSince(s.openedAt).toFixed(0)}j
-                    </span>
+              {/* Outlet disiplin — compact row */}
+              {disciplinedOutlet && (
+                <div style={{ background: C.white, borderRadius: 12, padding: '12px 14px', boxShadow: '0 1px 4px rgba(15,23,42,0.04)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🏆</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ ...F, fontSize: 11, color: C.n500, fontWeight: 500 }}>Paling Disiplin</div>
+                    <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.n900, marginTop: 1 }}>{disciplinedOutlet.outletName}</div>
                   </div>
-                ))}
-              </div>
-            </InsightCard>
-          )}
-        </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.success }}>{rp(disciplinedOutlet.avgAbsCashDiff || 0)}</div>
+                    <div style={{ ...F, fontSize: 9, color: C.n500 }}>avg selisih</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Outlet bermasalah — compact row */}
+              {problematicOutlet && problematicOutlet.largeDiffCount > 0 && (
+                <div style={{ background: C.white, borderRadius: 12, padding: '12px 14px', boxShadow: '0 1px 4px rgba(15,23,42,0.04)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>⚠️</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ ...F, fontSize: 11, color: C.n500, fontWeight: 500 }}>Sering Selisih</div>
+                    <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.n900, marginTop: 1 }}>{problematicOutlet.outletName}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.danger }}>{problematicOutlet.largeDiffCount}x</div>
+                    <div style={{ ...F, fontSize: 9, color: C.n500 }}>kasus ≥50rb</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Shift terbuka terlalu lama — compact alert */}
+              {staleCashiers.length > 0 && (
+                <div style={{ background: '#FEF2F2', borderRadius: 12, padding: '10px 14px', border: '1px solid #FECACA' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: staleCashiers.length > 1 ? 8 : 0 }}>
+                    <span style={{ fontSize: 14 }}>🚨</span>
+                    <span style={{ ...F, fontSize: 12, fontWeight: 700, color: '#991B1B' }}>{staleCashiers.length} shift terbuka &gt;24 jam</span>
+                  </div>
+                  {staleCashiers.slice(0, 3).map((s) => (
+                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', ...F, fontSize: 11, color: '#7F1D1D', padding: '3px 0' }}>
+                      <span>{s.cashierName} · {s.outletName}</span>
+                      <span style={{ fontWeight: 700 }}>{hoursSince(s.openedAt).toFixed(0)}j</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ===== Tab: Sessions ===== */}
         {tab === 'sessions' && (

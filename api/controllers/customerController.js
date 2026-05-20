@@ -1,5 +1,6 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { randomUUID } from 'crypto';
+import { writeAudit } from '../utils/auditLog.js';
 
 // ─── Controller: POST /api/customers/:id/topup ─────────────────────────────
 export const topupDeposit = async (req, res) => {
@@ -47,7 +48,30 @@ export const topupDeposit = async (req, res) => {
       [id]
     );
 
+    // Catat riwayat top-up beserta metode pembayaran
+    try {
+      await conn.execute(
+        `INSERT INTO tr_wallet_topup_log
+           (id, customer_id, amount, pay_method, recorded_by, created_at)
+         VALUES (?, ?, ?, ?, ?, NOW())`,
+        [randomUUID(), id, Number(amount), payMethod || 'cash', req.user?.userId || null]
+      );
+    } catch {
+      // Tabel log belum ada — skip, jangan gagalkan top-up
+    }
+
     await conn.commit();
+
+    // Audit log — sensitif keuangan
+    writeAudit(poolWaschenPos, {
+      userId: req.user?.userId,
+      outletId: req.user?.outletId,
+      entityType: 'customer_wallet',
+      entityId: id,
+      action: 'topup_deposit',
+      newData: { amount: Number(amount), payMethod: payMethod || 'cash', newBalance: Number(wallet.balance) },
+      req,
+    }).catch(() => {});
 
     return res.status(200).json({
       success: true,
@@ -215,6 +239,7 @@ const CUSTOMER_SELECT = `
     c.awareness_source_id AS awareness_source_id,
     c.awareness_other_text AS awareness_other_text,
     c.area_zone_id AS area_zone_id,
+    c.registered_outlet_id AS registeredOutletId,
     c.address_housing AS addressHousing,
     c.address_block AS addressBlock,
     c.address_no AS addressNo,
@@ -225,10 +250,12 @@ const CUSTOMER_SELECT = `
     c.created_at AS createdAt,
     c.updated_at AS updatedAt,
     az.name AS areaZoneName,
+    o.name AS registeredOutletName,
     COALESCE(w.balance, 0) AS deposit,
     COALESCE(tx.total_tx, 0) AS totalTx
   FROM mst_customer c
   LEFT JOIN mst_area_zone az ON az.id = c.area_zone_id
+  LEFT JOIN mst_outlet o ON o.id = c.registered_outlet_id
   LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
   LEFT JOIN (
     SELECT customer_id, COUNT(*) AS total_tx
@@ -249,18 +276,133 @@ const mapCustomerRow = (c) => ({
   isPremium: c.isMember === 1 || c.isMember === true,
   deposit: Number(c.deposit) || 0,
   totalTx: Number(c.totalTx) || 0,
+  registeredOutletId: c.registeredOutletId || null,
+  registeredOutletName: c.registeredOutletName || null,
 });
 
 // ─── Controller: GET /api/customers ────────────────────────────────────────────
 export const getCustomers = async (req, res) => {
   try {
-    const [rows] = await poolWaschenPos.execute(
-      `${CUSTOMER_SELECT} WHERE c.is_active = 1 ORDER BY c.name`
+    const { search, page = 1, limit = 100, outletId: queryOutletId } = req.query;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 100));
+    const offset = (pageNum - 1) * limitNum;
+
+    const userRole = req.user?.roleCode;
+    const userOutletId = req.user?.outletId;
+    const isGlobalRole = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+
+    let where = 'c.is_active = 1';
+    const params = [];
+
+    // Outlet filter logic:
+    // - Kasir/produksi: hanya lihat customer dari outlet mereka sendiri
+    // - Admin/owner/finance: bisa lihat semua, atau filter by outletId query param
+    if (!isGlobalRole && userOutletId) {
+      // Non-admin: paksa filter ke outlet sendiri
+      where += ' AND c.registered_outlet_id = ?';
+      params.push(userOutletId);
+    } else if (isGlobalRole && queryOutletId) {
+      // Admin dengan filter outlet tertentu
+      where += ' AND c.registered_outlet_id = ?';
+      params.push(queryOutletId);
+    }
+    // Admin tanpa filter = tampilkan semua outlet
+
+    if (search && search.trim()) {
+      where += ' AND (c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)';
+      const q = `%${search.trim()}%`;
+      params.push(q, q, q);
+    }
+
+    // Count total
+    const [countRows] = await poolWaschenPos.execute(
+      `SELECT COUNT(*) AS total FROM mst_customer c WHERE ${where}`,
+      params
     );
-    return res.status(200).json({ success: true, data: rows.map(mapCustomerRow) });
+    const total = Number(countRows[0]?.total || 0);
+
+    // Fetch rows
+    const [rows] = await poolWaschenPos.execute(
+      `${CUSTOMER_SELECT} WHERE ${where} ORDER BY c.name LIMIT ${limitNum} OFFSET ${offset}`,
+      params
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: rows.map(mapCustomerRow),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      },
+    });
   } catch (err) {
     console.error('[getCustomers] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat data pelanggan.' });
+  }
+};
+
+// ─── Controller: GET /api/customers/lookup ────────────────────────────────────
+// Fast autocomplete search by name OR phone — used at checkout
+export const lookupCustomers = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const query = (q || '').trim();
+    if (query.length < 2) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const userRole = req.user?.roleCode;
+    const userOutletId = req.user?.outletId;
+    const isGlobalRole = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+
+    const searchPattern = `%${query}%`;
+    const phoneClean = query.replace(/\D/g, '');
+
+    // Outlet filter: kasir hanya lihat customer outlet sendiri
+    const outletFilter = (!isGlobalRole && userOutletId)
+      ? 'AND c.registered_outlet_id = ?'
+      : '';
+    const outletParam = (!isGlobalRole && userOutletId) ? [userOutletId] : [];
+
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT c.id, c.name, c.phone, c.is_member, c.gender,
+              c.registered_outlet_id AS registeredOutletId,
+              w.balance AS depositBalance
+       FROM mst_customer c
+       LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
+       WHERE c.is_active = 1
+         ${outletFilter}
+         AND (c.name LIKE ? OR c.phone LIKE ?
+              ${phoneClean ? "OR REPLACE(REPLACE(c.phone,'+',''),'-','') LIKE ?" : ''})
+       ORDER BY
+         CASE WHEN c.phone = ? THEN 0
+              WHEN c.phone LIKE ? THEN 1
+              WHEN c.name LIKE ? THEN 2
+              ELSE 3 END,
+         c.name
+       LIMIT 15`,
+      phoneClean
+        ? [...outletParam, searchPattern, searchPattern, `%${phoneClean}%`, query, `${query}%`, `${query}%`]
+        : [...outletParam, searchPattern, searchPattern, query, `${query}%`, `${query}%`]
+    );
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      isMember: r.is_member === 1,
+      gender: r.gender,
+      registeredOutletId: r.registeredOutletId,
+      depositBalance: r.depositBalance != null ? Number(r.depositBalance) : 0,
+    }));
+
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('[lookupCustomers] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal mencari customer.' });
   }
 };
 
@@ -333,12 +475,14 @@ export const createCustomer = async (req, res) => {
       `INSERT INTO mst_customer (
         id, customer_no, name, phone, gender, greeting, email,
         awareness_source_id, awareness_other_text, area_zone_id,
+        registered_outlet_id,
         address_housing, address_block, address_no, address_detail,
         is_member, notes, is_active, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, TRUE, NOW(), NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, TRUE, NOW(), NOW())`,
       [
         id, customerNo, name.trim(), phone.trim(), gender, finalGreeting,
         finalEmail, awareness_source_id, finalAwarenessOther, area_zone_id,
+        req.user?.outletId || null,  // registered_outlet_id dari token kasir
         address_housing, address_block, address_no, address_detail,
         finalNotes,
       ]

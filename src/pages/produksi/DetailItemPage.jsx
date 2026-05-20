@@ -67,8 +67,9 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
   const packingComplete = packingDone >= packingNeeded;
 
   const workstation = localStorage.getItem('produksi_workstation') || 'Semua';
-  const canUpdateStage = (workstation === 'Semua' || workstation === nextStage || (nextStage === 'Diterima' && workstation === 'Cuci'))
-    && (nextStage !== 'Packing' || packingComplete);
+  // Semua staff produksi bisa update semua stage (tidak ada sub-role)
+  // Workstation hanya untuk filter tampilan di dashboard, bukan pembatas aksi
+  const canUpdateStage = (nextStage !== 'Packing' || packingComplete);
 
   const handlePackingCount = async (newDone) => {
     const clamped = Math.max(0, Math.min(newDone, packingNeeded));
@@ -275,11 +276,15 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
               <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n700 }}>{item.qty} {item.unit}</span>
             </div>
           ))}
-          {tx.notes && (
-            <div style={{ marginTop: 10, padding: '8px 10px', background: '#FEF3C7', borderRadius: 8 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400E' }}>📝 Catatan: {tx.notes}</span>
-            </div>
-          )}
+          {(() => {
+            const userNotes = (tx.notes || '').replace(/\[Bayar:[^\]]*\]/g, '').trim();
+            if (!userNotes) return null;
+            return (
+              <div style={{ marginTop: 10, padding: '8px 10px', background: '#FEF3C7', borderRadius: 8 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400E' }}>📝 Catatan: {userNotes}</span>
+              </div>
+            );
+          })()}
           {problemSent && (
             <div style={{ marginTop: 8, padding: '8px 12px', background: '#ECFDF5', borderRadius: 8 }}>
               <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#065F46', fontWeight: 600 }}>✅ Laporan masalah berhasil dikirim</span>

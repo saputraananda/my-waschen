@@ -82,3 +82,36 @@ input[type="time"]::-webkit-datetime-edit-minute-field:focus {
   color: #5B005F;
   border: 1px solid #E2E8F0;
 }
+
+/* ───────────────────────────────────────────────────────────────
+   TABLET / IPAD RESPONSIVE (min-width: 768px)
+   Full-width responsive — no max-width constraint
+   ─────────────────────────────────────────────────────────────── */
+
+@media (min-width: 768px) {
+  /* Touch targets — minimum 44px on tablet */
+  .app-inner button {
+    min-height: 44px;
+  }
+
+  /* Make modals wider on tablet */
+  .waschen-swal {
+    width: 420px !important;
+    max-width: 85vw !important;
+    padding: 20px 24px !important;
+  }
+
+  .waschen-swal__title {
+    font-size: 17px !important;
+  }
+
+  .waschen-swal__text {
+    font-size: 14px !important;
+  }
+
+  .waschen-swal__btn {
+    padding: 11px 20px !important;
+    min-width: 110px !important;
+    font-size: 14px !important;
+  }
+}

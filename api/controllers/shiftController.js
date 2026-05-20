@@ -386,7 +386,7 @@ export const listShiftSessions = async (req, res) => {
       params.push(dateTo);
     }
 
-    sql += ` ORDER BY cs.opened_at DESC LIMIT ${limit}`;
+    sql += ` ORDER BY cs.opened_at DESC LIMIT ${Number(limit)}`;
 
     const [rows] = await poolWaschenPos.execute(sql, params);
 

@@ -38,51 +38,57 @@ export const getDashboardStats = async (req, res) => {
     const baseWhere = `t.status <> 'cancelled' AND t.deleted_at IS NULL ${outletFilter}`;
     const pendingOutletFilter = isAllOutlets ? '' : 'AND outlet_id = ?';
 
-    const [[totals], [todayAgg], [monthAgg], [summary], [customerRow]] = await Promise.all([
-      poolWaschenPos.execute(
-        `SELECT
-          COALESCE(SUM(t.total), 0) AS total_omset,
-          COUNT(t.id) AS total_transaksi,
-          COALESCE(SUM(t.paid_amount), 0) AS total_pelunasan
-         FROM tr_transaction t
-         WHERE ${baseWhere}`,
-        outletParam
-      ),
-      poolWaschenPos.execute(
-        `SELECT
-          COALESCE(SUM(t.total), 0) AS omset,
-          COUNT(t.id) AS cnt,
-          COALESCE(SUM(t.paid_amount), 0) AS pelunasan
-         FROM tr_transaction t
-         WHERE ${baseWhere} AND DATE(t.created_at) = CURDATE()`,
-        outletParam
-      ),
-      poolWaschenPos.execute(
-        `SELECT
-          COALESCE(SUM(t.total), 0) AS omset,
-          COUNT(t.id) AS cnt,
-          COALESCE(SUM(t.paid_amount), 0) AS pelunasan
-         FROM tr_transaction t
-         WHERE ${baseWhere}
-           AND YEAR(t.created_at) = YEAR(CURDATE())
-           AND MONTH(t.created_at) = MONTH(CURDATE())`,
-        outletParam
-      ),
-      poolWaschenPos.execute(
-        `SELECT COUNT(id) AS pending_transactions
-         FROM tr_transaction
-         WHERE status IN ('pending', 'process', 'ready_for_pickup', 'ready_for_delivery')
-           AND deleted_at IS NULL ${pendingOutletFilter}`,
-        outletParam
-      ),
-      poolWaschenPos.execute(`SELECT COUNT(*) AS total_customers FROM mst_customer WHERE is_active = 1`),
-    ]);
+    // Jalankan query secara sequential untuk menghindari ECONNRESET
+    // akibat terlalu banyak koneksi paralel ke DB remote
+    const [totals] = await poolWaschenPos.execute(
+      `SELECT
+        COALESCE(SUM(t.total), 0) AS total_omset,
+        COUNT(t.id) AS total_transaksi,
+        COALESCE(SUM(t.paid_amount), 0) AS total_pelunasan
+       FROM tr_transaction t
+       WHERE ${baseWhere}`,
+      outletParam
+    );
 
-    const totalsRow = totals[0] || {};
-    const todayRow = todayAgg[0] || {};
-    const monthRow = monthAgg[0] || {};
-    const summaryRow = summary[0] || {};
-    const custRow = customerRow[0] || {};
+    const [todayAgg] = await poolWaschenPos.execute(
+      `SELECT
+        COALESCE(SUM(t.total), 0) AS omset,
+        COUNT(t.id) AS cnt,
+        COALESCE(SUM(t.paid_amount), 0) AS pelunasan
+       FROM tr_transaction t
+       WHERE ${baseWhere} AND DATE(t.created_at) = CURDATE()`,
+      outletParam
+    );
+
+    const [monthAgg] = await poolWaschenPos.execute(
+      `SELECT
+        COALESCE(SUM(t.total), 0) AS omset,
+        COUNT(t.id) AS cnt,
+        COALESCE(SUM(t.paid_amount), 0) AS pelunasan
+       FROM tr_transaction t
+       WHERE ${baseWhere}
+         AND YEAR(t.created_at) = YEAR(CURDATE())
+         AND MONTH(t.created_at) = MONTH(CURDATE())`,
+      outletParam
+    );
+
+    const [summary] = await poolWaschenPos.execute(
+      `SELECT COUNT(id) AS pending_transactions
+       FROM tr_transaction
+       WHERE status IN ('pending', 'process', 'ready_for_pickup', 'ready_for_delivery')
+         AND deleted_at IS NULL ${pendingOutletFilter}`,
+      outletParam
+    );
+
+    const [customerRow] = await poolWaschenPos.execute(
+      `SELECT COUNT(*) AS total_customers FROM mst_customer WHERE is_active = 1`
+    );
+
+    const totalsRow  = totals[0]     || {};
+    const todayRow   = todayAgg[0]   || {};
+    const monthRow   = monthAgg[0]   || {};
+    const summaryRow = summary[0]    || {};
+    const custRow    = customerRow[0] || {};
 
     let outletComparison = null;
     if (compare && (period === 'today' || period === 'month')) {

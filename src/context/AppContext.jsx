@@ -267,7 +267,9 @@ export const AppProvider = ({ children }) => {
 
   // ─── handleSwitchRole ──────────────────────────────────────────────────────
   const handleSwitchRole = (role) => {
-    const updatedUser = { ...user, role };
+    // Update BOTH role AND roleCode agar BottomNav, dashboard routing, dan
+    // semua komponen yang membaca user.roleCode ikut berubah
+    const updatedUser = { ...user, role, roleCode: role };
     setUser(updatedUser);
     try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch {}
     navigate('dashboard', null, { replace: true });

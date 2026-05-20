@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, Component, forwardRef } from 'react';
+import ReactDOM from 'react-dom';
 import { C, T } from '../../utils/theme';
 import { STATUS_COLORS, STAGES, rp } from '../../utils/helpers';
 import DatePicker from 'react-datepicker';
@@ -16,9 +17,9 @@ export const useToast = () => {
 
 // ── TopBar ────────────────────────────────────────────────
 export const TopBar = ({ title, onBack, rightAction, rightIcon, subtitle }) => (
-  <div style={{ height: 56, background: C.white, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${C.n100}`, flexShrink: 0, position: 'relative', zIndex: 10 }}>
+  <div role="banner" style={{ height: 56, background: C.white, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${C.n100}`, flexShrink: 0, position: 'relative', zIndex: 10 }}>
     {onBack && (
-      <button onClick={onBack} style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n900 }}>
+      <button onClick={onBack} aria-label="Kembali" style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n900 }}>
         <svg style={{ pointerEvents: 'none' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
       </button>
     )}
@@ -27,7 +28,7 @@ export const TopBar = ({ title, onBack, rightAction, rightIcon, subtitle }) => (
       {subtitle && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 1 }}>{subtitle}</div>}
     </div>
     {rightAction && (
-      <button onClick={rightAction} style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600 }}>
+      <button onClick={rightAction} aria-label="Aksi" style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600 }}>
         <div style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {rightIcon}
         </div>
@@ -183,27 +184,58 @@ export const Input = ({ label, value, onChange, type = 'text', error, placeholde
 // ── DateInput (shared calendar picker) ───────────────────
 const _dateInputStyleId = 'waschen-datepicker-styles';
 const _dateInputStyles = `
-.wdp{border:1px solid #E2E8F0;border-radius:14px;font-family:Poppins,sans-serif;box-shadow:0 12px 28px rgba(15,23,42,0.14);overflow:hidden}
+/* Kalender container — compact & contained */
+.wdp{
+  border:1px solid #E2E8F0;
+  border-radius:12px;
+  font-family:Poppins,sans-serif;
+  box-shadow:0 8px 24px rgba(15,23,42,0.12);
+  overflow:hidden;
+  max-width:252px !important;
+  width:252px !important;
+}
 .wdp .react-datepicker__triangle{display:none}
-.wdp .react-datepicker__month-container{background:#F8FAFC}
-.wdp-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;background:linear-gradient(135deg,${C.primary},${C.primaryDark||C.primary});color:#fff;padding:12px 10px}
-.wdp-ml{font-size:13px;font-weight:700;text-transform:capitalize}
-.wdp-nav{width:28px;height:28px;border:none;border-radius:999px;background:rgba(255,255,255,0.2);color:#fff;font-size:20px;line-height:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.wdp .react-datepicker__month-container{background:#F8FAFC;width:252px}
+
+/* Header */
+.wdp-hdr{display:flex;align-items:center;justify-content:space-between;gap:6px;background:linear-gradient(135deg,${C.primary},${C.primaryDark||C.primary});color:#fff;padding:8px 10px}
+.wdp-ml{font-size:11px;font-weight:700;text-transform:capitalize}
+.wdp-nav{width:24px;height:24px;border:none;border-radius:999px;background:rgba(255,255,255,0.2);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
 .wdp-nav:hover{background:rgba(255,255,255,0.3)}
-.wdp .react-datepicker__day-names{margin-top:6px;margin-bottom:2px}
-.wdp .react-datepicker__day-name{color:#64748B;font-size:11px;font-weight:600;width:2rem;line-height:2rem}
-.wdp .react-datepicker__day{color:#0F172A;border-radius:9px;width:2.35rem;min-height:2.35rem;line-height:1.15;margin:0.14rem;font-size:12px;transition:all 0.15s ease;display:inline-flex;align-items:center;justify-content:center}
+
+/* Day names row */
+.wdp .react-datepicker__day-names{margin-top:4px;margin-bottom:0;padding:0 4px}
+.wdp .react-datepicker__day-name{color:#64748B;font-size:9px;font-weight:600;width:1.7rem;line-height:1.7rem;text-align:center}
+
+/* Day cells — compact */
+.wdp .react-datepicker__month{padding:2px 4px 6px}
+.wdp .react-datepicker__week{display:flex}
+.wdp .react-datepicker__day{
+  color:#0F172A;border-radius:6px;
+  width:1.7rem;min-height:1.7rem;
+  line-height:1.7rem;margin:0.08rem;
+  font-size:10px;
+  transition:all 0.15s ease;
+  display:inline-flex;align-items:center;justify-content:center;
+  text-align:center;
+}
 .wdp .react-datepicker__day:hover{background:#DBEAFE;color:#1D4ED8}
 .wdp .react-datepicker__day--today{background:#E2E8F0;color:#334155;font-weight:700}
 .wdp .react-datepicker__day.wdp-wknd:not(.react-datepicker__day--selected):not(.react-datepicker__day--keyboard-selected){color:#5B21B6;background:#EDE9FE}
-.wdp .react-datepicker__day--outside-month{opacity:0.38}
-.wdp .react-datepicker__day--disabled{opacity:0.28!important;cursor:not-allowed!important;text-decoration:line-through;background:transparent!important}
+.wdp .react-datepicker__day--outside-month{opacity:0.3}
+.wdp .react-datepicker__day--disabled{opacity:0.25!important;cursor:not-allowed!important;text-decoration:line-through;background:transparent!important}
 .wdp .react-datepicker__day--selected,.wdp .react-datepicker__day--keyboard-selected{background:${C.primary};color:#fff;font-weight:700}
-.wdp .react-datepicker__day--selected .wdp-tb,.wdp .react-datepicker__day--keyboard-selected .wdp-tb{color:#fff;background:rgba(255,255,255,0.28)}
-.wdp-dw{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px 0}
-.wdp-dn{font-size:12px;font-weight:600;line-height:1}
-.wdp-tb{font-size:7px;font-weight:700;letter-spacing:0.02em;color:#1D4ED8;background:#DBEAFE;padding:1px 5px;border-radius:999px;line-height:1.2}
+
+/* Day content — simple, no badge */
+.wdp-dw{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.wdp-dn{font-size:10px;font-weight:500;line-height:1}
+.wdp-tb{display:none}
+
+/* Popper z-index — must be above everything */
+.react-datepicker-popper{z-index:9999 !important}
+.react-datepicker-wrapper{width:100%}
 `;
+
 
 function _ensureDateStyles() {
   if (typeof document === 'undefined') return;
@@ -296,6 +328,11 @@ export const DateInput = ({ label, value, onChange, placeholder, minDate, maxDat
         onCalendarOpen={() => setFocused(true)}
         onCalendarClose={() => setFocused(false)}
         customInput={<DateInputCustom focused={focused} placeholder={placeholder} />}
+        popperPlacement="bottom-start"
+        popperProps={{
+          strategy: 'fixed',
+        }}
+        withPortal={false}
       />
       {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
     </div>
@@ -318,42 +355,153 @@ export const Textarea = ({ label, value, onChange, placeholder, rows = 3 }) => {
 };
 
 // ── Select ────────────────────────────────────────────────
+// Custom styled dropdown — portal-based, works inside Modal/overflow containers
 export const Select = ({ label, value, onChange, options, error, placeholder }) => {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const triggerRef = useRef(null);
+  const dropRef = useRef(null);
+  // Track pending selection to survive the close-on-outside-click race
+  const pendingRef = useRef(null);
 
+  const calcPos = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const dropH = Math.min(options.length * 48, 220);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openAbove = spaceBelow < dropH + 8 && rect.top > dropH + 8;
+    setDropPos({
+      top: openAbove ? rect.top - dropH - 4 : rect.bottom + 2,
+      left: rect.left,
+      width: rect.width,
+    });
+  };
+
+  const handleTriggerClick = () => {
+    if (open) {
+      setOpen(false);
+    } else {
+      calcPos();
+      setOpen(true);
+    }
+  };
+
+  const handleSelect = (val) => {
+    pendingRef.current = val;
+    onChange(val);
+    setOpen(false);
+  };
+
+  // Close on outside click — but only if not clicking trigger or dropdown
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (triggerRef.current?.contains(e.target)) return;
+      if (dropRef.current?.contains(e.target)) return;
+      setOpen(false);
     };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('touchstart', handler);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('touchstart', handler);
-    };
+    // Use capture so we get it before anything else
+    document.addEventListener('pointerdown', handler, true);
+    return () => document.removeEventListener('pointerdown', handler, true);
   }, [open]);
 
-  const selectedOption = options.find((o) => o.value === value);
+  // Close + reposition on scroll
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => setOpen(false);
+    window.addEventListener('scroll', handler, true);
+    return () => window.removeEventListener('scroll', handler, true);
+  }, [open]);
+
+  const selectedOption = options.find((o) => String(o.value) === String(value));
   const displayLabel = selectedOption ? selectedOption.label : (placeholder || 'Pilih...');
 
+  const dropdown = open
+    ? ReactDOM.createPortal(
+        <div
+          ref={dropRef}
+          style={{
+            position: 'fixed',
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            background: C.white,
+            border: `1.5px solid ${C.primary}`,
+            borderRadius: 10,
+            maxHeight: 220,
+            overflowY: 'auto',
+            zIndex: 99999,
+            boxShadow: '0 8px 32px rgba(15,23,42,0.18)',
+          }}
+        >
+          {options.map((o, i) => {
+            const isActive = String(o.value) === String(value);
+            const isLast = i === options.length - 1;
+            return (
+              <div
+                key={String(o.value)}
+                role="option"
+                aria-selected={isActive}
+                onClick={() => handleSelect(o.value)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  width: '100%', padding: '12px 14px',
+                  background: isActive ? C.primaryLight : 'transparent',
+                  borderBottom: !isLast ? `1px solid ${C.n100}` : 'none',
+                  borderRadius: isLast ? '0 0 9px 9px' : 0,
+                  fontFamily: 'Poppins', fontSize: 13,
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? C.primary : C.n900,
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                  boxSizing: 'border-box',
+                }}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = C.n50; }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {o.label}
+                </span>
+                {isActive && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="3" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
-    <div ref={ref} style={{ marginBottom: 16, position: 'relative', zIndex: open ? 50 : 1 }}>
-      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
-      
-      {/* Trigger button */}
+    <div style={{ marginBottom: 16, position: 'relative' }}>
+      {label && (
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>
+          {label}
+        </div>
+      )}
+
+      {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleTriggerClick}
         style={{
-          width: '100%', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 14px', background: C.white, cursor: 'pointer', outline: 'none',
+          width: '100%', height: 48,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 14px',
+          background: C.white,
           border: `${open ? 2 : 1.5}px solid ${error ? C.danger : open ? C.primary : C.n300}`,
-          borderRadius: open ? '10px 10px 0 0' : 10,
-          fontFamily: 'Poppins', fontSize: 14, color: selectedOption ? C.n900 : C.n600,
-          boxSizing: 'border-box', transition: 'border-color 0.2s, border-radius 0.15s',
-          boxShadow: open ? `0 2px 12px ${C.primary}15` : 'none',
+          borderRadius: 10,
+          fontFamily: 'Poppins', fontSize: 14,
+          color: selectedOption ? C.n900 : C.n500,
+          cursor: 'pointer', outline: 'none',
+          boxSizing: 'border-box',
+          transition: 'border-color 0.15s',
+          WebkitTapHighlightColor: 'transparent',
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
@@ -362,66 +510,25 @@ export const Select = ({ label, value, onChange, options, error, placeholder }) 
         <svg
           width="16" height="16" viewBox="0 0 24 24"
           fill="none" stroke={open ? C.primary : C.n500}
-          strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          style={{ flexShrink: 0, transition: 'transform 0.25s ease', transform: open ? 'rotate(180deg)' : 'rotate(0)', pointerEvents: 'none' }}
+          strokeWidth="2.5" strokeLinecap="round"
+          style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', pointerEvents: 'none' }}
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
 
-      {/* Dropdown list */}
-      <div
-        style={{
-          position: 'absolute', top: '100%', left: 0, right: 0,
-          background: C.white,
-          border: open ? `1.5px solid ${C.primary}` : '1.5px solid transparent',
-          borderTop: open ? `1px solid ${C.n100}` : 'none',
-          borderRadius: '0 0 14px 14px',
-          maxHeight: open ? 220 : 0,
-          overflowY: 'auto', overflowX: 'hidden',
-          opacity: open ? 1 : 0,
-          transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease',
-          boxShadow: open ? '0 8px 24px rgba(15,23,42,0.12)' : 'none',
-          pointerEvents: open ? 'auto' : 'none',
-          scrollbarWidth: 'thin', scrollbarColor: `${C.n300} transparent`,
-        }}
-      >
-        {options.map((o, i) => {
-          const isActive = value === o.value;
-          const isLast = i === options.length - 1;
-          return (
-            <div
-              key={o.value}
-              onClick={() => { onChange(o.value); setOpen(false); }}
-              style={{
-                padding: '12px 14px',
-                fontFamily: 'Poppins', fontSize: 13, fontWeight: isActive ? 600 : 400,
-                color: isActive ? C.primary : C.n900,
-                background: isActive ? C.primaryLight : 'transparent',
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                transition: 'background 0.15s',
-                borderRadius: isLast ? '0 0 13px 13px' : 0,
-              }}
-              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = C.n50; }}
-              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = isActive ? C.primaryLight : 'transparent'; }}
-            >
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.label}</span>
-              {isActive && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="3" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
-            </div>
-          );
-        })}
-        <div style={{ height: 4 }} />
-      </div>
+      {dropdown}
 
-      {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
+      {error && (
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>
+          {error}
+        </div>
+      )}
     </div>
   );
 };
+
+
 
 // ── Badge ─────────────────────────────────────────────────
 export const Badge = ({ status, label, small }) => {
@@ -471,7 +578,7 @@ export const BottomSheet = ({ visible, onClose, title, children }) => (
 export const Modal = ({ visible, onClose, title, children }) => (
   <>
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.2s' }} />
-    <div style={{ position: 'absolute', top: '50%', left: 20, right: 20, background: C.white, borderRadius: 20, zIndex: 201, padding: 24, transform: visible ? 'translate(0, -50%) scale(1)' : 'translate(0, -50%) scale(0.9)', opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+    <div style={{ position: 'absolute', top: '50%', left: 20, right: 20, background: C.white, borderRadius: 20, zIndex: 201, padding: 24, transform: visible ? 'translate(0, -50%) scale(1)' : 'translate(0, -50%) scale(0.9)', opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)', overflow: 'visible', maxHeight: '85vh', overflowY: 'auto' }}>
       {title && <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, marginBottom: 16 }}>{title}</div>}
       {children}
     </div>
@@ -522,14 +629,17 @@ export const SearchBar = ({ value, onChange, placeholder = 'Cari...' }) => (
 );
 
 // ── EmptyState ────────────────────────────────────────────
-export const EmptyState = ({ title, subtitle, action, actionLabel }) => (
+export const EmptyState = ({ title, subtitle, action, actionLabel, icon, secondaryAction, secondaryLabel }) => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12, textAlign: 'center' }}>
-    <div style={{ width: 72, height: 72, borderRadius: 36, background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.primarySoft} strokeWidth="1.5" strokeLinecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
+    <div style={{ width: 72, height: 72, borderRadius: 36, background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: icon ? 32 : 28 }}>
+      {icon || <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.primarySoft} strokeWidth="1.5" strokeLinecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>}
     </div>
     <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900 }}>{title}</div>
-    {subtitle && <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>{subtitle}</div>}
-    {action && <Btn variant="secondary" onClick={action} size="sm">{actionLabel}</Btn>}
+    {subtitle && <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, maxWidth: 280, lineHeight: 1.6 }}>{subtitle}</div>}
+    <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+      {action && <Btn variant="secondary" onClick={action} size="sm">{actionLabel || 'Tambah'}</Btn>}
+      {secondaryAction && <Btn variant="ghost" onClick={secondaryAction} size="sm">{secondaryLabel || 'Lihat Semua'}</Btn>}
+    </div>
   </div>
 );
 
@@ -597,37 +707,90 @@ export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Ya', cance
 };
 
 // ── ErrorBoundary ────────────────────────────────────────
+// Per-page boundary — kalau crash, hanya page itu yang affected, bukan seluruh app.
+// Support custom fallback dan reset tanpa reload.
 export class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
   componentDidCatch(error, info) {
     console.error('[ErrorBoundary]', error, info);
+    this.setState({ errorInfo: info });
+    // Optional: send to error tracking service
+    if (typeof this.props.onError === 'function') {
+      try { this.props.onError(error, info); } catch {}
+    }
   }
+  reset = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
+  };
   render() {
     if (this.state.hasError) {
+      // Custom fallback if provided
+      if (typeof this.props.fallback === 'function') {
+        return this.props.fallback({ error: this.state.error, reset: this.reset });
+      }
+      const isDev = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
       return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', gap: 16, textAlign: 'center', background: '#FCF9FC', minHeight: '100vh' }}>
-          <div style={{ width: 72, height: 72, borderRadius: 36, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 32 }}>❌</span>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', gap: 16, textAlign: 'center', background: C.n50, minHeight: this.props.minHeight || '60vh' }}>
+          <div style={{ width: 64, height: 64, borderRadius: 32, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 28 }}>⚠️</span>
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: '#0F172A' }}>Terjadi Kesalahan</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, color: '#475569', maxWidth: 300, lineHeight: 1.6 }}>
-            Aplikasi mengalami error. Silakan muat ulang halaman.
+          <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900 }}>Terjadi Kesalahan</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, maxWidth: 320, lineHeight: 1.6 }}>
+            Halaman ini mengalami error. Coba muat ulang bagian ini, atau kembali ke halaman sebelumnya.
           </div>
-          <button
-            onClick={() => window.location.reload()}
-            style={{ marginTop: 8, padding: '12px 32px', fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: 'white', background: '#5B005F', border: 'none', borderRadius: 12, cursor: 'pointer' }}
-          >
-            Muat Ulang
-          </button>
+          {isDev && this.state.error && (
+            <pre style={{ fontFamily: 'monospace', fontSize: 10, color: '#991B1B', background: '#FEF2F2', padding: 12, borderRadius: 8, maxWidth: '90%', overflow: 'auto', textAlign: 'left' }}>
+              {String(this.state.error?.message || this.state.error)}
+            </pre>
+          )}
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <button
+              onClick={this.reset}
+              style={{ padding: '10px 22px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.primary, background: 'white', border: `1.5px solid ${C.primary}`, borderRadius: 10, cursor: 'pointer' }}
+            >
+              Coba Lagi
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ padding: '10px 22px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: 'white', background: C.primary, border: 'none', borderRadius: 10, cursor: 'pointer' }}
+            >
+              Muat Ulang
+            </button>
+          </div>
         </div>
       );
     }
     return this.props.children;
   }
 }
+
+// ── Re-exports for convenience ────────────────────────────
+export { SkeletonBar, SkeletonCard, SkeletonList, SkeletonStat, SkeletonStatGrid, SkeletonTable } from './Skeleton';
+export { QRCodeView, generateQRDataURL } from './QRCode';
+export { CustomerSearchInput } from './CustomerSearchInput';
+export { RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, ComparisonLineChart, HourlyHeatBar, CHART_COLORS } from './Charts';
+
+// ── OfflineIndicator ──────────────────────────────────────
+// Banner kecil di bottom kalau offline
+export const OfflineIndicator = ({ online }) => {
+  if (online) return null;
+  return (
+    <div style={{
+      position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+      background: '#1F2937', color: 'white',
+      padding: '10px 18px', borderRadius: 999, zIndex: 9999,
+      display: 'flex', alignItems: 'center', gap: 8,
+      fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
+      boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+    }}>
+      <span style={{ width: 8, height: 8, borderRadius: 4, background: '#EF4444', animation: 'pulse 1.5s infinite' }} />
+      Anda offline — beberapa fitur tidak tersedia
+    </div>
+  );
+};

@@ -130,28 +130,37 @@ export default function LoginPage({ onLogin }) {
       }} 
     >
       {/* ─── AMBIENT GLOWING BACKGROUND (THE MAGIC) ─── */}
-      <div style={{ position: 'absolute', top: '-10%', left: '-20%', width: '60vw', height: '60vw', background: C.primary, borderRadius: '50%', filter: 'blur(100px)', opacity: 0.35, zIndex: 0, animation: 'pulseGlow 8s infinite alternate' }} />
-      <div style={{ position: 'absolute', bottom: '-10%', right: '-15%', width: '50vw', height: '50vw', background: '#0EA5E9', borderRadius: '50%', filter: 'blur(100px)', opacity: 0.25, zIndex: 0, animation: 'pulseGlow 10s infinite alternate-reverse' }} />
+      <div style={{ position: 'absolute', top: '5%', left: '10%', width: '70vw', height: '70vw', background: `radial-gradient(circle, ${C.primary}90, ${C.primary}20)`, borderRadius: '50%', filter: 'blur(80px)', opacity: 0.4, zIndex: 0, animation: 'pulseGlow 8s infinite alternate' }} />
+      <div style={{ position: 'absolute', top: '30%', right: '5%', width: '50vw', height: '50vw', background: `radial-gradient(circle, #E85D04aa, #E85D0420)`, borderRadius: '50%', filter: 'blur(70px)', opacity: 0.3, zIndex: 0, animation: 'pulseGlow 6s infinite alternate-reverse' }} />
+      <div style={{ position: 'absolute', bottom: '5%', left: '20%', width: '60vw', height: '60vw', background: `radial-gradient(circle, #0EA5E990, #0EA5E920)`, borderRadius: '50%', filter: 'blur(80px)', opacity: 0.3, zIndex: 0, animation: 'pulseGlow 10s infinite alternate' }} />
 
       {/* ─── MAIN CONTENT WRAPPER ─── */}
       <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: '420px', margin: '0 auto' }}>
         
         {/* HEADER AREA */}
         <div style={{ textAlign: 'center', marginBottom: '32px', animation: 'fadeInDown 0.5s ease-out' }}>
-          <div style={{
-            width: '80px', height: '80px', borderRadius: '24px', margin: '0 auto 20px',
-            background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 12px 24px ${C.primary}40`,
-            border: '2px solid rgba(255,255,255,0.5)'
-          }}>
-            <svg width="42" height="42" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="18" stroke="white" strokeWidth="3" fill="none" opacity="0.3" />
-              <path d="M14 24 C14 18, 20 14, 24 20 C28 14, 34 18, 34 24 C34 30, 28 35, 24 38 C20 35, 14 30, 14 24Z" fill="white" />
+          {/* Logo Wäschen — SVG inline */}
+          <div style={{ margin: '0 auto 16px', width: 260 }}>
+            <svg viewBox="0 0 320 100" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: 'auto' }}>
+              {/* Bubbles */}
+              <circle cx="28" cy="52" r="14" fill="none" stroke="#E85D04" strokeWidth="3.5"/>
+              <circle cx="18" cy="72" r="8" fill="none" stroke="#E85D04" strokeWidth="3"/>
+              <circle cx="38" cy="78" r="5" fill="#E85D04"/>
+              <circle cx="48" cy="38" r="5" fill="#E85D04"/>
+              {/* Text "Wäschen" */}
+              <text x="52" y="68" fontFamily="'Poppins', Arial, sans-serif" fontSize="46" fontWeight="800" fill="#5B005F" letterSpacing="-1">
+                W<tspan fontSize="42">ä</tspan>schen
+              </text>
+              {/* ® symbol */}
+              <text x="285" y="42" fontFamily="'Poppins', Arial, sans-serif" fontSize="14" fontWeight="700" fill="#5B005F">®</text>
+              {/* Tagline bar */}
+              <rect x="52" y="76" width="195" height="18" rx="2" fill="#E85D04"/>
+              <text x="150" y="89" fontFamily="'Poppins', Arial, sans-serif" fontSize="10" fontWeight="700" fill="white" textAnchor="middle" letterSpacing="0.5">
+                EXPERT LAUNDRY SOLUTIONS
+              </text>
             </svg>
           </div>
-          <h1 style={{ fontSize: '32px', fontWeight: 800, color: C.n900, margin: '0 0 4px', letterSpacing: '-0.5px' }}>Waschen</h1>
-          <p style={{ fontSize: '15px', color: C.n500, margin: 0, fontWeight: 500 }}>
+          <p style={{ fontSize: '14px', color: C.n500, margin: 0, fontWeight: 500 }}>
             {step === 1 ? 'Smart Laundry POS System' : `Welcome back, ${adminPayload?.name?.split(' ')[0]} 👋`}
           </p>
         </div>
