@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/auth.js';
 import {
   getOutletStock,
   getInventoryOutletSummary,
+  getAllOutletStocks,
   adjustInventoryStock,
   getInventoryCategories,
   listInventoryItems,
@@ -19,8 +20,8 @@ const router = Router();
 
 const adminFinance = requireRole('admin', 'finance', 'superadmin', 'owner');
 
-router.get('/categories', authenticate, adminFinance, getInventoryCategories);
-router.get('/items', authenticate, adminFinance, listInventoryItems);
+router.get('/categories', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), getInventoryCategories);
+router.get('/items', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), listInventoryItems);
 router.post('/items', authenticate, adminFinance, createInventoryItem);
 router.patch('/items/:id', authenticate, adminFinance, patchInventoryItem);
 router.get('/service-usage', authenticate, adminFinance, listServiceInventoryUsage);
@@ -28,8 +29,9 @@ router.post('/service-usage', authenticate, adminFinance, upsertServiceInventory
 router.delete('/service-usage/:id', authenticate, adminFinance, deleteServiceInventoryUsage);
 router.patch('/outlet-min', authenticate, adminFinance, patchOutletMinStock);
 
-router.get('/stock', authenticate, requireRole('kasir', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), getOutletStock);
+router.get('/stock', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), getOutletStock);
 router.get('/summary-outlets', authenticate, adminFinance, getInventoryOutletSummary);
-router.post('/adjust', authenticate, requireRole('kasir', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), adjustInventoryStock);
+router.get('/all-outlet-stocks', authenticate, adminFinance, getAllOutletStocks);
+router.post('/adjust', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), adjustInventoryStock);
 
 export default router;

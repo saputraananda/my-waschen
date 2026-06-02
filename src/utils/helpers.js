@@ -58,20 +58,43 @@ export const parseRupiah = (value) => {
 };
 
 
-export const STAGES = ['Diterima', 'Cuci', 'Pengeringan', 'Setrika', 'Packing', 'Selesai'];
+export const STAGES = ['Diterima', 'Cuci', 'Setrika', 'Packing', 'Selesai'];
 
+// Status colors — kalau update value, sync juga ke src/utils/statusMap.js (TX_STATUS, etc).
+// Single source of truth untuk warna status badge di seluruh app.
 export const STATUS_COLORS = {
-  baru: { bg: '#EFF6FF', text: '#2563EB' },
-  proses: { bg: '#FFF7ED', text: '#F59E0B' },
-  selesai: { bg: '#ECFDF5', text: '#10B981' },
-  diambil: { bg: '#F6F1F7', text: '#475569' },
-  dibatalkan: { bg: '#FEF2F2', text: '#EF4444' },
-  Gold: { bg: '#FEF9C3', text: '#92400E' },
-  Silver: { bg: '#F6F1F7', text: '#475569' },
-  Regular: { bg: '#F3E6F5', text: '#5B005F' },
-  pending: { bg: '#FFF7ED', text: '#F59E0B' },
-  approved: { bg: '#ECFDF5', text: '#10B981' },
-  rejected: { bg: '#FEF2F2', text: '#EF4444' },
+  // Transaction status (UI)
+  baru:        { bg: '#DBEAFE', text: '#2563EB' },
+  proses:      { bg: '#E0F2FE', text: '#0EA5E9' },
+  selesai:     { bg: '#DCFCE7', text: '#10B981' },
+  diambil:     { bg: '#EDE9FE', text: '#5B21B6' },
+  dibatalkan:  { bg: '#FEE2E2', text: '#DC2626' },
+
+  // Payment status
+  paid:        { bg: '#DCFCE7', text: '#10B981' },
+  partial:     { bg: '#FEF3C7', text: '#F59E0B' },
+  unpaid:      { bg: '#FEE2E2', text: '#DC2626' },
+
+  // Membership tier
+  Gold:        { bg: '#FEF9C3', text: '#92400E' },
+  Silver:      { bg: '#F6F1F7', text: '#475569' },
+  Regular:     { bg: '#F3E6F5', text: '#5B005F' },
+  Premium:     { bg: '#FEF3C7', text: '#92400E' },
+
+  // Approval / generic
+  pending:          { bg: '#FEF3C7', text: '#F59E0B' },
+  pending_approval: { bg: '#FEF3C7', text: '#F59E0B' },
+  approved:         { bg: '#DCFCE7', text: '#10B981' },
+  auto_approved:    { bg: '#DCFCE7', text: '#10B981' },
+  revised:          { bg: '#FED7AA', text: '#9A3412' },
+  rejected:         { bg: '#FEE2E2', text: '#DC2626' },
+  fulfilled:        { bg: '#DCFCE7', text: '#15803D' },
+  cancelled:        { bg: '#F3F4F6', text: '#6B7280' },
+
+  // Urgency
+  normal:      { bg: '#DBEAFE', text: '#1E40AF' },
+  urgent:      { bg: '#FEF3C7', text: '#92400E' },
+  critical:    { bg: '#FEE2E2', text: '#991B1B' },
 };
 
 /**
@@ -148,4 +171,56 @@ export const getCroppedImg = (imageSrc, pixelCrop, targetSize = 800, quality = 0
     };
     image.onerror = (error) => reject(error);
   });
+};
+
+/** UUID transaksi untuk panggilan API (bukan no. nota tampilan). */
+export const txApiId = (tx) => tx?.transactionUuid || tx?.transactionNo || tx?.id;
+
+const PHOTO_TYPE_LABELS = {
+  initial_condition: 'Kondisi terima',
+  damage: 'Kerusakan / defect',
+  packing_handover: 'Packing / serah',
+  after_condition: 'Setelah cuci',
+  before: 'Sebelum',
+  after: 'Sesudah',
+  note_only: 'Catatan',
+};
+
+export const photoTypeLabel = (type) => PHOTO_TYPE_LABELS[type] || type || 'Foto';
+
+
+// ─── Text utilities ──────────────────────────────────────────────────────────
+/**
+ * Auto-kapitalisasi setiap awal kata. Cocok untuk nama orang, jalan, kota.
+ * "perumahan griya jl. mawar 5" → "Perumahan Griya Jl. Mawar 5"
+ */
+export const titleCase = (str) => {
+  if (!str) return '';
+  return String(str)
+    .split(/(\s+)/) // pertahankan spacing asli
+    .map((part) => {
+      if (!part.trim()) return part;
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    })
+    .join('');
+};
+
+/** Auto-kapitalisasi pertama dari string saja (untuk alamat detail) */
+export const sentenceCase = (str) => {
+  if (!str) return '';
+  const trimmed = String(str);
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
+
+/**
+ * Format alamat: kapitalisasi tiap kata, pertahankan abbreviation seperti "Jl." "Rt." dll
+ */
+export const formatAlamat = (str) => {
+  if (!str) return '';
+  return titleCase(str)
+    .replace(/\bJl\.\b/gi, 'Jl.')
+    .replace(/\bRt\.\b/gi, 'RT')
+    .replace(/\bRw\.\b/gi, 'RW')
+    .replace(/\bNo\.\b/gi, 'No.')
+    .replace(/\bBlok\b/gi, 'Blok');
 };

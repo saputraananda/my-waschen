@@ -3,7 +3,7 @@ import axios from 'axios';
 import { C, T } from '../utils/theme';
 import { Avatar, Btn, Divider } from '../components/ui';
 
-const ROLE_LABEL = { admin: 'Admin', kasir: 'Kasir', produksi: 'Produksi', finance: 'Finance' };
+const ROLE_LABEL = { admin: 'Admin', kasir: 'Frontline', frontline: 'Frontline', produksi: 'Produksi', finance: 'Finance' };
 
 const fmtDate = (v) => {
   if (!v) return '-';
@@ -18,7 +18,7 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
   const isAdmin = (user?.originalRoleCode ?? user?.roleCode) === 'admin';
 
   const ADMIN_ROLES = [
-    { id: 'kasir',    label: 'Kasir',    icon: '🧾' },
+    { id: 'frontline', label: 'Frontline', icon: '🧾' },
     { id: 'produksi', label: 'Produksi', icon: '🧺' },
     { id: 'admin',    label: 'Admin',    icon: '👑' },
     { id: 'finance',  label: 'Finance',  icon: '💰' },
@@ -30,7 +30,7 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
   const MENUS = (() => {
     const base = [];
 
-    if (role === 'kasir') {
+    if (role === 'kasir' || role === 'frontline') {
       base.push(
         { label: 'Pengaturan Printer', icon: '🖨️', screen: 'printer_settings' },
         { label: 'Info Outlet', icon: '🏪', screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
@@ -43,6 +43,7 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
       );
     } else if (role === 'finance') {
       base.push(
+        { label: 'Laporan Outlet', icon: '📊', screen: 'kasir_laporan' },
         { label: 'Info Outlet', icon: '🏪', screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
         { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
         { label: 'Daftar Member', icon: '👥', screen: 'daftar_member' },
@@ -50,7 +51,7 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
     } else {
       base.push(
         { label: 'Pengaturan Printer', icon: '🖨️', screen: 'printer_settings' },
-        { label: 'Manajemen Outlet', icon: '🏪', screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
+        { label: 'Manajemen Outlet', icon: '🏪', screen: 'manajemen_outlet' },
         { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
         { label: 'Data Pegawai', icon: '👨‍💼', screen: 'manajemen_user' },
         { label: 'Manajemen Layanan', icon: '🧺', screen: 'manajemen_layanan' },
@@ -59,14 +60,14 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
 
     base.push(
       { label: 'Bantuan', icon: '❓', screen: null },
-      { label: 'Kebijakan Privasi', icon: '🔒', screen: null },
+      { label: 'Kebijakan Privasi', icon: '🔒', screen: 'kebijakan_privasi' },
     );
 
     return base;
   })();
 
   useEffect(() => {
-    if (user?.role !== 'kasir') return;
+    if (user?.role !== 'kasir' && user?.role !== 'frontline') return;
     axios.get('/api/shifts/status')
       .then((r) => setShiftStatus(r?.data || null))
       .catch(() => setShiftStatus(null));
@@ -105,12 +106,18 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
             )}
             {outletInfo && (
               <span style={{
-                background: outletInfo.isActive ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)',
-                border: `1px solid ${outletInfo.isActive ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'}`,
+                background: outletInfo.isActive ? '#10B981' : '#EF4444',
                 fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: 'white',
-                padding: '2px 8px', borderRadius: 999
+                padding: '2px 9px', borderRadius: 999,
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                boxShadow: outletInfo.isActive ? '0 2px 6px rgba(16,185,129,0.4)' : '0 2px 6px rgba(239,68,68,0.4)',
               }}>
-                {outletInfo.isActive ? '● Aktif' : '● Nonaktif'}
+                <span style={{
+                  width: 6, height: 6, borderRadius: 3,
+                  background: 'white',
+                  boxShadow: '0 0 0 2px rgba(255,255,255,0.3)',
+                }} />
+                {outletInfo.isActive ? 'Aktif' : 'Nonaktif'}
               </span>
             )}
           </div>
@@ -146,7 +153,7 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
 
 
         {/* Shift section */}
-        {role === 'kasir' && (
+        {(role === 'kasir' || role === 'frontline') && (
           <div style={{ ...T.card, padding: '14px 16px', marginBottom: 12 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 10 }}>
               SHIFT KASIR

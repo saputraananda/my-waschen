@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BottomNav, ErrorBoundary, OfflineIndicator } from './components/ui';
+import { BottomNav, ErrorBoundary, OfflineIndicator, GlobalPullToRefresh } from './components/ui';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { C } from './utils/theme';
@@ -18,15 +18,26 @@ import NotaStep3Page from './pages/kasir/NotaStep3Page';
 import NotaBerhasilPage from './pages/kasir/NotaBerhasilPage';
 import TransaksiListPage from './pages/kasir/TransaksiListPage';
 import DetailTransaksiPage from './pages/kasir/DetailTransaksiPage';
+import PelunasanPage from './pages/kasir/PelunasanPage';
 import CetakNotaPage from './pages/kasir/CetakNotaPage';
+import QrPaymentPage from './pages/kasir/QrPaymentPage';
+import KasOutletPage from './pages/KasOutletPage';
+import KasApprovalPage from './pages/admin/KasApprovalPage';
+import RequestBarangPage from './pages/kasir/RequestBarangPage';
+import PurchaseRequestsPage from './pages/admin/PurchaseRequestsPage';
+import AllOutletStocksPage from './pages/admin/AllOutletStocksPage';
+import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import StokBahanPage from './pages/kasir/StokBahanPage';
 import KasirShiftPage from './pages/kasir/ShiftPage';
 import PrinterSettingsPage from './pages/kasir/PrinterSettingsPage';
+import KasirLaporanPage from './pages/kasir/LaporanPage';
 
 // Admin
 import AdminDashboardPage from './pages/admin/DashboardPage';
 import ManajemenUserPage from './pages/admin/ManajemenUserPage';
+import ManajemenOutletPage from './pages/admin/ManajemenOutletPage';
 import ManajemenLayananPage from './pages/admin/ManajemenLayananPage';
+import KelolaLayananOutletPage from './pages/admin/KelolaLayananOutletPage';
 import ApprovalPage from './pages/admin/ApprovalPage';
 import MonitoringPage from './pages/admin/MonitoringPage';
 import AdminLaporanPage from './pages/admin/AdminLaporanPage';
@@ -36,16 +47,19 @@ import InfoOutletPage from './pages/admin/InfoOutletPage';
 import RekapPendapatanPage from './pages/admin/RekapPendapatanPage';
 import GeneralReportPage from './pages/admin/GeneralReportPage';
 import AdminTargetPage from './pages/admin/AdminTargetPage';
+import AdminTargetDetailPage from './pages/admin/AdminTargetDetailPage';
 import AdminPeriodClosePage from './pages/admin/AdminPeriodClosePage';
 import ComparisonReportPage from './pages/admin/ComparisonReportPage';
 import ForecastPage from './pages/admin/ForecastPage';
 
 // Produksi
 import ProduksiDashboardPage from './pages/produksi/DashboardPage';
+import ProduksiAntrianPage from './pages/produksi/AntrianPage';
 import DetailItemProduksiPage from './pages/produksi/DetailItemPage';
 import FotoKondisiPage from './pages/produksi/FotoKondisiPage';
 import ProduksiQRScanPage from './pages/produksi/QRScanPage';
 import ProduksiRiwayatPage from './pages/produksi/RiwayatPage';
+import DetailRiwayatProduksiPage from './pages/produksi/DetailRiwayatProduksiPage';
 
 // Finance
 import FinanceDashboardPage from './pages/finance/DashboardPage';
@@ -59,20 +73,21 @@ import DaftarMemberPage from './pages/member/DaftarMemberPage';
 
 // Shared pages
 import SettingsPage from './pages/SettingsPage';
+import KebijakanPrivasiPage from './pages/KebijakanPrivasiPage';
 import NotifikasiPage from './pages/NotifikasiPage';
 import ProfilePage from './pages/ProfilePage';
 import BukaShiftPage from './pages/kasir/BukaShiftPage';
 import TutupShiftPage from './pages/kasir/TutupShiftPage';
-import KasirAntrianPage from './pages/kasir/AntrianPage';
-import SiapAmbilPage from './pages/kasir/SiapAmbilPage';
 
 const SCREENS_NO_NAV = new Set([
   'splash', 'login', 'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
-  'tambah_customer', 'detail_item_produksi', 'foto_kondisi',
-  'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'notifikasi',
-  'manajemen_user', 'manajemen_layanan', 'admin_promo_sla', 'admin_promo', 'admin_stok', 'kasir_stok_bahan',
+  'tambah_customer', 'detail_item_produksi', 'foto_kondisi', 'detail_riwayat_produksi',
+  'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'notifikasi', 'qr_payment', 'pelunasan',
+  'kas_outlet', 'kas_approval', 'request_barang', 'admin_purchase_requests', 'admin_all_outlet_stocks', 'admin_settings',
+  'manajemen_user', 'manajemen_layanan', 'kelola_layanan_outlet', 'admin_promo_sla', 'admin_promo', 'admin_stok', 'kasir_stok_bahan',
   'profil', 'buka_shift', 'tutup_shift', 'admin_laporan', 'admin_shift', 'info_outlet', 'rekap_pendapatan',
-  'kasir_antrian', 'kasir_siap_ambil', 'printer_settings', 'general_report', 'admin_target', 'admin_period_close'
+  'kasir_antrian', 'kasir_siap_ambil', 'kasir_laporan', 'printer_settings', 'general_report', 'admin_target', 'admin_target_detail', 'admin_period_close',
+  'comparison_report', 'forecast', 'laporan_per_outlet', 'manajemen_outlet', 'kebijakan_privasi',
 ]);
 
 function AppInner() {
@@ -149,9 +164,11 @@ function AppInner() {
         return <KasirDashboardPage user={user} navigate={navigate} />;
 
       case 'transaksi':
-        return <TransaksiListPage navigate={navigate} />;
+        return <TransaksiListPage navigate={navigate} screenParams={screenParams} />;
       case 'history_produksi':
         return <ProduksiRiwayatPage navigate={navigate} goBack={goBack} />;
+      case 'detail_riwayat_produksi':
+        return <DetailRiwayatProduksiPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
 
       case 'customer':
         return <CustomerListPage navigate={navigate} />;
@@ -176,8 +193,31 @@ function AppInner() {
       case 'cetak_nota':
         return <CetakNotaPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
 
+      case 'qr_payment':
+        return <QrPaymentPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'pelunasan':
+        return <PelunasanPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+
+      case 'kas_outlet':
+        return <KasOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'kas_approval':
+        return <KasApprovalPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'request_barang':
+        return <RequestBarangPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'admin_purchase_requests':
+        return <PurchaseRequestsPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'admin_all_outlet_stocks':
+        return <AllOutletStocksPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'admin_settings':
+        return <AdminSettingsPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+
       case 'antrian':
-        return <ProduksiDashboardPage user={user} transactions={transactions} navigate={navigate} />;
+        // Produksi: page khusus tanpa info kasir/payment
+        if (user?.roleCode === 'produksi' || user?.role === 'produksi') {
+          return <ProduksiAntrianPage navigate={navigate} goBack={goBack} />;
+        }
+        // Kasir/admin: halaman Antrian & Nota terintegrasi
+        return <TransaksiListPage navigate={navigate} screenParams={{ status: 'active', ...screenParams }} />;
       case 'detail_item_produksi':
         return <DetailItemProduksiPage navigate={navigate} goBack={goBack} screenParams={screenParams} user={user} />;
       case 'foto_kondisi':
@@ -187,8 +227,12 @@ function AppInner() {
 
       case 'manajemen_user':
         return <ManajemenUserPage navigate={navigate} goBack={goBack} />;
+      case 'manajemen_outlet':
+        return <ManajemenOutletPage navigate={navigate} goBack={goBack} />;
       case 'manajemen_layanan':
         return <ManajemenLayananPage navigate={navigate} goBack={goBack} />;
+      case 'kelola_layanan_outlet':
+        return <KelolaLayananOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'admin_promo_sla':
         return <AdminPromoSlaStokPage navigate={navigate} goBack={goBack} initialTab="stok" />;
       case 'admin_promo':
@@ -198,11 +242,15 @@ function AppInner() {
       case 'kasir_stok_bahan':
         return <StokBahanPage goBack={goBack} />;
       case 'kasir_antrian':
-        return <KasirAntrianPage navigate={navigate} goBack={goBack} />;
+        // Redirect ke halaman Antrian & Nota terintegrasi dengan filter aktif
+        return <TransaksiListPage navigate={navigate} screenParams={{ status: 'active', ...screenParams }} />;
       case 'kasir_siap_ambil':
-        return <SiapAmbilPage navigate={navigate} goBack={goBack} />;
+        // Redirect ke halaman transaksi terintegrasi dengan filter pre-applied
+        return <TransaksiListPage navigate={navigate} screenParams={{ status: 'selesai', pickupFilter: 'belum_diambil', ...screenParams }} />;
       case 'kasir_shift':
         return <KasirShiftPage navigate={navigate} goBack={goBack} />;
+      case 'kasir_laporan':
+        return <KasirLaporanPage navigate={navigate} goBack={goBack} />;
       case 'printer_settings':
         return <PrinterSettingsPage navigate={navigate} goBack={goBack} />;
       case 'approval':
@@ -217,10 +265,15 @@ function AppInner() {
         return <InfoOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'rekap_pendapatan':
         return <RekapPendapatanPage navigate={navigate} goBack={goBack} />;
+      case 'laporan_per_outlet':
+        // Redirect ke LaporanPage (sudah punya outlet picker untuk admin)
+        return <KasirLaporanPage navigate={navigate} goBack={goBack} />;
       case 'general_report':
         return <GeneralReportPage navigate={navigate} goBack={goBack} />;
       case 'admin_target':
         return <AdminTargetPage navigate={navigate} goBack={goBack} />;
+      case 'admin_target_detail':
+        return <AdminTargetDetailPage navigate={navigate} goBack={goBack} screenParams={screenParams} />
       case 'admin_period_close':
         return <AdminPeriodClosePage navigate={navigate} goBack={goBack} />;
       case 'comparison_report':
@@ -238,6 +291,9 @@ function AppInner() {
 
       case 'settings':
         return <SettingsPage user={user} navigate={navigate} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
+
+      case 'kebijakan_privasi':
+        return <KebijakanPrivasiPage goBack={goBack} />;
 
       case 'notifikasi':
         return <NotifikasiPage navigate={navigate} goBack={goBack} />;
@@ -302,7 +358,9 @@ function AppInner() {
       `}</style>
 
       <ErrorBoundary key={screen}>
-        {renderScreen()}
+        <GlobalPullToRefresh>
+          {renderScreen()}
+        </GlobalPullToRefresh>
       </ErrorBoundary>
 
       <OfflineIndicator online={online} />

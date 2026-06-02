@@ -1,105 +1,128 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Service Worker — Wäschen POS
-// Strategy: Network-first for API, Cache-first for static assets
-// ─────────────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Waschen POS — Service Worker
+// Strategy: Network-First for API, Cache-First for static assets
+// Tidak mengganggu performa — justru mempercepat load & handle offline
+// ═══════════════════════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'waschen-pos-v1';
+const CACHE_NAME = 'waschen-v1';
 const STATIC_CACHE = 'waschen-static-v1';
+const API_CACHE = 'waschen-api-v1';
 
-// Assets to pre-cache on install
+// Static assets yang di-precache saat install
 const PRECACHE_URLS = [
   '/',
   '/index.html',
 ];
 
-// ── Install ───────────────────────────────────────────────
+// ─── INSTALL ─────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(PRECACHE_URLS).catch(() => {
-        // Silently fail if some assets not available
-      });
-    })
+    caches.open(STATIC_CACHE)
+      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// ── Activate ──────────────────────────────────────────────
+// ─── ACTIVATE ────────────────────────────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
+    caches.keys().then((keys) => {
+      return Promise.all(
         keys
-          .filter((k) => k !== CACHE_NAME && k !== STATIC_CACHE)
-          .map((k) => caches.delete(k))
-      )
-    )
+          .filter((key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      );
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// ── Fetch ─────────────────────────────────────────────────
+// ─── FETCH ───────────────────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET and cross-origin
+  // Skip non-GET requests (POST/PUT/PATCH/DELETE harus selalu ke network)
   if (request.method !== 'GET') return;
-  if (url.origin !== self.location.origin) return;
 
-  // API calls: Network-first, fallback to cache
+  // Skip chrome-extension, ws://, etc
+  if (!url.protocol.startsWith('http')) return;
+
+  // ── API requests: Network-First ──
+  // Coba network dulu, kalau gagal fallback ke cache (untuk GET saja)
   if (url.pathname.startsWith('/api/')) {
+    // Hanya cache GET API yang "safe" (master data, dashboard stats)
+    const cachableAPIs = [
+      '/api/health',
+      '/api/master/',
+      '/api/outlets',
+      '/api/services',
+    ];
+    const shouldCacheAPI = cachableAPIs.some((p) => url.pathname.startsWith(p));
+
+    if (shouldCacheAPI) {
+      event.respondWith(
+        fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(API_CACHE).then((cache) => cache.put(request, clone));
+            }
+            return response;
+          })
+          .catch(() => caches.match(request))
+      );
+    }
+    // Non-cachable API: just let it through (no interception)
+    return;
+  }
+
+  // ── Static assets: Cache-First ──
+  // JS, CSS, images, fonts — serve from cache, update in background
+  if (
+    url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|gif|woff2?|ttf|ico)$/) ||
+    url.pathname.startsWith('/assets/')
+  ) {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful GET API responses (master data)
-          if (response.ok && isCacheable(url.pathname)) {
+      caches.match(request).then((cached) => {
+        const fetchPromise = fetch(request).then((response) => {
+          if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
           }
           return response;
-        })
-        .catch(() => caches.match(request))
+        }).catch(() => cached); // If network fails, use cached
+
+        return cached || fetchPromise;
+      })
     );
     return;
   }
 
-  // Static assets: Cache-first
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      });
-    })
-  );
-});
-
-// Cache only stable master data endpoints
-function isCacheable(pathname) {
-  const cacheablePatterns = [
-    '/api/master/outlets',
-    '/api/master/area-zones',
-    '/api/master/awareness',
-    '/api/services',
-    '/api/auth/outlets',
-  ];
-  return cacheablePatterns.some((p) => pathname.startsWith(p));
-}
-
-// ── Background Sync (offline queue) ──────────────────────
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-pending-transactions') {
-    event.waitUntil(syncPendingTransactions());
+  // ── HTML navigation: Network-First with offline fallback ──
+  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match('/index.html') || caches.match('/');
+        })
+    );
+    return;
   }
 });
 
-async function syncPendingTransactions() {
-  // Placeholder — actual implementation would read from IndexedDB
-  // and retry failed checkout requests
-  console.log('[SW] Background sync triggered');
-}
+// ─── MESSAGE: Manual cache clear ─────────────────────────────────────────────
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.data === 'CLEAR_CACHE') {
+    caches.keys().then((keys) => keys.forEach((key) => caches.delete(key)));
+  }
+});

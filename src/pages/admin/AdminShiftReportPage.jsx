@@ -546,6 +546,48 @@ export default function AdminShiftReportPage({ navigate, goBack }) {
                                   <div style={{ ...F, fontSize: 12, color: C.n800, fontStyle: 'italic', lineHeight: 1.5 }}>{s.notes}</div>
                                 </div>
                               )}
+
+                              {/* Foto bukti transaksi */}
+                              {Array.isArray(s.closingPhotos) && s.closingPhotos.length > 0 && (
+                                <div style={{
+                                  padding: '10px 12px', background: '#EFF6FF', borderRadius: 10,
+                                  borderLeft: `3px solid #3B82F6`, marginTop: 8,
+                                }}>
+                                  <div style={{ ...F, fontSize: 10, fontWeight: 700, color: '#1E40AF', marginBottom: 8, letterSpacing: 0.3 }}>
+                                    📸 BUKTI TRANSAKSI ({s.closingPhotos.length})
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    {s.closingPhotos.map((p, idx) => (
+                                      <a
+                                        key={idx}
+                                        href={p.data}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ display: 'block', textDecoration: 'none' }}
+                                      >
+                                        <div style={{
+                                          width: 70, height: 70, borderRadius: 10, overflow: 'hidden',
+                                          border: `1px solid ${C.n200}`, position: 'relative', background: C.n50,
+                                        }}>
+                                          {p.data ? (
+                                            <img src={p.data} alt={p.label || 'Bukti'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                          ) : (
+                                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>📄</div>
+                                          )}
+                                          <div style={{
+                                            position: 'absolute', bottom: 0, left: 0, right: 0,
+                                            background: 'rgba(0,0,0,0.65)', padding: '2px 4px',
+                                            ...F, fontSize: 8, color: 'white', textAlign: 'center',
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                          }}>
+                                            {p.label || 'Bukti'}
+                                          </div>
+                                        </div>
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

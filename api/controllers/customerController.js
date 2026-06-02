@@ -1,5 +1,4 @@
 import { poolWaschenPos } from '../db/connection.js';
-import { randomUUID } from 'crypto';
 import { writeAudit } from '../utils/auditLog.js';
 
 // ─── Controller: POST /api/customers/:id/topup ─────────────────────────────
@@ -9,13 +8,25 @@ export const topupDeposit = async (req, res) => {
     const { id } = req.params;
     const { amount, payMethod } = req.body;
 
-    if (!amount || Number(amount) < 1000) {
+    // Ambil min deposit dari config (default Rp 500.000)
+    let minDeposit = 500000;
+    try {
+      const [[cfg]] = await conn.execute(
+        "SELECT config_val FROM mst_app_config WHERE config_key = 'min_deposit_amount' AND is_active = 1 LIMIT 1"
+      );
+      if (cfg?.config_val) minDeposit = Number(cfg.config_val) || 500000;
+    } catch { /* config table belum ada, pakai default */ }
+
+    if (!amount || Number(amount) < minDeposit) {
       conn.release();
-      return res.status(400).json({ success: false, message: 'Nominal top up minimal Rp 1.000.' });
+      return res.status(400).json({
+        success: false,
+        message: `Nominal top up minimal Rp ${minDeposit.toLocaleString('id-ID')}.`,
+      });
     }
 
     const [custRows] = await conn.execute(
-      'SELECT id, name FROM mst_customer WHERE id = ? AND is_active = 1 LIMIT 1',
+      'SELECT id, name, is_member FROM mst_customer WHERE id = ? AND is_active = 1 LIMIT 1',
       [id]
     );
     if (custRows.length === 0) {
@@ -25,6 +36,7 @@ export const topupDeposit = async (req, res) => {
 
     await conn.beginTransaction();
 
+    // 1. Update / create wallet
     const [walletRows] = await conn.execute(
       'SELECT id, balance FROM mst_customer_wallet WHERE customer_id = ? LIMIT 1',
       [id]
@@ -37,9 +49,9 @@ export const topupDeposit = async (req, res) => {
       );
     } else {
       await conn.execute(
-        `INSERT INTO mst_customer_wallet (id, customer_id, balance, status)
-         VALUES (?, ?, ?, 'active')`,
-        [randomUUID(), id, Number(amount)]
+        `INSERT INTO mst_customer_wallet (customer_id, balance, status)
+         VALUES (?, ?, 'active')`,
+        [id, Number(amount)]
       );
     }
 
@@ -48,35 +60,68 @@ export const topupDeposit = async (req, res) => {
       [id]
     );
 
-    // Catat riwayat top-up beserta metode pembayaran
+    // 2. Auto-perpanjang membership 6 bulan jika customer sudah member
+    let membershipExtended = false;
+    if (custRows[0].is_member) {
+      try {
+        const [[memb]] = await conn.execute(
+          `SELECT id, expired_at, topup_count FROM mst_membership
+           WHERE customer_id = ? AND status = 'active' LIMIT 1`,
+          [id]
+        );
+        if (memb) {
+          // Perpanjang 6 bulan dari expired_at saat ini (jika belum expired) atau dari NOW
+          const baseDate = new Date(memb.expired_at) > new Date() ? memb.expired_at : new Date();
+          await conn.execute(
+            `UPDATE mst_membership
+             SET expired_at = DATE_ADD(?, INTERVAL 6 MONTH),
+                 topup_count = topup_count + 1,
+                 last_topup_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = ?`,
+            [baseDate, memb.id]
+          );
+          membershipExtended = true;
+        }
+      } catch (mErr) {
+        console.warn('[topupDeposit] gagal perpanjang membership:', mErr?.message || mErr);
+      }
+    }
+
+    // 3. Catat riwayat top-up
     try {
       await conn.execute(
         `INSERT INTO tr_wallet_topup_log
-           (id, customer_id, amount, pay_method, recorded_by, created_at)
-         VALUES (?, ?, ?, ?, ?, NOW())`,
-        [randomUUID(), id, Number(amount), payMethod || 'cash', req.user?.userId || null]
+           (customer_id, amount, pay_method, recorded_by, created_at)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [id, Number(amount), payMethod || 'cash', req.user?.userId || null]
       );
-    } catch {
-      // Tabel log belum ada — skip, jangan gagalkan top-up
-    }
+    } catch { /* tabel log belum ada — skip */ }
 
     await conn.commit();
 
-    // Audit log — sensitif keuangan
     writeAudit(poolWaschenPos, {
       userId: req.user?.userId,
       outletId: req.user?.outletId,
       entityType: 'customer_wallet',
       entityId: id,
       action: 'topup_deposit',
-      newData: { amount: Number(amount), payMethod: payMethod || 'cash', newBalance: Number(wallet.balance) },
+      newData: {
+        amount: Number(amount),
+        payMethod: payMethod || 'cash',
+        newBalance: Number(wallet.balance),
+        membershipExtended,
+      },
       req,
     }).catch(() => {});
 
     return res.status(200).json({
       success: true,
-      message: `Top up Rp ${Number(amount).toLocaleString('id-ID')} berhasil.`,
-      data: { newBalance: Number(wallet.balance) },
+      message: `Top up Rp ${Number(amount).toLocaleString('id-ID')} berhasil${membershipExtended ? '. Membership diperpanjang 6 bulan!' : '.'}`,
+      data: {
+        newBalance: Number(wallet.balance),
+        membershipExtended,
+      },
     });
   } catch (err) {
     await conn.rollback();
@@ -111,13 +156,13 @@ export const upgradeToPremium = async (req, res) => {
     // 2. Generate Member No
     const memberNo = 'MBR-' + Date.now().toString().slice(-6);
 
-    // 3. Insert ke mst_membership (aktif 6 bulan dari sekarang)
+    // 3. Insert ke mst_membership (aktif 6 bulan dari sekarang) — id AUTO_INCREMENT
     await conn.execute(
       `INSERT INTO mst_membership (
-        id, customer_id, member_no, status, discount_pct, 
+        customer_id, member_no, status, discount_pct, 
         topup_count, started_at, expired_at, registered_by, created_at, updated_at
-      ) VALUES (?, ?, ?, 'active', 20.00, 0, NOW(), DATE_ADD(NOW(), INTERVAL 6 MONTH), ?, NOW(), NOW())`,
-      [randomUUID(), id, memberNo, userId || id]
+      ) VALUES (?, ?, 'active', 20.00, 0, NOW(), DATE_ADD(NOW(), INTERVAL 6 MONTH), ?, NOW(), NOW())`,
+      [id, memberNo, userId || id]
     );
 
     // 4. Update mst_customer.is_member = 1
@@ -177,9 +222,11 @@ const getDefaultAwarenessSource = async () => {
     "SELECT id FROM mst_awareness_source WHERE is_active = 1 ORDER BY sort_order LIMIT 1"
   );
   if (rows.length > 0) return rows[0].id;
-  const newId = randomUUID();
-  await poolWaschenPos.execute("INSERT INTO mst_awareness_source (id, code, name) VALUES (?, 'DEFAULT', 'Walk In')", [newId]);
-  return newId;
+  // id AUTO_INCREMENT — biarkan DB yang generate
+  const [result] = await poolWaschenPos.execute(
+    "INSERT INTO mst_awareness_source (code, name) VALUES ('DEFAULT', 'Walk In')"
+  );
+  return result.insertId;
 };
 
 // ─── Helper: Get default area zone id ──────────────────────────────────────────
@@ -192,12 +239,12 @@ const getDefaultAreaZone = async () => {
   const [outlets] = await poolWaschenPos.execute("SELECT id FROM mst_outlet LIMIT 1");
   if (outlets.length === 0) return null; // Edge case
 
-  const newId = randomUUID();
-  await poolWaschenPos.execute(
-    "INSERT INTO mst_area_zone (id, outlet_id, code, name, delivery_fee) VALUES (?, ?, 'DEF', 'Default Area', 0)",
-    [newId, outlets[0].id]
+  // id AUTO_INCREMENT — biarkan DB yang generate
+  const [result] = await poolWaschenPos.execute(
+    "INSERT INTO mst_area_zone (outlet_id, code, name, delivery_fee) VALUES (?, 'DEF', 'Default Area', 0)",
+    [outlets[0].id]
   );
-  return newId;
+  return result.insertId;
 };
 
 const normalizeGreeting = (value) => {
@@ -221,8 +268,11 @@ const generateCustomerNo = async () => {
   const prefix = 'CUS';
   const date = new Date();
   const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+  // Hitung HANYA customer yang belum dihapus untuk sequence harian.
+  // Kalau pakai semua customer (termasuk deleted), sequence bisa skip atau dobel
+  // saat ada customer dihapus lalu daftar lagi di hari yang sama.
   const [rows] = await poolWaschenPos.execute(
-    "SELECT COUNT(*) as count FROM mst_customer WHERE DATE(created_at) = CURDATE()"
+    "SELECT COUNT(*) as count FROM mst_customer WHERE DATE(created_at) = CURDATE() AND deleted_at IS NULL"
   );
   const seq = String(rows[0].count + 1).padStart(4, '0');
   return `${prefix}-${dateStr}-${seq}`;
@@ -283,7 +333,7 @@ const mapCustomerRow = (c) => ({
 // ─── Controller: GET /api/customers ────────────────────────────────────────────
 export const getCustomers = async (req, res) => {
   try {
-    const { search, page = 1, limit = 100, outletId: queryOutletId } = req.query;
+    const { search, page = 1, limit = 100, outletId: queryOutletId, sort, member } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 100));
     const offset = (pageNum - 1) * limitNum;
@@ -292,27 +342,31 @@ export const getCustomers = async (req, res) => {
     const userOutletId = req.user?.outletId;
     const isGlobalRole = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
 
-    let where = 'c.is_active = 1';
+    let where = 'c.is_active = 1 AND c.deleted_at IS NULL';
     const params = [];
 
     // Outlet filter logic:
-    // - Kasir/produksi: hanya lihat customer dari outlet mereka sendiri
-    // - Admin/owner/finance: bisa lihat semua, atau filter by outletId query param
-    if (!isGlobalRole && userOutletId) {
-      // Non-admin: paksa filter ke outlet sendiri
-      where += ' AND c.registered_outlet_id = ?';
-      params.push(userOutletId);
-    } else if (isGlobalRole && queryOutletId) {
-      // Admin dengan filter outlet tertentu
+    // - Database satu sumber — semua role bisa lihat semua customer
+    // - Semua role (termasuk kasir) bisa filter berdasarkan outlet asal customer
+    // - Customer di-tag dengan registered_outlet_id untuk identifikasi asal
+    if (queryOutletId) {
       where += ' AND c.registered_outlet_id = ?';
       params.push(queryOutletId);
     }
-    // Admin tanpa filter = tampilkan semua outlet
 
     if (search && search.trim()) {
-      where += ' AND (c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)';
+      // Cari di nama, HP, email, dan alamat (housing/block/no/detail)
+      where += ` AND (c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?
+        OR c.address_housing LIKE ? OR c.address_block LIKE ?
+        OR c.address_no LIKE ? OR c.address_detail LIKE ?)`;
       const q = `%${search.trim()}%`;
-      params.push(q, q, q);
+      params.push(q, q, q, q, q, q, q);
+    }
+
+    if (member === 'premium') {
+      where += ' AND c.is_member = 1';
+    } else if (member === 'regular') {
+      where += ' AND (c.is_member = 0 OR c.is_member IS NULL)';
     }
 
     // Count total
@@ -323,8 +377,16 @@ export const getCustomers = async (req, res) => {
     const total = Number(countRows[0]?.total || 0);
 
     // Fetch rows
+    const sortKey = String(sort || 'name_asc').toLowerCase();
+    const sortSql = {
+      name_asc: 'c.name ASC',
+      newest: 'c.created_at DESC',
+      frequent: 'COALESCE(tx.total_tx, 0) DESC, c.name ASC',
+    };
+    const orderBy = sortSql[sortKey] || sortSql.name_asc;
+
     const [rows] = await poolWaschenPos.execute(
-      `${CUSTOMER_SELECT} WHERE ${where} ORDER BY c.name LIMIT ${limitNum} OFFSET ${offset}`,
+      `${CUSTOMER_SELECT} WHERE ${where} ORDER BY ${orderBy} LIMIT ${limitNum} OFFSET ${offset}`,
       params
     );
 
@@ -361,21 +423,27 @@ export const lookupCustomers = async (req, res) => {
     const searchPattern = `%${query}%`;
     const phoneClean = query.replace(/\D/g, '');
 
-    // Outlet filter: kasir hanya lihat customer outlet sendiri
-    const outletFilter = (!isGlobalRole && userOutletId)
-      ? 'AND c.registered_outlet_id = ?'
-      : '';
-    const outletParam = (!isGlobalRole && userOutletId) ? [userOutletId] : [];
+    // Database terpusat — semua user bisa akses semua customer
+    // registered_outlet_id tetap sebagai tag asal customer
+    const outletFilter = '';
+    const outletParam = [];
 
     const [rows] = await poolWaschenPos.execute(
       `SELECT c.id, c.name, c.phone, c.is_member, c.gender,
               c.registered_outlet_id AS registeredOutletId,
+              o.name AS registeredOutletName,
+              c.address_housing AS addressHousing,
+              c.address_block AS addressBlock,
+              c.address_no AS addressNo,
               w.balance AS depositBalance
        FROM mst_customer c
        LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
-       WHERE c.is_active = 1
+       LEFT JOIN mst_outlet o ON o.id = c.registered_outlet_id
+       WHERE c.is_active = 1 AND c.deleted_at IS NULL
          ${outletFilter}
          AND (c.name LIKE ? OR c.phone LIKE ?
+              OR c.address_housing LIKE ? OR c.address_block LIKE ?
+              OR c.address_no LIKE ? OR c.address_detail LIKE ?
               ${phoneClean ? "OR REPLACE(REPLACE(c.phone,'+',''),'-','') LIKE ?" : ''})
        ORDER BY
          CASE WHEN c.phone = ? THEN 0
@@ -385,8 +453,8 @@ export const lookupCustomers = async (req, res) => {
          c.name
        LIMIT 15`,
       phoneClean
-        ? [...outletParam, searchPattern, searchPattern, `%${phoneClean}%`, query, `${query}%`, `${query}%`]
-        : [...outletParam, searchPattern, searchPattern, query, `${query}%`, `${query}%`]
+        ? [...outletParam, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, `%${phoneClean}%`, query, `${query}%`, `${query}%`]
+        : [...outletParam, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, query, `${query}%`, `${query}%`]
     );
 
     const data = rows.map((r) => ({
@@ -396,6 +464,10 @@ export const lookupCustomers = async (req, res) => {
       isMember: r.is_member === 1,
       gender: r.gender,
       registeredOutletId: r.registeredOutletId,
+      registeredOutletName: r.registeredOutletName || null,
+      addressHousing: r.addressHousing || null,
+      addressBlock: r.addressBlock || null,
+      addressNo: r.addressNo || null,
       depositBalance: r.depositBalance != null ? Number(r.depositBalance) : 0,
     }));
 
@@ -417,7 +489,50 @@ export const getCustomerById = async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
     }
-    return res.status(200).json({ success: true, data: mapCustomerRow(rows[0]) });
+    const base = mapCustomerRow(rows[0]);
+
+    // Tambah info membership aktif + loyalty points (best-effort)
+    try {
+      const [membRows] = await poolWaschenPos.execute(
+        `SELECT id, member_no, status, discount_pct, expired_at, started_at, topup_count
+         FROM mst_membership
+         WHERE customer_id = ? AND status = 'active'
+         ORDER BY expired_at DESC LIMIT 1`,
+        [id]
+      );
+      if (membRows.length > 0) {
+        const m = membRows[0];
+        base.membership = {
+          id: m.id,
+          memberNo: m.member_no,
+          status: m.status,
+          discountPct: Number(m.discount_pct),
+          startedAt: m.started_at,
+          expiredAt: m.expired_at,
+          topupCount: Number(m.topup_count) || 0,
+          isExpired: new Date(m.expired_at) < new Date(),
+        };
+
+        // Hitung loyalty balance (sum of remaining_points untuk earn yang belum expire)
+        const [[balRow]] = await poolWaschenPos.execute(
+          `SELECT COALESCE(SUM(remaining_points), 0) AS balance
+           FROM tr_loyalty_ledger
+           WHERE membership_id = ? AND type = 'earn'
+             AND (expired_at IS NULL OR expired_at >= NOW())`,
+          [m.id]
+        );
+        base.loyaltyPoints = Number(balRow?.balance || 0);
+      } else {
+        base.membership = null;
+        base.loyaltyPoints = 0;
+      }
+    } catch (mErr) {
+      console.warn('[getCustomerById] gagal ambil membership/loyalty:', mErr?.message || mErr);
+      base.membership = null;
+      base.loyaltyPoints = 0;
+    }
+
+    return res.status(200).json({ success: true, data: base });
   } catch (err) {
     console.error('[getCustomerById] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat data pelanggan.' });
@@ -443,11 +558,11 @@ export const createCustomer = async (req, res) => {
       notes,
     } = req.body;
 
-    // Validasi mandatory fields
-    if (!name || !phone || !gender || !greeting || !area_zone_id || !address_housing || !address_block || !address_no || !address_detail || !awareness_source_id) {
+    // Validasi: hanya nama dan HP yang wajib
+    if (!name || !phone) {
       return res.status(400).json({
         success: false,
-        message: 'Semua field wajib (nama, hp, gender, sapaan, sumber info, area/zona, perumahan, blok, no, detail) harus diisi',
+        message: 'Nama dan nomor HP wajib diisi',
       });
     }
 
@@ -463,36 +578,46 @@ export const createCustomer = async (req, res) => {
       });
     }
 
-    const id = randomUUID();
+    // Gunakan auto-increment ID dari database (bukan UUID)
     const customerNo = await generateCustomerNo();
 
+    // Default fallback untuk field yang masih NOT NULL di DDL — auto-isi dari master
+    const finalAwarenessId = awareness_source_id || await getDefaultAwarenessSource();
+    const finalAreaZoneId  = area_zone_id || await getDefaultAreaZone();
     const finalEmail = email ? email.trim() : null;
     const finalNotes = notes || null;
     const finalAwarenessOther = awareness_other_text || null;
-    const finalGreeting = normalizeGreeting(greeting);
+    const finalGreeting = normalizeGreeting(greeting || 'Other');
+    const finalGender = ['male', 'female', 'other'].includes(gender) ? gender : 'other';
 
-    await poolWaschenPos.execute(
+    const [insertResult] = await poolWaschenPos.execute(
       `INSERT INTO mst_customer (
-        id, customer_no, name, phone, gender, greeting, email,
+        customer_no, name, phone, gender, greeting, email,
         awareness_source_id, awareness_other_text, area_zone_id,
         registered_outlet_id,
         address_housing, address_block, address_no, address_detail,
         is_member, notes, is_active, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, TRUE, NOW(), NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, TRUE, NOW(), NOW())`,
       [
-        id, customerNo, name.trim(), phone.trim(), gender, finalGreeting,
-        finalEmail, awareness_source_id, finalAwarenessOther, area_zone_id,
-        req.user?.outletId || null,  // registered_outlet_id dari token kasir
-        address_housing, address_block, address_no, address_detail,
+        customerNo, name.trim(), phone.trim(), finalGender, finalGreeting,
+        finalEmail, finalAwarenessId, finalAwarenessOther, finalAreaZoneId,
+        req.user?.outletId || null,
+        (address_housing || '').trim() || '-',
+        (address_block || '').trim() || '-',
+        (address_no || '').trim() || '-',
+        (address_detail || '').trim() || '-',
         finalNotes,
       ]
     );
 
+    // Ambil ID auto-increment yang baru dibuat
+    const id = insertResult.insertId || insertResult.insertId?.toString();
+
     // Buat wallet untuk customer baru
     await poolWaschenPos.execute(
-      `INSERT INTO mst_customer_wallet (id, customer_id, balance, status)
-       VALUES (?, ?, 0, 'active')`,
-      [randomUUID(), id]
+      `INSERT INTO mst_customer_wallet (customer_id, balance, status)
+       VALUES (?, 0, 'active')`,
+      [id]
     );
 
     const newCustomer = {
@@ -614,8 +739,12 @@ export const updateCustomer = async (req, res) => {
 export const deleteCustomer = async (req, res) => {
   try {
     const { id } = req.params;
-    await poolWaschenPos.execute('UPDATE mst_customer SET is_active = 0, updated_at = NOW() WHERE id = ?', [id]);
-    return res.status(200).json({ success: true, message: 'Pelanggan berhasil dihapus' });
+    const deletedBy = req.user?.userId || null;
+    await poolWaschenPos.execute(
+      'UPDATE mst_customer SET is_active = 0, deleted_at = NOW(), deleted_by = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
+      [deletedBy, id]
+    );
+    return res.status(200).json({ success: true, message: 'Pelanggan berhasil dihapus.' });
   } catch (err) {
     console.error('[deleteCustomer] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal menghapus pelanggan.' });

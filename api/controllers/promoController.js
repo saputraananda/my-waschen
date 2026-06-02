@@ -1,5 +1,4 @@
 import { poolWaschenPos } from '../db/connection.js';
-import { randomUUID } from 'crypto';
 import { writeAudit } from '../utils/auditLog.js';
 
 const canManagePromo = (role) => ['admin', 'finance', 'superadmin', 'owner'].includes(role);
@@ -19,7 +18,7 @@ export const getPromos = async (req, res) => {
         p.is_global AS isGlobal, p.is_active AS isActive
       FROM mst_promo p
       LEFT JOIN mst_promo_outlet po ON po.promo_id = p.id AND po.is_active = 1
-      WHERE 1=1
+      WHERE p.deleted_at IS NULL
     `;
     const params = [];
 
@@ -74,16 +73,15 @@ export const createPromo = async (req, res) => {
       return res.status(400).json({ success: false, message: 'type harus percent atau fixed.' });
     }
 
-    const id = randomUUID();
     const userId = req.user?.userId;
 
-    await poolWaschenPos.execute(
+    // id AUTO_INCREMENT — biarkan DB yang generate
+    const [insertResult] = await poolWaschenPos.execute(
       `INSERT INTO mst_promo (
-        id, code, name, type, value, min_trx_amount, max_discount, valid_from, valid_until,
+        code, name, type, value, min_trx_amount, max_discount, valid_from, valid_until,
         is_global, is_active, created_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())`,
       [
-        id,
         String(code).trim(),
         String(name).trim(),
         type,
@@ -96,12 +94,13 @@ export const createPromo = async (req, res) => {
         userId,
       ]
     );
+    const newPromoId = insertResult.insertId;
 
     if (!isGlobal && Array.isArray(outletIds) && outletIds.length > 0) {
       for (const oid of outletIds) {
         await poolWaschenPos.execute(
           'INSERT INTO mst_promo_outlet (promo_id, outlet_id, is_active, created_at) VALUES (?, ?, 1, NOW())',
-          [id, oid]
+          [newPromoId, oid]
         );
       }
     }
@@ -109,13 +108,13 @@ export const createPromo = async (req, res) => {
     await writeAudit(poolWaschenPos, {
       userId,
       entityType: 'promo',
-      entityId: id,
+      entityId: newPromoId,
       action: 'create_promo',
       newData: { code, name, type, value, validFrom, validUntil, isGlobal, outletIds },
       req,
     });
 
-    return res.status(201).json({ success: true, message: 'Promo dibuat.', data: { id } });
+    return res.status(201).json({ success: true, message: 'Promo dibuat.', data: { id: newPromoId } });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ success: false, message: 'Kode promo sudah dipakai.' });
@@ -140,7 +139,7 @@ export const patchPromo = async (req, res) => {
     }
 
     const [[prev]] = await poolWaschenPos.execute(
-      'SELECT id, code, name, is_active AS isActive FROM mst_promo WHERE id = ?',
+      'SELECT id, code, name, is_active AS isActive FROM mst_promo WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
     if (!prev) return res.status(404).json({ success: false, message: 'Promo tidak ditemukan.' });

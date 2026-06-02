@@ -22,7 +22,26 @@ const hasColumn = async (tableName, columnName) => {
 // ─── GET /api/approvals ────────────────────────────────────────────────────────
 export const getApprovals = async (req, res) => {
   try {
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 30));
+    const offset = (pageNum - 1) * limitNum;
+    const statusFilter = String(req.query.status || '').trim();
+
     const hasApprovalActiveFlag = await hasColumn('tr_transaction_approval', 'is_active');
+
+    const wheres = [];
+    if (hasApprovalActiveFlag) wheres.push('a.is_active = 1');
+    if (['pending', 'approved', 'rejected'].includes(statusFilter)) {
+      wheres.push(`a.status = '${statusFilter}'`);
+    }
+    const whereSql = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
+
+    // Total count
+    const [countRows] = await poolWaschenPos.execute(
+      `SELECT COUNT(*) AS total FROM tr_transaction_approval a ${whereSql}`
+    );
+    const total = Number(countRows[0]?.total || 0);
+
     const [rows] = await poolWaschenPos.execute(
       `SELECT
         a.id,
@@ -39,10 +58,11 @@ export const getApprovals = async (req, res) => {
       JOIN mst_user u ON u.id = a.requested_by
       LEFT JOIN mst_user r ON r.id = a.approved_by
       LEFT JOIN tr_transaction t ON t.id = a.transaction_id
-      ${hasApprovalActiveFlag ? 'WHERE a.is_active = 1' : ''}
+      ${whereSql}
       ORDER BY
         FIELD(a.status, 'pending', 'approved', 'rejected'),
-        a.requested_at DESC`
+        a.requested_at DESC
+      LIMIT ${limitNum} OFFSET ${offset}`
     );
 
     const data = rows.map((a) => ({
@@ -51,7 +71,16 @@ export const getApprovals = async (req, res) => {
       amount: a.amount ? Number(a.amount) : null,
     }));
 
-    return res.status(200).json({ success: true, data });
+    return res.status(200).json({
+      success: true,
+      data,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      },
+    });
   } catch (err) {
     console.error('[getApprovals] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat data approval.' });

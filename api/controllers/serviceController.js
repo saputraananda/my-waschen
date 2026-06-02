@@ -1,29 +1,50 @@
 import { poolWaschenPos } from '../db/connection.js';
-import { randomUUID } from 'crypto';
 
 // Helper: Get default outlet
 const getDefaultOutlet = async () => {
   const [outlets] = await poolWaschenPos.execute("SELECT id FROM mst_outlet LIMIT 1");
   if (outlets.length > 0) return outlets[0].id;
-  const newId = randomUUID();
-  await poolWaschenPos.execute(
-    "INSERT INTO mst_outlet (id, outlet_code, name, address) VALUES (?, 'OUT-01', 'Default Outlet', 'Alamat Default')",
-    [newId]
+  // id AUTO_INCREMENT — biarkan DB yang generate
+  const [result] = await poolWaschenPos.execute(
+    "INSERT INTO mst_outlet (outlet_code, name, address) VALUES ('OUT-01', 'Default Outlet', 'Alamat Default')"
   );
-  return newId;
+  return result.insertId;
 };
 
-// Helper: Get or create category
+// Helper: Get or create category (truly race-safe via INSERT IGNORE)
 const getOrCreateCategory = async (categoryName) => {
-  const name = categoryName || 'Umum';
-  const [rows] = await poolWaschenPos.execute("SELECT id FROM mst_service_category WHERE name = ? LIMIT 1", [name]);
-  if (rows.length > 0) return rows[0].id;
-  const newId = randomUUID();
-  await poolWaschenPos.execute(
-    "INSERT INTO mst_service_category (id, code, name) VALUES (?, ?, ?)",
-    [newId, name.toUpperCase().substring(0, 20).replace(/\s/g, '_'), name]
+  const name = String(categoryName || 'Umum').trim();
+  const code = name.toUpperCase().substring(0, 20).replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '') || 'UMUM';
+
+  // 1. Cek by code dulu (paling deterministik karena unique constraint)
+  const [byCode] = await poolWaschenPos.execute(
+    "SELECT id FROM mst_service_category WHERE code = ? LIMIT 1",
+    [code]
   );
-  return newId;
+  if (byCode.length > 0) return byCode[0].id;
+
+  // 2. Cek by name (case-insensitive) — kalau code beda tapi name match
+  const [byName] = await poolWaschenPos.execute(
+    "SELECT id FROM mst_service_category WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1",
+    [name]
+  );
+  if (byName.length > 0) return byName[0].id;
+
+  // 3. Race-safe insert: INSERT IGNORE = ga pernah throw DUP_ENTRY
+  await poolWaschenPos.execute(
+    "INSERT IGNORE INTO mst_service_category (code, name, is_active) VALUES (?, ?, 1)",
+    [code, name]
+  );
+
+  // 4. Re-select by code (pasti ada sekarang, baik dari INSERT atau race winner)
+  const [final] = await poolWaschenPos.execute(
+    "SELECT id FROM mst_service_category WHERE code = ? LIMIT 1",
+    [code]
+  );
+  if (final.length > 0) return final[0].id;
+
+  // Last resort fallback (seharusnya ga pernah sampe sini)
+  throw new Error(`Gagal mendapatkan kategori untuk "${name}" (code: ${code})`);
 };
 
 // Helper: Generate service_code
@@ -53,21 +74,75 @@ export const getServices = async (req, res) => {
 
     // Admin, finance, owner bisa lihat semua outlet (atau filter via query)
     const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
-    const isGlobalRole = globalRoles.includes(userRole);
+    const isGlobalRole = globalRoles.includes(userRole) || globalRoles.includes(req.user?.originalRoleCode);
 
     let outletFilter = '';
     const params = [];
 
+    let targetOutletId = null;
     if (queryOutletId) {
+      if (!isGlobalRole) {
+        if (!userOutletId) {
+          return res.status(403).json({ success: false, message: 'Outlet tidak dikenali. Akses ditolak.' });
+        }
+        if (String(queryOutletId) !== String(userOutletId)) {
+          return res.status(403).json({ success: false, message: 'Akses ditolak. Tidak bisa melihat layanan outlet lain.' });
+        }
+      }
       // Explicit outlet filter via query param
+      targetOutletId = queryOutletId;
       outletFilter = 'AND s.outlet_id = ?';
       params.push(queryOutletId);
-    } else if (userOutletId && !isGlobalRole) {
+    } else if (!isGlobalRole) {
       // Non-global roles: filter by their own outlet
+      if (!userOutletId) {
+        return res.status(403).json({ success: false, message: 'Outlet tidak dikenali. Akses ditolak.' });
+      }
+      targetOutletId = userOutletId;
       outletFilter = 'AND s.outlet_id = ?';
       params.push(userOutletId);
     }
-    // else: global role tanpa query filter → tampilkan semua
+
+    if (targetOutletId) {
+      // 1. Cek apakah ada layanan terdaftar di outlet ini
+      const [countRow] = await poolWaschenPos.execute(
+        "SELECT COUNT(*) AS cnt FROM mst_service WHERE outlet_id = ?",
+        [targetOutletId]
+      );
+      if (countRow[0]?.cnt === 0) {
+        // 2. Ambil default outlet
+        const masterOutletId = await getDefaultOutlet();
+        if (masterOutletId && masterOutletId !== targetOutletId) {
+          // 3. Copy semua active service dari master ke target
+          const hasSla = await hasServiceSlaColumns();
+          const [masterServices] = await poolWaschenPos.execute(
+            "SELECT * FROM mst_service WHERE outlet_id = ? AND is_active = 1",
+            [masterOutletId]
+          );
+          for (const ms of masterServices) {
+            if (hasSla) {
+              await poolWaschenPos.execute(
+                `INSERT INTO mst_service 
+                  (outlet_id, category_id, service_code, legacy_smartlink_no, name, unit_type, price, min_qty, 
+                   express_multiplier, is_express_eligible, is_requires_unit_detail, sort_order, sla_regular_hours, sla_express_hours, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+                [targetOutletId, ms.category_id, ms.service_code, ms.legacy_smartlink_no, ms.name, ms.unit_type, ms.price, ms.min_qty,
+                 ms.express_multiplier, ms.is_express_eligible, ms.is_requires_unit_detail, ms.sort_order, ms.sla_regular_hours, ms.sla_express_hours]
+              );
+            } else {
+              await poolWaschenPos.execute(
+                `INSERT INTO mst_service 
+                  (outlet_id, category_id, service_code, legacy_smartlink_no, name, unit_type, price, min_qty, 
+                   express_multiplier, is_express_eligible, is_requires_unit_detail, sort_order, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+                [targetOutletId, ms.category_id, ms.service_code, ms.legacy_smartlink_no, ms.name, ms.unit_type, ms.price, ms.min_qty,
+                 ms.express_multiplier, ms.is_express_eligible, ms.is_requires_unit_detail, ms.sort_order]
+              );
+            }
+          }
+        }
+      }
+    }
 
     let favJoin = '';
     let favSelect = '0 AS usage_count';
@@ -96,6 +171,18 @@ export const getServices = async (req, res) => {
       ? 's.sla_regular_hours AS slaRegular, s.sla_express_hours AS slaExpress,'
       : 'NULL AS slaRegular, NULL AS slaExpress,';
 
+    // Cek apakah kolom service_kind sudah ada (migrasi user_requests)
+    let hasServiceKind = false;
+    try {
+      const [kindCheck] = await poolWaschenPos.execute(
+        `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mst_service' AND COLUMN_NAME = 'service_kind'`
+      );
+      hasServiceKind = kindCheck[0]?.cnt > 0;
+    } catch { hasServiceKind = false; }
+    const kindSelect = hasServiceKind
+      ? "s.service_kind AS serviceKind,"
+      : "'waschen' AS serviceKind,";
+
     const pinJoin = hasPinTable
       ? 'LEFT JOIN mst_service_pin sp ON sp.service_id = s.id AND sp.outlet_id = s.outlet_id'
       : '';
@@ -117,6 +204,7 @@ export const getServices = async (req, res) => {
         s.is_active AS active,
         s.outlet_id AS outletId,
         ${slaSelect}
+        ${kindSelect}
         ${pinSelect}
         ${favSelect},
         s.created_at AS createdAt,
@@ -125,7 +213,7 @@ export const getServices = async (req, res) => {
       JOIN mst_service_category c ON c.id = s.category_id
       ${pinJoin}
       ${favJoin}
-      WHERE s.is_active = 1 ${outletFilter}
+      WHERE s.is_active = 1 AND s.deleted_at IS NULL ${outletFilter}
       ORDER BY c.sort_order, c.name, s.name`,
       finalParams
     );
@@ -139,29 +227,47 @@ export const getServices = async (req, res) => {
 // ─── POST /api/services
 export const createService = async (req, res) => {
   try {
-    const { name, category, price, unit, expressExtra, active, expressEligible, minQty, slaRegular, slaExpress } = req.body;
+    const { name, category, price, unit, expressExtra, active, expressEligible, minQty, slaRegular, slaExpress, outletId: bodyOutletId } = req.body;
 
     if (!name || !price || !unit) {
       return res.status(400).json({ success: false, message: 'Nama, harga, dan satuan wajib diisi' });
     }
 
-    const id = randomUUID();
-    const outletId = await getDefaultOutlet();
+    const userRole = req.user?.roleCode;
+    const userOutletId = req.user?.outletId;
+    const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+    const isGlobalRole = globalRoles.includes(userRole);
+
+    let targetOutletId;
+    if (isGlobalRole) {
+      targetOutletId = bodyOutletId || userOutletId || await getDefaultOutlet();
+    } else {
+      targetOutletId = userOutletId;
+      if (!targetOutletId) {
+        return res.status(403).json({ success: false, message: 'Outlet tidak dikenali. Akses ditolak.' });
+      }
+    }
 
     const [[existing]] = await poolWaschenPos.execute(
       `SELECT id, is_active FROM mst_service WHERE outlet_id = ? AND name = ? LIMIT 1`,
-      [outletId, name.trim()]
+      [targetOutletId, name.trim()]
     );
 
     const categoryId = await getOrCreateCategory(category);
     const isActive = active !== undefined ? active : true;
     const isExpressEligible = expressEligible !== undefined ? expressEligible : true;
     const basePrice = Number(price);
-    const expressNominal = expressExtra ? Number(expressExtra) : 0;
-    const expressMul = basePrice > 0 ? 1 + (expressNominal / basePrice) : 1.0;
+    // Default: express harga ×2 dari normal (multiplier = 2.0).
+    let expressMul = 2.0;
+    let expressNominal = Math.round(basePrice * 1.0);
+    if (expressExtra != null && expressExtra !== '') {
+      expressNominal = Number(expressExtra);
+      expressMul = basePrice > 0 ? 1 + (expressNominal / basePrice) : 2.0;
+    }
     const minQ = minQty ? Number(minQty) : 1;
-    const slaReg = slaRegular ? Number(slaRegular) : null;
-    const slaExp = slaExpress ? Number(slaExpress) : null;
+    // Default SLA: regular 48 jam, express setengah dari regular.
+    const slaReg = slaRegular ? Number(slaRegular) : 48;
+    const slaExp = slaExpress ? Number(slaExpress) : Math.max(1, Math.floor(slaReg / 2));
 
     const hasSlaColumns = await hasServiceSlaColumns();
 
@@ -192,23 +298,27 @@ export const createService = async (req, res) => {
     }
 
     const serviceCode = await generateServiceCode();
+    // id BIGINT AUTO_INCREMENT — biarkan DB yang generate
+    let newId;
     if (hasSlaColumns) {
-      await poolWaschenPos.execute(
+      const [insertResult] = await poolWaschenPos.execute(
         `INSERT INTO mst_service 
-          (id, outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, sla_regular_hours, sla_express_hours, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [id, outletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, slaReg, slaExp, isActive ? 1 : 0]
+          (outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, sla_regular_hours, sla_express_hours, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [targetOutletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, slaReg, slaExp, isActive ? 1 : 0]
       );
+      newId = insertResult.insertId;
     } else {
-      await poolWaschenPos.execute(
+      const [insertResult] = await poolWaschenPos.execute(
         `INSERT INTO mst_service 
-          (id, outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [id, outletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, isActive ? 1 : 0]
+          (outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [targetOutletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, isActive ? 1 : 0]
       );
+      newId = insertResult.insertId;
     }
 
-    const newService = { id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp };
+    const newService = { id: newId, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp };
     return res.status(201).json({ success: true, message: 'Layanan berhasil ditambahkan', data: newService });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
@@ -229,15 +339,35 @@ export const updateService = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Nama, harga, dan satuan wajib diisi' });
     }
 
+    const [[service]] = await poolWaschenPos.execute("SELECT outlet_id FROM mst_service WHERE id = ? AND deleted_at IS NULL", [id]);
+    if (!service) return res.status(404).json({ success: false, message: 'Layanan tidak ditemukan' });
+
+    const userRole = req.user?.roleCode;
+    const userOutletId = req.user?.outletId;
+    const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+    const isGlobalRole = globalRoles.includes(userRole);
+
+    if (!isGlobalRole && service.outlet_id !== userOutletId) {
+      return res.status(403).json({ success: false, message: 'Akses ditolak. Anda tidak berhak mengubah layanan dari outlet lain.' });
+    }
+
     const categoryId = await getOrCreateCategory(category);
     const basePrice = Number(price);
-    const expressNominal = expressExtra ? Number(expressExtra) : 0;
-    const expressMul = basePrice > 0 ? 1 + (expressNominal / basePrice) : 1.0;
+    // Default: express harga ×2 dari normal (multiplier = 2.0).
+    // Kalau user kirim expressExtra eksplisit, hitung multiplier dari nominal tsb.
+    let expressMul = 2.0;
+    let expressNominal = Math.round(basePrice * 1.0); // selisih harga express vs normal
+    if (expressExtra != null && expressExtra !== '') {
+      expressNominal = Number(expressExtra);
+      expressMul = basePrice > 0 ? 1 + (expressNominal / basePrice) : 2.0;
+    }
     const isActive = active !== undefined ? active : true;
     const isExpressEligible = expressEligible !== undefined ? expressEligible : true;
     const minQ = minQty ? Number(minQty) : 1;
-    const slaReg = slaRegular ? Number(slaRegular) : null;
-    const slaExp = slaExpress ? Number(slaExpress) : null;
+    // Default SLA: regular 48 jam, express setengah dari regular (24 jam).
+    // Kalau user kirim eksplisit, pakai itu.
+    const slaReg = slaRegular ? Number(slaRegular) : 48;
+    const slaExp = slaExpress ? Number(slaExpress) : Math.max(1, Math.floor(slaReg / 2));
 
     const hasSlaColumns = await hasServiceSlaColumns();
 
@@ -271,8 +401,36 @@ export const updateService = async (req, res) => {
 export const deleteService = async (req, res) => {
   try {
     const { id } = req.params;
-    await poolWaschenPos.execute(`UPDATE mst_service SET is_active = 0, updated_at = NOW() WHERE id = ?`, [id]);
-    return res.status(200).json({ success: true, message: 'Layanan berhasil dihapus' });
+    const deletedBy = req.user?.userId || null;
+
+    const [[service]] = await poolWaschenPos.execute("SELECT outlet_id FROM mst_service WHERE id = ? AND deleted_at IS NULL", [id]);
+    if (!service) return res.status(404).json({ success: false, message: 'Layanan tidak ditemukan' });
+
+    const userRole = req.user?.roleCode;
+    const userOutletId = req.user?.outletId;
+    const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+
+    if (!isGlobalRole && service.outlet_id !== userOutletId) {
+      return res.status(403).json({ success: false, message: 'Akses ditolak. Anda tidak berhak menghapus layanan ini.' });
+    }
+
+    try {
+      await poolWaschenPos.execute(
+        `UPDATE mst_service SET is_active = 0, deleted_at = NOW(), deleted_by = ?, updated_at = NOW() WHERE id = ?`,
+        [deletedBy, id]
+      );
+    } catch (colErr) {
+      // Fallback jika kolom deleted_by belum ada di tabel mst_service
+      if (colErr.code === 'ER_BAD_FIELD_ERROR') {
+        await poolWaschenPos.execute(
+          `UPDATE mst_service SET is_active = 0, deleted_at = NOW(), updated_at = NOW() WHERE id = ?`,
+          [id]
+        );
+      } else {
+        throw colErr;
+      }
+    }
+    return res.status(200).json({ success: true, message: 'Layanan berhasil dihapus.' });
   } catch (err) {
     console.error('[deleteService] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal menghapus layanan.' });
@@ -284,10 +442,125 @@ export const toggleService = async (req, res) => {
   try {
     const { id } = req.params;
     const { active } = req.body;
+
+    const [[service]] = await poolWaschenPos.execute("SELECT outlet_id FROM mst_service WHERE id = ? AND deleted_at IS NULL", [id]);
+    if (!service) return res.status(404).json({ success: false, message: 'Layanan tidak ditemukan' });
+
+    const userRole = req.user?.roleCode;
+    const userOutletId = req.user?.outletId;
+    const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+
+    if (!isGlobalRole && service.outlet_id !== userOutletId) {
+      return res.status(403).json({ success: false, message: 'Akses ditolak. Anda tidak berhak mengubah layanan ini.' });
+    }
+
     await poolWaschenPos.execute(`UPDATE mst_service SET is_active = ?, updated_at = NOW() WHERE id = ?`, [active ? 1 : 0, id]);
     return res.status(200).json({ success: true, message: 'Status layanan berhasil diubah' });
   } catch (err) {
     console.error('[toggleService] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal mengubah status layanan.' });
+  }
+};
+
+// ─── POST /api/services/:id/pin
+export const togglePinService = async (req, res) => {
+  try {
+    const { id } = req.params; // service_id
+    const { outletId, pinContext = 'priority', notes = '' } = req.body;
+    const pinnedBy = req.user?.userId || 'system';
+    const userRole = req.user?.roleCode;
+    const userOutletId = req.user?.outletId;
+    const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+
+    if (!outletId) {
+      return res.status(400).json({ success: false, message: 'outletId wajib diisi' });
+    }
+
+    if (!isGlobalRole && outletId !== userOutletId) {
+      return res.status(403).json({ success: false, message: 'Akses ditolak. Tidak bisa menyematkan layanan outlet lain.' });
+    }
+
+    const [[service]] = await poolWaschenPos.execute(
+      "SELECT outlet_id FROM mst_service WHERE id = ? AND deleted_at IS NULL",
+      [id]
+    );
+
+    if (!service) {
+      return res.status(404).json({ success: false, message: 'Layanan tidak ditemukan' });
+    }
+
+    if (service.outlet_id !== outletId) {
+      return res.status(400).json({ success: false, message: 'Outlet layanan tidak sesuai.' });
+    }
+
+    // Check if already pinned
+    const [existing] = await poolWaschenPos.execute(
+      "SELECT id FROM mst_service_pin WHERE service_id = ? AND outlet_id = ?",
+      [id, outletId]
+    );
+
+    if (existing.length > 0) {
+      // Unpin
+      await poolWaschenPos.execute(
+        "DELETE FROM mst_service_pin WHERE service_id = ? AND outlet_id = ?",
+        [id, outletId]
+      );
+      return res.json({ success: true, pinned: false, message: 'Layanan berhasil dilepas sematan.' });
+    } else {
+      // Pin — id AUTO_INCREMENT, biarkan DB yang generate
+      await poolWaschenPos.execute(
+        "INSERT INTO mst_service_pin (service_id, outlet_id, pin_context, notes, pinned_by) VALUES (?, ?, ?, ?, ?)",
+        [id, outletId, pinContext, notes, pinnedBy]
+      );
+      return res.json({ success: true, pinned: true, message: 'Layanan berhasil disematkan.' });
+    }
+  } catch (err) {
+    console.error('[togglePinService] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengubah status sematan layanan.' });
+  }
+};
+
+// ─── POST /api/services/:id/favorite
+export const toggleFavoriteService = async (req, res) => {
+  try {
+    const { id } = req.params; // service_id
+    const { customerId } = req.body;
+
+    if (!customerId) {
+      return res.status(400).json({ success: false, message: 'customerId wajib diisi' });
+    }
+
+    const [[service]] = await poolWaschenPos.execute(
+      "SELECT id FROM mst_service WHERE id = ?",
+      [id]
+    );
+
+    if (!service) {
+      return res.status(404).json({ success: false, message: 'Layanan tidak ditemukan' });
+    }
+
+    const [existing] = await poolWaschenPos.execute(
+      "SELECT 1 FROM mst_customer_service_favorite WHERE service_id = ? AND customer_id = ?",
+      [id, customerId]
+    );
+
+    if (existing.length > 0) {
+      // Unfavorite
+      await poolWaschenPos.execute(
+        "DELETE FROM mst_customer_service_favorite WHERE service_id = ? AND customer_id = ?",
+        [id, customerId]
+      );
+      return res.json({ success: true, favorite: false, message: 'Layanan dihapus dari favorit.' });
+    } else {
+      // Favorite
+      await poolWaschenPos.execute(
+        "INSERT INTO mst_customer_service_favorite (customer_id, service_id, usage_count, is_manual_pin) VALUES (?, ?, 1, 1)",
+        [customerId, id]
+      );
+      return res.json({ success: true, favorite: true, message: 'Layanan ditambahkan ke favorit.' });
+    }
+  } catch (err) {
+    console.error('[toggleFavoriteService] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengubah status favorit layanan.' });
   }
 };

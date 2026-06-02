@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, Btn, Chip, Input, Select } from '../../components/ui';
+import { TopBar, Btn, Chip, Input, Select, MoneyInput, DateTimeInput } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
 
@@ -499,7 +499,7 @@ export default function AdminPromoSlaStokPage({ navigate, goBack, initialTab = '
                     <Input label="Satuan" value={itemForm.unit} onChange={(v) => setItemForm((f) => ({ ...f, unit: v }))} />
                     <Input label="Kode (opsional)" value={itemForm.itemCode} onChange={(v) => setItemForm((f) => ({ ...f, itemCode: v }))} placeholder="Auto jika kosong" />
                   </div>
-                  <Input label="Min default global" value={itemForm.minStockDefault} onChange={(v) => setItemForm((f) => ({ ...f, minStockDefault: v }))} type="number" />
+                  <MoneyInput label="Min default global" value={itemForm.minStockDefault} onChange={(v) => setItemForm((f) => ({ ...f, minStockDefault: v }))} prefix="" placeholder="0" hint="Threshold notifikasi stok rendah" />
                   <Btn variant="primary" fullWidth style={{ marginTop: 10 }} onClick={createItem}>💾 Simpan SKU</Btn>
                 </div>
               )}
@@ -670,10 +670,14 @@ export default function AdminPromoSlaStokPage({ navigate, goBack, initialTab = '
                     <Chip label="% Persen" active={promoForm.type === 'percent'} onClick={() => setPromoForm((p) => ({ ...p, type: 'percent' }))} />
                     <Chip label="💰 Nominal" active={promoForm.type === 'fixed'} onClick={() => setPromoForm((p) => ({ ...p, type: 'fixed' }))} />
                   </div>
-                  <Input label="Nilai" value={promoForm.value} onChange={(v) => setPromoForm((p) => ({ ...p, value: v }))} type="number" />
+                  {promoForm.type === 'percent' ? (
+                    <Input label="Nilai (%)" value={promoForm.value} onChange={(v) => setPromoForm((p) => ({ ...p, value: v.replace(/\D/g, '') }))} placeholder="10" inputMode="numeric" />
+                  ) : (
+                    <MoneyInput label="Nilai (Rp)" value={promoForm.value} onChange={(v) => setPromoForm((p) => ({ ...p, value: v }))} placeholder="0" />
+                  )}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <Input label="Mulai" value={promoForm.validFrom} onChange={(v) => setPromoForm((p) => ({ ...p, validFrom: v }))} placeholder="2026-06-01 00:00:00" />
-                    <Input label="Sampai" value={promoForm.validUntil} onChange={(v) => setPromoForm((p) => ({ ...p, validUntil: v }))} placeholder="2026-08-31 23:59:59" />
+                    <DateTimeInput label="Mulai" value={promoForm.validFrom} onChange={(v) => setPromoForm((p) => ({ ...p, validFrom: v || '' }))} />
+                    <DateTimeInput label="Sampai" value={promoForm.validUntil} onChange={(v) => setPromoForm((p) => ({ ...p, validUntil: v || '' }))} minDate={promoForm.validFrom ? new Date(promoForm.validFrom) : null} />
                   </div>
                   <label style={{ ...F, fontSize: 12, display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0' }}>
                     <input type="checkbox" checked={promoForm.isGlobal} onChange={(e) => setPromoForm((p) => ({ ...p, isGlobal: e.target.checked }))} />

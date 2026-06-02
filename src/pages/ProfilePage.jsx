@@ -7,14 +7,14 @@ import { TopBar, Btn, Input } from '../components/ui';
 import { alertError, alertInfo, alertSuccess, alertWarning } from '../utils/alert';
 import { useApp } from '../context/AppContext';
 
-const ROLE_LABEL = { admin: 'Admin', kasir: 'Kasir', produksi: 'Produksi', finance: 'Finance' };
+const ROLE_LABEL = { admin: 'Admin', kasir: 'Frontline', frontline: 'Frontline', produksi: 'Produksi', finance: 'Finance' };
 
 export default function ProfilePage({ navigate, goBack }) {
   const { user, updateUserProfile, handleSwitchRole } = useApp();
   const isAdmin = (user?.originalRoleCode ?? user?.roleCode) === 'admin';
 
   const ROLES = [
-    { id: 'kasir',    label: 'Kasir',    icon: '🧾' },
+    { id: 'frontline', label: 'Frontline', icon: '🧾' },
     { id: 'produksi', label: 'Produksi', icon: '🧺' },
     { id: 'admin',    label: 'Admin',    icon: '👑' },
     { id: 'finance',  label: 'Finance',  icon: '💰' },
@@ -53,7 +53,7 @@ export default function ProfilePage({ navigate, goBack }) {
       setZoom(1);
       setCropModalOpen(true);
     } catch (error) {
-      alertError('Gagal memproses file gambar ini');
+      alertError(error?.response?.data?.message || 'Gagal memproses file gambar ini');
     }
     
     if (fileRef.current) fileRef.current.value = '';
@@ -144,7 +144,7 @@ export default function ProfilePage({ navigate, goBack }) {
                   setPhoto(croppedBase64);
                   setCropModalOpen(false);
                 } catch (err) {
-                  alertError('Gagal memotong foto');
+                  alertError(err?.response?.data?.message || 'Gagal memotong foto');
                 }
               }}>Terapkan</Btn>
             </div>

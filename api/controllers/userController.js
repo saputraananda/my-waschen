@@ -1,9 +1,9 @@
 import { poolWaschenPos } from '../db/connection.js';
-import bcrypt from 'bcryptjs';
-import { randomUUID } from 'crypto';
+// bcrypt dihapus — password disimpan plain text sesuai permintaan user
 import { writeAudit } from '../utils/auditLog.js';
-import { validatePassword, validateEmail, validateUsername, validatePhone } from '../utils/validation.js';
+import { validatePassword, validateEmail } from '../utils/validation.js';
 
+// ─── Cache cek kolom schema ───────────────────────────────────────────────────
 const schemaColumnCache = new Map();
 const hasColumn = async (tableName, columnName) => {
   const key = `${tableName}.${columnName}`;
@@ -22,11 +22,19 @@ const hasColumn = async (tableName, columnName) => {
   return exists;
 };
 
+// ─── Helper: build SELECT username gracefully ─────────────────────────────────
+// Jika kolom username belum ada (migration belum dijalankan), fallback ke email
+const usernameSelect = async () => {
+  const has = await hasColumn('mst_user', 'username');
+  return has ? 'u.username' : 'u.email AS username';
+};
+
 // ─── Controller: GET /api/users/me ────────────────────────────────────────────
 export const getMe = async (req, res) => {
   try {
+    const uSel = await usernameSelect();
     const [rows] = await poolWaschenPos.execute(
-      `SELECT u.id, u.name, u.username, u.phone, u.email,
+      `SELECT u.id, u.name, ${uSel}, u.email, u.phone,
               r.code AS role, o.id AS outletId, o.name AS outletName
        FROM mst_user u
        JOIN mst_role r ON r.id = u.primary_role_id
@@ -37,7 +45,7 @@ export const getMe = async (req, res) => {
     if (!rows.length) return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
     const u = rows[0];
 
-    // Ambil photo — graceful jika kolom belum ada (DDL patch belum dijalankan)
+    // Ambil photo — graceful jika kolom belum ada
     let photo = null;
     try {
       const [[photoRow]] = await poolWaschenPos.execute(
@@ -79,24 +87,19 @@ export const updateMyProfile = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Nama tidak boleh kosong.' });
     }
 
-    // Update name, phone, email (kolom sudah ada); coba sertakan photo, fallback jika belum ada
     try {
-      console.log(`[updateMyProfile] Trying to update with photo. Length:`, photo ? photo.length : 0);
       await poolWaschenPos.execute(
         `UPDATE mst_user SET name = ?, phone = ?, email = ?, photo = ?, updated_at = NOW() WHERE id = ?`,
         [name.trim(), phone?.trim() || null, email?.trim() || null, photo || null, userId]
       );
-      console.log(`[updateMyProfile] Update photo SUCCESS`);
     } catch (colErr) {
-      console.error(`[updateMyProfile] Error updating photo:`, colErr.code, colErr.message);
       if (colErr.code === 'ER_BAD_FIELD_ERROR') {
-        console.log(`[updateMyProfile] Falling back to update without photo`);
         await poolWaschenPos.execute(
           `UPDATE mst_user SET name = ?, phone = ?, email = ?, updated_at = NOW() WHERE id = ?`,
           [name.trim(), phone?.trim() || null, email?.trim() || null, userId]
         );
       } else if (colErr.code === 'ER_NET_PACKET_TOO_LARGE') {
-        return res.status(400).json({ success: false, message: 'Ukuran foto terlalu besar untuk disimpan di database (Packet too large).' });
+        return res.status(400).json({ success: false, message: 'Ukuran foto terlalu besar.' });
       } else {
         throw colErr;
       }
@@ -123,11 +126,8 @@ export const changeMyPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Password lama dan baru wajib diisi.' });
     }
 
-    // Validasi complexity password baru
     const passErr = validatePassword(newPassword);
-    if (passErr) {
-      return res.status(400).json({ success: false, message: passErr });
-    }
+    if (passErr) return res.status(400).json({ success: false, message: passErr });
 
     if (oldPassword === newPassword) {
       return res.status(400).json({ success: false, message: 'Password baru tidak boleh sama dengan password lama.' });
@@ -139,15 +139,12 @@ export const changeMyPassword = async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
 
-    const valid = await bcrypt.compare(oldPassword, rows[0].password_hash);
+    const valid = (oldPassword === rows[0].password_hash);
     if (!valid) return res.status(400).json({ success: false, message: 'Password lama salah.' });
-
-    const salt = await bcrypt.genSalt(10);
-    const newHash = await bcrypt.hash(newPassword, salt);
 
     await poolWaschenPos.execute(
       'UPDATE mst_user SET password_hash = ?, updated_at = NOW() WHERE id = ?',
-      [newHash, userId]
+      [newPassword, userId]
     );
 
     return res.json({ success: true, message: 'Password berhasil diubah.' });
@@ -161,11 +158,13 @@ export const changeMyPassword = async (req, res) => {
 export const getAllUsers = async (req, res) => {
   try {
     const hasDeletedAt = await hasColumn('mst_user', 'deleted_at');
+    const uSel = await usernameSelect();
+
     const [rows] = await poolWaschenPos.execute(
       `SELECT
         u.id,
         u.name,
-        u.username,
+        ${uSel},
         u.email,
         r.code AS role,
         o.name AS outlet,
@@ -177,7 +176,7 @@ export const getAllUsers = async (req, res) => {
       ${hasDeletedAt ? 'WHERE u.deleted_at IS NULL' : ''}
       ORDER BY u.name`
     );
-    // Generate avatar initials
+
     const users = rows.map((u) => ({
       ...u,
       avatar: u.name
@@ -199,77 +198,100 @@ export const registerUser = async (req, res) => {
   try {
     const { name, username, password, email, role, outletId, outlet } = req.body;
 
-    // Validasi
-    if (!name || !username || !password || !email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Nama, username, email, dan password wajib diisi',
-      });
+    if (!name || !password) {
+      return res.status(400).json({ success: false, message: 'Nama dan password wajib diisi' });
     }
 
-    // Validasi format
-    const usernameErr = validateUsername(username);
-    if (usernameErr) return res.status(400).json({ success: false, message: usernameErr });
+    // Tentukan email efektif
+    const effectiveEmail = (email || '').trim() || null;
+    // Tentukan username efektif — wajib ada salah satu
+    const effectiveUsername = (username || '').trim() || null;
 
-    const emailErr = validateEmail(email);
-    if (emailErr) return res.status(400).json({ success: false, message: emailErr });
+    if (!effectiveEmail && !effectiveUsername) {
+      return res.status(400).json({ success: false, message: 'Username atau email wajib diisi' });
+    }
 
-    const passErr = validatePassword(password, username);
+    // Validasi email jika diisi
+    if (effectiveEmail) {
+      const emailErr = validateEmail(effectiveEmail);
+      if (emailErr) return res.status(400).json({ success: false, message: emailErr });
+    }
+
+    const passErr = validatePassword(password);
     if (passErr) return res.status(400).json({ success: false, message: passErr });
 
-    // Cek username sudah ada
-    const [existing] = await poolWaschenPos.execute(
-      'SELECT id FROM mst_user WHERE username = ?',
-      [username.trim()]
-    );
-    if (existing.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Username sudah digunakan',
-      });
+    const hasUsernameCol = await hasColumn('mst_user', 'username');
+
+    // Cek duplikat email
+    if (effectiveEmail) {
+      const [existEmail] = await poolWaschenPos.execute(
+        'SELECT id FROM mst_user WHERE email = ? LIMIT 1',
+        [effectiveEmail]
+      );
+      if (existEmail.length > 0) {
+        return res.status(409).json({ success: false, message: 'Email sudah digunakan' });
+      }
     }
 
-    // Hash password dengan bcrypt
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    // Cek duplikat username (jika kolom ada)
+    if (hasUsernameCol && effectiveUsername) {
+      const [existUname] = await poolWaschenPos.execute(
+        'SELECT id FROM mst_user WHERE username = ? LIMIT 1',
+        [effectiveUsername]
+      );
+      if (existUname.length > 0) {
+        return res.status(409).json({ success: false, message: 'Username sudah digunakan' });
+      }
+    }
 
     // Get role_id
     const [roleRows] = await poolWaschenPos.execute(
       'SELECT id FROM mst_role WHERE code = ?',
-      [role || 'kasir']
+      [role || 'frontline']
     );
     const roleId = roleRows.length > 0 ? roleRows[0].id : null;
 
-    // Cek dan gunakan outletId dari req.body jika ada
-    let finalOutletId = outletId; 
-
+    // Resolve outletId
+    let finalOutletId = outletId || null;
     if (!finalOutletId && outlet) {
       const [outletRows] = await poolWaschenPos.execute(
-        'SELECT id FROM mst_outlet WHERE name = ?',
+        'SELECT id FROM mst_outlet WHERE name = ? LIMIT 1',
         [outlet]
       );
-      if (outletRows.length > 0) {
-        finalOutletId = outletRows[0].id;
-      }
+      if (outletRows.length > 0) finalOutletId = outletRows[0].id;
     }
 
-    const id = randomUUID();
+    // Email wajib ada di DB (NOT NULL) — gunakan username sebagai fallback email
+    const finalEmail = effectiveEmail || `${effectiveUsername}@waschen.local`;
 
-    await poolWaschenPos.execute(
-      `INSERT INTO mst_user
-        (id, name, username, email, password_hash, primary_role_id, outlet_id, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
-      [id, name.trim(), username.trim(), email.trim(), passwordHash, roleId, finalOutletId || null]
-    );
+    let insertResult;
+    if (hasUsernameCol) {
+      [insertResult] = await poolWaschenPos.execute(
+        `INSERT INTO mst_user
+          (name, username, email, password_hash, primary_role_id, outlet_id, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+        [name.trim(), effectiveUsername || finalEmail.split('@')[0], finalEmail, password, roleId, finalOutletId]
+      );
+    } else {
+      [insertResult] = await poolWaschenPos.execute(
+        `INSERT INTO mst_user
+          (name, email, password_hash, primary_role_id, outlet_id, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+        [name.trim(), finalEmail, password, roleId, finalOutletId]
+      );
+    }
+
+    const newId = insertResult.insertId;
 
     return res.status(201).json({
       success: true,
       message: 'User berhasil ditambahkan',
       data: {
-        id,
+        id: newId,
         name: name.trim(),
-        username: username.trim(),
-        role: role || 'kasir',
+        username: effectiveUsername || finalEmail.split('@')[0],
+        email: finalEmail,
+        role: role || 'frontline',
         outlet: outlet || null,
         active: true,
       },
@@ -286,41 +308,53 @@ export const updateUser = async (req, res) => {
     const { id } = req.params;
     const { name, username, email, role, outletId, active } = req.body;
 
-    if (!name?.trim() || !username?.trim() || !email?.trim() || !role) {
-      return res.status(400).json({
-        success: false,
-        message: 'Nama, username, email, dan role wajib diisi',
-      });
+    if (!name?.trim() || !role) {
+      return res.status(400).json({ success: false, message: 'Nama dan role wajib diisi' });
     }
 
-    // Validasi format
-    const usernameErr = validateUsername(username);
-    if (usernameErr) return res.status(400).json({ success: false, message: usernameErr });
+    const effectiveEmail = (email || '').trim() || null;
+    const effectiveUsername = (username || '').trim() || null;
 
-    const emailErr = validateEmail(email);
-    if (emailErr) return res.status(400).json({ success: false, message: emailErr });
+    if (!effectiveEmail && !effectiveUsername) {
+      return res.status(400).json({ success: false, message: 'Username atau email wajib diisi' });
+    }
+
+    if (effectiveEmail) {
+      const emailErr = validateEmail(effectiveEmail);
+      if (emailErr) return res.status(400).json({ success: false, message: emailErr });
+    }
 
     const hasDeletedAt = await hasColumn('mst_user', 'deleted_at');
+    const hasUsernameCol = await hasColumn('mst_user', 'username');
+
     const [targetRows] = await poolWaschenPos.execute(
-      `SELECT id FROM mst_user
-       WHERE id = ?
-       ${hasDeletedAt ? 'AND deleted_at IS NULL' : ''}
-       LIMIT 1`,
+      `SELECT id FROM mst_user WHERE id = ? ${hasDeletedAt ? 'AND deleted_at IS NULL' : ''} LIMIT 1`,
       [id]
     );
     if (targetRows.length === 0) {
       return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
     }
 
-    const [existing] = await poolWaschenPos.execute(
-      `SELECT id FROM mst_user
-       WHERE username = ? AND id <> ?
-       ${hasDeletedAt ? 'AND deleted_at IS NULL' : ''}
-       LIMIT 1`,
-      [username.trim(), id]
-    );
-    if (existing.length > 0) {
-      return res.status(409).json({ success: false, message: 'Username sudah digunakan.' });
+    // Cek duplikat email
+    if (effectiveEmail) {
+      const [existEmail] = await poolWaschenPos.execute(
+        `SELECT id FROM mst_user WHERE email = ? AND id <> ? ${hasDeletedAt ? 'AND deleted_at IS NULL' : ''} LIMIT 1`,
+        [effectiveEmail, id]
+      );
+      if (existEmail.length > 0) {
+        return res.status(409).json({ success: false, message: 'Email sudah digunakan.' });
+      }
+    }
+
+    // Cek duplikat username
+    if (hasUsernameCol && effectiveUsername) {
+      const [existUname] = await poolWaschenPos.execute(
+        `SELECT id FROM mst_user WHERE username = ? AND id <> ? ${hasDeletedAt ? 'AND deleted_at IS NULL' : ''} LIMIT 1`,
+        [effectiveUsername, id]
+      );
+      if (existUname.length > 0) {
+        return res.status(409).json({ success: false, message: 'Username sudah digunakan.' });
+      }
     }
 
     const [roleRows] = await poolWaschenPos.execute(
@@ -331,30 +365,32 @@ export const updateUser = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Role tidak valid.' });
     }
 
-    await poolWaschenPos.execute(
-      `UPDATE mst_user
-       SET name = ?, username = ?, email = ?, primary_role_id = ?, outlet_id = ?, is_active = ?, updated_at = NOW()
-       WHERE id = ?`,
-      [
-        name.trim(),
-        username.trim(),
-        email.trim(),
-        roleRows[0].id,
-        outletId || null,
-        active === false ? 0 : 1,
-        id,
-      ]
-    );
+    const finalEmail = effectiveEmail || `${effectiveUsername}@waschen.local`;
 
+    if (hasUsernameCol) {
+      await poolWaschenPos.execute(
+        `UPDATE mst_user
+         SET name = ?, username = ?, email = ?, primary_role_id = ?, outlet_id = ?, is_active = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [name.trim(), effectiveUsername || finalEmail.split('@')[0], finalEmail, roleRows[0].id, outletId || null, active === false ? 0 : 1, id]
+      );
+    } else {
+      await poolWaschenPos.execute(
+        `UPDATE mst_user
+         SET name = ?, email = ?, primary_role_id = ?, outlet_id = ?, is_active = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [name.trim(), finalEmail, roleRows[0].id, outletId || null, active === false ? 0 : 1, id]
+      );
+    }
+
+    const uSel = await usernameSelect();
     const [[updated]] = await poolWaschenPos.execute(
-      `SELECT
-        u.id, u.name, u.username, u.email, u.is_active AS active,
-        r.code AS role, o.name AS outlet
+      `SELECT u.id, u.name, ${uSel}, u.email, u.is_active AS active,
+              r.code AS role, o.name AS outlet
        FROM mst_user u
        LEFT JOIN mst_role r ON r.id = u.primary_role_id
        LEFT JOIN mst_outlet o ON o.id = u.outlet_id
-       WHERE u.id = ?
-       LIMIT 1`,
+       WHERE u.id = ? LIMIT 1`,
       [id]
     );
 
@@ -379,10 +415,7 @@ export const toggleUser = async (req, res) => {
     const { active } = req.body;
 
     if (active === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: 'Status active wajib diisi',
-      });
+      return res.status(400).json({ success: false, message: 'Status active wajib diisi' });
     }
 
     await poolWaschenPos.execute(
@@ -390,10 +423,7 @@ export const toggleUser = async (req, res) => {
       [active ? 1 : 0, id]
     );
 
-    return res.json({
-      success: true,
-      message: 'Status user berhasil diubah',
-    });
+    return res.json({ success: true, message: 'Status user berhasil diubah' });
   } catch (err) {
     console.error('[toggleUser] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal mengubah status user.' });
@@ -406,57 +436,74 @@ export const deleteUser = async (req, res) => {
     const { id } = req.params;
     const requesterId = req.user?.userId;
 
-    if (id === requesterId) {
+    // Bandingkan sebagai string karena id dari JWT bisa number atau string
+    if (String(id) === String(requesterId)) {
       return res.status(400).json({ success: false, message: 'Akun Anda sendiri tidak bisa dihapus.' });
     }
 
     const hasDeletedAt = await hasColumn('mst_user', 'deleted_at');
+    const hasUsernameCol = await hasColumn('mst_user', 'username');
+
     const [rows] = await poolWaschenPos.execute(
-      `SELECT id, username, email FROM mst_user
-       WHERE id = ?
-       ${hasDeletedAt ? 'AND deleted_at IS NULL' : ''}
-       LIMIT 1`,
+      `SELECT id, email FROM mst_user
+       WHERE id = ? ${hasDeletedAt ? 'AND deleted_at IS NULL' : ''} LIMIT 1`,
       [id]
     );
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
     }
 
-    const usernameSuffix = `_del_${Date.now().toString().slice(-6)}`;
     const emailSuffix = `deleted_${Date.now()}@deleted.local`;
+    const usernameSuffix = `del_${Date.now()}`;
 
     if (hasDeletedAt) {
-      await poolWaschenPos.execute(
-        `UPDATE mst_user
-         SET is_active = 0,
-             deleted_at = NOW(),
-             username = LEFT(CONCAT(username, ?), 60),
-             email = ?,
-             updated_at = NOW()
-         WHERE id = ?`,
-        [usernameSuffix, emailSuffix, id]
-      );
+      if (hasUsernameCol) {
+        await poolWaschenPos.execute(
+          `UPDATE mst_user
+           SET is_active = 0, deleted_at = NOW(),
+               username = LEFT(CONCAT(COALESCE(username, ''), ?), 80),
+               email = ?, updated_at = NOW()
+           WHERE id = ?`,
+          [usernameSuffix, emailSuffix, id]
+        );
+      } else {
+        await poolWaschenPos.execute(
+          `UPDATE mst_user
+           SET is_active = 0, deleted_at = NOW(), email = ?, updated_at = NOW()
+           WHERE id = ?`,
+          [emailSuffix, id]
+        );
+      }
     } else {
-      await poolWaschenPos.execute(
-        `UPDATE mst_user
-         SET is_active = 0,
-             name = CONCAT('[DELETED] ', name),
-             username = LEFT(CONCAT(username, ?), 60),
-             email = ?,
-             updated_at = NOW()
-         WHERE id = ?`,
-        [usernameSuffix, emailSuffix, id]
-      );
+      if (hasUsernameCol) {
+        await poolWaschenPos.execute(
+          `UPDATE mst_user
+           SET is_active = 0,
+               name = CONCAT('[DELETED] ', name),
+               username = LEFT(CONCAT(COALESCE(username, ''), ?), 80),
+               email = ?, updated_at = NOW()
+           WHERE id = ?`,
+          [usernameSuffix, emailSuffix, id]
+        );
+      } else {
+        await poolWaschenPos.execute(
+          `UPDATE mst_user
+           SET is_active = 0,
+               name = CONCAT('[DELETED] ', name),
+               email = ?, updated_at = NOW()
+           WHERE id = ?`,
+          [emailSuffix, id]
+        );
+      }
     }
 
-    // Audit log — sensitif security
     writeAudit(poolWaschenPos, {
       userId: requesterId,
       outletId: req.user?.outletId,
       entityType: 'user',
       entityId: id,
       action: 'delete_user',
-      oldData: { username: rows[0].username, email: rows[0].email },
+      oldData: { email: rows[0].email },
       req,
     }).catch(() => {});
 

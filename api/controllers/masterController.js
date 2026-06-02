@@ -39,7 +39,7 @@ export const getMaterials = async (req, res) => {
 export const getOutlets = async (req, res) => {
   try {
     const [rows] = await poolWaschenPos.execute(
-      'SELECT id, outlet_code AS code, name FROM mst_outlet WHERE is_active = TRUE ORDER BY name'
+      'SELECT id, outlet_code AS code, name FROM mst_outlet WHERE is_active = TRUE AND deleted_at IS NULL ORDER BY name'
     );
     return res.status(200).json({ success: true, data: rows });
   } catch (error) {

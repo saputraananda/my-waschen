@@ -1,4 +1,7 @@
 import { poolWaschenPos } from '../db/connection.js';
+import { getSettingValue } from './settingsController.js';
+
+const isAdminRole = (role) => ['admin', 'superadmin', 'owner', 'finance'].includes(role);
 
 // ─── GET /api/notifications ─────────────────────────────────────────────────
 // Generate notifikasi real-time dari data transaksi (tanpa tabel khusus)
@@ -148,7 +151,7 @@ export const getNotifications = async (req, res) => {
     });
 
     // ─── 6. Stok bahan di bawah minimum (kasir/produksi/admin outlet) ─────────
-    if (['kasir', 'produksi', 'admin'].includes(userRole) && userOutletId) {
+    if (['kasir', 'frontline', 'produksi', 'admin'].includes(userRole) && userOutletId) {
       try {
         const [lowStock] = await poolWaschenPos.execute(
           `SELECT i.name, COALESCE(st.stock_qty, 0) AS qty, COALESCE(st.min_stock, i.min_stock_default) AS minq
@@ -171,6 +174,163 @@ export const getNotifications = async (req, res) => {
           });
         });
       } catch { /* inventaris belum dipakai */ }
+    }
+
+    // ─── 7. Status pengajuan stok berubah (kasir) ───────────────────────────
+    if (['kasir', 'frontline'].includes(userRole) && userOutletId) {
+      try {
+        const [prRows] = await poolWaschenPos.execute(
+          `SELECT id, item_name, qty, unit, status, admin_note, approved_qty,
+                  resolved_at, revised_at
+             FROM tr_purchase_request
+            WHERE deleted_at IS NULL
+              AND outlet_id = ?
+              AND status IN ('approved', 'revised', 'rejected')
+              AND COALESCE(resolved_at, revised_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            ORDER BY COALESCE(resolved_at, revised_at) DESC
+            LIMIT 8`,
+          [userOutletId]
+        );
+        prRows.forEach((r) => {
+          const ts = r.resolved_at || r.revised_at;
+          let title, type, message;
+          if (r.status === 'approved') {
+            title = 'Pengajuan Disetujui';
+            type = 'selesai';
+            const finalQty = r.approved_qty != null ? Number(r.approved_qty) : Number(r.qty);
+            message = `${r.item_name}: ${finalQty.toLocaleString('id-ID')} ${r.unit} disetujui & masuk stok`;
+          } else if (r.status === 'revised') {
+            title = 'Pengajuan Perlu Revisi';
+            type = 'warning';
+            message = `${r.item_name}: ${r.admin_note || 'Mohon edit ulang sesuai catatan admin.'}`;
+          } else {
+            title = 'Pengajuan Ditolak';
+            type = 'warning';
+            message = `${r.item_name}: ${r.admin_note || 'Pengajuan ditolak admin.'}`;
+          }
+          notifications.push({
+            id: `pr-${r.id}-${r.status}`,
+            type,
+            title,
+            message,
+            time: formatTimeAgo(ts),
+            timestamp: ts,
+            read: false,
+          });
+        });
+      } catch { /* tabel pr belum ada */ }
+    }
+
+    // ─── 8. Pengajuan stok masuk yang belum diproses (admin) ────────────────
+    if (isAdminRole(userRole)) {
+      try {
+        const [pendingRows] = await poolWaschenPos.execute(
+          `SELECT p.id, p.item_name, p.qty, p.unit, p.urgency, p.created_at,
+                  o.name AS outletName
+             FROM tr_purchase_request p
+             LEFT JOIN mst_outlet o ON o.id = p.outlet_id
+            WHERE p.deleted_at IS NULL AND p.status = 'pending'
+            ORDER BY FIELD(p.urgency, 'critical', 'urgent', 'normal'), p.created_at DESC
+            LIMIT 8`
+        );
+        pendingRows.forEach((r) => {
+          const urgIcon = r.urgency === 'critical' ? '🚨' : r.urgency === 'urgent' ? '⚠️' : '📋';
+          notifications.push({
+            id: `pr-pending-${r.id}`,
+            type: r.urgency === 'critical' ? 'warning' : 'info',
+            title: `${urgIcon} Pengajuan Baru — ${r.outletName || 'Outlet'}`,
+            message: `${r.item_name} (${Number(r.qty).toLocaleString('id-ID')} ${r.unit})`,
+            time: formatTimeAgo(r.created_at),
+            timestamp: r.created_at,
+            read: false,
+          });
+        });
+      } catch { /* skip kalau tabel belum ada */ }
+    }
+
+    // ─── 9. Saldo kas operasional di bawah minimum ──────────────────────────
+    // Threshold dari mst_setting.kas_minimum_balance (default 2.000.000)
+    let kasMinBalance;
+    try {
+      kasMinBalance = Number(await getSettingValue('kas_minimum_balance', 2_000_000));
+    } catch { kasMinBalance = 2_000_000; }
+
+    // Kasir/frontline: cek saldo outlet sendiri
+    if (['kasir', 'frontline'].includes(userRole) && userOutletId) {
+      try {
+        const [balRows] = await poolWaschenPos.execute(
+          `SELECT b.balance, o.name AS outletName, b.updated_at
+             FROM mst_outlet_cash_balance b
+             LEFT JOIN mst_outlet o ON o.id = b.outlet_id
+            WHERE b.outlet_id = ?`,
+          [userOutletId]
+        );
+        if (balRows.length) {
+          const bal = Number(balRows[0].balance || 0);
+          if (bal < kasMinBalance) {
+            notifications.push({
+              id: `kas-low-${userOutletId}`,
+              type: 'warning',
+              title: '💰 Saldo Kas Mendekati Batas Minimum',
+              message: `Saldo: Rp ${bal.toLocaleString('id-ID')} (min Rp ${kasMinBalance.toLocaleString('id-ID')}). Hubungi admin untuk top-up.`,
+              time: formatTimeAgo(balRows[0].updated_at),
+              timestamp: balRows[0].updated_at,
+              read: false,
+            });
+          }
+        }
+
+        // Top-up baru masuk (3 hari terakhir)
+        const [topupRows] = await poolWaschenPos.execute(
+          `SELECT t.id, t.amount, t.notes, t.created_at, u.name AS adminName
+             FROM tr_outlet_cash_topup t
+             LEFT JOIN mst_user u ON u.id = t.topup_by
+            WHERE t.outlet_id = ?
+              AND t.created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+            ORDER BY t.created_at DESC
+            LIMIT 5`,
+          [userOutletId]
+        );
+        topupRows.forEach((r) => {
+          notifications.push({
+            id: `kas-topup-${r.id}`,
+            type: 'info',
+            title: '✅ Top-up Kas Masuk',
+            message: `Rp ${Number(r.amount).toLocaleString('id-ID')} oleh ${r.adminName || 'admin'}${r.notes ? ` — ${r.notes}` : ''}`,
+            time: formatTimeAgo(r.created_at),
+            timestamp: r.created_at,
+            read: false,
+          });
+        });
+      } catch { /* tabel kas belum ada */ }
+    }
+
+    // Admin: cek semua outlet yang saldonya di bawah minimum
+    if (isAdminRole(userRole)) {
+      try {
+        const [lowKasRows] = await poolWaschenPos.execute(
+          `SELECT b.outlet_id AS outletId, b.balance, b.updated_at,
+                  o.name AS outletName
+             FROM mst_outlet_cash_balance b
+             JOIN mst_outlet o ON o.id = b.outlet_id
+            WHERE o.is_active = 1 AND o.deleted_at IS NULL
+              AND b.balance < ?
+            ORDER BY b.balance ASC
+            LIMIT 8`,
+          [kasMinBalance]
+        );
+        lowKasRows.forEach((r) => {
+          notifications.push({
+            id: `kas-low-admin-${r.outletId}`,
+            type: 'warning',
+            title: `💰 Kas ${r.outletName} Di Bawah Minimum`,
+            message: `Saldo: Rp ${Number(r.balance || 0).toLocaleString('id-ID')} (min Rp ${kasMinBalance.toLocaleString('id-ID')})`,
+            time: formatTimeAgo(r.updated_at),
+            timestamp: r.updated_at,
+            read: false,
+          });
+        });
+      } catch { /* skip kalau tabel belum ada */ }
     }
 
     // Sort by timestamp descending

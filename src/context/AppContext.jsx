@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { clearAllSavedFilters } from '../utils/savedFilters';
+import { connectRealtime, disconnectRealtime } from '../utils/realtime';
 
 const AppContext = createContext(null);
 
 const AUTH_TOKEN_KEY = 'waschen_auth_token';
-const AUTH_USER_KEY  = 'waschen_auth_user';
+const AUTH_USER_KEY = 'waschen_auth_user';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // URL ↔ Screen mapping
@@ -15,6 +17,7 @@ const ID_PARAM_KEY = {
   detail_customer: 'id',
   topup_deposit: 'id',
   detail_item_produksi: 'id',
+  detail_riwayat_produksi: 'id',
   foto_kondisi: 'id',
   info_outlet: 'outletId',
 };
@@ -24,17 +27,19 @@ const ALL_SCREENS = new Set([
   'customer', 'tambah_customer', 'detail_customer', 'daftar_member',
   'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
   'detail_transaksi', 'cetak_nota', 'antrian',
-  'detail_item_produksi', 'foto_kondisi', 'produksi_qr_scan',
-  'manajemen_user', 'manajemen_layanan',
+  'detail_item_produksi', 'detail_riwayat_produksi', 'foto_kondisi', 'produksi_qr_scan',
+  'manajemen_user', 'manajemen_outlet', 'manajemen_layanan', 'kelola_layanan_outlet',
   'admin_promo_sla', 'admin_promo', 'admin_stok',
   'kasir_stok_bahan', 'kasir_antrian', 'kasir_siap_ambil',
-  'kasir_shift', 'printer_settings',
+  'kasir_shift', 'kasir_laporan', 'printer_settings',
   'approval', 'monitoring', 'admin_laporan', 'admin_shift',
   'info_outlet', 'rekap_pendapatan',
-  'verifikasi_payment', 'laporan_keuangan',
+  'verifikasi_payment', 'laporan_keuangan', 'laporan_per_outlet',
   'topup_deposit', 'settings', 'notifikasi', 'profil',
   'buka_shift', 'tutup_shift',
-  'general_report',
+  'general_report', 'admin_target', 'admin_period_close',
+  'comparison_report', 'forecast', 'kebijakan_privasi',
+  'kas_outlet', 'kas_approval', 'qr_payment', 'request_barang', 'admin_purchase_requests',
 ]);
 
 function screenToUrl(scr, params) {
@@ -76,14 +81,20 @@ function urlToScreen(pathname) {
 
 const loadStoredAuth = () => {
   try {
-    const token   = localStorage.getItem(AUTH_TOKEN_KEY);
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
     const userRaw = localStorage.getItem(AUTH_USER_KEY);
-    const user    = userRaw ? JSON.parse(userRaw) : null;
+    const user = userRaw ? JSON.parse(userRaw) : null;
     if (!user) return { token: null, user: null };
+    // Pastikan originalRoleCode selalu ada (role asli dari DB)
     if (!user.originalRoleCode) {
       user.originalRoleCode = user.roleCode || user.role;
     }
-    user.roleCode = user.originalRoleCode;
+    // Pertahankan roleCode terakhir yang dipilih (jangan reset ke original)
+    // Ini supaya admin yang switch ke kasir tetap di kasir setelah reload
+    if (!user.roleCode) {
+      user.roleCode = user.originalRoleCode;
+    }
+    user.role = user.roleCode;
     if (!user.roleCode) return { token: null, user: null };
     return { token, user };
   } catch {
@@ -104,22 +115,22 @@ export const AppProvider = ({ children }) => {
   const initialScreen = canDeepLink ? urlParsed.screen : (stored.user ? 'dashboard' : 'splash');
   const initialParams = canDeepLink ? urlParsed.params : null;
 
-  const [screen,        setScreen]        = useState(initialScreen);
-  const [screenParams,  setScreenParams]  = useState(initialParams);
-  const [user,          setUser]          = useState(stored.user);
-  const [token,         setToken]         = useState(stored.token);
-  const [customers,     setCustomers]     = useState([]);
-  const [transactions,  setTransactions]  = useState([]);
-  const [navActive,     setNavActive]     = useState('dashboard');
-  const [notaCustomer,  setNotaCustomer]  = useState(null);
-  const [notaCart,      setNotaCart]      = useState([]);
+  const [screen, setScreen] = useState(initialScreen);
+  const [screenParams, setScreenParams] = useState(initialParams);
+  const [user, setUser] = useState(stored.user);
+  const [token, setToken] = useState(stored.token);
+  const [customers, setCustomers] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [navActive, setNavActive] = useState('dashboard');
+  const [notaCustomer, setNotaCustomer] = useState(null);
+  const [notaCart, setNotaCart] = useState([]);
   const [adminOutletId, setAdminOutletId] = useState('');
 
   const isPopState = useRef(false);
 
   const NAV_SCREENS = ['dashboard', 'transaksi', 'customer', 'settings', 'kasir_shift', 'antrian',
-                       'approval', 'monitoring', 'admin_laporan', 'history_produksi', 'nota_step1',
-                       'verifikasi_payment', 'laporan_keuangan'];
+    'approval', 'monitoring', 'admin_laporan', 'history_produksi', 'nota_step1',
+    'verifikasi_payment', 'laporan_keuangan'];
 
   // ─── Set initial history state on mount ────────────────────────────────────
   useEffect(() => {
@@ -163,13 +174,25 @@ export const AppProvider = ({ children }) => {
       const repaired = {
         ...user,
         originalRoleCode: user.roleCode || user.role,
-        roleCode:         user.roleCode || user.role,
+        roleCode: user.roleCode || user.role,
       };
       setUser(repaired);
-      try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(repaired)); } catch {}
+      try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(repaired)); } catch { }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ─── SSE Realtime — connect on token, disconnect on logout ───────────────
+  useEffect(() => {
+    if (token) {
+      connectRealtime(token);
+    } else {
+      disconnectRealtime();
+    }
+    return () => {
+      // No-op on token change — disconnectRealtime di handleLogout sudah cukup
+    };
+  }, [token]);
 
   // ─── navigate ──────────────────────────────────────────────────────────────
   const navigate = (to, params = null, { replace = false } = {}) => {
@@ -201,18 +224,21 @@ export const AppProvider = ({ children }) => {
   };
 
   // ─── loginContext — dipanggil dari LoginPage setelah API berhasil ────────
-  const loginContext = ({ token: t, userId, roleCode, outletId, outletName, name, avatar, phone, email, photo, username }) => {
+  const loginContext = ({ token: t, userId, roleCode, originalRoleCode: origRole, outletId, outletName, name, avatar, phone, email, photo, username }) => {
+    // originalRoleCode = role asli dari DB (admin tetap admin meskipun switch ke kasir)
+    const trueOriginalRole = origRole || roleCode;
+
     const normalizedUser = {
       userId,
-      name:             name || '',
-      username:         username || '',
-      avatar:           avatar || (name ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : 'US'),
-      phone:            phone  || null,
-      email:            email  || null,
-      photo:            photo  || null,
+      name: name || '',
+      username: username || '',
+      avatar: avatar || (name ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : 'US'),
+      phone: phone || null,
+      email: email || null,
+      photo: photo || null,
       roleCode,
-      originalRoleCode: roleCode,
-      role:             roleCode,
+      originalRoleCode: trueOriginalRole,
+      role: roleCode,
       outletId,
       outletName,
       outlet: outletId ? { id: outletId, name: outletName } : null,
@@ -224,7 +250,7 @@ export const AppProvider = ({ children }) => {
     try {
       localStorage.setItem(AUTH_TOKEN_KEY, t || '');
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalizedUser));
-    } catch {}
+    } catch { }
 
     navigate('dashboard', null, { replace: true });
   };
@@ -235,17 +261,18 @@ export const AppProvider = ({ children }) => {
 
     if (loggedUser.token || loggedUser.roleCode) {
       loginContext({
-        token:      loggedUser.token,
-        userId:     loggedUser.userId,
-        roleCode:   loggedUser.roleCode || loggedUser.role,
-        outletId:   loggedUser.outletId  || loggedUser.outlet?.id,
+        token: loggedUser.token,
+        userId: loggedUser.userId,
+        roleCode: loggedUser.roleCode || loggedUser.role,
+        originalRoleCode: loggedUser.originalRoleCode || loggedUser.roleCode || loggedUser.role,
+        outletId: loggedUser.outletId || loggedUser.outlet?.id,
         outletName: loggedUser.outletName || loggedUser.outlet?.name,
-        name:       loggedUser.name || '',
-        username:   loggedUser.username || '',
-        avatar:     loggedUser.avatar || '',
-        phone:      loggedUser.phone  || null,
-        email:      loggedUser.email  || null,
-        photo:      loggedUser.photo  || null,
+        name: loggedUser.name || '',
+        username: loggedUser.username || '',
+        avatar: loggedUser.avatar || '',
+        phone: loggedUser.phone || null,
+        email: loggedUser.email || null,
+        photo: loggedUser.photo || null,
       });
       return;
     }
@@ -259,7 +286,9 @@ export const AppProvider = ({ children }) => {
     try {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem(AUTH_USER_KEY);
-    } catch {}
+      clearAllSavedFilters();
+      disconnectRealtime();
+    } catch { }
     setToken(null);
     setUser(null);
     navigate('login', null, { replace: true });
@@ -271,7 +300,7 @@ export const AppProvider = ({ children }) => {
     // semua komponen yang membaca user.roleCode ikut berubah
     const updatedUser = { ...user, role, roleCode: role };
     setUser(updatedUser);
-    try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch {}
+    try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch { }
     navigate('dashboard', null, { replace: true });
   };
 
@@ -279,20 +308,21 @@ export const AppProvider = ({ children }) => {
   const updateUserProfile = ({ name, phone, email, photo }) => {
     const updatedUser = {
       ...user,
-      name:   name   ?? user?.name,
-      phone:  phone  ?? user?.phone,
-      email:  email  ?? user?.email,
-      photo:  photo  !== undefined ? photo : user?.photo,
+      name: name ?? user?.name,
+      phone: phone ?? user?.phone,
+      email: email ?? user?.email,
+      photo: photo !== undefined ? photo : user?.photo,
       avatar: name ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : user?.avatar,
     };
     setUser(updatedUser);
-    try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch {}
+    try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch { }
   };
 
   // ─── Transaksi & customer actions ──────────────────────────────────────────
   const addTransaction = (nota) => {
     setTransactions((prev) => [nota, ...prev]);
-    navigate('nota_berhasil', nota);
+    // Replace history — jangan biarkan user kembali ke step checkout setelah berhasil
+    navigate('nota_berhasil', nota, { replace: true });
   };
 
   const addCustomer = (customer, andNota = false) => {

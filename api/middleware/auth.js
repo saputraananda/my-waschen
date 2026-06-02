@@ -67,7 +67,7 @@ export const requireRole = (...allowedRoles) => {
 
 // ─── Alias untuk role guard yang lebih spesifik ──────────────────────────────
 export const isAdmin = requireRole('admin');
-export const isCashier = requireRole('kasir');
+export const isCashier = requireRole('kasir', 'frontline');
 
 
 // ─── Middleware: outlet guard (user hanya bisa akses data outletnya sendiri) ──

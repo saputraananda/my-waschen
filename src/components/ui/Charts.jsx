@@ -215,5 +215,69 @@ export const HourlyHeatBar = ({ data = [], height = 80 }) => {
   );
 };
 
+// ── DonutChart ────────────────────────────────────────────
+/**
+ * Donut chart dengan center label — lebih modern dari pie.
+ * Props: data [{ method, amount }], height, centerLabel, centerValue
+ */
+export const DonutChart = ({ data = [], height = 200, centerLabel = 'Total', centerValue = '' }) => {
+  const total = data.reduce((s, d) => s + Number(d.amount || 0), 0) || 1;
+  return (
+    <div style={{ position: 'relative', width: '100%', height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%" cy="50%"
+            innerRadius={Math.floor(height * 0.30)}
+            outerRadius={Math.floor(height * 0.42)}
+            paddingAngle={2}
+            dataKey="amount"
+            stroke="white"
+            strokeWidth={2}
+          >
+            {data.map((d, i) => (
+              <Cell key={d.method || i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(v) => [`Rp ${Number(v).toLocaleString('id-ID')} (${((v / total) * 100).toFixed(1)}%)`, '']}
+            labelFormatter={(_, payload) => METHOD_LABEL[payload?.[0]?.payload?.method] || payload?.[0]?.payload?.method || ''}
+            contentStyle={{ fontFamily: 'Poppins', fontSize: 11, borderRadius: 8 }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      {/* Center label */}
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+      }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n500, letterSpacing: 0.4 }}>{centerLabel}</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: C.n900, marginTop: 2 }}>{centerValue}</div>
+      </div>
+    </div>
+  );
+};
+
+// ── StackedBarChart ───────────────────────────────────────
+/**
+ * Stacked bar untuk visualisasi komposisi per kategori.
+ * Props: data [{ name, [series1]: val, [series2]: val }], series [{ key, name, color }], height
+ */
+export const StackedBarChart = ({ data = [], series = [], height = 220 }) => (
+  <ResponsiveContainer width="100%" height={height}>
+    <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barSize={28}>
+      <CartesianGrid strokeDasharray="3 3" stroke={C.n100} vertical={false} />
+      <XAxis dataKey="name" tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} />
+      <YAxis tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} width={40} />
+      <Tooltip content={<CustomTooltip currency />} />
+      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 10 }} />
+      {series.map((s) => (
+        <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} stackId="a" radius={[4, 4, 0, 0]} />
+      ))}
+    </BarChart>
+  </ResponsiveContainer>
+);
+
 // Re-export CHART_COLORS for use in other components
 export { CHART_COLORS };

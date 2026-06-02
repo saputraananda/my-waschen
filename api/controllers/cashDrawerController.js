@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { poolWaschenPos } from '../db/connection.js';
 
 const CATEGORY_ENUM = new Set([
@@ -29,7 +28,7 @@ export const getDrawerEntries = async (req, res) => {
     // Jika tidak ada sessionId di query, pakai sesi aktif user
     if (!targetSessionId) {
       const [sessions] = await poolWaschenPos.execute(
-        `SELECT id FROM tr_cashier_session WHERE cashier_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1`,
+        `SELECT id FROM tr_cashier_session WHERE cashier_id = ? AND status = 'open' AND deleted_at IS NULL ORDER BY opened_at DESC LIMIT 1`,
         [userId]
       );
       if (sessions.length === 0) {
@@ -51,7 +50,7 @@ export const getDrawerEntries = async (req, res) => {
          cd.created_at    AS createdAt
        FROM tr_cash_drawer cd
        JOIN mst_user u ON u.id = cd.recorded_by
-       WHERE cd.session_id = ?
+       WHERE cd.session_id = ? AND cd.deleted_at IS NULL
        ORDER BY cd.created_at ASC`,
       [targetSessionId]
     );
@@ -121,7 +120,7 @@ export const addDrawerEntry = async (req, res) => {
 
     // Cek sesi aktif
     const [sessions] = await poolWaschenPos.execute(
-      `SELECT id FROM tr_cashier_session WHERE cashier_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1`,
+      `SELECT id FROM tr_cashier_session WHERE cashier_id = ? AND status = 'open' AND deleted_at IS NULL ORDER BY opened_at DESC LIMIT 1`,
       [userId]
     );
     if (sessions.length === 0) {
@@ -129,18 +128,19 @@ export const addDrawerEntry = async (req, res) => {
     }
     const sessionId = sessions[0].id;
 
-    const id = randomUUID();
-    await poolWaschenPos.execute(
-      `INSERT INTO tr_cash_drawer (id, session_id, type, category, amount, description, recorded_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, sessionId, type, category, amt, description?.trim() || null, userId]
+    // id AUTO_INCREMENT — biarkan DB yang generate
+    const [insertResult] = await poolWaschenPos.execute(
+      `INSERT INTO tr_cash_drawer (session_id, type, category, amount, description, recorded_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [sessionId, type, category, amt, description?.trim() || null, userId]
     );
+    const newEntryId = insertResult.insertId;
 
     return res.status(201).json({
       success: true,
       message: 'Entri kas berhasil dicatat.',
       data: {
-        id,
+        id: newEntryId,
         sessionId,
         type,
         category,
@@ -188,7 +188,10 @@ export const deleteDrawerEntry = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Hanya pencatat atau admin yang bisa menghapus entri ini.' });
     }
 
-    await poolWaschenPos.execute(`DELETE FROM tr_cash_drawer WHERE id = ?`, [id]);
+    await poolWaschenPos.execute(
+      `UPDATE tr_cash_drawer SET deleted_at = NOW(), deleted_by = ? WHERE id = ? AND deleted_at IS NULL`,
+      [userId, id]
+    );
 
     return res.json({ success: true, message: 'Entri kas berhasil dihapus.' });
   } catch (err) {
@@ -223,7 +226,7 @@ export const getDrawerSummaryBySession = async (req, res) => {
     const [entries] = await poolWaschenPos.execute(
       `SELECT type, category, SUM(amount) AS total
        FROM tr_cash_drawer
-       WHERE session_id = ?
+       WHERE session_id = ? AND deleted_at IS NULL
        GROUP BY type, category
        ORDER BY type, category`,
       [sessionId]

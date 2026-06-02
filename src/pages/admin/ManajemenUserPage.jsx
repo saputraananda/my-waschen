@@ -10,13 +10,14 @@ export default function ManajemenUserPage({ navigate, goBack }) {
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState('semua');
   const [statusFilter, setStatusFilter] = useState('semua');
+  const [outletFilter, setOutletFilter] = useState('semua');
   const [query, setQuery] = useState('');
   const [modalAdd, setModalAdd] = useState(false);
   const [modalEdit, setModalEdit] = useState(false);
   const [editingUserId, setEditingUserId] = useState(null);
   const [outlets, setOutlets] = useState([]);
-  const [form, setForm] = useState({ name: '', role: 'kasir', outletId: '', username: '', email: '', password: '' });
-  const [editForm, setEditForm] = useState({ name: '', role: 'kasir', outletId: '', username: '', email: '', active: true });
+  const [form, setForm] = useState({ name: '', role: 'frontline', outletId: '', username: '', email: '', password: '' });
+  const [editForm, setEditForm] = useState({ name: '', role: 'frontline', outletId: '', username: '', email: '', active: true });
 
   // Fetch users from API on mount
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         setUsers(data);
       } catch (error) {
         console.error('Failed to fetch users:', error);
-        alertError('Gagal memuat data user');
+        alertError(error?.response?.data?.message || 'Gagal memuat data user');
       } finally {
         setLoading(false);
       }
@@ -55,6 +56,11 @@ export default function ManajemenUserPage({ navigate, goBack }) {
       : statusFilter === 'aktif'
         ? u.active !== false
         : u.active === false;
+    const matchOutlet = outletFilter === 'semua'
+      ? true
+      : outletFilter === 'global'
+        ? !u.outletId && !u.outlet
+        : String(u.outletId || '') === String(outletFilter);
     const q = query.trim().toLowerCase();
     const matchQuery = !q
       ? true
@@ -62,7 +68,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         || (u.username || '').toLowerCase().includes(q)
         || (u.email || '').toLowerCase().includes(q)
         || (u.outlet || '').toLowerCase().includes(q);
-    return matchRole && matchStatus && matchQuery;
+    return matchRole && matchStatus && matchOutlet && matchQuery;
   });
 
   const ROLE_COLORS = { kasir: C.primary, produksi: '#0EA5E9', admin: '#8B5CF6', finance: C.success };
@@ -99,7 +105,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         alertSuccess('User berhasil ditambahkan');
       }
       setModalAdd(false);
-      setForm({ name: '', role: 'kasir', outletId: '', username: '', email: '', password: '' });
+      setForm({ name: '', role: 'frontline', outletId: '', username: '', email: '', password: '' });
     } catch (error) {
       const msg = error?.response?.data?.message || 'Gagal menambahkan user. Silakan coba lagi.';
       console.error('Failed to add user:', error);
@@ -118,7 +124,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
       alertSuccess(`User ${user.active ? 'dinonaktifkan' : 'diaktifkan'}`);
     } catch (error) {
       console.error('Failed to toggle user:', error);
-      alertError('Gagal mengubah status user');
+      alertError(error?.response?.data?.message || 'Gagal mengubah status user');
     }
   };
 
@@ -129,7 +135,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
       name: user.name || '',
       username: user.username || '',
       email: user.email || '',
-      role: user.role || 'kasir',
+      role: user.role || 'frontline',
       outletId: outlet?.id || '',
       active: user.active !== false,
     });
@@ -189,15 +195,68 @@ export default function ManajemenUserPage({ navigate, goBack }) {
 
       <div style={{ padding: '12px 16px 0' }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama, username, email, atau outlet..." />
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingTop: 10, paddingBottom: 10, scrollbarWidth: 'none' }}>
-          {['semua', 'aktif', 'nonaktif'].map((s) => (
-            <Chip key={s} label={s.charAt(0).toUpperCase() + s.slice(1)} active={statusFilter === s} onClick={() => setStatusFilter(s)} />
-          ))}
+
+        {/* Filter compact: 3 dropdown side-by-side biar gak numpuk */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 6, marginBottom: 8 }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10,
+              border: `1.5px solid ${statusFilter === 'semua' ? C.n200 : C.primary}`,
+              background: statusFilter === 'semua' ? '#FFFFFF' : `${C.primary}10`,
+              color: statusFilter === 'semua' ? C.n700 : C.primary,
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, cursor: 'pointer', outline: 'none',
+            }}
+          >
+            <option value="semua">Semua Status</option>
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            style={{
+              flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10,
+              border: `1.5px solid ${filter === 'semua' ? C.n200 : C.primary}`,
+              background: filter === 'semua' ? '#FFFFFF' : `${C.primary}10`,
+              color: filter === 'semua' ? C.n700 : C.primary,
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, cursor: 'pointer', outline: 'none',
+            }}
+          >
+            <option value="semua">Semua Role</option>
+            <option value="frontline">Frontline</option>
+            <option value="produksi">Produksi</option>
+            <option value="admin">Admin</option>
+            <option value="finance">Finance</option>
+          </select>
+          <select
+            value={outletFilter}
+            onChange={(e) => setOutletFilter(e.target.value)}
+            style={{
+              flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10,
+              border: `1.5px solid ${outletFilter === 'semua' ? C.n200 : C.primary}`,
+              background: outletFilter === 'semua' ? '#FFFFFF' : `${C.primary}10`,
+              color: outletFilter === 'semua' ? C.n700 : C.primary,
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, cursor: 'pointer', outline: 'none',
+            }}
+          >
+            <option value="semua">Semua Outlet</option>
+            <option value="global">🌐 Global (Tanpa Outlet)</option>
+            {outlets.map((o) => (
+              <option key={o.id} value={o.id}>{o.name}</option>
+            ))}
+          </select>
         </div>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, scrollbarWidth: 'none' }}>
-          {['semua', 'kasir', 'produksi', 'admin', 'finance'].map((f) => (
-            <Chip key={f} label={f.charAt(0).toUpperCase() + f.slice(1)} active={filter === f} onClick={() => setFilter(f)} />
-          ))}
+
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginBottom: 8 }}>
+          Menampilkan <strong style={{ color: C.n700 }}>{filtered.length}</strong> dari {users.length} user
+          {(statusFilter !== 'semua' || filter !== 'semua' || outletFilter !== 'semua' || query.trim()) && (
+            <button
+              onClick={() => { setStatusFilter('semua'); setFilter('semua'); setOutletFilter('semua'); setQuery(''); }}
+              style={{ marginLeft: 8, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.primary, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+            >Reset</button>
+          )}
         </div>
       </div>
 
@@ -281,7 +340,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         <Input label="Username" value={form.username} onChange={(v) => setForm((f) => ({ ...f, username: v }))} placeholder="username" />
         <Input label="Email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} placeholder="email@domain.com" />
         <Input label="Password" value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} type="password" placeholder="Password" />
-        <Select label="Role" value={form.role} onChange={(v) => setForm((f) => ({ ...f, role: v }))} options={[{ value: 'kasir', label: 'Kasir' }, { value: 'produksi', label: 'Produksi' }, { value: 'admin', label: 'Admin' }, { value: 'finance', label: 'Finance' }]} />
+        <Select label="Role" value={form.role} onChange={(v) => setForm((f) => ({ ...f, role: v }))} options={[{ value: 'frontline', label: 'Frontline' }, { value: 'produksi', label: 'Produksi' }, { value: 'admin', label: 'Admin' }, { value: 'finance', label: 'Finance' }]} />
         <Select
           label="Outlet"
           value={form.outletId}
@@ -299,7 +358,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         <Input label="Nama Lengkap" value={editForm.name} onChange={(v) => setEditForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />
         <Input label="Username" value={editForm.username} onChange={(v) => setEditForm((f) => ({ ...f, username: v }))} placeholder="username" />
         <Input label="Email" value={editForm.email} onChange={(v) => setEditForm((f) => ({ ...f, email: v }))} placeholder="email@domain.com" />
-        <Select label="Role" value={editForm.role} onChange={(v) => setEditForm((f) => ({ ...f, role: v }))} options={[{ value: 'kasir', label: 'Kasir' }, { value: 'produksi', label: 'Produksi' }, { value: 'admin', label: 'Admin' }, { value: 'finance', label: 'Finance' }]} />
+        <Select label="Role" value={editForm.role} onChange={(v) => setEditForm((f) => ({ ...f, role: v }))} options={[{ value: 'frontline', label: 'Frontline' }, { value: 'produksi', label: 'Produksi' }, { value: 'admin', label: 'Admin' }, { value: 'finance', label: 'Finance' }]} />
         <Select
           label="Outlet"
           value={editForm.outletId}

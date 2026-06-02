@@ -4,6 +4,8 @@ import { C } from '../../utils/theme';
 import { TopBar, Input, Btn, Select, Modal, DateInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
+import AddressCascadingPicker from '../../components/AddressCascadingPicker';
+import { inferRegionFromHousing } from '../../data/housingSeed';
 
 export default function TambahCustomerPage({ navigate, screenParams }) {
   const { setNotaCustomer } = useApp();
@@ -24,6 +26,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     awareness_other_text: screenParams?.awareness_other_text || '',
     area_zone_id: screenParams?.area_zone_id || '',
     area_zone_other_text: screenParams?.area_zone_other_text || '',
+    housing_region: screenParams?.housing_region || screenParams?.housingRegion || '',
     address_housing: screenParams?.address_housing || screenParams?.addressHousing || '',
     address_block: screenParams?.address_block || screenParams?.addressBlock || '',
     address_no: screenParams?.address_no || screenParams?.addressNo || '',
@@ -60,6 +63,22 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
   const set = (key) => (v) => { markDirty(); setForm((f) => ({ ...f, [key]: v })); };
 
+  // Auto-capitalize untuk field nama & alamat
+  const setCap = (key, mode = 'title') => (v) => {
+    markDirty();
+    let processed = v;
+    if (mode === 'title') {
+      // Title case tiap kata
+      processed = String(v).split(/(\s+)/).map((p) => {
+        if (!p.trim()) return p;
+        return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+      }).join('');
+    } else if (mode === 'sentence') {
+      processed = String(v).charAt(0).toUpperCase() + String(v).slice(1);
+    }
+    setForm((f) => ({ ...f, [key]: processed }));
+  };
+
   const handleBack = () => {
     if (isDirty.current) {
       setExitGuard(true);
@@ -73,18 +92,11 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     if (!form.name.trim()) errs.name = 'Wajib diisi';
     if (!form.phone.trim()) errs.phone = 'Wajib diisi';
     else if (!/^\d{8,13}$/.test(form.phone)) errs.phone = 'Nomor tidak valid (8–13 digit)';
-    if (!form.gender) errs.gender = 'Wajib diisi';
-    // greeting opsional — tidak wajib
-    if (!form.awareness_source_id) errs.awareness_source_id = 'Wajib diisi';
-    if (!form.area_zone_id) errs.area_zone_id = 'Wajib diisi';
-    if (!form.address_housing.trim()) errs.address_housing = 'Wajib diisi';
-    if (!form.address_block.trim()) errs.address_block = 'Wajib diisi';
-    if (!form.address_no.trim()) errs.address_no = 'Wajib diisi';
-    if (!form.address_detail.trim()) errs.address_detail = 'Wajib diisi';
+    // Semua field lain opsional — sesuai kebutuhan customer menengah ke atas yang ga banyak waktu
 
     if (Object.keys(errs).length) { 
       setErrors(errs); 
-      alertWarning('Harap lengkapi semua field yang wajib (*)');
+      alertWarning('Nama dan nomor HP wajib diisi');
       return; 
     }
 
@@ -95,18 +107,18 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
         name: form.name.trim(),
         phone: fullPhone,
         email: form.email.trim() || null,
-        gender: form.gender,
-        greeting: form.greeting,
+        gender: form.gender || null,
+        greeting: form.greeting || null,
         instansi: form.instansi.trim() || null,
         birth_date: form.birthDate || null,
         religion: form.religion || null,
-        awareness_source_id: form.awareness_source_id,
-        awareness_other_text: form.awareness_other_text.trim(),
-        area_zone_id: form.area_zone_id,
-        address_housing: form.address_housing.trim(),
-        address_block: form.address_block.trim(),
-        address_no: form.address_no.trim(),
-        address_detail: form.address_detail.trim(),
+        awareness_source_id: form.awareness_source_id || null,
+        awareness_other_text: form.awareness_other_text.trim() || null,
+        area_zone_id: form.area_zone_id || null,
+        address_housing: form.address_housing.trim() || null,
+        address_block: form.address_block.trim() || null,
+        address_no: form.address_no.trim() || null,
+        address_detail: form.address_detail.trim() || null,
         notes: form.notes.trim() || null,
       };
       
@@ -160,8 +172,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
         <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          {/* Nama Konsumen */}
-          <Input label="Nama Konsumen *" value={form.name} onChange={set('name')} placeholder="Nama Lengkap" error={errors.name} />
+          <Input label="Nama Konsumen *" value={form.name} onChange={setCap('name', 'title')} placeholder="Nama Lengkap" error={errors.name} />
           
           {/* Nomor HP +62 prefix */}
           <div style={{ marginBottom: 14 }}>
@@ -180,14 +191,13 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
             {errors.phone && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.phone}</div>}
           </div>
 
-          {/* Jenis Kelamin — Radio */}
+          {/* Jenis Kelamin — Radio (opsional) */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Jenis Kelamin *</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Jenis Kelamin</div>
             <div style={{ display: 'flex', gap: 20 }}>
               <RadioBtn label="Laki-laki" checked={form.gender === 'male'} onClick={() => set('gender')('male')} />
               <RadioBtn label="Perempuan" checked={form.gender === 'female'} onClick={() => set('gender')('female')} />
             </div>
-            {errors.gender && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.gender}</div>}
           </div>
 
           <div style={{ height: 1, background: C.n100, margin: '16px 0' }} />
@@ -256,7 +266,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
           
           <div>
             <Select 
-              label="Sumber Mengetahui Waschen *" 
+              label="Sumber Mengetahui Waschen" 
               value={form.awareness_source_id} 
               onChange={set('awareness_source_id')} 
               options={[
@@ -264,7 +274,6 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
                 ...awarenessSources.map(s => ({ value: s.id, label: s.name }))
               ]} 
             />
-            {errors.awareness_source_id && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.awareness_source_id}</div>}
           </div>
 
           {isAwarenessOther && (
@@ -286,7 +295,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
           <div>
             <Select 
-              label="Pilih Area/Zona *" 
+              label="Pilih Area/Zona Outlet" 
               value={form.area_zone_id} 
               onChange={set('area_zone_id')} 
               options={[
@@ -294,7 +303,6 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
                 ...areaZones.map(s => ({ value: s.id, label: s.name }))
               ]} 
             />
-            {errors.area_zone_id && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.area_zone_id}</div>}
           </div>
 
           {isZoneOther && (
@@ -303,16 +311,31 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
             </div>
           )}
 
-          <div style={{ marginTop: 10 }}>
-            <Input label="Nama Komplek/Perumahan *" value={form.address_housing} onChange={set('address_housing')} placeholder="Contoh: Green Valley Residence" error={errors.address_housing} />
+          {/* Cascading: Region → Komplek → Blok (searchable + free-text) */}
+          <div style={{ marginTop: 6 }}>
+            <AddressCascadingPicker
+              value={{
+                regionId: form.housing_region,
+                housing: form.address_housing,
+                block: form.address_block,
+              }}
+              onChange={(next) => {
+                markDirty();
+                setForm((f) => ({
+                  ...f,
+                  housing_region: next.regionId ?? f.housing_region,
+                  address_housing: next.housing ?? f.address_housing,
+                  address_block: next.block ?? f.address_block,
+                }));
+              }}
+            />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Input label="Blok *" value={form.address_block} onChange={set('address_block')} placeholder="Contoh: A12" error={errors.address_block} />
-            <Input label="No. Rumah *" value={form.address_no} onChange={set('address_no')} placeholder="Contoh: 5" error={errors.address_no} />
+          <div>
+            <Input label="No. Rumah" value={form.address_no} onChange={set('address_no')} placeholder="Contoh: 5" />
           </div>
 
-          <Input label="Detail Alamat Lengkap *" value={form.address_detail} onChange={set('address_detail')} placeholder="Patokan, RT/RW, gang, dll" error={errors.address_detail} />
+          <Input label="Detail Alamat Lengkap" value={form.address_detail} onChange={setCap('address_detail', 'sentence')} placeholder="Patokan, RT/RW, gang, dll" />
 
           <Input label="Catatan Internal (Opsional)" value={form.notes} onChange={set('notes')} placeholder="Contoh: Pelanggan minta cucian dilipat rapi..." />
         </div>

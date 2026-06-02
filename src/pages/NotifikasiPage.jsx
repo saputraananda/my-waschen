@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../utils/theme';
 import { TopBar, Btn } from '../components/ui';
+import { useRealtime } from '../utils/realtime';
 
 const TYPE_ICONS = {
   selesai:  { icon: '✅', bg: '#DCFCE7', color: C.success },
@@ -34,6 +35,11 @@ export default function NotifikasiPage({ navigate, goBack }) {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  // Realtime: refresh saat ada notif baru
+  useRealtime('notification:new', () => {
+    fetchNotifications();
+  });
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 

@@ -7,7 +7,7 @@ import { useApp } from '../../context/AppContext';
 
 const ROLES = [
   { id: 'admin',    label: 'Admin',    color: '#8B5CF6',  icon: '👑' },
-  { id: 'kasir',    label: 'Kasir',    color: C.primary,  icon: '🧾' },
+  { id: 'frontline', label: 'Frontline', color: C.primary,  icon: '🧾' },
   { id: 'produksi', label: 'Produksi', color: '#0EA5E9',  icon: '🧺' },
   { id: 'finance',  label: 'Finance',  color: C.success,  icon: '💰' },
 ];
@@ -62,6 +62,7 @@ export default function LoginPage({ onLogin }) {
       name:       payload.name,
       avatar:     payload.avatar,
       roleCode:   finalRole,
+      originalRoleCode: payload.roleCode || payload.role, // role asli dari DB (admin)
       outletId:   finalOutletId,
       outletName: finalOutletName,
     });

@@ -3,7 +3,9 @@ import { poolWaschenPos } from '../db/connection.js';
 const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
 
 // ─── GET /api/dashboard/stats ──────────────────────────────────────────────────
-// Multi-outlet admin: query outletId wajib. Omset per hari / bulan / akumulasi + opsional banding outlet.
+// Multi-outlet admin: query outletId opsional (default semua outlet untuk admin).
+// Optimized: SINGLE query dengan conditional aggregation untuk semua bucket
+// (total/today/month/pending) — sebelumnya 5 query sequential = 5 round-trip ke DB.
 export const getDashboardStats = async (req, res) => {
   try {
     const userOutletId = req.user?.outletId;
@@ -33,62 +35,40 @@ export const getDashboardStats = async (req, res) => {
       }
     }
 
-    const outletParam = isAllOutlets ? [] : [effectiveOutlet];
-    const outletFilter = isAllOutlets ? '' : 'AND t.outlet_id = ?';
-    const baseWhere = `t.status <> 'cancelled' AND t.deleted_at IS NULL ${outletFilter}`;
-    const pendingOutletFilter = isAllOutlets ? '' : 'AND outlet_id = ?';
+    const outletFilter = isAllOutlets ? '' : 'AND outlet_id = ?';
+    const params = isAllOutlets ? [] : [effectiveOutlet];
 
-    // Jalankan query secara sequential untuk menghindari ECONNRESET
-    // akibat terlalu banyak koneksi paralel ke DB remote
-    const [totals] = await poolWaschenPos.execute(
+    // Single query — semua bucket dalam 1 round-trip
+    const [statsRows] = await poolWaschenPos.execute(
       `SELECT
-        COALESCE(SUM(t.total), 0) AS total_omset,
-        COUNT(t.id) AS total_transaksi,
-        COALESCE(SUM(t.paid_amount), 0) AS total_pelunasan
-       FROM tr_transaction t
-       WHERE ${baseWhere}`,
-      outletParam
-    );
+        -- All-time totals (status not cancelled)
+        COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN total ELSE 0 END), 0)        AS total_omset,
+        SUM(CASE WHEN status <> 'cancelled' THEN 1 ELSE 0 END)                          AS total_transaksi,
+        COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN paid_amount ELSE 0 END), 0)  AS total_pelunasan,
 
-    const [todayAgg] = await poolWaschenPos.execute(
-      `SELECT
-        COALESCE(SUM(t.total), 0) AS omset,
-        COUNT(t.id) AS cnt,
-        COALESCE(SUM(t.paid_amount), 0) AS pelunasan
-       FROM tr_transaction t
-       WHERE ${baseWhere} AND DATE(t.created_at) = CURDATE()`,
-      outletParam
-    );
+        -- Today
+        COALESCE(SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = CURDATE() THEN total ELSE 0 END), 0)        AS omset_today,
+        SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = CURDATE() THEN 1 ELSE 0 END)                          AS transaksi_today,
+        COALESCE(SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = CURDATE() THEN paid_amount ELSE 0 END), 0)  AS pelunasan_today,
 
-    const [monthAgg] = await poolWaschenPos.execute(
-      `SELECT
-        COALESCE(SUM(t.total), 0) AS omset,
-        COUNT(t.id) AS cnt,
-        COALESCE(SUM(t.paid_amount), 0) AS pelunasan
-       FROM tr_transaction t
-       WHERE ${baseWhere}
-         AND YEAR(t.created_at) = YEAR(CURDATE())
-         AND MONTH(t.created_at) = MONTH(CURDATE())`,
-      outletParam
-    );
+        -- This month
+        COALESCE(SUM(CASE WHEN status <> 'cancelled' AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN total ELSE 0 END), 0)        AS omset_month,
+        SUM(CASE WHEN status <> 'cancelled' AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN 1 ELSE 0 END)                          AS transaksi_month,
+        COALESCE(SUM(CASE WHEN status <> 'cancelled' AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN paid_amount ELSE 0 END), 0)  AS pelunasan_month,
 
-    const [summary] = await poolWaschenPos.execute(
-      `SELECT COUNT(id) AS pending_transactions
+        -- Pending workload (active queue)
+        SUM(CASE WHEN status IN ('pending', 'process', 'ready_for_pickup', 'ready_for_delivery') THEN 1 ELSE 0 END) AS pending_transactions
        FROM tr_transaction
-       WHERE status IN ('pending', 'process', 'ready_for_pickup', 'ready_for_delivery')
-         AND deleted_at IS NULL ${pendingOutletFilter}`,
-      outletParam
+       WHERE deleted_at IS NULL ${outletFilter}`,
+      params
     );
 
-    const [customerRow] = await poolWaschenPos.execute(
-      `SELECT COUNT(*) AS total_customers FROM mst_customer WHERE is_active = 1`
+    // Customer count — separate query (tidak bisa di-join karena scope global)
+    const [[customerRow]] = await poolWaschenPos.execute(
+      `SELECT COUNT(*) AS total_customers FROM mst_customer WHERE is_active = 1 AND deleted_at IS NULL`
     );
 
-    const totalsRow  = totals[0]     || {};
-    const todayRow   = todayAgg[0]   || {};
-    const monthRow   = monthAgg[0]   || {};
-    const summaryRow = summary[0]    || {};
-    const custRow    = customerRow[0] || {};
+    const r = statsRows[0] || {};
 
     let outletComparison = null;
     if (compare && (period === 'today' || period === 'month')) {
@@ -102,15 +82,15 @@ export const getDashboardStats = async (req, res) => {
          FROM mst_outlet o
          LEFT JOIN tr_transaction t ON t.outlet_id = o.id
            AND t.deleted_at IS NULL AND t.status <> 'cancelled' AND ${dateSql}
-         WHERE o.is_active = 1
+         WHERE o.is_active = 1 AND o.deleted_at IS NULL
          GROUP BY o.id, o.name
          ORDER BY omset DESC`
       );
-      outletComparison = cmpRows.map((r) => ({
-        outletId: r.outletId,
-        outletName: r.outletName,
-        omset: Number(r.omset || 0),
-        transaksi: Number(r.transaksi || 0),
+      outletComparison = cmpRows.map((row) => ({
+        outletId: row.outletId,
+        outletName: row.outletName,
+        omset: Number(row.omset || 0),
+        transaksi: Number(row.transaksi || 0),
       }));
     }
 
@@ -119,17 +99,17 @@ export const getDashboardStats = async (req, res) => {
       data: {
         outletId: isAllOutlets ? '_all' : effectiveOutlet,
         period,
-        total_omset: Number(totalsRow.total_omset ?? 0),
-        total_transaksi: Number(totalsRow.total_transaksi ?? 0),
-        total_pelunasan: Number(totalsRow.total_pelunasan ?? 0),
-        omset_today: Number(todayRow.omset ?? 0),
-        pelunasan_today: Number(todayRow.pelunasan ?? 0),
-        transaksi_today: Number(todayRow.cnt ?? 0),
-        omset_month: Number(monthRow.omset ?? 0),
-        pelunasan_month: Number(monthRow.pelunasan ?? 0),
-        transaksi_month: Number(monthRow.cnt ?? 0),
-        pending_transactions: Number(summaryRow.pending_transactions ?? 0),
-        total_customers: Number(custRow.total_customers ?? 0),
+        total_omset: Number(r.total_omset ?? 0),
+        total_transaksi: Number(r.total_transaksi ?? 0),
+        total_pelunasan: Number(r.total_pelunasan ?? 0),
+        omset_today: Number(r.omset_today ?? 0),
+        pelunasan_today: Number(r.pelunasan_today ?? 0),
+        transaksi_today: Number(r.transaksi_today ?? 0),
+        omset_month: Number(r.omset_month ?? 0),
+        pelunasan_month: Number(r.pelunasan_month ?? 0),
+        transaksi_month: Number(r.transaksi_month ?? 0),
+        pending_transactions: Number(r.pending_transactions ?? 0),
+        total_customers: Number(customerRow?.total_customers ?? 0),
         outlet_comparison: outletComparison,
       },
     });

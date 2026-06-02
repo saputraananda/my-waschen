@@ -49,6 +49,12 @@ import reportRoutes from './api/routes/report.routes.js';
 import targetRoutes from './api/routes/targets.routes.js';
 import periodRoutes from './api/routes/periods.routes.js';
 import auditRoutes from './api/routes/audit.routes.js';
+import paymentRoutes from './api/routes/payment.routes.js';
+import webhookRoutes from './api/routes/webhook.routes.js';
+import outletCashRoutes from './api/routes/outletCash.routes.js';
+import purchaseRequestRoutes from './api/routes/purchaseRequests.routes.js';
+import settingsRoutes from './api/routes/settings.routes.js';
+import realtimeRoutes from './api/routes/realtime.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -99,6 +105,10 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }))
 // API Routes
 import { poolWaschenPos } from './api/db/connection.js'
 
+// Audit Trail — auto-log semua mutasi (POST/PUT/PATCH/DELETE)
+import { auditTrailMiddleware } from './api/middleware/auditTrail.js'
+app.use(auditTrailMiddleware(poolWaschenPos))
+
 app.get('/api/health', async (req, res) => {
   try {
     // Cek DB connection juga
@@ -139,6 +149,12 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/targets', targetRoutes);
 app.use('/api/periods', periodRoutes);
 app.use('/api/audit-log', auditRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/webhook', webhookRoutes);
+app.use('/api/outlet-cash', outletCashRoutes);
+app.use('/api/purchase-requests', purchaseRequestRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/realtime', realtimeRoutes);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (req, res) => {

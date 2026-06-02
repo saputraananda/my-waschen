@@ -51,8 +51,10 @@ const NAV_ICONS = {
 
 // ── BottomNav ─────────────────────────────────────────────
 export const BottomNav = ({ role, active, navigate }) => {
+  // 'frontline' adalah sinonim 'kasir' — perlakukan sama
+  const isKasir = role === 'kasir' || role === 'frontline';
   const tabs =
-    role === 'kasir'
+    isKasir
       ? [
           { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
           { id: 'transaksi', label: 'Transaksi', icon: NAV_ICONS.tx },
@@ -85,7 +87,7 @@ export const BottomNav = ({ role, active, navigate }) => {
         ];
 
   const fabAction =
-    role === 'kasir'
+    isKasir
       ? () => navigate('nota_step1')
       : role === 'produksi'
       ? () => navigate('produksi_qr_scan')
@@ -162,13 +164,17 @@ export const Btn = ({ variant = 'primary', children, onClick, disabled, loading,
 };
 
 // ── Input ─────────────────────────────────────────────────
-export const Input = ({ label, value, onChange, type = 'text', error, placeholder, rightIcon, autoFocus, inputMode }) => {
+export const Input = ({ label, value, onChange, type = 'text', error, placeholder, rightIcon, autoFocus, inputMode, id, name }) => {
   const [focused, setFocused] = useState(false);
+  // Auto-derive name dari label kalau ga di-pass
+  const fieldName = name || (label ? label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') : undefined);
+  const fieldId = id || fieldName;
   return (
     <div style={{ marginBottom: 16 }}>
-      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
+      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</label>}
       <div style={{ position: 'relative' }}>
         <input
+          id={fieldId} name={fieldName}
           type={type} value={value} onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder} inputMode={inputMode} autoFocus={autoFocus}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
@@ -354,6 +360,136 @@ export const Textarea = ({ label, value, onChange, placeholder, rows = 3 }) => {
   );
 };
 
+// ── MoneyInput ────────────────────────────────────────────
+// Input nominal dengan auto thousand separator. Value yang di-set ke parent
+// adalah angka mentah (string digit only, tanpa separator).
+// Display pakai format Indonesia (1.000.000) supaya gampang dibaca.
+export const MoneyInput = ({ label, value, onChange, error, placeholder, autoFocus, name, id, prefix = 'Rp', hint }) => {
+  const [focused, setFocused] = useState(false);
+  const fieldName = name || (label ? label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') : 'amount');
+  const fieldId = id || fieldName;
+  const raw = String(value ?? '').replace(/\D/g, '');
+  const display = raw ? Number(raw).toLocaleString('id-ID') : '';
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</label>}
+      <div style={{ position: 'relative' }}>
+        {prefix && (
+          <span style={{
+            position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+            fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n500,
+            pointerEvents: 'none',
+          }}>{prefix}</span>
+        )}
+        <input
+          id={fieldId} name={fieldName}
+          type="text" inputMode="numeric" autoComplete="off"
+          value={display}
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={placeholder || '0'}
+          autoFocus={autoFocus}
+          style={{
+            width: '100%', height: 48, borderRadius: 10,
+            padding: prefix ? '0 14px 0 42px' : '0 14px',
+            border: `${focused ? 2 : 1.5}px solid ${error ? C.danger : focused ? C.primary : C.n300}`,
+            fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+            color: C.n900, background: C.white,
+            textAlign: 'right', outline: 'none', boxSizing: 'border-box',
+            transition: 'border-color 0.2s',
+          }}
+        />
+      </div>
+      {hint && !error && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>{hint}</div>}
+      {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
+    </div>
+  );
+};
+
+// ── TimeInput ─────────────────────────────────────────────
+// Input jam (HH:mm) — pakai native time input dengan styling konsisten + label.
+export const TimeInput = ({ label, value, onChange, error, placeholder, name, id }) => {
+  const [focused, setFocused] = useState(false);
+  const fieldName = name || (label ? label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') : 'time');
+  const fieldId = id || fieldName;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</label>}
+      <input
+        id={fieldId} name={fieldName} type="time"
+        value={value || ''} onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        placeholder={placeholder || '--:--'}
+        style={{
+          width: '100%', height: 48, borderRadius: 10, padding: '0 14px',
+          border: `${focused ? 2 : 1.5}px solid ${error ? C.danger : focused ? C.primary : C.n300}`,
+          fontFamily: 'Poppins', fontSize: 14, color: C.n900,
+          background: C.white, outline: 'none', boxSizing: 'border-box',
+          transition: 'border-color 0.2s',
+        }}
+      />
+      {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
+    </div>
+  );
+};
+
+// ── DateTimeInput ─────────────────────────────────────────
+// DatePicker + TimePicker inline (2 field) — return ISO datetime string.
+// Lebih konsisten daripada native datetime-local yang inkonsisten antar browser.
+export const DateTimeInput = ({ label, value, onChange, error, minDate, maxDate, placeholder }) => {
+  // value: ISO string "2026-06-01T00:00:00" atau null
+  const initial = value ? new Date(value) : null;
+  const [date, setDate] = useState(initial && !Number.isNaN(initial.getTime()) ? initial : null);
+  const [time, setTime] = useState(initial && !Number.isNaN(initial.getTime())
+    ? `${String(initial.getHours()).padStart(2,'0')}:${String(initial.getMinutes()).padStart(2,'0')}`
+    : ''
+  );
+
+  // Emit ISO string saat date+time keduanya sudah dipilih
+  const emit = (d, t) => {
+    if (!d || !t) {
+      onChange(null);
+      return;
+    }
+    const [hh, mm] = t.split(':').map(Number);
+    const merged = new Date(d);
+    merged.setHours(hh || 0, mm || 0, 0, 0);
+    const yyyy = merged.getFullYear();
+    const MM = String(merged.getMonth() + 1).padStart(2, '0');
+    const DD = String(merged.getDate()).padStart(2, '0');
+    const HH = String(merged.getHours()).padStart(2, '0');
+    const mi = String(merged.getMinutes()).padStart(2, '0');
+    onChange(`${yyyy}-${MM}-${DD}T${HH}:${mi}:00`);
+  };
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 2 }}>
+          <DateInput
+            value={date}
+            onChange={(d) => { setDate(d); emit(d, time); }}
+            placeholder={placeholder || 'Pilih tanggal'}
+            minDate={minDate}
+            maxDate={maxDate}
+            returnDate
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <TimeInput
+            value={time}
+            onChange={(t) => { setTime(t); emit(date, t); }}
+          />
+        </div>
+      </div>
+      {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
+    </div>
+  );
+};
+
 // ── Select ────────────────────────────────────────────────
 // Custom styled dropdown — portal-based, works inside Modal/overflow containers
 export const Select = ({ label, value, onChange, options, error, placeholder }) => {
@@ -405,10 +541,16 @@ export const Select = ({ label, value, onChange, options, error, placeholder }) 
     return () => document.removeEventListener('pointerdown', handler, true);
   }, [open]);
 
-  // Close + reposition on scroll
+  // Close + reposition on scroll — TAPI jangan close kalau scroll di dalam dropdown sendiri
   useEffect(() => {
     if (!open) return;
-    const handler = () => setOpen(false);
+    const handler = (e) => {
+      // Kalau scroll terjadi di dalam dropdown, biarkan (user sedang scroll opsi)
+      if (dropRef.current && (dropRef.current === e.target || dropRef.current.contains(e.target))) {
+        return;
+      }
+      setOpen(false);
+    };
     window.addEventListener('scroll', handler, true);
     return () => window.removeEventListener('scroll', handler, true);
   }, [open]);
@@ -611,12 +753,13 @@ export const Chip = ({ label, active, onClick, color = C.primary }) => (
 export const Divider = ({ mx = 0, my = 12 }) => <div style={{ height: 1, background: C.n100, margin: `${my}px ${mx}px` }} />;
 
 // ── SearchBar ─────────────────────────────────────────────
-export const SearchBar = ({ value, onChange, placeholder = 'Cari...' }) => (
+export const SearchBar = ({ value, onChange, placeholder = 'Cari...', name = 'search' }) => (
   <div style={{ position: 'relative', marginBottom: 12 }}>
     <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.n600 }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
     </div>
     <input
+      id={name} name={name}
       value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
       style={{ width: '100%', height: 44, borderRadius: 10, padding: '0 40px 0 38px', border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: C.white, outline: 'none', boxSizing: 'border-box' }}
     />
@@ -774,7 +917,9 @@ export class ErrorBoundary extends Component {
 export { SkeletonBar, SkeletonCard, SkeletonList, SkeletonStat, SkeletonStatGrid, SkeletonTable } from './Skeleton';
 export { QRCodeView, generateQRDataURL } from './QRCode';
 export { CustomerSearchInput } from './CustomerSearchInput';
-export { RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, ComparisonLineChart, HourlyHeatBar, CHART_COLORS } from './Charts';
+export { RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, ComparisonLineChart, HourlyHeatBar, DonutChart, StackedBarChart, CHART_COLORS } from './Charts';
+export { PullToRefresh, usePullToRefresh } from './PullToRefresh';
+export { GlobalPullToRefresh, useAppRefresh } from './GlobalPullToRefresh';
 
 // ── OfflineIndicator ──────────────────────────────────────
 // Banner kecil di bottom kalau offline
@@ -793,4 +938,212 @@ export const OfflineIndicator = ({ online }) => {
       Anda offline — beberapa fitur tidak tersedia
     </div>
   );
+};
+
+// ── PhotoLightbox ────────────────────────────────────────
+// Reusable popup lightbox untuk lihat foto besar tanpa pindah tab.
+// Mendukung navigasi prev/next, swipe, escape close, klik backdrop close.
+//
+// Props:
+//   visible: boolean
+//   photos: [{ url, type, notes, createdAt, uploadedByName }]
+//   index: number — current photo index
+//   onClose: () => void
+//   onIndexChange: (newIndex) => void
+//   formatType?: (type) => string  — optional label formatter
+export const PhotoLightbox = ({ visible, photos = [], index = 0, onClose, onIndexChange, formatType }) => {
+  // Touch swipe
+  const touchStartX = useRef(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose?.();
+      else if (e.key === 'ArrowLeft' && index > 0) onIndexChange?.(index - 1);
+      else if (e.key === 'ArrowRight' && index < photos.length - 1) onIndexChange?.(index + 1);
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [visible, index, photos.length, onClose, onIndexChange]);
+
+  if (!visible || !photos.length) return null;
+  const current = photos[index];
+  if (!current) return null;
+
+  const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current == null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(dx) > 50) {
+      if (dx > 0 && index > 0) onIndexChange?.(index - 1);
+      else if (dx < 0 && index < photos.length - 1) onIndexChange?.(index + 1);
+    }
+    touchStartX.current = null;
+  };
+
+  const fmtTime = (v) => {
+    if (!v) return '';
+    try {
+      return new Date(v).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch { return ''; }
+  };
+
+  const lightbox = (
+    <div
+      onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 99999,
+        background: 'rgba(0,0,0,0.94)',
+        display: 'flex', flexDirection: 'column',
+        animation: 'fadeIn 0.18s ease-out',
+      }}
+    >
+      {/* Top bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 16px', color: 'white',
+        background: 'linear-gradient(180deg, rgba(0,0,0,0.6), transparent)',
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: 'white' }}>
+            {formatType ? formatType(current.type) : (current.type || 'Foto')}
+          </div>
+          {(current.createdAt || current.uploadedByName) && (
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+              {fmtTime(current.createdAt)}{current.uploadedByName ? ` · ${current.uploadedByName}` : ''}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+            background: 'rgba(255,255,255,0.15)', color: 'white',
+            padding: '4px 10px', borderRadius: 999,
+          }}>
+            {index + 1} / {photos.length}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onClose?.(); }}
+            aria-label="Tutup"
+            style={{
+              width: 36, height: 36, borderRadius: 18,
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none', cursor: 'pointer', color: 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Image area */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 16px', position: 'relative', overflow: 'hidden',
+        }}
+      >
+        <img
+          key={current.url}
+          src={current.url}
+          alt={current.type || 'foto'}
+          style={{
+            maxWidth: '100%', maxHeight: '100%',
+            borderRadius: 12, objectFit: 'contain',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+            animation: 'photoIn 0.22s ease-out',
+          }}
+        />
+
+        {/* Prev button */}
+        {index > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onIndexChange?.(index - 1); }}
+            aria-label="Sebelumnya"
+            style={{
+              position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+              width: 40, height: 40, borderRadius: 20,
+              background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)',
+              border: 'none', cursor: 'pointer', color: 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+        )}
+
+        {/* Next button */}
+        {index < photos.length - 1 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onIndexChange?.(index + 1); }}
+            aria-label="Berikutnya"
+            style={{
+              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              width: 40, height: 40, borderRadius: 20,
+              background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)',
+              border: 'none', cursor: 'pointer', color: 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Bottom: notes + thumbnails strip */}
+      <div onClick={(e) => e.stopPropagation()} style={{ padding: '8px 12px 16px' }}>
+        {current.notes && (
+          <div style={{
+            background: 'rgba(255,255,255,0.10)', borderRadius: 10,
+            padding: '8px 12px', marginBottom: 10,
+            fontFamily: 'Poppins', fontSize: 12, color: 'white',
+            maxHeight: 80, overflowY: 'auto',
+          }}>
+            📝 {current.notes}
+          </div>
+        )}
+        {photos.length > 1 && (
+          <div style={{
+            display: 'flex', gap: 6, overflowX: 'auto',
+            paddingBottom: 4, scrollbarWidth: 'thin',
+          }}>
+            {photos.map((p, i) => (
+              <button
+                key={p.id || p.url || i}
+                onClick={(e) => { e.stopPropagation(); onIndexChange?.(i); }}
+                style={{
+                  flexShrink: 0, width: 50, height: 50,
+                  borderRadius: 8, overflow: 'hidden', padding: 0,
+                  border: i === index ? '2px solid white' : '2px solid transparent',
+                  opacity: i === index ? 1 : 0.55,
+                  cursor: 'pointer', background: 'transparent',
+                  transition: 'opacity 0.15s, border-color 0.15s',
+                }}
+              >
+                <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes photoIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+      `}</style>
+    </div>
+  );
+
+  return ReactDOM.createPortal(lightbox, document.body);
 };

@@ -2,8 +2,20 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Modal, Input, Select } from '../../components/ui';
+import { TopBar, Btn, Modal, Input, Select, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertConfirm } from '../../utils/alert';
+
+// Helper: format angka ke ribuan (50000000 -> "50.000.000")
+const formatRibuan = (val) => {
+  if (!val && val !== 0) return '';
+  const num = String(val).replace(/[^0-9]/g, '');
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+// Helper: parse ribuan ke number string ("50.000.000" -> "50000000")
+const parseRibuan = (val) => {
+  if (!val) return '';
+  return String(val).replace(/\./g, '');
+};
 
 const MONTHS = [
   { value: 1, label: 'Januari' }, { value: 2, label: 'Februari' },
@@ -242,14 +254,55 @@ export default function AdminTargetPage({ navigate, goBack }) {
 
                   <ProgressBar pct={row.pct} color={color} />
 
+                  {/* Surplus/Shortfall achievement banner */}
+                  {row.actualAmount > row.targetAmount && row.targetAmount > 0 && (
+                    <div style={{
+                      marginTop: 8, padding: '8px 12px', borderRadius: 10,
+                      background: 'linear-gradient(90deg, #DCFCE7, #F0FDF4)',
+                      border: '1px solid #86EFAC',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      <span style={{ fontSize: 14 }}>🏆</span>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: '#065F46' }}>
+                        Surplus <strong>{rp(row.actualAmount - row.targetAmount)}</strong> · Lampaui target {row.pct - 100}%
+                      </div>
+                    </div>
+                  )}
+                  {row.actualAmount >= row.targetAmount && row.actualAmount === row.targetAmount && row.targetAmount > 0 && (
+                    <div style={{
+                      marginTop: 8, padding: '8px 12px', borderRadius: 10,
+                      background: '#ECFDF5', border: '1px solid #6EE7B7',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      <span style={{ fontSize: 14 }}>✅</span>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: '#065F46' }}>Target tercapai persis!</div>
+                    </div>
+                  )}
+                  {row.actualAmount < row.targetAmount && row.targetAmount > 0 && (
+                    <div style={{
+                      marginTop: 8, padding: '6px 12px', borderRadius: 10,
+                      background: row.pct >= 70 ? '#FFFBEB' : '#FEF2F2',
+                      border: `1px solid ${row.pct >= 70 ? '#FCD34D' : '#FCA5A5'}`,
+                      fontFamily: 'Poppins', fontSize: 10,
+                      color: row.pct >= 70 ? '#92400E' : '#991B1B',
+                    }}>
+                      Kurang <strong>{rp(row.targetAmount - row.actualAmount)}</strong> ({100 - row.pct}%) untuk mencapai target
+                    </div>
+                  )}
+
                   {row.notes && (
                     <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400E', marginTop: 8 }}>📝 {row.notes}</div>
                   )}
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <Btn
+                      variant="primary"
+                      onClick={() => navigate('admin_target_detail', { outletId: row.outletId, year: row.year, month: row.month })}
+                      style={{ flex: 1.5, padding: '8px 0', fontSize: 12 }}
+                    >📊 Lihat Detail Harian</Btn>
                     <Btn variant="secondary" onClick={() => openEdit(row)} style={{ flex: 1, padding: '8px 0', fontSize: 12 }}>✏️ Edit</Btn>
-                    <Btn variant="danger" onClick={() => handleDelete(row)} style={{ flex: 1, padding: '8px 0', fontSize: 12 }}>🗑️ Hapus</Btn>
+                    <Btn variant="danger" onClick={() => handleDelete(row)} style={{ flex: 1, padding: '8px 0', fontSize: 12 }}>🗑️</Btn>
                   </div>
                 </div>
               );
@@ -271,7 +324,7 @@ export default function AdminTargetPage({ navigate, goBack }) {
       )}
 
       {/* Modal tambah/edit */}
-      <Modal isOpen={!!modal} onClose={() => setModal(false)} title={modal === 'add' ? '🎯 Tambah Target' : '✏️ Edit Target'}>
+      <Modal visible={!!modal} onClose={() => setModal(false)} title={modal === 'add' ? '🎯 Tambah Target' : '✏️ Edit Target'}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <Select
             label="Outlet"
@@ -293,19 +346,13 @@ export default function AdminTargetPage({ navigate, goBack }) {
               options={YEAR_RANGE}
             />
           </div>
-          <div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Target Omset (Rp)</div>
-            <input
-              type="number"
-              value={formAmount}
-              onChange={e => setFormAmount(e.target.value)}
-              placeholder="Contoh: 50000000"
-              style={{ width: '100%', height: 44, borderRadius: 10, border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 14, padding: '0 12px', boxSizing: 'border-box', outline: 'none' }}
-            />
-            {formAmount && !isNaN(Number(formAmount)) && (
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>= {rp(Number(formAmount))}</div>
-            )}
-          </div>
+          <MoneyInput
+            label="Target Omset (Rp)"
+            value={formAmount}
+            onChange={setFormAmount}
+            placeholder="50.000.000"
+            hint={formAmount && !isNaN(Number(formAmount)) ? `= ${rp(Number(formAmount))}` : undefined}
+          />
           <Input
             label="Catatan (opsional)"
             value={formNotes}

@@ -2,10 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Input, Select, Divider, Modal, DateInput } from '../../components/ui';
+import { TopBar, Btn, Input, Select, Divider, Modal, DateInput, DateTimeInput, MoneyInput } from '../../components/ui';
 import { alertError, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
 import { hapticSuccess, hapticError } from '../../utils/haptic';
+import { chargePayment } from '../../utils/paymentApi';
+import PaymentChannelSelector from '../../components/PaymentChannelSelector';
+import PaymentMethodGrouped from '../../components/PaymentMethodGrouped';
 
 function todayKeyWib() {
   return new Intl.DateTimeFormat('sv-SE', {
@@ -44,15 +47,26 @@ function promoDiscountPreview(promo, subtotal) {
 
 export default function NotaStep3Page({ goBack }) {
   const { navigate, user, notaCustomer, notaCart, setNotaCart, setNotaCustomer } = useApp();
-  const [pickupType, setPickupType] = useState('self'); // 'self' | 'pickup' | 'delivery'
+  // pickupType: 'self' (default, customer ambil sendiri) | 'pickup' (jemput kotor) | 'delivery' (antar bersih)
+  const [pickupType, setPickupType] = useState('self');
   const [scheduleDate, setScheduleDate] = useState(null);
   const [scheduleTime, setScheduleTime] = useState('');
   const [areaZoneId, setAreaZoneId] = useState('');
   const [areaZones, setAreaZones] = useState([]);
+  const [courierName, setCourierName] = useState(''); // siapa yang nganterin (delivery)
+  const [deliveryNotes, setDeliveryNotes] = useState(''); // catatan untuk kurir
   const [payMethod, setPayMethod] = useState('cash');
   const [payTiming, setPayTiming] = useState('now');
+  // 'full' = bayar lunas, 'dp' = bayar sebagian (DP)
+  // Kalau bayar nanti, payPlan diabaikan
   const [payPlan, setPayPlan] = useState('full');
   const [dpAmountStr, setDpAmountStr] = useState('');
+
+  // Midtrans flow state
+  const [showChannelSelector, setShowChannelSelector] = useState(false);
+  // Channel Midtrans yang user pilih dari grouped picker (qris/gopay/etc)
+  // Kalau di-set, langsung skip channel selector modal & charge ke channel itu.
+  const [selectedMidtransChannel, setSelectedMidtransChannel] = useState(null);
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -95,7 +109,18 @@ export default function NotaStep3Page({ goBack }) {
   );
   const total = subtotal - promoDiscount + logisticFee;
 
-  const doCheckout = async () => {
+  const doCheckout = async (opts = {}) => {
+    const { silent = false, returnData = false } = opts;
+    if (!notaCustomer || !notaCustomer.id) {
+      alertError('Customer belum dipilih. Silakan mulai ulang dari langkah 1.');
+      navigate('nota_step1');
+      return;
+    }
+    if (!notaCart || notaCart.length === 0) {
+      alertError('Belum ada item layanan. Silakan pilih layanan dulu.');
+      navigate('nota_step2');
+      return;
+    }
     setLoading(true);
     try {
       const formatDate = (d) => {
@@ -106,14 +131,26 @@ export default function NotaStep3Page({ goBack }) {
         return `${year}-${month}-${day}`;
       };
 
-      const dpNum = Math.max(0, Number(String(dpAmountStr).replace(/\D/g, '')) || 0);
-      let paidAmount = total;
+      let paidAmount = 0;
       let changeAmount = 0;
-      if (payTiming === 'later' && payPlan === 'full') {
+
+      // Aturan baru:
+      //   - "Bayar Nanti" → paidAmount=0, status unpaid. Pelunasan saat ambil cucian.
+      //   - "Bayar Sekarang" → bisa lunas (full) atau DP (sebagian).
+      //   - Midtrans → paid=0 sampai webhook konfirmasi (status=unpaid awalnya)
+      const isMidtransNow = payTiming === 'now' && payMethod === 'midtrans';
+      const dpValue = Math.max(0, Math.min(total, Number(dpAmountStr) || 0));
+
+      if (payTiming === 'later') {
         paidAmount = 0;
+      } else if (isMidtransNow) {
+        paidAmount = 0; // Midtrans pending sampai webhook
       } else if (payPlan === 'dp') {
-        paidAmount = Math.min(dpNum, total);
-        changeAmount = Math.max(0, paidAmount - total);
+        paidAmount = dpValue;
+        changeAmount = 0;
+      } else {
+        paidAmount = total;
+        changeAmount = 0;
       }
 
       const paymentPayload = {
@@ -121,8 +158,10 @@ export default function NotaStep3Page({ goBack }) {
         paidAmount,
         changeAmount,
       };
-      const needMethod = paidAmount > 0;
-      if (needMethod) {
+      // Kirim method kalau:
+      //   - paid > 0 (cash/transfer/etc), atau
+      //   - midtrans now (perlu method='midtrans' supaya backend tahu pending gateway)
+      if (paidAmount > 0 || isMidtransNow) {
         paymentPayload.method = payMethod;
       }
 
@@ -139,12 +178,15 @@ export default function NotaStep3Page({ goBack }) {
           notes:           c.notes  || null,
           carpetPanjangCm: c.carpetPanjangCm || null,
           carpetLebarCm:   c.carpetLebarCm   || null,
+          material:        c.material || null,
+          brand:           c.brand || null,
+          specialCareAlert: c.specialCareAlert || null,
         })),
         payment: paymentPayload,
         paymentIntent: {
           payTiming: payTiming === 'later' ? 'later' : 'now',
-          payPlan: payPlan === 'dp' ? 'dp' : 'full',
-          dpAmount: payPlan === 'dp' ? dpNum : 0,
+          payPlan: payTiming === 'now' ? payPlan : 'full',
+          dpAmount: payPlan === 'dp' ? dpValue : 0,
         },
         subtotal,
         discount: 0,
@@ -155,6 +197,8 @@ export default function NotaStep3Page({ goBack }) {
         pickupType,
         areaZoneId: areaZoneId || null,
         scheduleAt: (scheduleDate && scheduleTime) ? `${formatDate(scheduleDate)}T${scheduleTime}:00` : null,
+        courierName: pickupType === 'delivery' ? (courierName.trim() || null) : null,
+        deliveryNotes: pickupType === 'delivery' ? (deliveryNotes.trim() || null) : null,
         notes,
         dueDate: dueDate ? formatDate(dueDate) : null,
       };
@@ -163,8 +207,6 @@ export default function NotaStep3Page({ goBack }) {
       const data = res?.data?.data;
 
       if (data) {
-        setNotaCart([]);
-        setNotaCustomer(null);
         const nota = {
           id:            data.transactionNo,
           customerName:  data.customerName,
@@ -172,8 +214,8 @@ export default function NotaStep3Page({ goBack }) {
           items:         data.items || [],
           total:         Number(data.total) || 0,
           payMethod:     data.payment?.method || payMethod,
-          paidAmount:    data.payment?.paidAmount || total,
-          changeAmount:  data.payment?.changeAmount || 0,
+          paidAmount:    data.payment?.paidAmount ?? paidAmount,
+          changeAmount:  data.payment?.changeAmount ?? changeAmount,
           pickup: pickupType === 'pickup',
           delivery: pickupType === 'delivery',
           notes,
@@ -181,40 +223,61 @@ export default function NotaStep3Page({ goBack }) {
           status: 'baru',
           date:   new Date().toISOString().slice(0, 10),
         };
+
+        if (returnData) return data;
+
+        if (isMidtransNow && total > 0) {
+          return data;
+        }
+
+        setNotaCart([]);
+        setNotaCustomer(null);
         navigate('nota_berhasil', nota);
       } else {
-        hapticError();
-        alertError(res?.data?.message || 'Gagal membuat nota');
+        if (!silent) {
+          hapticError();
+          alertError(res?.data?.message || 'Gagal membuat nota');
+        }
+        return null;
       }
     } catch (error) {
-      hapticError();
+      if (!silent) hapticError();
       const msg = error?.response?.data?.message || 'Gagal membuat nota. Silakan coba lagi.';
       console.error('Checkout error:', error);
-      alertError(msg);
+      if (!silent) alertError(msg);
+      else throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const dpNumPreview = Math.max(0, Number(String(dpAmountStr).replace(/\D/g, '')) || 0);
+  const dpValue = Math.max(0, Math.min(total, Number(dpAmountStr) || 0));
   const effectivePaid =
-    payTiming === 'later' && payPlan === 'full'
-      ? 0
-      : payPlan === 'dp'
-        ? Math.min(dpNumPreview, total)
-        : total;
+    payTiming === 'later' ? 0 :
+    payPlan === 'dp' ? dpValue :
+    total;
 
   const handleConfirm = () => {
     if (selectedPromoId && promoDiscount <= 0) {
       alertWarning('Promo tidak memenuhi syarat untuk subtotal saat ini.');
       return;
     }
-    if (payPlan === 'dp' && (!dpAmountStr || dpNumPreview <= 0)) {
-      alertWarning('Isi nominal DP');
+
+    // Bayar Sekarang via Midtrans → skip modal kalau channel sudah dipilih
+    // dari grouped picker. Kalau belum, buka modal channel selector.
+    const willPayMidtransNow = payTiming === 'now' && payMethod === 'midtrans' && total > 0;
+    if (willPayMidtransNow) {
+      if (selectedMidtransChannel) {
+        // Langsung charge tanpa buka modal
+        handleSelectChannel(selectedMidtransChannel);
+      } else {
+        setShowChannelSelector(true);
+      }
       return;
     }
+
     const runCheckout = () => doCheckout();
-    if (payMethod === 'qris' && effectivePaid > 0) {
+    if (payTiming === 'now' && payMethod === 'qris' && total > 0) {
       setQrisModal(true);
       setTimeout(() => {
         setQrisModal(false);
@@ -226,7 +289,73 @@ export default function NotaStep3Page({ goBack }) {
   };
 
   const minDateForPicker = minSelectableDateWib();
+
+  // ── Handler untuk Midtrans channel selector
+  // Atomic flow: checkout + charge dilakukan setelah user pilih channel.
+  // Kalau gagal di mana saja, transaksi tidak ke-create di DB.
+  const handleSelectChannel = async (channel) => {
+    setShowChannelSelector(false);
+    setLoading(true);
+    try {
+      // 1. Checkout dulu (paidAmount=0, statusnya unpaid)
+      const checkoutData = await doCheckout({ silent: true, returnData: true });
+      if (!checkoutData) {
+        throw new Error('Gagal membuat nota.');
+      }
+
+      // 2. Charge ke Midtrans
+      const result = await chargePayment({
+        transactionId: checkoutData.id || checkoutData.transactionNo,
+        channel,
+        amount: effectivePaid,
+      });
+
+      hapticSuccess();
+      // 3. Clear cart & navigate ke QR payment.
+      // Replace: jangan biarkan user back ke step 3 setelah charge sukses —
+      // transaksi sudah ke-create di DB, kalau back malah dobel.
+      setNotaCart([]);
+      setNotaCustomer(null);
+      navigate('qr_payment', {
+        paymentItemId: result.paymentItemId,
+        orderId: result.orderId,
+        channel: result.channel,
+        amount: result.amount,
+        qrImageUrl: result.qrImageUrl,
+        qrString: result.qrString,
+        vaNumber: result.vaNumber,
+        billerCode: result.billerCode,
+        deeplinkUrl: result.deeplinkUrl,
+        expiresAt: result.expiresAt,
+        transactionId: checkoutData.id || checkoutData.transactionNo,
+        customerName: checkoutData.customerName,
+      }, { replace: true });
+    } catch (err) {
+      hapticError();
+      console.error('[charge] error:', err);
+      alertError(err?.response?.data?.message || err?.message || 'Gagal memproses pembayaran. Coba lagi.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelChannel = () => {
+    // User batal pilih channel — gak ada efek samping, transaksi belum ke-create
+    setShowChannelSelector(false);
+  };
   const filterPastDates = (d) => dateKeyWib(d) >= todayKeyWib();
+
+  // Guard: kalau customer atau cart hilang (misal page refresh), redirect
+  if (!notaCustomer && !loading) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32, background: C.n50 }}>
+        <div style={{ fontSize: 48 }}>⚠️</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900, textAlign: 'center' }}>Data nota tidak lengkap</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, textAlign: 'center' }}>Customer belum dipilih. Silakan mulai ulang dari langkah 1.</div>
+        <Btn variant="primary" onClick={() => navigate('nota_step1')}>Mulai Ulang</Btn>
+      </div>
+    );
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
@@ -295,7 +424,7 @@ export default function NotaStep3Page({ goBack }) {
           )}
           {pickupType !== 'self' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Ongkir ({pickupType === 'pickup' ? 'Jemput' : 'Antar'})</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Ongkir ({pickupType === 'pickup' ? 'Jemput cucian kotor' : 'Antar cucian bersih'})</span>
               <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{rp(logisticFee)}</span>
             </div>
           )}
@@ -306,14 +435,14 @@ export default function NotaStep3Page({ goBack }) {
           </div>
         </div>
 
-        {/* Pickup Type - 3 Options */}
+        {/* Layanan Antar/Jemput - Toggle + 2 Options */}
         <div style={{ background: C.white, borderRadius: 14, padding: '12px 14px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>TIPE PENGIRIMAN</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>LAYANAN ANTAR/JEMPUT</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {[
-              { key: 'self', label: 'Ambil Sendiri', icon: '🏪' },
-              { key: 'pickup', label: 'Pickup', icon: '🚗' },
-              { key: 'delivery', label: 'Delivery', icon: '🛵' },
+              { key: 'self', label: 'Tidak Ada', icon: '🏪', desc: 'Customer ambil di outlet' },
+              { key: 'pickup', label: 'Jemput', icon: '🚗', desc: 'Ambil cucian kotor ke rumah' },
+              { key: 'delivery', label: 'Antar', icon: '🛵', desc: 'Antar cucian bersih ke rumah' },
             ].map((opt) => (
               <button
                 key={opt.key}
@@ -326,6 +455,7 @@ export default function NotaStep3Page({ goBack }) {
                   fontWeight: pickupType === opt.key ? 700 : 400,
                   color: pickupType === opt.key ? C.primary : C.n600,
                 }}
+                title={opt.desc}
               >
                 <div style={{ fontSize: 18, marginBottom: 4 }}>{opt.icon}</div>
                 {opt.label}
@@ -336,22 +466,43 @@ export default function NotaStep3Page({ goBack }) {
           {/* Schedule & Area Zone for Pickup/Delivery */}
           {pickupType !== 'self' && (
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <DateInput
-                    label="Tanggal Jadwal"
-                    value={scheduleDate}
-                    onChange={setScheduleDate}
-                    placeholder="Pilih tanggal"
-                    minDate={minDateForPicker}
-                    filterDate={filterPastDates}
-                    returnDate
-                  />
+              {/* Customer address — auto-fill */}
+              {notaCustomer && (notaCustomer.addressHousing || notaCustomer.addressDetail) && (
+                <div style={{ background: '#F0F9FF', borderRadius: 10, padding: '10px 12px', border: `1px solid #BAE6FD` }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: '#0369A1', marginBottom: 4, letterSpacing: 0.3 }}>
+                    📍 ALAMAT {pickupType === 'pickup' ? 'JEMPUT' : 'ANTAR'} (DARI DATA CUSTOMER)
+                  </div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n800, lineHeight: 1.4 }}>
+                    {[notaCustomer.addressHousing, notaCustomer.addressBlock, notaCustomer.addressNo]
+                      .filter(Boolean).join(' ')}
+                    {notaCustomer.addressDetail && (
+                      <div style={{ fontSize: 11, color: C.n600, marginTop: 2 }}>{notaCustomer.addressDetail}</div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <Input label="Jam" value={scheduleTime} onChange={setScheduleTime} type="time" />
-                </div>
-              </div>
+              )}
+
+              <DateTimeInput
+                label={pickupType === 'pickup' ? 'Jadwal Jemput' : 'Jadwal Antar'}
+                value={
+                  scheduleDate && scheduleTime
+                    ? `${scheduleDate.getFullYear()}-${String(scheduleDate.getMonth()+1).padStart(2,'0')}-${String(scheduleDate.getDate()).padStart(2,'0')}T${scheduleTime}:00`
+                    : null
+                }
+                onChange={(iso) => {
+                  if (!iso) {
+                    setScheduleDate(null);
+                    setScheduleTime('');
+                    return;
+                  }
+                  const d = new Date(iso);
+                  setScheduleDate(d);
+                  const hh = String(d.getHours()).padStart(2, '0');
+                  const mm = String(d.getMinutes()).padStart(2, '0');
+                  setScheduleTime(`${hh}:${mm}`);
+                }}
+                minDate={minDateForPicker}
+              />
               <Select
                 label="Area Zone (ongkir)"
                 value={areaZoneId}
@@ -361,6 +512,24 @@ export default function NotaStep3Page({ goBack }) {
                   ...areaZones.map((z) => ({ value: z.id, label: `${z.name} - ${rp(z.fee)}` })),
                 ]}
               />
+
+              {/* Tambahan untuk Delivery: nama kurir + catatan */}
+              {pickupType === 'delivery' && (
+                <>
+                  <Input
+                    label="Nama Kurir / Pengantar"
+                    value={courierName}
+                    onChange={setCourierName}
+                    placeholder="Contoh: Pak Budi"
+                  />
+                  <Input
+                    label="Catatan untuk Kurir (opsional)"
+                    value={deliveryNotes}
+                    onChange={setDeliveryNotes}
+                    placeholder="Contoh: Pagar warna hijau, bel 2x"
+                  />
+                </>
+              )}
             </div>
           )}
         </div>
@@ -370,87 +539,150 @@ export default function NotaStep3Page({ goBack }) {
           <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 8 }}>WAKTU PEMBAYARAN</div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             {[
-              { key: 'now', label: 'Di kasir sekarang', sub: 'Bayar saat nota dibuat' },
-              { key: 'later', label: 'Nanti', sub: 'Saat selesai / pengambilan' },
-            ].map((opt) => (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => { setPayTiming(opt.key); if (opt.key === 'later') setPayMethod('cash'); }}
-                style={{
-                  flex: 1, padding: '10px 8px', borderRadius: 10, textAlign: 'left',
-                  border: `1.5px solid ${payTiming === opt.key ? C.primary : C.n300}`,
-                  background: payTiming === opt.key ? C.primaryLight : C.white,
-                  cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11,
-                }}
-              >
-                <div style={{ fontWeight: 700, color: payTiming === opt.key ? C.primary : C.n900 }}>{opt.label}</div>
-                <div style={{ fontSize: 10, color: C.n600, marginTop: 2 }}>{opt.sub}</div>
-              </button>
-            ))}
+              { key: 'now',   label: 'Bayar Sekarang', sub: 'Customer bayar lunas di kasir', icon: '💵' },
+              { key: 'later', label: 'Bayar Nanti',     sub: 'Saat customer ambil cucian',   icon: '⏳' },
+            ].map((opt) => {
+              const active = payTiming === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => { setPayTiming(opt.key); if (opt.key === 'later') setPayMethod('cash'); }}
+                  style={{
+                    flex: 1, padding: '12px 10px', borderRadius: 12, textAlign: 'left',
+                    border: `1.5px solid ${active ? C.primary : C.n300}`,
+                    background: active ? C.primaryLight : C.white,
+                    cursor: 'pointer', fontFamily: 'Poppins',
+                    display: 'flex', alignItems: 'flex-start', gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 20, lineHeight: 1 }}>{opt.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.primary : C.n900 }}>
+                      {opt.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: C.n600, marginTop: 2, lineHeight: 1.4 }}>
+                      {opt.sub}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 8 }}>SKEMA</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {[
-              { key: 'full', label: 'Lunas' },
-              { key: 'dp', label: 'DP / cicil' },
-            ].map((opt) => (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => setPayPlan(opt.key)}
-                style={{
-                  flex: 1, padding: '10px 8px', borderRadius: 10, textAlign: 'center',
-                  border: `1.5px solid ${payPlan === opt.key ? C.primary : C.n300}`,
-                  background: payPlan === opt.key ? C.primaryLight : C.white,
-                  cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12,
-                  fontWeight: payPlan === opt.key ? 700 : 500,
-                  color: payPlan === opt.key ? C.primary : C.n600,
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {payPlan === 'dp' && (
-            <div style={{ marginBottom: 12 }}>
-              <Input
-                label="Nominal DP (Rp)"
-                value={dpAmountStr}
-                onChange={setDpAmountStr}
-                placeholder="Contoh: 50000"
-                type="number"
-              />
-            </div>
-          )}
-
-          {!(payTiming === 'later' && payPlan === 'full') && (
+          {payTiming === 'now' ? (
             <>
-              <Select
-                label={payTiming === 'later' ? 'Metode untuk DP / pembayaran yang dicatat sekarang' : 'Metode pembayaran'}
-                value={payMethod}
-                onChange={setPayMethod}
-                options={[
-                  { value: 'cash', label: 'Tunai' },
-                  { value: 'transfer', label: 'Transfer Bank' },
-                  { value: 'deposit', label: `Deposit (${rp(notaCustomer?.deposit || 0)})` },
-                  { value: 'qris', label: 'QRIS (EDC)' },
-                ]}
-              />
-              {payMethod === 'qris' && effectivePaid > 0 && (
-                <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '8px 12px', marginTop: 6, marginBottom: 16, fontFamily: 'Poppins', fontSize: 11, color: '#1D4ED8' }}>
-                  Saat klik "Buat Nota", sistem akan menunggu konfirmasi dari EDC QRIS.
+              {/* Pilihan: Lunas / DP */}
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 8 }}>JUMLAH BAYAR</div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {[
+                  { key: 'full', label: 'Lunas Penuh', desc: rp(total) },
+                  { key: 'dp',   label: 'DP / Sebagian', desc: 'Sisa dilunasi nanti' },
+                ].map((opt) => {
+                  const active = payPlan === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setPayPlan(opt.key)}
+                      style={{
+                        flex: 1, padding: '10px 12px', borderRadius: 10, textAlign: 'left',
+                        border: `1.5px solid ${active ? C.primary : C.n300}`,
+                        background: active ? C.primaryLight : C.white,
+                        cursor: 'pointer', fontFamily: 'Poppins',
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.primary : C.n900 }}>
+                        {opt.label}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.n600, marginTop: 2 }}>
+                        {opt.desc}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Input nominal DP — muncul kalau pilih DP */}
+              {payPlan === 'dp' && (
+                <div style={{ background: '#FEF9C3', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid #FDE68A' }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: '#854D0E', marginBottom: 8 }}>
+                    💰 Nominal DP yang dibayar sekarang
+                  </div>
+                  <MoneyInput
+                    value={dpAmountStr}
+                    onChange={setDpAmountStr}
+                    placeholder={`Min Rp 1, max ${rp(total)}`}
+                  />
+                  {/* Quick presets — 25%, 50%, 75% dari total */}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    {[0.25, 0.5, 0.75].map((pct) => {
+                      const v = Math.round(total * pct);
+                      return (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setDpAmountStr(String(v))}
+                          style={{
+                            flex: 1, padding: '6px 8px', borderRadius: 8,
+                            border: `1px solid #FDE68A`, background: 'white',
+                            fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: '#854D0E',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {Math.round(pct * 100)}% · {rp(v)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {dpValue > 0 && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#854D0E', marginTop: 8, lineHeight: 1.5 }}>
+                      Bayar sekarang: <strong>{rp(dpValue)}</strong><br/>
+                      Sisa tagihan: <strong>{rp(total - dpValue)}</strong> (dilunasi saat ambil)
+                    </div>
+                  )}
+                  {dpAmountStr && dpValue <= 0 && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.danger, marginTop: 6 }}>
+                      ⚠️ Nominal harus lebih dari 0
+                    </div>
+                  )}
                 </div>
               )}
+
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 8 }}>METODE PEMBAYARAN</div>
+              <PaymentMethodGrouped
+                value={payMethod === 'midtrans' ? 'qris' : payMethod}
+                onChange={(m) => {
+                  // Map Midtrans channels (qris/gopay/etc) ke alur 'midtrans'
+                  // tapi simpan channel terpilih untuk dipakai langsung ke chargePayment
+                  if (['qris', 'gopay', 'shopeepay', 'bca_va', 'bni_va', 'bri_va', 'permata_va', 'mandiri_va'].includes(m)) {
+                    setPayMethod('midtrans');
+                    setSelectedMidtransChannel(m);
+                  } else {
+                    setPayMethod(m);
+                    setSelectedMidtransChannel(null);
+                  }
+                }}
+                showDeposit={!!notaCustomer?.depositBalance || !!notaCustomer?.deposit}
+                depositBalance={Number(notaCustomer?.depositBalance ?? notaCustomer?.deposit ?? 0)}
+                amount={effectivePaid}
+                hint={payPlan === 'dp'
+                  ? `DP ${rp(dpValue)}. Sisa ${rp(total - dpValue)} dilunasi saat ambil cucian.`
+                  : 'Bayar lunas. Pilih "Bayar Nanti" kalau belum mau bayar.'}
+              />
             </>
-          )}
-          {payTiming === 'later' && payPlan === 'full' && (
-            <div style={{ background: '#FEF9C3', borderRadius: 8, padding: '10px 12px', marginBottom: 12, fontFamily: 'Poppins', fontSize: 11, color: '#854D0E' }}>
-              Pelunasan dilakukan di kasir saat pengambilan atau saat laundry selesai — metode pembayaran bisa dipilih saat itu.
+          ) : (
+            <div style={{
+              background: '#FEF9C3', borderRadius: 10, padding: '12px 14px',
+              fontFamily: 'Poppins', fontSize: 12, color: '#854D0E', lineHeight: 1.5,
+              border: '1px solid #FDE68A',
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>⏳ Bayar saat pengambilan</div>
+              Tagihan akan tercatat sebagai <strong>BELUM LUNAS</strong>. Customer hanya bisa ambil cucian setelah lunas.
+              Metode pembayaran dipilih di kasir saat customer datang.
             </div>
           )}
+
           <DateInput
             label="Estimasi Selesai"
             value={dueDate}
@@ -477,11 +709,25 @@ export default function NotaStep3Page({ goBack }) {
       )}
 
       <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: 10 }}>
-        <Btn variant="secondary" onClick={() => navigate('nota_step2')} style={{ flex: 1 }}>Kembali</Btn>
-        <Btn variant="primary" onClick={handleConfirm} loading={loading} style={{ flex: 2 }}>
-          Buat Nota {payTiming === 'later' && payPlan === 'full' ? `(belum bayar ${rp(total)})` : payPlan === 'dp' ? `(DP ${rp(Math.min(dpNumPreview, total))})` : rp(total)}
+        <Btn variant="secondary" onClick={() => goBack?.()} style={{ flex: 1 }}>Kembali</Btn>
+        <Btn variant="primary" onClick={handleConfirm} loading={loading} style={{ flex: 2 }}
+             disabled={payTiming === 'now' && payPlan === 'dp' && dpValue <= 0}>
+          {payTiming === 'later'
+            ? `Buat Nota (belum bayar ${rp(total)})`
+            : payPlan === 'dp'
+              ? `Bayar DP ${rp(dpValue)}`
+              : `Bayar ${rp(total)}`}
         </Btn>
       </div>
+
+      {/* Midtrans channel selector */}
+      <PaymentChannelSelector
+        visible={showChannelSelector}
+        onClose={handleCancelChannel}
+        onSelect={handleSelectChannel}
+        amount={effectivePaid}
+        title="Pilih Metode Pembayaran Customer"
+      />
     </div>
   );
 }

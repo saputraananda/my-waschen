@@ -1,5 +1,4 @@
 import { poolWaschenPos } from '../db/connection.js';
-import { randomUUID } from 'crypto';
 
 const MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -58,11 +57,19 @@ export const getCurrentPeriod = async (req, res) => {
     const daysLeft = Math.max(0, Math.ceil(msLeft / 86400000));
 
     // Sudah ditutup?
-    const [closedRows] = await poolWaschenPos.execute(
-      `SELECT id, closed_at FROM tr_period_close WHERE outlet_id = ? AND period_start = ? LIMIT 1`,
-      [outletId, startStr]
-    );
-    const alreadyClosed = closedRows.length > 0;
+    let alreadyClosed = false;
+    let closedAt = null;
+    try {
+      const [closedRows] = await poolWaschenPos.execute(
+        `SELECT id, closed_at FROM tr_period_close WHERE outlet_id = ? AND period_start = ? LIMIT 1`,
+        [outletId, startStr]
+      );
+      alreadyClosed = closedRows.length > 0;
+      closedAt = alreadyClosed ? closedRows[0].closed_at : null;
+    } catch (e) {
+      if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+      // Tabel belum ada — anggap belum pernah tutup buku
+    }
 
     // Hitung stats periode ini
     const [stats] = await poolWaschenPos.execute(
@@ -89,7 +96,7 @@ export const getCurrentPeriod = async (req, res) => {
         daysLeft,
         isClosing:    daysLeft <= 3,
         alreadyClosed,
-        closedAt:     alreadyClosed ? closedRows[0].closed_at : null,
+        closedAt,
         stats: {
           totalOmset:      Number(stats[0].totalOmset),
           totalPelunasan:  Number(stats[0].totalPelunasan),
@@ -145,6 +152,9 @@ export const getPeriodHistory = async (req, res) => {
 
     return res.json({ success: true, data });
   } catch (err) {
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      return res.json({ success: true, data: [] });
+    }
     console.error('[getPeriodHistory] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat riwayat tutup buku.' });
   }
@@ -182,40 +192,50 @@ export const closePeriod = async (req, res) => {
       [outletId, `${startStr} 00:00:00`, `${endStr} 23:59:59`]
     );
 
-    // Ambil target (pakai bulan akhir periode sebagai referensi)
-    const endDate    = new Date(endStr);
-    const tgtMonth   = endDate.getMonth() + 1;
-    const tgtYear    = endDate.getFullYear();
-    const [tgtRows]  = await poolWaschenPos.execute(
-      `SELECT target_amount FROM mst_outlet_target WHERE outlet_id = ? AND period_year = ? AND period_month = ? LIMIT 1`,
-      [outletId, tgtYear, tgtMonth]
-    );
+    // Ambil target — graceful jika tabel belum ada
+    let targetAmount = null;
+    try {
+      const endDate  = new Date(endStr);
+      const tgtMonth = endDate.getMonth() + 1;
+      const tgtYear  = endDate.getFullYear();
+      const [tgtRows] = await poolWaschenPos.execute(
+        `SELECT target_amount FROM mst_outlet_target WHERE deleted_at IS NULL AND outlet_id = ? AND period_year = ? AND period_month = ? LIMIT 1`,
+        [outletId, tgtYear, tgtMonth]
+      );
+      if (tgtRows.length > 0) targetAmount = Number(tgtRows[0].target_amount);
+    } catch (e) {
+      if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+    }
 
-    const id = randomUUID();
-    await poolWaschenPos.execute(
+    // id AUTO_INCREMENT — biarkan DB yang generate
+    const [insertResult] = await poolWaschenPos.execute(
       `INSERT INTO tr_period_close
-         (id, outlet_id, period_label, period_start, period_end,
+         (outlet_id, period_label, period_start, period_end,
           total_omset, total_pelunasan, total_transaksi, total_selesai,
           target_amount, notes, closed_by, closed_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
-        id, outletId, periodLabel, startStr, endStr,
+        outletId, periodLabel, startStr, endStr,
         Number(stats[0].totalOmset),
         Number(stats[0].totalPelunasan),
         Number(stats[0].totalTransaksi),
         Number(stats[0].totalSelesai),
-        tgtRows.length > 0 ? Number(tgtRows[0].target_amount) : null,
+        targetAmount,
         notes || null,
         req.user?.userId,
       ]
     );
+    const newPeriodId = insertResult.insertId;
 
     return res.json({
       success: true,
       message: `Tutup buku periode ${periodLabel} berhasil dicatat.`,
-      data: { id, periodLabel, periodStart: startStr, periodEnd: endStr },
+      data: { id: newPeriodId, periodLabel, periodStart: startStr, periodEnd: endStr },
     });
   } catch (err) {
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ success: false, message: 'Tabel periode belum tersedia. Jalankan migration_target_period_tables.sql terlebih dahulu.' });
+    }
     console.error('[closePeriod] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal melakukan tutup buku.' });
   }

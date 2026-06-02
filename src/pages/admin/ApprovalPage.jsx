@@ -1,12 +1,18 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Avatar, Btn, SearchBar, Chip } from '../../components/ui';
+import { TopBar, Avatar, Btn, SearchBar, Chip, useAppRefresh } from '../../components/ui';
+import { useInfiniteList } from '../../utils/useInfiniteList';
 
-export default function ApprovalPage({ navigate, goBack }) {
-  const [approvals, setApprovals] = useState([]);
-  const [loading, setLoading] = useState(false);
+const TYPE_LABELS = {
+  topup_deposit: 'Top Up Deposit',
+  reschedule: 'Reschedule',
+  diskon: 'Diskon',
+  pembatalan: 'Pembatalan',
+};
+
+export default function ApprovalPage({ goBack }) {
   const [actionLoading, setActionLoading] = useState(null);
   const [statusFilter, setStatusFilter] = useState('semua');
   const [query, setQuery] = useState('');
@@ -24,34 +30,85 @@ export default function ApprovalPage({ navigate, goBack }) {
     return true;
   };
 
-  const TYPE_LABELS = {
-    topup_deposit: 'Top Up Deposit',
-    reschedule: 'Reschedule',
-    diskon: 'Diskon',
-    pembatalan: 'Pembatalan',
-  };
+  // ── Pending list — tampilkan semua tanpa pagination (jarang banyak)
+  const pendingList = useInfiniteList({
+    fetchPage: useCallback(async ({ page, pageSize, signal }) => {
+      const res = await axios.get('/api/approvals', {
+        params: { status: 'pending', page, limit: pageSize },
+        signal,
+      });
+      return {
+        items: res?.data?.data || [],
+        total: res?.data?.pagination?.total ?? null,
+      };
+    }, []),
+    pageSize: 50,
+    deps: [],
+  });
 
-  const fetchApprovals = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get('/api/approvals');
-      setApprovals(res?.data?.data || []);
-    } catch (error) {
-      console.error('Failed to fetch approvals:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // ── History list — pagination & infinite scroll (untuk approved/rejected)
+  const historyStatus = statusFilter === 'approved' || statusFilter === 'rejected'
+    ? statusFilter
+    : ''; // '' = semua non-pending (server-side filter)
 
-  useEffect(() => {
-    fetchApprovals();
-  }, [fetchApprovals]);
+  const historyList = useInfiniteList({
+    fetchPage: useCallback(async ({ page, pageSize, signal }) => {
+      const params = { page, limit: pageSize };
+      if (historyStatus) params.status = historyStatus;
+      const res = await axios.get('/api/approvals', { params, signal });
+      // Filter out pending (kalau status filter kosong, server return all)
+      const items = (res?.data?.data || []).filter(a => a.status !== 'pending');
+      return {
+        items,
+        total: res?.data?.pagination?.total ?? null,
+      };
+    }, [historyStatus]),
+    pageSize: 30,
+    deps: [historyStatus],
+    enabled: statusFilter !== 'pending', // skip kalau cuma mau lihat pending
+  });
+
+  // Pull-to-refresh
+  useAppRefresh(() => {
+    pendingList.refresh();
+    historyList.refresh();
+  }, [pendingList.refresh, historyList.refresh]);
+
+  // Client-side search & period filter
+  const filteredPending = useMemo(() => {
+    if (statusFilter !== 'semua' && statusFilter !== 'pending') return [];
+    const q = query.trim().toLowerCase();
+    return pendingList.items.filter((a) => {
+      const matchQuery = !q
+        ? true
+        : (a.requester || '').toLowerCase().includes(q)
+          || (a.description || '').toLowerCase().includes(q)
+          || (a.type || '').toLowerCase().includes(q);
+      return matchQuery && inPeriod(a.date);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingList.items, query, periodFilter, statusFilter]);
+
+  const filteredHistory = useMemo(() => {
+    if (statusFilter === 'pending') return [];
+    const q = query.trim().toLowerCase();
+    return historyList.items.filter((a) => {
+      const matchQuery = !q
+        ? true
+        : (a.requester || '').toLowerCase().includes(q)
+          || (a.description || '').toLowerCase().includes(q)
+          || (a.type || '').toLowerCase().includes(q);
+      return matchQuery && inPeriod(a.date);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyList.items, query, periodFilter, statusFilter]);
 
   const handleApprove = async (id) => {
     setActionLoading(id + '_approve');
     try {
       await axios.put(`/api/approvals/${id}`, { status: 'approved' });
-      await fetchApprovals();
+      pendingList.refresh();
+      historyList.refresh();
     } catch (error) {
       console.error('Failed to approve:', error);
     } finally {
@@ -63,7 +120,8 @@ export default function ApprovalPage({ navigate, goBack }) {
     setActionLoading(id + '_reject');
     try {
       await axios.put(`/api/approvals/${id}`, { status: 'rejected' });
-      await fetchApprovals();
+      pendingList.refresh();
+      historyList.refresh();
     } catch (error) {
       console.error('Failed to reject:', error);
     } finally {
@@ -71,24 +129,11 @@ export default function ApprovalPage({ navigate, goBack }) {
     }
   };
 
-  const filtered = approvals.filter((a) => {
-    const matchStatus = statusFilter === 'semua' ? true : a.status === statusFilter;
-    const q = query.trim().toLowerCase();
-    const matchQuery = !q
-      ? true
-      : (a.requester || '').toLowerCase().includes(q)
-        || (a.description || '').toLowerCase().includes(q)
-        || (a.type || '').toLowerCase().includes(q);
-    const matchPeriod = inPeriod(a.date);
-    return matchStatus && matchQuery && matchPeriod;
-  });
-
-  const pending = filtered.filter((a) => a.status === 'pending');
-  const done = filtered.filter((a) => a.status !== 'pending');
+  const totalPending = pendingList.total ?? pendingList.items.length;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Approval Center" subtitle={`${pending.length} menunggu`} onBack={goBack} />
+      <TopBar title="Approval Center" subtitle={`${totalPending} menunggu`} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px' }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari requester, tipe, atau alasan..." />
@@ -113,18 +158,21 @@ export default function ApprovalPage({ navigate, goBack }) {
           ))}
         </div>
 
-        {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
+        {(pendingList.loading && historyList.loading) && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '40%', gap: 12 }}>
             <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
             <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</span>
           </div>
-        ) : null}
+        )}
 
-        {!loading && pending.length > 0 && (
+        {/* Pending section */}
+        {(statusFilter === 'semua' || statusFilter === 'pending') && filteredPending.length > 0 && (
           <>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>MENUNGGU PERSETUJUAN</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>
+              MENUNGGU PERSETUJUAN ({filteredPending.length})
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-              {pending.map((a) => (
+              {filteredPending.map((a) => (
                 <div key={a.id} style={{ background: C.white, borderRadius: 16, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.07)', borderLeft: `4px solid ${C.warning}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                     <Avatar initials={a.requester?.split(' ').map((w) => w[0]).join('').slice(0, 2) || 'US'} size={36} />
@@ -145,15 +193,25 @@ export default function ApprovalPage({ navigate, goBack }) {
                 </div>
               ))}
             </div>
+            {pendingList.hasMore && (
+              <div ref={pendingList.sentinelRef} style={{ padding: '8px 0', textAlign: 'center' }}>
+                {pendingList.loadingMore && (
+                  <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Memuat lebih banyak…</span>
+                )}
+              </div>
+            )}
           </>
         )}
 
-        {!loading && done.length > 0 && (
+        {/* History section */}
+        {statusFilter !== 'pending' && filteredHistory.length > 0 && (
           <>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>SUDAH DIPROSES</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>
+              SUDAH DIPROSES
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {done.map((a) => (
-                <div key={a.id} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)', opacity: 0.7 }}>
+              {filteredHistory.map((a) => (
+                <div key={a.id} style={{ background: C.white, borderRadius: 14, padding: '12px 14px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)', opacity: 0.85 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{a.requester}</div>
@@ -162,7 +220,7 @@ export default function ApprovalPage({ navigate, goBack }) {
                     <span style={{
                       background: a.status === 'approved' ? '#DCFCE7' : '#FEE2E2',
                       color: a.status === 'approved' ? C.success : C.danger,
-                      fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999
+                      fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
                     }}>
                       {a.status === 'approved' ? 'Disetujui' : 'Ditolak'}
                     </span>
@@ -170,10 +228,24 @@ export default function ApprovalPage({ navigate, goBack }) {
                 </div>
               ))}
             </div>
+            {historyList.hasMore && (
+              <div ref={historyList.sentinelRef} style={{ padding: '14px 0', textAlign: 'center' }}>
+                {historyList.loadingMore ? (
+                  <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Memuat lebih banyak…</span>
+                ) : (
+                  <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400 }}>·</span>
+                )}
+              </div>
+            )}
+            {!historyList.hasMore && historyList.items.length > 0 && (
+              <div style={{ textAlign: 'center', padding: '14px 0', fontFamily: 'Poppins', fontSize: 10, color: C.n400 }}>
+                ✓ Sudah ujung daftar
+              </div>
+            )}
           </>
         )}
 
-        {!loading && filtered.length === 0 && (
+        {!pendingList.loading && !historyList.loading && filteredPending.length === 0 && filteredHistory.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12 }}>
             <div style={{ fontSize: 48 }}>✅</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900 }}>Semua beres!</div>

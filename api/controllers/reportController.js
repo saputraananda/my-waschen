@@ -222,9 +222,15 @@ export const getCashierPerformance = async (req, res) => {
     const base = `t.status <> 'cancelled' AND t.deleted_at IS NULL AND DATE(t.created_at) BETWEEN ? AND ?`;
     const params = [startDate, endDate, ...outlet.params];
 
+    // Tambah handling time + completed count untuk KPI lebih kaya
     const [txRows] = await poolWaschenPos.execute(
       `SELECT t.cashier_id AS cashierId, u.name AS cashierName, o.name AS outletName,
-        COUNT(t.id) AS txCount, COALESCE(SUM(t.total),0) AS revenue
+        COUNT(t.id) AS txCount,
+        COALESCE(SUM(t.total),0) AS revenue,
+        SUM(CASE WHEN t.status = 'completed' AND t.picked_up_at IS NOT NULL THEN 1 ELSE 0 END) AS completedCount,
+        AVG(CASE WHEN t.status = 'completed' AND t.picked_up_at IS NOT NULL
+                  THEN TIMESTAMPDIFF(MINUTE, t.created_at, t.picked_up_at)
+                  ELSE NULL END) AS avgHandleMin
        FROM tr_transaction t
        LEFT JOIN mst_user u ON u.id = t.cashier_id
        LEFT JOIN mst_outlet o ON o.id = t.outlet_id
@@ -247,10 +253,18 @@ export const getCashierPerformance = async (req, res) => {
       success: true, data: {
         cashiers: txRows.map(r => {
           const s = shiftMap[r.cashierId] || {};
+          const txCount = Number(r.txCount);
+          const shiftCount = Number(s.shiftCount || 0);
           return {
-            cashierId: r.cashierId, name: r.cashierName || '—', outlet: r.outletName || '—',
-            txCount: Number(r.txCount), revenue: Number(r.revenue),
-            shiftCount: Number(s.shiftCount || 0),
+            cashierId: r.cashierId,
+            name: r.cashierName || '—',
+            outlet: r.outletName || '—',
+            txCount,
+            revenue: Number(r.revenue),
+            completedCount: Number(r.completedCount || 0),
+            avgHandleMin: r.avgHandleMin != null ? Math.round(Number(r.avgHandleMin)) : null,
+            shiftCount,
+            txPerShift: shiftCount > 0 ? Math.round(txCount / shiftCount) : null,
             avgCashDiff: s.avgCashDiff != null ? Math.round(Number(s.avgCashDiff)) : null,
           };
         }),
@@ -707,5 +721,288 @@ export const getForecast = async (req, res) => {
   } catch (err) {
     console.error('[getForecast]', err);
     return res.status(500).json({ success: false, message: 'Gagal membuat forecast.' });
+  }
+};
+
+// ─── GET /api/reports/outlet-summary ─────────────────────────────────────────
+// Laporan ringkas per outlet — accessible oleh semua role yg login
+// Berisi: revenue, transaksi, customer baru, top services, payment mix, target progress
+// Query: outletId (default: dari token), startDate, endDate, period (today/week/month)
+export const getOutletSummary = async (req, res) => {
+  try {
+    const userOutletId = req.user?.outletId;
+    const userRole = req.user?.roleCode;
+    const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+
+    // Tentukan outlet yang dibaca
+    let outletId = req.query.outletId || userOutletId;
+    if (!isGlobalRole && userOutletId && req.query.outletId && String(req.query.outletId) !== String(userOutletId)) {
+      return res.status(403).json({ success: false, message: 'Tidak bisa lihat outlet lain.' });
+    }
+
+    // Period preset (today/week/month/custom)
+    const period = req.query.period || 'month';
+    let startDate, endDate;
+    const today = new Date();
+    if (period === 'today') {
+      const d = today.toISOString().slice(0, 10);
+      startDate = d;
+      endDate = d;
+    } else if (period === 'week') {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 6);
+      startDate = d.toISOString().slice(0, 10);
+      endDate = today.toISOString().slice(0, 10);
+    } else if (period === 'custom' && req.query.startDate && req.query.endDate) {
+      startDate = req.query.startDate;
+      endDate = req.query.endDate;
+    } else {
+      // month default
+      const d = new Date(today);
+      d.setDate(d.getDate() - 29);
+      startDate = d.toISOString().slice(0, 10);
+      endDate = today.toISOString().slice(0, 10);
+    }
+
+    // Previous period untuk perbandingan
+    const days = Math.max(1, Math.round((new Date(`${endDate}T00:00:00`) - new Date(`${startDate}T00:00:00`)) / 86400000) + 1);
+    const prevEnd = new Date(`${startDate}T00:00:00`);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - (days - 1));
+    const prevStartStr = prevStart.toISOString().slice(0, 10);
+    const prevEndStr = prevEnd.toISOString().slice(0, 10);
+
+    const outletFilter = outletId ? 'AND t.outlet_id = ?' : '';
+    const baseFilter = `t.deleted_at IS NULL AND t.status <> 'cancelled'`;
+    const baseParams = (extra = []) => outletId ? [...extra, outletId] : extra;
+
+    // 1. Revenue & transaksi current period
+    const [[curAgg]] = await poolWaschenPos.execute(
+      `SELECT
+        COALESCE(SUM(t.total), 0) AS revenue,
+        COALESCE(SUM(t.paid_amount), 0) AS pelunasan,
+        COUNT(t.id) AS txCount,
+        COUNT(DISTINCT t.customer_id) AS uniqueCustomers,
+        SUM(CASE WHEN t.is_express = 1 THEN 1 ELSE 0 END) AS expressCount
+       FROM tr_transaction t
+       WHERE ${baseFilter} AND DATE(t.created_at) BETWEEN ? AND ? ${outletFilter}`,
+      baseParams([startDate, endDate])
+    );
+
+    // 2. Previous period untuk growth %
+    const [[prevAgg]] = await poolWaschenPos.execute(
+      `SELECT
+        COALESCE(SUM(t.total), 0) AS revenue,
+        COUNT(t.id) AS txCount
+       FROM tr_transaction t
+       WHERE ${baseFilter} AND DATE(t.created_at) BETWEEN ? AND ? ${outletFilter}`,
+      baseParams([prevStartStr, prevEndStr])
+    );
+
+    // 3. Daily revenue trend
+    const [dailyRows] = await poolWaschenPos.execute(
+      `SELECT DATE(t.created_at) AS date,
+              COALESCE(SUM(t.total), 0) AS revenue,
+              COUNT(t.id) AS txCount
+       FROM tr_transaction t
+       WHERE ${baseFilter} AND DATE(t.created_at) BETWEEN ? AND ? ${outletFilter}
+       GROUP BY DATE(t.created_at)
+       ORDER BY DATE(t.created_at)`,
+      baseParams([startDate, endDate])
+    );
+
+    // 4. Payment method breakdown
+    const [methodRows] = await poolWaschenPos.execute(
+      `SELECT t.primary_payment_method AS method,
+              COALESCE(SUM(t.total), 0) AS amount,
+              COUNT(t.id) AS cnt
+       FROM tr_transaction t
+       WHERE ${baseFilter} AND DATE(t.created_at) BETWEEN ? AND ? ${outletFilter}
+       GROUP BY t.primary_payment_method
+       ORDER BY amount DESC`,
+      baseParams([startDate, endDate])
+    );
+
+    // 5. Top 5 services
+    const [topServices] = await poolWaschenPos.execute(
+      `SELECT ti.service_name_snapshot AS name,
+              COUNT(ti.id) AS orderCount,
+              COALESCE(SUM(ti.subtotal), 0) AS revenue
+       FROM tr_transaction_item ti
+       JOIN tr_transaction t ON t.id = ti.transaction_id
+       WHERE ${baseFilter} AND DATE(t.created_at) BETWEEN ? AND ? ${outletFilter}
+       GROUP BY ti.service_name_snapshot
+       ORDER BY revenue DESC
+       LIMIT 5`,
+      baseParams([startDate, endDate])
+    );
+
+    // 6. New customers di period ini (registered_outlet_id = outletId, kalau ada)
+    let newCustomers = 0;
+    try {
+      if (outletId) {
+        const [[ncRow]] = await poolWaschenPos.execute(
+          `SELECT COUNT(*) AS cnt FROM mst_customer
+           WHERE is_active = 1
+             AND registered_outlet_id = ?
+             AND DATE(created_at) BETWEEN ? AND ?`,
+          [outletId, startDate, endDate]
+        );
+        newCustomers = Number(ncRow?.cnt || 0);
+      } else {
+        const [[ncRow]] = await poolWaschenPos.execute(
+          `SELECT COUNT(*) AS cnt FROM mst_customer
+           WHERE is_active = 1 AND DATE(created_at) BETWEEN ? AND ?`,
+          [startDate, endDate]
+        );
+        newCustomers = Number(ncRow?.cnt || 0);
+      }
+    } catch { /* ignore */ }
+
+    // 7. Target outlet untuk bulan ini (kalau ada)
+    let target = null;
+    let targetAchievement = null;
+    if (outletId) {
+      try {
+        const refDate = new Date(endDate);
+        const tgtMonth = refDate.getMonth() + 1;
+        const tgtYear  = refDate.getFullYear();
+        const [[tgtRow]] = await poolWaschenPos.execute(
+          `SELECT id, target_amount, notes
+           FROM mst_outlet_target
+           WHERE deleted_at IS NULL AND outlet_id = ? AND period_year = ? AND period_month = ?
+           LIMIT 1`,
+          [outletId, tgtYear, tgtMonth]
+        );
+        if (tgtRow) {
+          // Hitung pencapaian bulan target (bukan range custom)
+          const monthStart = `${tgtYear}-${String(tgtMonth).padStart(2, '0')}-01`;
+          const lastDay = new Date(tgtYear, tgtMonth, 0).getDate();
+          const monthEnd = `${tgtYear}-${String(tgtMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+          const [[achRow]] = await poolWaschenPos.execute(
+            `SELECT COALESCE(SUM(t.total), 0) AS achieved
+             FROM tr_transaction t
+             WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+               AND t.outlet_id = ?
+               AND DATE(t.created_at) BETWEEN ? AND ?`,
+            [outletId, monthStart, monthEnd]
+          );
+          const tgtAmount = Number(tgtRow.target_amount || 0);
+          const achieved  = Number(achRow?.achieved || 0);
+          target = {
+            id: tgtRow.id,
+            amount: tgtAmount,
+            notes: tgtRow.notes,
+            year: tgtYear,
+            month: tgtMonth,
+            monthStart, monthEnd,
+          };
+          targetAchievement = {
+            achieved,
+            shortfall: Math.max(0, tgtAmount - achieved),
+            surplus: Math.max(0, achieved - tgtAmount),
+            pct: tgtAmount > 0 ? Math.min(999, Math.round((achieved / tgtAmount) * 100)) : 0,
+            isAchieved: achieved >= tgtAmount && tgtAmount > 0,
+            isSurplus: achieved > tgtAmount && tgtAmount > 0,
+          };
+        }
+      } catch { /* tabel target belum ada */ }
+    }
+
+    // 8. Outlet meta
+    let outletMeta = null;
+    if (outletId) {
+      try {
+        const [[oRow]] = await poolWaschenPos.execute(
+          `SELECT id, outlet_code, name, address FROM mst_outlet WHERE id = ?`,
+          [outletId]
+        );
+        outletMeta = oRow || null;
+      } catch { /* ignore */ }
+    }
+
+    // Compute growth percentage
+    const revenue = Number(curAgg.revenue || 0);
+    const txCount = Number(curAgg.txCount || 0);
+    const prevRevenue = Number(prevAgg.revenue || 0);
+    const prevTxCount = Number(prevAgg.txCount || 0);
+    const growthPct = (cur, prev) => {
+      if (prev === 0) return cur > 0 ? 100 : 0;
+      return Number((((cur - prev) / prev) * 100).toFixed(1));
+    };
+
+    const totalMethodAmount = methodRows.reduce((s, r) => s + Number(r.amount || 0), 0) || 1;
+
+    return res.json({
+      success: true,
+      data: {
+        period: { startDate, endDate, days, periodKey: period },
+        outlet: outletMeta,
+        summary: {
+          revenue,
+          pelunasan: Number(curAgg.pelunasan || 0),
+          balanceDue: Math.max(0, revenue - Number(curAgg.pelunasan || 0)),
+          txCount,
+          uniqueCustomers: Number(curAgg.uniqueCustomers || 0),
+          newCustomers,
+          expressCount: Number(curAgg.expressCount || 0),
+          avgPerTx: txCount > 0 ? Math.round(revenue / txCount) : 0,
+          avgPerDay: days > 0 ? Math.round(revenue / days) : 0,
+        },
+        growth: {
+          revenue: growthPct(revenue, prevRevenue),
+          txCount: growthPct(txCount, prevTxCount),
+          prevRevenue,
+          prevTxCount,
+        },
+        target,
+        targetAchievement,
+        daily: (() => {
+          // Daily breakdown dengan target carry-over (request user #9)
+          // - Target hari kemarin yang kurang → ditambahkan ke target hari ini
+          // - Hari overachieve TIDAK mengurangi target esok (carry hanya kekurangan)
+          const dailyArr = dailyRows.map(r => ({
+            date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10),
+            revenue: Number(r.revenue),
+            txCount: Number(r.txCount),
+          }));
+
+          const baseDaily = target && target.amount > 0
+            ? Math.round(Number(target.amount) / 30) // approx target harian (per bulan dibagi 30)
+            : 0;
+
+          let shortfall = 0;
+          return dailyArr.map((d) => {
+            const todayTarget = baseDaily + Math.max(0, shortfall);
+            const achieved = d.revenue;
+            const newShortfall = Math.max(0, todayTarget - achieved);
+            // Carry-over hanya kekurangan (jangan minus)
+            shortfall = newShortfall;
+            return {
+              ...d,
+              target: baseDaily,
+              effectiveTarget: todayTarget,
+              shortfall: newShortfall,
+              achievementPct: todayTarget > 0 ? Math.round((achieved / todayTarget) * 100) : null,
+            };
+          });
+        })(),
+        paymentMix: methodRows.map(r => ({
+          method: r.method || 'unknown',
+          amount: Number(r.amount),
+          count: Number(r.cnt),
+          pct: Number(((Number(r.amount) / totalMethodAmount) * 100).toFixed(1)),
+        })),
+        topServices: topServices.map(r => ({
+          name: r.name,
+          orderCount: Number(r.orderCount),
+          revenue: Number(r.revenue),
+        })),
+      },
+    });
+  } catch (err) {
+    console.error('[getOutletSummary]', err);
+    return res.status(500).json({ success: false, message: 'Gagal memuat laporan outlet.' });
   }
 };

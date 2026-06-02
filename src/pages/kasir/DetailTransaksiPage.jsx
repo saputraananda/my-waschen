@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select, DateInput } from '../../components/ui';
+import { rp, photoTypeLabel } from '../../utils/helpers';
+import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select, DateInput, MoneyInput, DateTimeInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import { chargePayment } from '../../utils/paymentApi';
+import PaymentChannelSelector from '../../components/PaymentChannelSelector';
 
 const PAY_METHOD_LABEL = {
   cash: 'Tunai',
@@ -46,6 +48,9 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
   const [pelAmountStr, setPelAmountStr] = useState('');
   const [pelCashStr, setPelCashStr] = useState('');
   const [pelLoading, setPelLoading] = useState(false);
+
+  // Midtrans pelunasan
+  const [showMidtransSelector, setShowMidtransSelector] = useState(false);
 
   // Edit delivery type
   const [deliveryModal, setDeliveryModal] = useState(false);
@@ -107,26 +112,57 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
   // Documentation photos
   const [docPhotos, setDocPhotos] = useState([]);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState(null); // { current, total, status }
+
   const handleAddPhoto = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
+    input.multiple = true;
     input.onchange = async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+
+      const txId = tx?.id || tx?.transactionNo;
+      if (!txId) {
+        alertError('Transaksi belum siap. Coba refresh dulu.');
+        return;
+      }
+
+      setPhotoUploading(true);
+      setPhotoProgress({ current: 0, total: files.length, status: 'compress' });
+
       try {
-        // Compress dengan preset documentation (1024x1024, 75% quality, max ~800KB)
         const { uploadImage } = await import('../../utils/imageUpload');
-        const result = await uploadImage(file, 'documentation');
-        setDocPhotos((prev) => [...prev, {
-          id: Date.now(),
-          src: result.dataUrl,
-          name: file.name,
-          sizeKb: result.sizeKb,
-        }]);
+        const compressed = [];
+        // Compress satu-satu dengan progress
+        for (let i = 0; i < files.length; i++) {
+          setPhotoProgress({ current: i + 1, total: files.length, status: 'compress' });
+          const result = await uploadImage(files[i], 'documentation');
+          compressed.push({ url: result.dataUrl, type: 'initial_condition' });
+        }
+
+        // Upload semua sekaligus ke server (1 round-trip)
+        setPhotoProgress({ current: files.length, total: files.length, status: 'upload' });
+        await axios.post(`/api/transactions/${txId}/condition`, {
+          photos: compressed,
+          notes: 'Lampiran dari kasir',
+          isDamage: false,
+          phase: 'receive',
+        });
+
+        // Refresh detail untuk dapat foto dari server (dengan id real, bukan local)
+        await refreshDetail();
+        setDocPhotos([]); // clear local preview
+        alertSuccess(`${compressed.length} foto berhasil disimpan.`);
       } catch (err) {
-        alertError(err.message || 'Gagal mengompres foto.');
+        const msg = err?.response?.data?.message || err.message || 'Gagal mengupload foto.';
+        alertError(msg);
+      } finally {
+        setPhotoUploading(false);
+        setPhotoProgress(null);
       }
     };
     input.click();
@@ -229,10 +265,28 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
   };
 
   const handlePickedUp = async () => {
+    // ── Guard: tagihan belum lunas tidak boleh diambil ──────────────────────
+    const balanceDueNow = Math.max(0, Number(tx.total || 0) - Number(tx.paidAmount || 0));
+    if (balanceDueNow > 0) {
+      alertError(
+        `Cucian belum bisa diambil. Tagihan masih kurang ${rp(balanceDueNow)}. Selesaikan pembayaran dulu.`,
+        { title: '⚠️ Belum Lunas' }
+      );
+      return;
+    }
     setActionLoading('pickup');
     try {
       await axios.put(`/api/transactions/${tx.id}/status`, { status: 'diambil' });
       setTx((prev) => ({ ...prev, status: 'diambil' }));
+      // Replace history depth supaya kalau user back, langsung ke dashboard/transaksi list
+      // (bukan ke halaman pelunasan / QR yang sudah selesai sebelumnya)
+      try {
+        window.history.replaceState(
+          { screen: 'detail_transaksi', params: { id: tx.id }, depth: 0 },
+          '',
+          window.location.pathname,
+        );
+      } catch {}
       setTimeout(() => setReviewModal(true), 500);
     } catch (err) {
       alertError(err?.response?.data?.message || 'Gagal update status.');
@@ -251,7 +305,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       alertSuccess('Review berhasil disimpan!');
       setReviewModal(false);
     } catch (err) {
-      alertError('Gagal menyimpan review.');
+      alertError(err?.response?.data?.message || 'Gagal menyimpan review.');
     } finally {
       setLoading(false);
     }
@@ -326,6 +380,50 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       await refreshDetail();
     } catch (err) {
       alertError(err?.response?.data?.message || 'Gagal mencatat pembayaran.');
+    } finally {
+      setPelLoading(false);
+    }
+  };
+
+  // ── Midtrans pelunasan
+  const openMidtransSettlement = () => {
+    const payAmt = Number(pelAmountStr);
+    if (!Number.isFinite(payAmt) || payAmt <= 0) {
+      alertWarning('Nominal tidak valid.');
+      return;
+    }
+    setPelunasanModal(false);
+    setShowMidtransSelector(true);
+  };
+
+  const handleSelectMidtransChannel = async (channel) => {
+    const tid = tx.transactionUuid || tx.id;
+    const payAmt = Number(pelAmountStr) || balanceDue;
+    setPelLoading(true);
+    try {
+      const result = await chargePayment({
+        transactionId: tid,
+        channel,
+        amount: payAmt,
+      });
+      setShowMidtransSelector(false);
+      navigate('qr_payment', {
+        paymentItemId: result.paymentItemId,
+        orderId: result.orderId,
+        channel: result.channel,
+        amount: result.amount,
+        qrImageUrl: result.qrImageUrl,
+        qrString: result.qrString,
+        vaNumber: result.vaNumber,
+        billerCode: result.billerCode,
+        deeplinkUrl: result.deeplinkUrl,
+        expiresAt: result.expiresAt,
+        transactionId: tid,
+        customerName: tx.customerName,
+      });
+    } catch (err) {
+      console.error('[midtrans charge] error:', err);
+      alertError(err?.response?.data?.message || 'Gagal memproses pembayaran via Midtrans.');
     } finally {
       setPelLoading(false);
     }
@@ -449,28 +547,74 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           )}
         </div>
 
-        {/* Dokumentasi Transaksi */}
+        {/* Dokumentasi produksi (foto terima & packing) */}
         <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📷</div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Dokumentasi</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Bukti Foto Produksi</span>
             </div>
-            <button onClick={handleAddPhoto} style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primary, background: `${C.primary}10`, border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}>+ Tambah</button>
+            {tx.production && (
+              <div style={{ display: 'flex', gap: 4 }}>
+                {tx.production.hasReceivePhoto && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: '#EFF6FF', color: '#1E40AF' }}>📥 Terima</span>}
+                {tx.production.hasPackingPhoto && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: '#ECFDF5', color: '#065F46' }}>📦 Packing</span>}
+              </div>
+            )}
           </div>
-          {docPhotos.length > 0 ? (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {docPhotos.map((p) => (
-                <div key={p.id} style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.n200}` }}>
-                  <img src={p.src} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {(tx.conditionPhotos || []).filter((p) => p.url && p.url !== 'note_only').length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {(tx.conditionPhotos || []).filter((p) => p.url && p.url !== 'note_only').map((p) => (
+                <div key={p.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <a href={p.url} target="_blank" rel="noreferrer">
+                    <img src={p.url} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.n200}` }} />
+                  </a>
+                  <div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n800 }}>{photoTypeLabel(p.type)}</div>
+                    {p.notes && <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{p.notes}</div>}
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, textAlign: 'center', padding: 14 }}>
-              Belum ada dokumentasi foto
+              Belum ada foto dari tim produksi
             </div>
           )}
+          {docPhotos.length > 0 && (
+            <>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n500, margin: '12px 0 8px' }}>Lampiran kasir (belum disimpan ke server)</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {docPhotos.map((p) => (
+                  <div key={p.id} style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.n200}` }}>
+                    <img src={p.src} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {photoUploading && photoProgress && (
+            <div style={{ marginTop: 10, padding: '10px 12px', background: '#EFF6FF', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 16, height: 16, border: '2px solid #BFDBFE', borderTopColor: '#1D4ED8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#1E40AF', fontWeight: 600 }}>
+                {photoProgress.status === 'compress'
+                  ? `Mengompres foto ${photoProgress.current}/${photoProgress.total}…`
+                  : `Mengirim ke server…`}
+              </span>
+            </div>
+          )}
+          <button
+            onClick={handleAddPhoto}
+            disabled={photoUploading}
+            style={{
+              marginTop: 10, fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+              color: photoUploading ? C.n400 : C.primary,
+              background: photoUploading ? C.n100 : `${C.primary}10`,
+              border: 'none', borderRadius: 8, padding: '6px 14px',
+              cursor: photoUploading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {photoUploading ? '⏳ Mengupload…' : '+ Tambah Foto'}
+          </button>
         </div>
 
         {/* Status Pembayaran — collapsible */}
@@ -547,7 +691,15 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               {needsSettlement && (
                 <>
                   <Divider my={8} />
-                  <Btn variant="primary" onClick={openPelunasan} style={{ width: '100%' }}>Catat pelunasan</Btn>
+                  <div style={{
+                    background: '#FEE2E2', border: '1px solid #FCA5A5',
+                    borderRadius: 8, padding: '8px 12px',
+                    fontFamily: 'Poppins', fontSize: 11, color: '#991B1B',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <span>⚠️</span>
+                    <span>Sisa <strong>{rp(balanceDue)}</strong> belum dibayar — klik "Lunasi" di bawah untuk catat pembayaran.</span>
+                  </div>
                 </>
               )}
             </>
@@ -678,19 +830,108 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         )}
       </div>
 
-      {/* Bottom Actions */}
-      <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900, textAlign: 'center', marginBottom: 2 }}>Aksi Untuk Transaksi Ini</div>
-        <Btn variant="primary" onClick={() => navigate('cetak_nota', { id: tx.id || tx.transactionNo })} style={{ width: '100%' }}>Cetak Nota & Label</Btn>
-        {tx.status !== 'dibatalkan' && tx.status !== 'diambil' && (
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="danger" onClick={() => setApprovalModal('cancel_nota')} style={{ flex: 1 }}>Ajukan Pembatalan</Btn>
-            <Btn variant="secondary" onClick={() => setApprovalModal('delete_transaction')} style={{ flex: 1, color: '#991B1B', borderColor: '#FCA5A5' }}>Ajukan Hapus</Btn>
-          </div>
-        )}
-        {tx.status === 'selesai' && (
-          <Btn variant="success" style={{ width: '100%' }} loading={actionLoading === 'pickup'} onClick={handlePickedUp}>Sudah Diambil</Btn>
-        )}
+      {/* Bottom Actions — hierarki: pelunasan / pickup → cetak → pembatalan */}
+      <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900, textAlign: 'center', marginBottom: 2 }}>
+          Aksi Untuk Transaksi Ini
+        </div>
+
+        {(() => {
+          const balanceDueNow = Math.max(0, Number(tx.total || 0) - Number(tx.paidAmount || 0));
+          const isUnpaid = balanceDueNow > 0;
+          const isCancelled = tx.status === 'dibatalkan';
+          const isTaken = tx.status === 'diambil';
+          const isReady = tx.status === 'selesai';
+
+          return (
+            <>
+              {/* PRIMARY ACTION — paling penting di atas */}
+              {/* 1. Belum lunas → Lunasi (merah, highlight) */}
+              {!isCancelled && !isTaken && isUnpaid && (
+                <>
+                  <Btn
+                    variant="primary"
+                    style={{
+                      width: '100%', height: 52, fontWeight: 800, fontSize: 14,
+                      background: 'linear-gradient(135deg, #DC2626, #B91C1C)',
+                    }}
+                    onClick={() => navigate('pelunasan', { id: tx.id || tx.transactionNo })}
+                  >
+                    💰 Lunasi / Bayar Sebagian — {rp(balanceDueNow)}
+                  </Btn>
+                  {isReady && (
+                    <div style={{
+                      fontFamily: 'Poppins', fontSize: 10, color: '#991B1B',
+                      textAlign: 'center', marginTop: -2, marginBottom: 2,
+                    }}>
+                      Cucian belum bisa diambil sebelum lunas
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* 2. Sudah selesai & sudah lunas → Konfirmasi Diambil */}
+              {isReady && !isUnpaid && (
+                <Btn
+                  variant="success"
+                  style={{ width: '100%', height: 52, fontWeight: 800, fontSize: 14 }}
+                  loading={actionLoading === 'pickup'}
+                  onClick={handlePickedUp}
+                >
+                  ✅ Konfirmasi Sudah Diambil
+                </Btn>
+              )}
+
+              {/* SECONDARY — Cetak nota selalu tersedia */}
+              <Btn
+                variant="secondary"
+                onClick={() => navigate('cetak_nota', { id: tx.id || tx.transactionNo })}
+                style={{ width: '100%' }}
+              >
+                🖨️ Cetak Nota & Label
+              </Btn>
+
+              {/* TERTIARY — pembatalan/hapus, divider visual */}
+              {!isCancelled && !isTaken && (
+                <>
+                  <div style={{ height: 1, background: C.n100, margin: '4px 0 2px' }} />
+                  <div style={{
+                    fontFamily: 'Poppins', fontSize: 10, color: C.n500,
+                    textAlign: 'center', marginBottom: 2,
+                  }}>
+                    Aksi sensitif (perlu approval admin)
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => setApprovalModal('cancel_nota')}
+                      style={{
+                        flex: 1, padding: '10px',
+                        border: `1.5px solid #FCA5A5`, background: 'white',
+                        color: '#991B1B', borderRadius: 10,
+                        fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⚠️ Ajukan Pembatalan
+                    </button>
+                    <button
+                      onClick={() => setApprovalModal('delete_transaction')}
+                      style={{
+                        flex: 1, padding: '10px',
+                        border: `1.5px solid ${C.n200}`, background: 'white',
+                        color: C.n600, borderRadius: 10,
+                        fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      🗑️ Ajukan Hapus
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* Approval Modal */}
@@ -709,14 +950,21 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
       {/* Reschedule Modal */}
       <Modal visible={rescheduleModal} onClose={() => setRescheduleModal(false)} title="Ubah Jadwal Logistik">
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <div style={{ flex: 1 }}>
-            <DateInput label="Tanggal Baru" value={rescheduleDate} onChange={setRescheduleDate} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <Input label="Jam" value={rescheduleTime} onChange={setRescheduleTime} type="time" />
-          </div>
-        </div>
+        <DateTimeInput
+          label="Jadwal Baru"
+          value={
+            rescheduleDate && rescheduleTime
+              ? `${rescheduleDate}T${rescheduleTime}:00`
+              : null
+          }
+          onChange={(iso) => {
+            if (!iso) { setRescheduleDate(''); setRescheduleTime(''); return; }
+            const [d, t] = iso.split('T');
+            setRescheduleDate(d);
+            setRescheduleTime(t.slice(0, 5));
+          }}
+          minDate={new Date()}
+        />
         <Input label="Alasan (opsional)" value={rescheduleReason} onChange={setRescheduleReason} placeholder="Alasan reschedule..." />
         <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
           <Btn variant="secondary" onClick={() => setRescheduleModal(false)} style={{ flex: 1 }}>Batal</Btn>
@@ -736,29 +984,49 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           options={[
             { value: 'cash', label: 'Tunai' },
             { value: 'transfer', label: 'Transfer Bank' },
-            { value: 'qris', label: 'QRIS' },
+            { value: 'qris', label: 'QRIS (EDC manual)' },
             { value: 'deposit', label: 'Deposit member' },
             { value: 'ovo', label: 'OVO' },
             { value: 'gopay', label: 'GoPay' },
             { value: 'dana', label: 'DANA' },
             { value: 'shopeepay', label: 'ShopeePay' },
+            { value: 'midtrans', label: '⚡ Midtrans (QRIS / E-Wallet / VA)' },
           ]}
         />
-        <Input label="Nominal ke tagihan (Rp)" value={pelAmountStr} onChange={setPelAmountStr} type="number" placeholder={String(Math.round(balanceDue))} />
+        {pelMethod === 'midtrans' && (
+          <div style={{ background: '#F0FDF4', borderRadius: 8, padding: '8px 12px', marginTop: 6, marginBottom: 8, fontFamily: 'Poppins', fontSize: 11, color: '#15803D' }}>
+            ⚡ Saat klik "Bayar via Midtrans", kamu akan diminta pilih channel. Customer scan QR atau buka aplikasi.
+          </div>
+        )}
+        <MoneyInput label="Nominal ke tagihan (Rp)" value={pelAmountStr} onChange={setPelAmountStr} placeholder={Number(Math.round(balanceDue)).toLocaleString('id-ID')} />
         {pelMethod === 'cash' && (
-          <Input
+          <MoneyInput
             label="Uang diterima (opsional, untuk kembalian)"
             value={pelCashStr}
             onChange={setPelCashStr}
-            type="number"
-            placeholder="Jika lebih besar dari nominal, sisanya kembalian"
+            placeholder="Kalau lebih besar dari nominal, sisanya kembalian"
           />
         )}
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <Btn variant="secondary" onClick={() => setPelunasanModal(false)} style={{ flex: 1 }}>Batal</Btn>
-          <Btn variant="primary" onClick={submitPelunasan} loading={pelLoading} style={{ flex: 1 }}>Simpan</Btn>
+          {pelMethod === 'midtrans' ? (
+            <Btn variant="primary" onClick={openMidtransSettlement} loading={pelLoading} style={{ flex: 1 }}>
+              Bayar via Midtrans
+            </Btn>
+          ) : (
+            <Btn variant="primary" onClick={submitPelunasan} loading={pelLoading} style={{ flex: 1 }}>Simpan</Btn>
+          )}
         </div>
       </Modal>
+
+      {/* Midtrans channel selector untuk pelunasan */}
+      <PaymentChannelSelector
+        visible={showMidtransSelector}
+        onClose={() => setShowMidtransSelector(false)}
+        onSelect={handleSelectMidtransChannel}
+        amount={Number(pelAmountStr) || balanceDue}
+        title="Pilih Channel Pelunasan"
+      />
 
       {/* Edit Delivery Type Modal */}
       {deliveryModal && (
@@ -801,13 +1069,14 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
             {/* Schedule (jika bukan self) */}
             {dlvType !== 'self' && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Jadwal {dlvType === 'pickup' ? 'Penjemputan' : 'Pengiriman'} (opsional)</div>
-                <input
-                  type="datetime-local"
+              <div style={{ marginBottom: 14 }}>
+                <DateTimeInput
+                  label={`Jadwal ${dlvType === 'pickup' ? 'Penjemputan' : 'Pengiriman'} (opsional)`}
                   value={dlvSchedule}
-                  onChange={(e) => setDlvSchedule(e.target.value)}
-                  style={{ width: '100%', height: 42, borderRadius: 10, border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 12px', boxSizing: 'border-box' }}
+                  onChange={(v) => setDlvSchedule(v || '')}
+                  minDate={new Date()}
                 />
+              </div>
               </div>
             )}
 

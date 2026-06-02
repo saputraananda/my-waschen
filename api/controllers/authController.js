@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
+// bcrypt dihapus — password disimpan plain text sesuai permintaan user
 import { poolWaschenPos } from '../db/connection.js';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -10,27 +10,57 @@ const getInitials = (name) => {
 };
 
 // ─── Controller: POST /api/auth/login ─────────────────────────────────────────
+// Login bisa pakai username ATAU email — dicek keduanya
 export const login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ success: false, message: 'Username dan password wajib diisi' });
+      return res.status(400).json({ success: false, message: 'Username/email dan password wajib diisi' });
     }
 
-    const [rows] = await poolWaschenPos.execute(
-      `SELECT u.id, u.name, u.username, u.password_hash,
-              u.phone, u.email,
-              r.code  AS role_code,
-              o.id    AS outlet_id,   o.name    AS outlet_name,
-              o.address AS outlet_address, o.phone AS outlet_phone
-       FROM mst_user u
-       JOIN mst_role   r ON r.id = u.primary_role_id
-       LEFT JOIN mst_outlet o ON o.id = u.outlet_id
-       WHERE u.username = ? AND u.is_active = 1
-       LIMIT 1`,
-      [username.trim()]
+    const identifier = username.trim();
+
+    // Cek apakah kolom username sudah ada di DB
+    const [colCheck] = await poolWaschenPos.execute(
+      `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mst_user' AND COLUMN_NAME = 'username'
+       LIMIT 1`
     );
+    const hasUsername = colCheck.length > 0;
+
+    let rows;
+    if (hasUsername) {
+      // Login bisa pakai username atau email
+      [rows] = await poolWaschenPos.execute(
+        `SELECT u.id, u.name, u.username, u.email, u.password_hash,
+                u.phone,
+                r.code  AS role_code,
+                o.id    AS outlet_id,   o.name    AS outlet_name,
+                o.address AS outlet_address, o.phone AS outlet_phone
+         FROM mst_user u
+         JOIN mst_role   r ON r.id = u.primary_role_id
+         LEFT JOIN mst_outlet o ON o.id = u.outlet_id
+         WHERE (u.username = ? OR u.email = ?) AND u.is_active = 1
+         LIMIT 1`,
+        [identifier, identifier]
+      );
+    } else {
+      // Fallback: hanya email (kolom username belum ada)
+      [rows] = await poolWaschenPos.execute(
+        `SELECT u.id, u.name, u.email AS username, u.email, u.password_hash,
+                u.phone,
+                r.code  AS role_code,
+                o.id    AS outlet_id,   o.name    AS outlet_name,
+                o.address AS outlet_address, o.phone AS outlet_phone
+         FROM mst_user u
+         JOIN mst_role   r ON r.id = u.primary_role_id
+         LEFT JOIN mst_outlet o ON o.id = u.outlet_id
+         WHERE u.email = ? AND u.is_active = 1
+         LIMIT 1`,
+        [identifier]
+      );
+    }
 
     if (!rows.length) {
       return res.status(401).json({ success: false, message: 'Akun tidak ditemukan atau tidak aktif' });
@@ -38,12 +68,13 @@ export const login = async (req, res) => {
 
     const user = rows[0];
 
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    // Plain text password comparison — tanpa encrypt/hash sesuai permintaan user
+    const isPasswordValid = (password === user.password_hash);
     if (!isPasswordValid) {
       return res.status(401).json({ success: false, message: 'Password salah. Coba lagi.' });
     }
 
-    // Ambil kolom photo — graceful jika DDL patch belum dijalankan
+    // Ambil kolom photo — graceful jika belum ada
     let photo = null;
     try {
       const [[photoRow]] = await poolWaschenPos.execute(
@@ -61,7 +92,12 @@ export const login = async (req, res) => {
 
     const JWT_SECRET = process.env.JWT_SECRET;
     const token = jwt.sign(
-      { userId: user.id, roleCode: user.role_code, outletId: user.outlet_id, username: user.username },
+      {
+        userId:   user.id,
+        roleCode: user.role_code,
+        outletId: user.outlet_id,
+        username: user.username,
+      },
       JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
@@ -101,16 +137,21 @@ export const logout = (req, res) => {
 };
 
 // ─── Controller: POST /api/auth/refresh ───────────────────────────────────────
-// Issue token baru jika token lama masih valid. Frontend bisa panggil ini
-// secara periodik (tiap 30 menit misal) untuk refresh sesi tanpa logout.
 export const refreshToken = async (req, res) => {
   try {
-    // req.user sudah di-set oleh `authenticate` middleware
     const { userId } = req.user;
 
-    // Re-fetch user data terbaru (untuk pastikan masih aktif & role belum berubah)
+    const [colCheck] = await poolWaschenPos.execute(
+      `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mst_user' AND COLUMN_NAME = 'username'
+       LIMIT 1`
+    );
+    const hasUsername = colCheck.length > 0;
+
+    const selectUsername = hasUsername ? 'u.username,' : 'u.email AS username,';
+
     const [rows] = await poolWaschenPos.execute(
-      `SELECT u.id, u.username, u.is_active,
+      `SELECT u.id, ${selectUsername} u.is_active,
               r.code AS role_code,
               o.id AS outlet_id
        FROM mst_user u
@@ -128,7 +169,7 @@ export const refreshToken = async (req, res) => {
     const JWT_SECRET = process.env.JWT_SECRET;
     const newToken = jwt.sign(
       {
-        userId: user.id,
+        userId:   user.id,
         roleCode: user.role_code,
         outletId: user.outlet_id,
         username: user.username,

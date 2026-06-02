@@ -342,39 +342,42 @@ export const getRevenueRecap = async (req, res) => {
       params
     );
 
-    // Per-row: fetch payment items for each transaction
-    const transactions = await Promise.all(
-      rows.map(async (t) => {
-        const [piRows] = await poolWaschenPos.execute(
-          `SELECT method, COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS cnt
-           FROM tr_payment_item
-           WHERE transaction_id = ? AND status = 'paid'
-           GROUP BY method`,
-          [t.id]
-        );
-        return {
-          id: t.id,
-          transactionNo: t.transactionNo,
-          total: Number(t.total),
-          subtotal: Number(t.subtotal || 0),
-          discount: Number(t.discount || 0),
-          deliveryFee: Number(t.deliveryFee || 0),
-          payMethod: t.payMethod,
-          status: t.status,
-          isExpress: !!t.isExpress,
-          createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : null,
-          customerName: t.customerName,
-          customerPhone: t.customerPhone,
-          outletName: t.outletName,
-          cashierName: t.cashierName,
-          payments: piRows.map((p) => ({
-            method: p.method,
-            amount: Number(p.amount),
-            count: Number(p.cnt),
-          })),
-        };
-      })
-    );
+    // Batch fetch payment items untuk semua transaksi sekaligus (1 query, bukan N+1)
+    const txIds = rows.map((r) => r.id);
+    let paymentByTx = new Map();
+    if (txIds.length > 0) {
+      const placeholders = txIds.map(() => '?').join(',');
+      const [piRows] = await poolWaschenPos.execute(
+        `SELECT transaction_id, method, COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS cnt
+         FROM tr_payment_item
+         WHERE transaction_id IN (${placeholders}) AND status = 'paid'
+         GROUP BY transaction_id, method`,
+        txIds
+      );
+      for (const p of piRows) {
+        const list = paymentByTx.get(p.transaction_id) || [];
+        list.push({ method: p.method, amount: Number(p.amount), count: Number(p.cnt) });
+        paymentByTx.set(p.transaction_id, list);
+      }
+    }
+
+    const transactions = rows.map((t) => ({
+      id: t.id,
+      transactionNo: t.transactionNo,
+      total: Number(t.total),
+      subtotal: Number(t.subtotal || 0),
+      discount: Number(t.discount || 0),
+      deliveryFee: Number(t.deliveryFee || 0),
+      payMethod: t.payMethod,
+      status: t.status,
+      isExpress: !!t.isExpress,
+      createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : null,
+      customerName: t.customerName,
+      customerPhone: t.customerPhone,
+      outletName: t.outletName,
+      cashierName: t.cashierName,
+      payments: paymentByTx.get(t.id) || [],
+    }));
 
     const s = sumRows[0];
     return res.json({

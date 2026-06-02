@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Input, Select } from '../../components/ui';
+import { TopBar, Btn, Input, Select, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
 
 const METHOD_LABEL = {
@@ -129,16 +129,24 @@ export default function KasirShiftPage({ navigate, goBack }) {
     return () => clearInterval(id);
   }, [shift]);
 
+  const [frontlinerName, setFrontlinerName] = useState('');
+
   const handleOpenShift = async () => {
+    if (!frontlinerName.trim()) {
+      alertWarning('Nama frontliner wajib diisi.');
+      return;
+    }
     setLoading(true);
     try {
       await axios.post('/api/shifts/open', {
         openingCash: Number(openingCash || 0),
         shift: shiftType,
+        shiftUserName: frontlinerName.trim(),
       });
       setOpeningCash('');
+      setFrontlinerName('');
       await loadStatus();
-      alertSuccess('Shift berhasil dibuka.');
+      alertSuccess(`Shift berhasil dibuka oleh ${frontlinerName.trim()}.`);
     } catch (e) {
       alertError(e?.response?.data?.message || 'Gagal buka shift.');
     } finally {
@@ -235,6 +243,12 @@ export default function KasirShiftPage({ navigate, goBack }) {
         {!isOpen && (
           <div style={{ ...T.card, marginBottom: 12 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Buka shift</div>
+            <Input
+              label="Nama Frontliner / Kasir"
+              value={frontlinerName}
+              onChange={(v) => setFrontlinerName(v.replace(/(^|\s)\S/g, c => c.toUpperCase()))}
+              placeholder="Mis. Andi, Sari, dll"
+            />
             <Select
               label="Jenis shift"
               value={shiftType}
@@ -246,7 +260,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
                 { value: 'malam', label: 'Malam' },
               ]}
             />
-            <Input label="Modal awal laci (Rp)" type="number" value={openingCash} onChange={setOpeningCash} placeholder="0" />
+            <Input label="Modal awal laci (Rp)" type="text" inputMode="numeric" value={openingCash ? Number(openingCash).toLocaleString('id-ID') : ''} onChange={(v) => setOpeningCash(v.replace(/\D/g, ''))} placeholder="0" />
             <Btn variant="success" fullWidth loading={loading} onClick={handleOpenShift}>Buka shift sekarang</Btn>
           </div>
         )}
@@ -373,16 +387,12 @@ export default function KasirShiftPage({ navigate, goBack }) {
                   />
 
                   {/* Jumlah */}
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Jumlah (Rp)</div>
-                    <input
-                      type="number"
-                      value={entryForm.amount}
-                      onChange={(e) => setEntryForm(f => ({ ...f, amount: e.target.value }))}
-                      placeholder="0"
-                      style={{ ...T.input, fontSize: 16, fontWeight: 700 }}
-                    />
-                  </div>
+                  <MoneyInput
+                    label="Jumlah (Rp)"
+                    value={entryForm.amount}
+                    onChange={(v) => setEntryForm(f => ({ ...f, amount: v }))}
+                    placeholder="0"
+                  />
 
                   {/* Keterangan */}
                   <div style={{ marginBottom: 10 }}>
@@ -453,9 +463,10 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, marginBottom: 6 }}>Total uang tunai di laci (Rp)</div>
               <input
-                type="number"
-                value={closingCash}
-                onChange={(e) => setClosingCash(e.target.value)}
+                type="text"
+                inputMode="numeric"
+                value={closingCash ? Number(closingCash).toLocaleString('id-ID') : ''}
+                onChange={(e) => setClosingCash(e.target.value.replace(/\D/g, ''))}
                 placeholder="0"
                 style={{ ...T.input, fontSize: 16, fontWeight: 700, marginBottom: 12 }}
               />

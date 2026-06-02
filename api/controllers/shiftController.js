@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { poolWaschenPos } from '../db/connection.js';
 
 const SHIFT_ENUM = new Set(['pagi', 'siang', 'malam', 'full']);
@@ -31,7 +30,7 @@ export const getShiftStatus = async (req, res) => {
       `SELECT id, outlet_id, cashier_id, session_date, shift, opened_at, closed_at,
               opening_cash, closing_cash, system_cash, cash_diff, notes, status, created_at, updated_at
        FROM tr_cashier_session
-       WHERE cashier_id = ? AND status = 'open'
+       WHERE cashier_id = ? AND status = 'open' AND deleted_at IS NULL
        ORDER BY opened_at DESC
        LIMIT 1`,
       [userId]
@@ -40,7 +39,7 @@ export const getShiftStatus = async (req, res) => {
     const [lastClosedRows] = await poolWaschenPos.execute(
       `SELECT id, session_date, shift, opened_at, closed_at, opening_cash, closing_cash, system_cash, cash_diff, notes
        FROM tr_cashier_session
-       WHERE cashier_id = ? AND status = 'closed'
+       WHERE cashier_id = ? AND status = 'closed' AND deleted_at IS NULL
        ORDER BY closed_at DESC
        LIMIT 1`,
       [userId]
@@ -111,7 +110,7 @@ export const openShift = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const outletId = req.user?.outletId;
-    const { openingCash, shift: shiftRaw } = req.body;
+    const { openingCash, shift: shiftRaw, shiftUserName } = req.body;
 
     if (!outletId) {
       return res.status(400).json({ success: false, message: 'User tidak terikat pada outlet manapun.' });
@@ -124,7 +123,7 @@ export const openShift = async (req, res) => {
     }
 
     const [check] = await poolWaschenPos.execute(
-      `SELECT id FROM tr_cashier_session WHERE cashier_id = ? AND status = 'open' LIMIT 1`,
+      `SELECT id FROM tr_cashier_session WHERE cashier_id = ? AND status = 'open' AND deleted_at IS NULL LIMIT 1`,
       [userId]
     );
 
@@ -132,15 +131,36 @@ export const openShift = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Anda masih memiliki sesi operasional yang terbuka.' });
     }
 
-    const sessionId = randomUUID();
     const today = new Date().toISOString().slice(0, 10);
 
-    await poolWaschenPos.execute(
-      `INSERT INTO tr_cashier_session
-        (id, outlet_id, cashier_id, session_date, shift, opened_at, opening_cash, status)
-       VALUES (?, ?, ?, ?, ?, NOW(), ?, 'open')`,
-      [sessionId, outletId, userId, today, shift, openAmt]
-    );
+    // Cek apakah kolom shift_user_name ada (graceful — sebelum migrasi)
+    let hasShiftUserName = false;
+    try {
+      const [colCheck] = await poolWaschenPos.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'tr_cashier_session' AND column_name = 'shift_user_name'`
+      );
+      hasShiftUserName = Number(colCheck[0]?.cnt || 0) > 0;
+    } catch { hasShiftUserName = false; }
+
+    let insertResult;
+    if (hasShiftUserName && shiftUserName) {
+      [insertResult] = await poolWaschenPos.execute(
+        `INSERT INTO tr_cashier_session
+          (outlet_id, cashier_id, session_date, shift, opened_at, opening_cash, shift_user_name, status)
+         VALUES (?, ?, ?, ?, NOW(), ?, ?, 'open')`,
+        [outletId, userId, today, shift, openAmt, String(shiftUserName).trim().slice(0, 100)]
+      );
+    } else {
+      [insertResult] = await poolWaschenPos.execute(
+        `INSERT INTO tr_cashier_session
+          (outlet_id, cashier_id, session_date, shift, opened_at, opening_cash, status)
+         VALUES (?, ?, ?, ?, NOW(), ?, 'open')`,
+        [outletId, userId, today, shift, openAmt]
+      );
+    }
+
+    const sessionId = insertResult.insertId;
 
     return res.status(201).json({
       success: true,
@@ -150,6 +170,7 @@ export const openShift = async (req, res) => {
         openedAt: new Date().toISOString(),
         shift,
         openingCash: openAmt,
+        shiftUserName: shiftUserName || null,
         sessionDate: today,
         outletId,
       },
@@ -241,7 +262,7 @@ export const getShiftCurrentSummary = async (req, res) => {
 export const closeShift = async (req, res) => {
   try {
     const userId = req.user?.userId;
-    const { closingCash, notes } = req.body;
+    const { closingCash, notes, photos } = req.body;
 
     const [rows] = await poolWaschenPos.execute(
       `SELECT * FROM tr_cashier_session WHERE cashier_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1`,
@@ -305,13 +326,37 @@ export const closeShift = async (req, res) => {
     }
     const diff = actualCash - systemCash;
 
-    await poolWaschenPos.execute(
-      `UPDATE tr_cashier_session
-       SET status = 'closed', closed_at = NOW(),
-           closing_cash = ?, system_cash = ?, cash_diff = ?, notes = ?
-       WHERE id = ?`,
-      [actualCash, systemCash, diff, notes || null, session.id]
-    );
+    // Simpan foto bukti transaksi jika ada
+    let photosJson = null;
+    if (photos && Array.isArray(photos) && photos.length > 0) {
+      photosJson = JSON.stringify(photos.map((p) => ({
+        label: p.label || 'Bukti Transaksi',
+        data: p.data || null,
+      })));
+    }
+
+    try {
+      await poolWaschenPos.execute(
+        `UPDATE tr_cashier_session
+         SET status = 'closed', closed_at = NOW(),
+             closing_cash = ?, system_cash = ?, cash_diff = ?, notes = ?, closing_photos = ?
+         WHERE id = ?`,
+        [actualCash, systemCash, diff, notes || null, photosJson, session.id]
+      );
+    } catch (updateErr) {
+      // Fallback jika kolom closing_photos belum ada
+      if (updateErr.code === 'ER_BAD_FIELD_ERROR') {
+        await poolWaschenPos.execute(
+          `UPDATE tr_cashier_session
+           SET status = 'closed', closed_at = NOW(),
+               closing_cash = ?, system_cash = ?, cash_diff = ?, notes = ?
+           WHERE id = ?`,
+          [actualCash, systemCash, diff, notes || null, session.id]
+        );
+      } else {
+        throw updateErr;
+      }
+    }
 
     const paymentSummary = methodRows.map((r) => ({
       method: r.method,
@@ -349,6 +394,15 @@ export const listShiftSessions = async (req, res) => {
     const { outletId, dateFrom, dateTo } = req.query;
     const limit = Math.min(Math.max(Number(req.query.limit) || 150, 1), 500);
 
+    // Cek dulu apakah kolom closing_photos ada (graceful jika belum dijalankan migration)
+    const [colCheck] = await poolWaschenPos.execute(
+      `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tr_cashier_session' AND COLUMN_NAME = 'closing_photos'
+       LIMIT 1`
+    );
+    const hasClosingPhotos = colCheck.length > 0;
+    const photoCol = hasClosingPhotos ? 'cs.closing_photos AS closingPhotos,' : '';
+
     let sql = `
       SELECT
         cs.id,
@@ -365,6 +419,7 @@ export const listShiftSessions = async (req, res) => {
         cs.system_cash AS systemCash,
         cs.cash_diff AS cashDiff,
         cs.notes,
+        ${photoCol}
         cs.status
       FROM tr_cashier_session cs
       JOIN mst_outlet o ON o.id = cs.outlet_id
@@ -417,24 +472,34 @@ export const listShiftSessions = async (req, res) => {
       }, new Map());
     }
 
-    const data = rows.map((r) => ({
-      id: r.id,
-      outletId: r.outletId,
-      outletName: r.outletName,
-      cashierId: r.cashierId,
-      cashierName: r.cashierName,
-      sessionDate: r.sessionDate,
-      shift: r.shift,
-      openedAt: r.openedAt,
-      closedAt: r.closedAt,
-      openingCash: Number(r.openingCash ?? 0),
-      closingCash: r.closingCash != null ? Number(r.closingCash) : null,
-      systemCash: r.systemCash != null ? Number(r.systemCash) : null,
-      cashDiff: r.cashDiff != null ? Number(r.cashDiff) : null,
-      notes: r.notes,
-      status: r.status,
-      paymentSummary: paymentMap.get(r.id) || [],
-    }));
+    const data = rows.map((r) => {
+      let parsedPhotos = [];
+      if (r.closingPhotos) {
+        try {
+          const raw = typeof r.closingPhotos === 'string' ? JSON.parse(r.closingPhotos) : r.closingPhotos;
+          if (Array.isArray(raw)) parsedPhotos = raw;
+        } catch { /* keep empty */ }
+      }
+      return {
+        id: r.id,
+        outletId: r.outletId,
+        outletName: r.outletName,
+        cashierId: r.cashierId,
+        cashierName: r.cashierName,
+        sessionDate: r.sessionDate,
+        shift: r.shift,
+        openedAt: r.openedAt,
+        closedAt: r.closedAt,
+        openingCash: Number(r.openingCash ?? 0),
+        closingCash: r.closingCash != null ? Number(r.closingCash) : null,
+        systemCash: r.systemCash != null ? Number(r.systemCash) : null,
+        cashDiff: r.cashDiff != null ? Number(r.cashDiff) : null,
+        notes: r.notes,
+        status: r.status,
+        closingPhotos: parsedPhotos,
+        paymentSummary: paymentMap.get(r.id) || [],
+      };
+    });
 
     return res.json({ success: true, data });
   } catch (err) {

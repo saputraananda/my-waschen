@@ -1,5 +1,4 @@
 import { poolWaschenPos } from '../db/connection.js';
-import { randomUUID } from 'crypto';
 
 // ─── POST /api/logistics ────────────────────────────────────────────────────
 // Buat logistic order (dipanggil otomatis saat checkout atau manual)
@@ -41,20 +40,21 @@ export const createLogisticOrder = async (req, res) => {
       } catch { /* tabel mst_area_zone belum ada, pakai default */ }
     }
 
-    const orderId = randomUUID();
-    await poolWaschenPos.execute(
+    // id AUTO_INCREMENT — biarkan DB yang generate
+    const [insertResult] = await poolWaschenPos.execute(
       `INSERT INTO tr_logistic_order (
-        id, transaction_id, type, area_zone_id, area_zone_snapshot,
+        transaction_id, type, area_zone_id, area_zone_snapshot,
         manual_address, delivery_fee, scheduled_at, status, notes, created_by,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, NOW(), NOW())`,
-      [orderId, transactionId, type, areaZoneId || null, areaZoneSnapshot, manualAddress || null, deliveryFee, scheduledAt, notes || null, userId]
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, NOW(), NOW())`,
+      [transactionId, type, areaZoneId || null, areaZoneSnapshot, manualAddress || null, deliveryFee, scheduledAt, notes || null, userId]
     );
+    const newOrderId = insertResult.insertId;
 
     return res.status(201).json({
       success: true,
       message: `Order logistik (${type}) berhasil dibuat.`,
-      data: { id: orderId, type, deliveryFee, scheduledAt, status: 'pending' },
+      data: { id: newOrderId, type, deliveryFee, scheduledAt, status: 'pending' },
     });
   } catch (err) {
     console.error('[createLogisticOrder] Error:', err);
@@ -134,12 +134,12 @@ export const rescheduleLogistic = async (req, res) => {
 
     const oldScheduledAt = order.scheduled_at;
 
-    // Insert ke tr_logistic_reschedule
+    // Insert ke tr_logistic_reschedule — id AUTO_INCREMENT
     await poolWaschenPos.execute(
       `INSERT INTO tr_logistic_reschedule (
-        id, logistic_order_id, old_scheduled_at, new_scheduled_at, reason, rescheduled_by, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [randomUUID(), id, oldScheduledAt, new_scheduled_at, reason || null, userId]
+        logistic_order_id, old_scheduled_at, new_scheduled_at, reason, rescheduled_by, created_at
+      ) VALUES (?, ?, ?, ?, ?, NOW())`,
+      [id, oldScheduledAt, new_scheduled_at, reason || null, userId]
     );
 
     // Update scheduled_at di tr_logistic_order
