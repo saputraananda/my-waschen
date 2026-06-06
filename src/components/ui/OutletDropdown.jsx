@@ -5,7 +5,7 @@ import { C } from '../../utils/theme';
  * OutletDropdown — custom scrollable dropdown with rounded corners.
  * Replaces native <select> for outlet filtering.
  */
-export default function OutletDropdown({ value, onChange, outlets = [], placeholder = '🏪 Semua Outlet' }) {
+export default function OutletDropdown({ value, onChange, outlets = [], placeholder = '🏪 Semua Outlet', showGlobal = false, compact = false, style = {} }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -23,26 +23,31 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
     };
   }, [open]);
 
-  const selected = outlets.find((o) => o.id === value);
-  const label = selected ? selected.name : placeholder;
+  const selected = outlets.find((o) => String(o.id) === String(value));
+  let label = placeholder;
+  if (value === 'global') {
+    label = '🌐 Global';
+  } else if (selected) {
+    label = selected.name;
+  }
 
   return (
-    <div ref={ref} style={{ position: 'relative', marginBottom: 16, zIndex: 40 }}>
+    <div ref={ref} style={{ position: 'relative', marginBottom: compact ? 4 : 16, zIndex: 40, ...style }}>
       {/* Trigger */}
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
-          width: '100%', height: 48,
+          width: '100%', height: compact ? 34 : 48,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 14px',
-          background: C.white,
-          border: `${open ? 2 : 1.5}px solid ${open ? C.primary : C.n300}`,
-          borderRadius: open ? '10px 10px 0 0' : 10,
-          fontFamily: 'Poppins', fontSize: 14, fontWeight: 500,
-          color: value ? C.n900 : C.n600,
+          padding: compact ? '0 10px' : '0 14px',
+          background: value ? `${C.primary}10` : C.white,
+          border: `${open ? 2 : 1.5}px solid ${open ? C.primary : (value ? C.primary : C.n300)}`,
+          borderRadius: open ? (compact ? '8px 8px 0 0' : '10px 10px 0 0') : (compact ? 8 : 10),
+          fontFamily: 'Poppins', fontSize: compact ? 11 : 14, fontWeight: compact ? 600 : 500,
+          color: value ? C.primary : (compact ? C.n700 : C.n600),
           cursor: 'pointer',
           outline: 'none',
-          transition: 'border-color 0.2s, border-radius 0.2s',
+          transition: 'border-color 0.2s, border-radius 0.2s, background 0.2s, color 0.2s',
           boxShadow: open ? `0 2px 12px ${C.primary}15` : 'none',
         }}
       >
@@ -50,8 +55,8 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
           {label}
         </span>
         <svg
-          width="16" height="16" viewBox="0 0 24 24"
-          fill="none" stroke={open ? C.primary : C.n500}
+          width={compact ? 12 : 16} height={compact ? 12 : 16} viewBox="0 0 24 24"
+          fill="none" stroke={open ? C.primary : (value ? C.primary : C.n500)}
           strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
           style={{ flexShrink: 0, transition: 'transform 0.25s ease', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}
         >
@@ -68,7 +73,7 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
           borderBottom: open ? `1.5px solid ${C.primary}` : `1.5px solid transparent`,
           borderLeft: open ? `1.5px solid ${C.primary}` : `1.5px solid transparent`,
           borderTop: 'none',
-          borderRadius: '0 0 10px 10px',
+          borderRadius: compact ? '0 0 8px 8px' : '0 0 10px 10px',
           maxHeight: open ? 220 : 0,
           overflowY: 'auto',
           overflowX: 'hidden',
@@ -84,8 +89,8 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
         <div
           onClick={() => { onChange(''); setOpen(false); }}
           style={{
-            padding: '11px 14px',
-            fontFamily: 'Poppins', fontSize: 13, fontWeight: !value ? 600 : 400,
+            padding: compact ? '8px 10px' : '11px 14px',
+            fontFamily: 'Poppins', fontSize: compact ? 12 : 13, fontWeight: !value ? 600 : 400,
             color: !value ? C.primary : C.n900,
             background: !value ? C.primaryLight : 'transparent',
             cursor: 'pointer',
@@ -95,7 +100,7 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
           onMouseEnter={(e) => { if (value) e.currentTarget.style.background = C.n50; }}
           onMouseLeave={(e) => { if (value) e.currentTarget.style.background = 'transparent'; }}
         >
-          <span style={{ fontSize: 14 }}>🏪</span>
+          <span style={{ fontSize: compact ? 12 : 14 }}>🏪</span>
           <span>{placeholder.replace('🏪 ', '')}</span>
           {!value && (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="3" strokeLinecap="round" style={{ marginLeft: 'auto' }}>
@@ -104,34 +109,64 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
           )}
         </div>
 
+        {showGlobal && (
+          <>
+            {/* Divider */}
+            <div style={{ height: 1, background: C.n100, margin: '0 12px' }} />
+            {/* "Global" option */}
+            <div
+              onClick={() => { onChange('global'); setOpen(false); }}
+              style={{
+                padding: compact ? '8px 10px' : '11px 14px',
+                fontFamily: 'Poppins', fontSize: compact ? 12 : 13, fontWeight: value === 'global' ? 600 : 400,
+                color: value === 'global' ? C.primary : C.n900,
+                background: value === 'global' ? C.primaryLight : 'transparent',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8,
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => { if (value !== 'global') e.currentTarget.style.background = C.n50; }}
+              onMouseLeave={(e) => { if (value !== 'global') e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span style={{ fontSize: compact ? 12 : 14 }}>🌐</span>
+              <span>Global</span>
+              {value === 'global' && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="3" strokeLinecap="round" style={{ marginLeft: 'auto' }}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+          </>
+        )}
+
         {/* Divider */}
         <div style={{ height: 1, background: C.n100, margin: '0 12px' }} />
 
         {/* Outlet items */}
         {outlets.map((o, i) => {
-          const isActive = value === o.id;
+          const isActive = String(value) === String(o.id);
           return (
             <div
               key={o.id}
               onClick={() => { onChange(o.id); setOpen(false); }}
               style={{
-                padding: '11px 14px',
-                fontFamily: 'Poppins', fontSize: 13, fontWeight: isActive ? 600 : 400,
+                padding: compact ? '8px 10px' : '11px 14px',
+                fontFamily: 'Poppins', fontSize: compact ? 12 : 13, fontWeight: isActive ? 600 : 400,
                 color: isActive ? C.primary : C.n900,
                 background: isActive ? C.primaryLight : 'transparent',
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 8,
                 transition: 'background 0.15s',
-                borderRadius: i === outlets.length - 1 ? '0 0 13px 13px' : 0,
+                borderRadius: i === outlets.length - 1 ? (compact ? '0 0 8px 8px' : '0 0 13px 13px') : 0,
               }}
               onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = C.n50; }}
               onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
             >
               <span style={{
-                width: 28, height: 28, borderRadius: 8,
+                width: compact ? 22 : 28, height: compact ? 22 : 28, borderRadius: compact ? 6 : 8,
                 background: isActive ? `${C.primary}18` : C.n50,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
+                fontFamily: 'Poppins', fontSize: compact ? 8 : 10, fontWeight: 700,
                 color: isActive ? C.primary : C.n600,
                 flexShrink: 0,
               }}>

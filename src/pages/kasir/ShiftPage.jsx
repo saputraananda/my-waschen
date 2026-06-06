@@ -260,7 +260,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
                 { value: 'malam', label: 'Malam' },
               ]}
             />
-            <Input label="Modal awal laci (Rp)" type="text" inputMode="numeric" value={openingCash ? Number(openingCash).toLocaleString('id-ID') : ''} onChange={(v) => setOpeningCash(v.replace(/\D/g, ''))} placeholder="0" />
+            <MoneyInput label="Modal awal laci (Rp)" value={openingCash} onChange={(v) => setOpeningCash(v)} placeholder="0" />
             <Btn variant="success" fullWidth loading={loading} onClick={handleOpenShift}>Buka shift sekarang</Btn>
           </div>
         )}
@@ -461,14 +461,11 @@ export default function KasirShiftPage({ navigate, goBack }) {
                 Hitung uang tunai di laci lalu rekonsiliasi. Data tutup shift dan timestamp dikirim ke pusat agar admin dapat memantau disiplin kas per outlet.
               </div>
 
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, marginBottom: 6 }}>Total uang tunai di laci (Rp)</div>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={closingCash ? Number(closingCash).toLocaleString('id-ID') : ''}
-                onChange={(e) => setClosingCash(e.target.value.replace(/\D/g, ''))}
+              <MoneyInput
+                label="Total uang tunai di laci (Rp)"
+                value={closingCash}
+                onChange={(v) => setClosingCash(v)}
                 placeholder="0"
-                style={{ ...T.input, fontSize: 16, fontWeight: 700, marginBottom: 12 }}
               />
 
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Catatan (opsional)</div>

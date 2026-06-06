@@ -167,6 +167,7 @@ export const getAllUsers = async (req, res) => {
         ${uSel},
         u.email,
         r.code AS role,
+        u.outlet_id AS outletId,
         o.name AS outlet,
         u.is_active AS active,
         u.created_at AS createdAt
@@ -253,12 +254,19 @@ export const registerUser = async (req, res) => {
 
     // Resolve outletId
     let finalOutletId = outletId || null;
+    let finalOutletName = outlet || null;
     if (!finalOutletId && outlet) {
       const [outletRows] = await poolWaschenPos.execute(
         'SELECT id FROM mst_outlet WHERE name = ? LIMIT 1',
         [outlet]
       );
       if (outletRows.length > 0) finalOutletId = outletRows[0].id;
+    } else if (finalOutletId && !finalOutletName) {
+      const [outletRows] = await poolWaschenPos.execute(
+        'SELECT name FROM mst_outlet WHERE id = ? LIMIT 1',
+        [finalOutletId]
+      );
+      if (outletRows.length > 0) finalOutletName = outletRows[0].name;
     }
 
     // Email wajib ada di DB (NOT NULL) — gunakan username sebagai fallback email
@@ -292,7 +300,8 @@ export const registerUser = async (req, res) => {
         username: effectiveUsername || finalEmail.split('@')[0],
         email: finalEmail,
         role: role || 'frontline',
-        outlet: outlet || null,
+        outlet: finalOutletName,
+        outletId: finalOutletId,
         active: true,
       },
     });
@@ -386,7 +395,7 @@ export const updateUser = async (req, res) => {
     const uSel = await usernameSelect();
     const [[updated]] = await poolWaschenPos.execute(
       `SELECT u.id, u.name, ${uSel}, u.email, u.is_active AS active,
-              r.code AS role, o.name AS outlet
+              r.code AS role, u.outlet_id AS outletId, o.name AS outlet
        FROM mst_user u
        LEFT JOIN mst_role r ON r.id = u.primary_role_id
        LEFT JOIN mst_outlet o ON o.id = u.outlet_id

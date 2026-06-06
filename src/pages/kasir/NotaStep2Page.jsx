@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { rp } from '../../utils/helpers';
+import { rp, getCartLineSubtotal, getCartUnitPrice } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Avatar, SearchBar, EmptyState, Select } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError, alertWarning } from '../../utils/alert';
@@ -273,7 +273,7 @@ export default function NotaStep2Page({ goBack }) {
     }
   };
 
-  const total = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? (c.expressExtra || 0) : 0)) * c.qty, 0);
+  const total = notaCart.reduce((sum, c) => sum + getCartLineSubtotal(c), 0);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
@@ -618,7 +618,7 @@ export default function NotaStep2Page({ goBack }) {
                       >
                         <span style={{ fontSize: 14 }}>⚡</span>
                         <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>
-                          Express ({Number(s.expressMultiplier).toFixed(0)}× → {rp(s.price * Number(s.expressMultiplier))})
+                          Express ({Number(s.expressMultiplier).toFixed(0)}× → {rp(getCartUnitPrice({ ...s, express: true }))})
                         </span>
                       </button>
                     </div>
@@ -654,7 +654,7 @@ export default function NotaStep2Page({ goBack }) {
                   >
                     <span style={{ fontSize: 14 }}>⚡</span>
                     <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>
-                      Express ({Number(s.expressMultiplier).toFixed(0)}× → {rp(s.price * Number(s.expressMultiplier))} / m²)
+                      Express ({Number(s.expressMultiplier).toFixed(0)}× → {rp(getCartUnitPrice({ ...s, express: true }))} / m²)
                     </span>
                   </button>
                 </div>

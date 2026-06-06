@@ -15,9 +15,11 @@
 //   depositBalance: optional number — display info saldo
 //   amount: optional number — untuk validasi (mis. cash tender)
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { C } from '../utils/theme';
 import { rp } from '../utils/helpers';
+
+const EMPTY_EXCLUDE_IDS = [];
 
 // ─── Definisi grup ─────────────────────────────────────────────────────────
 const GROUPS = [
@@ -76,24 +78,37 @@ export function isMidtransMethod(methodId) {
 export default function PaymentMethodGrouped({
   value,
   onChange,
-  excludeIds = [],
+  excludeIds = EMPTY_EXCLUDE_IDS,
   showDeposit = true,
   depositBalance = 0,
   amount = 0,
   hint,
 }) {
-  const [activeGroup, setActiveGroup] = useState('manual');
+  const [activeGroup, setActiveGroup] = useState(() => {
+    const match = GROUPS.find((g) => g.methods.some((m) => m.id === value));
+    return match?.id || 'manual';
+  });
+  const prevValueRef = useRef(value);
 
-  const visibleGroups = GROUPS.map((g) => ({
+  const visibleGroups = useMemo(() => GROUPS.map((g) => ({
     ...g,
     methods: g.methods.filter((m) => {
       if (excludeIds.includes(m.id)) return false;
       if (m.requireMember && !showDeposit) return false;
       return true;
     }),
-  })).filter((g) => g.methods.length > 0);
+  })).filter((g) => g.methods.length > 0), [excludeIds, showDeposit]);
 
   const selectedGroup = visibleGroups.find((g) => g.id === activeGroup) || visibleGroups[0];
+
+  // Sync tab hanya saat value berubah dari luar (bukan saat user klik tab)
+  useEffect(() => {
+    if (value === prevValueRef.current) return;
+    prevValueRef.current = value;
+    if (!value) return;
+    const group = visibleGroups.find((g) => g.methods.some((m) => m.id === value));
+    if (group) setActiveGroup(group.id);
+  }, [value, visibleGroups]);
 
   return (
     <div style={{ marginBottom: 14 }}>

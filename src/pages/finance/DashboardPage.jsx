@@ -234,7 +234,6 @@ export default function FinanceDashboardPage({ user, navigate }) {
                   { label: 'Laporan', screen: 'laporan_keuangan', icon: '📊', color: C.info },
                   { label: 'Per outlet', screen: 'laporan_per_outlet', icon: '🏪', color: '#0D9488' },
                   { label: 'Shift kasir', screen: 'admin_shift', icon: '🕐', color: '#6366F1' },
-                  { label: 'Monitoring', screen: 'monitoring', icon: '📈', color: C.primary },
                   { label: 'Member', screen: 'daftar_member', icon: '👥', color: '#8B5CF6' },
                 ].map((item) => (
                   <button key={item.label} onClick={() => navigate(item.screen)} style={{

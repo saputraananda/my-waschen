@@ -14,7 +14,7 @@ import {
 
 const router = Router();
 
-const adminOnly = requireRole('admin', 'superadmin', 'owner', 'finance');
+const adminOnly = requireRole('admin', 'superadmin', 'owner', 'finance', 'ga');
 
 router.get('/executive-summary',  authenticate, adminOnly, getExecutiveSummary);
 router.get('/outlet-performance', authenticate, adminOnly, getOutletPerformance);

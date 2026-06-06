@@ -357,7 +357,10 @@ export const syncPaymentStatus = async (req, res) => {
           [pmt.transaction_id]
         );
         const totalPaid = Number(paidSumRows[0]?.totalPaid || 0);
-        const [trxRows] = await poolWaschenPos.execute(`SELECT total FROM tr_transaction WHERE id = ?`, [pmt.transaction_id]);
+        const [trxRows] = await poolWaschenPos.execute(
+          `SELECT total, outlet_id, transaction_no FROM tr_transaction WHERE id = ?`,
+          [pmt.transaction_id]
+        );
         const txTotal = Number(trxRows[0]?.total || 0);
         const newPaymentStatus = totalPaid >= txTotal ? 'paid' : (totalPaid > 0 ? 'partial' : 'unpaid');
         await poolWaschenPos.execute(
@@ -369,6 +372,16 @@ export const syncPaymentStatus = async (req, res) => {
             WHERE id = ?`,
           [totalPaid, newPaymentStatus, mapChannelToMethod(pmt.channel), pmt.transaction_id]
         );
+        try {
+          const trxMeta = trxRows[0];
+          if (trxMeta?.outlet_id) {
+            emitPaymentSettled(trxMeta.outlet_id, pmt.transaction_id, totalPaid, pmt.channel, {
+              orderId,
+              transactionNo: trxMeta.transaction_no,
+              paymentStatus: newPaymentStatus,
+            });
+          }
+        } catch {}
       }
     }
 
@@ -698,7 +711,7 @@ export const handleMidtransWebhook = async (req, res) => {
 
     if (!pmtRow) {
       const [tRows] = await poolWaschenPos.execute(
-        `SELECT id, customer_id AS customerId, face_value AS faceValue, gateway_status
+        `SELECT id, customer_id AS customerId, face_value AS faceValue, sell_price AS sellPrice, gateway_status
            FROM tr_deposit_topup WHERE gateway_order_id = ? LIMIT 1`,
         [order_id]
       );
@@ -784,11 +797,15 @@ export const handleMidtransWebhook = async (req, res) => {
         // ── Realtime emit: pembayaran masuk ──────────────────────────────────
         try {
           const [[trxOutletRow]] = await poolWaschenPos.execute(
-            `SELECT outlet_id FROM tr_transaction WHERE id = ? LIMIT 1`,
+            `SELECT outlet_id, transaction_no FROM tr_transaction WHERE id = ? LIMIT 1`,
             [pmtRow.trxId]
           );
           if (trxOutletRow?.outlet_id) {
-            emitPaymentSettled(trxOutletRow.outlet_id, pmtRow.trxId, totalPaid, pmtRow.channel);
+            emitPaymentSettled(trxOutletRow.outlet_id, pmtRow.trxId, totalPaid, pmtRow.channel, {
+              orderId: order_id,
+              transactionNo: trxOutletRow.transaction_no,
+              paymentStatus: newPaymentStatus,
+            });
           }
         } catch {}
       }
@@ -827,26 +844,48 @@ export const handleMidtransWebhook = async (req, res) => {
 
       // Wallet topup — sync di sini sesuai aturan: deposit wallet wajib sync
       // Tapi ini di-defer dari ack supaya Midtrans tidak nunggu
-      if (topupRow && isFinalPaid) {
+      const isFinalPaid = mapMidtransStatus(transaction_status, fraud_status) === 'settlement';
+      let topup = topupRow;
+      if (!topup && !pmtRow) {
+        const [tRows] = await poolWaschenPos.execute(
+          `SELECT id, customer_id AS customerId, face_value AS faceValue, sell_price AS sellPrice
+             FROM tr_deposit_topup WHERE gateway_order_id = ? LIMIT 1`,
+          [order_id]
+        );
+        topup = tRows[0] || null;
+      }
+      if (topup && isFinalPaid) {
+        const paidAmount = Math.round(Number(gross_amount || 0));
+        const expectedAmount = Math.round(Number(topup.sellPrice || topup.faceValue || 0));
+        if (expectedAmount > 0 && paidAmount > 0 && paidAmount !== expectedAmount) {
+          await logGatewayEvent({
+            orderId: order_id, transactionId: transaction_id, eventType: 'wallet_topup_skip',
+            status: transaction_status, amount: gross_amount, channel: payment_type,
+            payload, signatureValid: true, ipAddress: req.ip,
+            relatedTable: 'tr_deposit_topup', relatedId: topup.id,
+            errorMessage: `Amount mismatch: expected ${expectedAmount}, got ${paidAmount}`,
+          });
+          return;
+        }
         try {
           // Idempotent: cek ledger dulu
           const [existingLedger] = await poolWaschenPos.execute(
             `SELECT id FROM tr_wallet_ledger WHERE deposit_id = ? AND type = 'topup' LIMIT 1`,
-            [topupRow.id]
+            [topup.id]
           ).catch(() => [[]]);
           if (existingLedger.length === 0) {
             await poolWaschenPos.execute(
               `INSERT INTO mst_customer_wallet (customer_id, balance, updated_at)
                VALUES (?, ?, NOW())
                ON DUPLICATE KEY UPDATE balance = balance + VALUES(balance), updated_at = NOW()`,
-              [topupRow.customerId, Number(topupRow.faceValue)]
+              [topup.customerId, Number(topup.faceValue)]
             );
             try {
               await poolWaschenPos.execute(
                 `INSERT INTO tr_wallet_ledger
                   (customer_id, deposit_id, type, amount, created_by, created_at)
                  VALUES (?, ?, 'topup', ?, NULL, NOW())`,
-                [topupRow.customerId, topupRow.id, Number(topupRow.faceValue)]
+                [topup.customerId, topup.id, Number(topup.faceValue)]
               );
             } catch { /* ledger optional */ }
           }

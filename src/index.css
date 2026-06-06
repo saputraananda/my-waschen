@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind removed — using vanilla CSS with design tokens from theme.js */
 
 /* ───────────────────────────────────────────────────────────────
    Time picker styling (Purple Theme)
@@ -28,6 +26,19 @@ input[type="time"]::-webkit-datetime-edit-minute-field:focus {
   background-color: #F3E6F5;
   border-radius: 4px;
   outline: none;
+}
+
+/* Search + filter row — tinggi tetap, sejajar search & tombol filter */
+.search-filter-row {
+  align-items: stretch;
+}
+
+.search-filter-row .search-filter-btn {
+  min-height: 44px !important;
+  max-height: 44px !important;
+  height: 44px !important;
+  width: 44px !important;
+  padding: 0 !important;
 }
 
 /* ───────────────────────────────────────────────────────────────

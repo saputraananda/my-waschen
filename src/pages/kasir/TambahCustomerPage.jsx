@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, Input, Btn, Select, Modal, DateInput } from '../../components/ui';
+import { TopBar, Input, Btn, Select, Modal, DateTimeInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
 import AddressCascadingPicker from '../../components/AddressCascadingPicker';
@@ -244,7 +244,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
               <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk pengiriman promosi melalui email</div>
 
               {/* Tanggal Lahir */}
-              <DateInput label="Tanggal Lahir" value={form.birthDate} onChange={set('birthDate')} placeholder="Atur Tanggal" />
+              <DateTimeInput label="Tanggal Lahir" value={form.birthDate ? (form.birthDate.includes('T') ? form.birthDate : `${form.birthDate}T00:00:00`) : ''} onChange={(v) => set('birthDate')(v || '')} placeholder="Atur Tanggal" timeOptional />
               <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk keperluan promosi atau lainnya</div>
 
               {/* Agama */}

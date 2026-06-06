@@ -56,7 +56,7 @@ export const publicLimiter = rateLimit({
 // Cache HIT di-skip biar tidak makan limit.
 export const readLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 600,
+  max: 3000,
   keyGenerator: userKey,
   skip: skipIfCached,
   message: { success: false, message: 'Terlalu banyak permintaan. Tunggu sebentar.' },

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, requireSameOutlet } from '../middleware/auth.js';
+import { authenticate, requireSameOutlet, canManageMasterData } from '../middleware/auth.js';
 import { getOutletDetail, getOutletTeam, getOutletKasBalance, getOutletsAdmin, updateOutlet, toggleOutletActive, createOutlet, deleteOutlet } from '../controllers/outletController.js';
 import { getOutlets } from '../controllers/masterController.js';
 
@@ -9,19 +9,19 @@ const router = Router();
 router.get('/', authenticate, getOutlets);
 
 // GET /api/outlets/admin/all — admin: semua outlet + stats (termasuk nonaktif)
-router.get('/admin/all', authenticate, getOutletsAdmin);
+router.get('/admin/all', authenticate, canManageMasterData, getOutletsAdmin);
 
 // POST /api/outlets — admin: buat outlet baru
-router.post('/', authenticate, createOutlet);
+router.post('/', authenticate, canManageMasterData, createOutlet);
 
 // PUT /api/outlets/:id — admin: update outlet
-router.put('/:id', authenticate, updateOutlet);
+router.put('/:id', authenticate, canManageMasterData, updateOutlet);
 
 // PATCH /api/outlets/:id/toggle — admin: toggle aktif/nonaktif
-router.patch('/:id/toggle', authenticate, toggleOutletActive);
+router.patch('/:id/toggle', authenticate, canManageMasterData, toggleOutletActive);
 
 // DELETE /api/outlets/:id — admin: soft delete outlet
-router.delete('/:id', authenticate, deleteOutlet);
+router.delete('/:id', authenticate, canManageMasterData, deleteOutlet);
 
 // GET /api/outlets/:id
 router.get('/:id', authenticate, requireSameOutlet, getOutletDetail);

@@ -3,15 +3,17 @@ export const rp = (n) => 'Rp ' + Number(n).toLocaleString('id-ID');
 /**
  * Check if a date string falls within a period relative to today.
  * @param {string} dateStr - Date string (ISO or locale)
- * @param {'hari_ini'|'minggu_ini'|'bulan_ini'|'semua'} period
+ * @param {'hari_ini'|'minggu_ini'|'bulan_ini'|'semua'|'all'|'today'|'7d'|'30d'} period
  * @returns {boolean}
  */
 export const inPeriod = (dateStr, period) => {
-  if (!period || period === 'semua') return true;
+  if (!period || period === 'semua' || period === 'all') return true;
   const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return false;
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (period === 'hari_ini') return d >= startOfDay;
+  // Standard keys
+  if (period === 'hari_ini' || period === 'today') return d >= startOfDay;
   if (period === 'minggu_ini') {
     const day = now.getDay() || 7;
     const startOfWeek = new Date(startOfDay);
@@ -20,6 +22,11 @@ export const inPeriod = (dateStr, period) => {
   }
   if (period === 'bulan_ini') {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+  // Simple day-diff keys (used by ApprovalPage)
+  if (period === '7d' || period === '30d') {
+    const diffDays = Math.floor((now - d) / 86400000);
+    return diffDays <= (period === '7d' ? 7 : 30);
   }
   return true;
 };
@@ -218,9 +225,31 @@ export const sentenceCase = (str) => {
 export const formatAlamat = (str) => {
   if (!str) return '';
   return titleCase(str)
-    .replace(/\bJl\.\b/gi, 'Jl.')
-    .replace(/\bRt\.\b/gi, 'RT')
-    .replace(/\bRw\.\b/gi, 'RW')
-    .replace(/\bNo\.\b/gi, 'No.')
-    .replace(/\bBlok\b/gi, 'Blok');
+    .replace(/\bJl\./gi, 'Jl.')
+    .replace(/\bRt\.?\s?/gi, 'RT ')
+    .replace(/\bRw\.?\s?/gi, 'RW ')
+    .replace(/\bNo\./gi, 'No.')
+    .replace(/\bBlok\b/gi, 'Blok')
+    .replace(/\s{2,}/g, ' ') // collapse double spaces from dot removal
+    .trim();
 };
+
+/** Harga satuan cart/nota — express = harga dasar × multiplier (default 2×). */
+export function getCartUnitPrice(item) {
+  const base = Number(item?.price) || 0;
+  const isExpress = !!(item?.express || item?.isExpress);
+  if (!isExpress) return base;
+  const mul = Number(item?.expressMultiplier);
+  return Math.round(base * (mul > 1 ? mul : 2));
+}
+
+/** Subtotal satu baris cart/nota. */
+export function getCartLineSubtotal(item) {
+  return getCartUnitPrice(item) * (Number(item?.qty) || 1);
+}
+
+/** Total baris item transaksi tersimpan (price di DB sudah harga final). */
+export function getTransactionItemLineTotal(item) {
+  if (item?.subtotal != null && item.subtotal !== '') return Number(item.subtotal);
+  return (Number(item?.price) || 0) * (Number(item?.qty) || 1);
+}

@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Dibuat untuk orang awam — bahasa simpel, color-coded, no jargon.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { TopBar, Select, Btn } from '../../components/ui';
 import { C } from '../../utils/theme';
@@ -33,13 +33,17 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
   const [loading, setLoading] = useState(false);
 
   // Load outlets
+  const outletIdRef = useRef(outletId);
+  useEffect(() => {
+    outletIdRef.current = outletId;
+  }, [outletId]);
+
   useEffect(() => {
     axios.get('/api/master/outlets').then(r => {
       const list = r?.data?.data || [];
       setOutlets(list);
-      if (!outletId && list.length) setOutletId(list[0].id);
+      if (!outletIdRef.current && list.length) setOutletId(list[0].id);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchProgress = useCallback(async () => {

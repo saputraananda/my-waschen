@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { BottomNav, ErrorBoundary, OfflineIndicator, GlobalPullToRefresh } from './components/ui';
+import { BottomNav, ErrorBoundary, OfflineIndicator, GlobalPullToRefresh, GlobalErrorBoundary } from './components/ui';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { C } from './utils/theme';
+import { isAdmin, isFinance, isProduksi, isDataAnalyst, ADMIN_ROLES, FINANCE_ROLES } from './utils/roles';
 
 // Auth
 import SplashPage from './pages/auth/SplashPage';
@@ -23,8 +24,8 @@ import CetakNotaPage from './pages/kasir/CetakNotaPage';
 import QrPaymentPage from './pages/kasir/QrPaymentPage';
 import KasOutletPage from './pages/KasOutletPage';
 import KasApprovalPage from './pages/admin/KasApprovalPage';
+import PurchaseRequestApprovalPage from './pages/admin/PurchaseRequestApprovalPage';
 import RequestBarangPage from './pages/kasir/RequestBarangPage';
-import PurchaseRequestsPage from './pages/admin/PurchaseRequestsPage';
 import AllOutletStocksPage from './pages/admin/AllOutletStocksPage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import StokBahanPage from './pages/kasir/StokBahanPage';
@@ -39,7 +40,6 @@ import ManajemenOutletPage from './pages/admin/ManajemenOutletPage';
 import ManajemenLayananPage from './pages/admin/ManajemenLayananPage';
 import KelolaLayananOutletPage from './pages/admin/KelolaLayananOutletPage';
 import ApprovalPage from './pages/admin/ApprovalPage';
-import MonitoringPage from './pages/admin/MonitoringPage';
 import AdminLaporanPage from './pages/admin/AdminLaporanPage';
 import AdminShiftReportPage from './pages/admin/AdminShiftReportPage';
 import AdminPromoSlaStokPage from './pages/admin/AdminPromoSlaStokPage';
@@ -83,7 +83,8 @@ const SCREENS_NO_NAV = new Set([
   'splash', 'login', 'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
   'tambah_customer', 'detail_item_produksi', 'foto_kondisi', 'detail_riwayat_produksi',
   'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'notifikasi', 'qr_payment', 'pelunasan',
-  'kas_outlet', 'kas_approval', 'request_barang', 'admin_purchase_requests', 'admin_all_outlet_stocks', 'admin_settings',
+  'kas_outlet', 'kas_approval', 'pengadaan_barang', 'approval_pengadaan_barang', 'daftar_pengadaan_barang',
+  'request_barang', 'admin_purchase_requests', 'admin_all_outlet_stocks', 'admin_settings',
   'manajemen_user', 'manajemen_layanan', 'kelola_layanan_outlet', 'admin_promo_sla', 'admin_promo', 'admin_stok', 'kasir_stok_bahan',
   'profil', 'buka_shift', 'tutup_shift', 'admin_laporan', 'admin_shift', 'info_outlet', 'rekap_pendapatan',
   'kasir_antrian', 'kasir_siap_ambil', 'kasir_laporan', 'printer_settings', 'general_report', 'admin_target', 'admin_target_detail', 'admin_period_close',
@@ -143,6 +144,18 @@ function AppInner() {
 
   const showNav = user && !SCREENS_NO_NAV.has(screen);
 
+  // ─── Role Guard (using centralized helpers) ──────────────────────────────
+  const isAdminUser = isAdmin(user);
+  const isFinanceUser = isFinance(user);
+  const canViewReports = isAdmin(user) || isFinance(user) || isDataAnalyst(user);
+
+  /** Render fallback jika user tidak punya akses ke screen tertentu */
+  const renderUnauthorized = () => {
+    // Redirect ke dashboard sesuai role
+    setTimeout(() => navigate('dashboard'), 0);
+    return null;
+  };
+
   const renderScreen = () => {
     switch (screen) {
       case 'splash':
@@ -155,11 +168,11 @@ function AppInner() {
         return <TutupShiftPage goBack={goBack} />;
       case 'dashboard':
         if (!user) return <LoginPage onLogin={handleLogin} />;
-        if (user.roleCode === 'admin' || user.role === 'admin')
+        if (isAdmin(user))
           return <AdminDashboardPage user={user} navigate={navigate} />;
-        if (user.roleCode === 'finance' || user.role === 'finance')
+        if (isFinance(user))
           return <FinanceDashboardPage user={user} navigate={navigate} />;
-        if (user.roleCode === 'produksi' || user.role === 'produksi')
+        if (isProduksi(user))
           return <ProduksiDashboardPage user={user} navigate={navigate} />;
         return <KasirDashboardPage user={user} navigate={navigate} />;
 
@@ -201,19 +214,26 @@ function AppInner() {
       case 'kas_outlet':
         return <KasOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'kas_approval':
+        if (!isAdminUser && !isFinanceUser) return renderUnauthorized();
         return <KasApprovalPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
-      case 'request_barang':
-        return <RequestBarangPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
-      case 'admin_purchase_requests':
-        return <PurchaseRequestsPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'pengadaan_barang':
+      case 'request_barang': // alias lama
+        return <RequestBarangPage navigate={navigate} goBack={goBack} screenParams={screenParams} preselectedItem={screenParams?.preselectedItem} />;
+      case 'approval_pengadaan_barang':
+      case 'daftar_pengadaan_barang': // alias — digabung ke approval
+      case 'admin_purchase_requests': // alias lama
+        if (!isAdminUser && !isFinanceUser) return renderUnauthorized();
+        return <PurchaseRequestApprovalPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'admin_all_outlet_stocks':
+        if (!isAdminUser) return renderUnauthorized();
         return <AllOutletStocksPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'admin_settings':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminSettingsPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
 
       case 'antrian':
         // Produksi: page khusus tanpa info kasir/payment
-        if (user?.roleCode === 'produksi' || user?.role === 'produksi') {
+        if (isProduksi(user)) {
           return <ProduksiAntrianPage navigate={navigate} goBack={goBack} />;
         }
         // Kasir/admin: halaman Antrian & Nota terintegrasi
@@ -225,22 +245,30 @@ function AppInner() {
       case 'produksi_qr_scan':
         return <ProduksiQRScanPage navigate={navigate} goBack={goBack} />;
 
+      // ─── Admin-Only Screens (Role Guard) ─────────────────────────────────
       case 'manajemen_user':
+        if (!isAdminUser) return renderUnauthorized();
         return <ManajemenUserPage navigate={navigate} goBack={goBack} />;
       case 'manajemen_outlet':
+        if (!isAdminUser) return renderUnauthorized();
         return <ManajemenOutletPage navigate={navigate} goBack={goBack} />;
       case 'manajemen_layanan':
+        if (!isAdminUser) return renderUnauthorized();
         return <ManajemenLayananPage navigate={navigate} goBack={goBack} />;
       case 'kelola_layanan_outlet':
+        // Kasir & frontline bisa kelola layanan di outlet mereka sendiri
         return <KelolaLayananOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'admin_promo_sla':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminPromoSlaStokPage navigate={navigate} goBack={goBack} initialTab="stok" />;
       case 'admin_promo':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminPromoSlaStokPage navigate={navigate} goBack={goBack} initialTab="promo" />;
       case 'admin_stok':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminPromoSlaStokPage navigate={navigate} goBack={goBack} initialTab="stok" />;
       case 'kasir_stok_bahan':
-        return <StokBahanPage goBack={goBack} />;
+        return <StokBahanPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'kasir_antrian':
         // Redirect ke halaman Antrian & Nota terintegrasi dengan filter aktif
         return <TransaksiListPage navigate={navigate} screenParams={{ status: 'active', ...screenParams }} />;
@@ -254,36 +282,47 @@ function AppInner() {
       case 'printer_settings':
         return <PrinterSettingsPage navigate={navigate} goBack={goBack} />;
       case 'approval':
+        if (!isAdminUser) return renderUnauthorized();
         return <ApprovalPage navigate={navigate} goBack={goBack} />;
-      case 'monitoring':
-        return <MonitoringPage navigate={navigate} goBack={goBack} />;
       case 'admin_laporan':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminLaporanPage navigate={navigate} goBack={goBack} />;
       case 'admin_shift':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminShiftReportPage navigate={navigate} goBack={goBack} />;
       case 'info_outlet':
         return <InfoOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'rekap_pendapatan':
+        if (!canViewReports) return renderUnauthorized();
         return <RekapPendapatanPage navigate={navigate} goBack={goBack} />;
       case 'laporan_per_outlet':
-        // Redirect ke LaporanPage (sudah punya outlet picker untuk admin)
+        if (!canViewReports) return renderUnauthorized();
         return <KasirLaporanPage navigate={navigate} goBack={goBack} />;
       case 'general_report':
+        if (!canViewReports) return renderUnauthorized();
         return <GeneralReportPage navigate={navigate} goBack={goBack} />;
       case 'admin_target':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminTargetPage navigate={navigate} goBack={goBack} />;
       case 'admin_target_detail':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminTargetDetailPage navigate={navigate} goBack={goBack} screenParams={screenParams} />
       case 'admin_period_close':
+        if (!isAdminUser) return renderUnauthorized();
         return <AdminPeriodClosePage navigate={navigate} goBack={goBack} />;
       case 'comparison_report':
+        if (!canViewReports) return renderUnauthorized();
         return <ComparisonReportPage navigate={navigate} goBack={goBack} />;
       case 'forecast':
+        if (!canViewReports) return renderUnauthorized();
         return <ForecastPage navigate={navigate} goBack={goBack} />;
 
+      // ─── Finance-Only Screens (Role Guard) ───────────────────────────────
       case 'verifikasi_payment':
+        if (!isFinanceUser) return renderUnauthorized();
         return <VerifikasiPaymentPage navigate={navigate} goBack={goBack} />;
       case 'laporan_keuangan':
+        if (!isFinanceUser) return renderUnauthorized();
         return <LaporanKeuanganPage navigate={navigate} goBack={goBack} />;
 
       case 'topup_deposit':
@@ -417,13 +456,15 @@ export default function App() {
         }
       `}</style>
       <div className="app-content">
-        <AppProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/*" element={<AppInner />} />
-            </Routes>
-          </BrowserRouter>
-        </AppProvider>
+        <GlobalErrorBoundary>
+          <AppProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/*" element={<AppInner />} />
+              </Routes>
+            </BrowserRouter>
+          </AppProvider>
+        </GlobalErrorBoundary>
       </div>
     </div>
   );

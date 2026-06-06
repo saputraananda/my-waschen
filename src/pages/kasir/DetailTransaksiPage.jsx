@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { rp, photoTypeLabel } from '../../utils/helpers';
-import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select, DateInput, MoneyInput, DateTimeInput } from '../../components/ui';
+import { rp, photoTypeLabel, getTransactionItemLineTotal } from '../../utils/helpers';
+import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select, MoneyInput, DateTimeInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { chargePayment } from '../../utils/paymentApi';
 import PaymentChannelSelector from '../../components/PaymentChannelSelector';
@@ -640,7 +640,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               {tx.items?.map((item, index) => (
                 <div key={`pay-item-${item.id || index}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>{item.qty}x - {item.name || item.serviceName}</span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp((item.price + (item.express ? item.expressExtra || 0 : 0)) * (item.qty || 1))}</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(getTransactionItemLineTotal(item))}</span>
                 </div>
               ))}
               <Divider my={8} />

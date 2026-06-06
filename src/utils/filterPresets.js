@@ -62,9 +62,17 @@ export function getDateRangePreset(key) {
     default:
       return null;
   }
+  // Format date as YYYY-MM-DD using LOCAL time (not UTC)
+  // toISOString() converts to UTC which gives wrong date in UTC+7+ zones
+  const toLocalDateStr = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
   return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
+    start: toLocalDateStr(start),
+    end: toLocalDateStr(end),
   };
 }
 

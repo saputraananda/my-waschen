@@ -17,6 +17,47 @@ const DEFAULT_MIN_BALANCE = 2_000_000;
 const EXPENSE_CATEGORIES = ['gas', 'utility', 'supplies', 'repair', 'transport', 'consumption', 'other'];
 const TOPUP_SOURCES = ['cash', 'transfer', 'admin_pocket', 'other'];
 
+const CATEGORY_LABELS = {
+  gas: 'Gas / Bahan Bakar',
+  utility: 'Listrik & Utilitas',
+  supplies: 'Bahan Baku Darurat',
+  repair: 'Reparasi Alat',
+  transport: 'Transport',
+  consumption: 'Konsumsi Karyawan',
+  other: 'Lain-lain',
+};
+
+const TOPUP_SOURCE_LABELS = {
+  cash: 'Tunai',
+  transfer: 'Transfer Bank',
+  admin_pocket: 'Kas Admin',
+  other: 'Lainnya',
+};
+
+function fmtCsvDateTime(v) {
+  if (!v) return '';
+  const d = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fmtCsvDateOnly(v) {
+  if (!v) return '';
+  const s = String(v).slice(0, 10);
+  const [y, m, d] = s.split('-');
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
+}
+
+function slugify(s) {
+  return String(s || 'semua-outlet')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40) || 'outlet';
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Helper: ensure balance row exists, return current balance
 // ════════════════════════════════════════════════════════════════════════════
@@ -880,6 +921,15 @@ export const exportTransactionsCsv = async (req, res) => {
 
     const { outletId, startDate, endDate, type, category } = req.query;
 
+    let outletLabel = 'Semua Outlet';
+    if (outletId) {
+      const [oRows] = await poolWaschenPos.execute(
+        'SELECT name FROM mst_outlet WHERE id = ? LIMIT 1',
+        [Number(outletId)]
+      );
+      outletLabel = oRows[0]?.name || `Outlet #${outletId}`;
+    }
+
     // Gabungkan top-up + expense sebagai satu list transaksi
     const params = [];
     let topupWhere = '1=1';
@@ -945,38 +995,69 @@ export const exportTransactionsCsv = async (req, res) => {
     // Sort by createdAt descending
     combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    // ─── Generate CSV ─────────────────────────────────────────────────────
     const escape = (s) => {
       if (s == null) return '';
       const str = String(s).replace(/"/g, '""');
       return /[",\n\r;]/.test(str) ? `"${str}"` : str;
     };
 
-    const header = [
-      'Tanggal', 'Outlet', 'Tipe', 'Kategori', 'Nominal',
-      'Saldo Sebelum', 'Saldo Sesudah', 'Deskripsi', 'Oleh',
-    ];
-    const lines = [header.join(',')];
-    for (const r of combined) {
-      const dt = r.createdAt instanceof Date
-        ? r.createdAt.toISOString()
-        : String(r.createdAt || '');
-      lines.push([
-        escape(dt),
-        escape(r.outletName),
-        escape(r.trxType === 'topup' ? 'Top-up' : 'Pengeluaran'),
-        escape(r.category),
-        // Top-up positif, expense negatif
-        escape(r.trxType === 'topup' ? Number(r.amount) : -Number(r.amount)),
-        escape(Number(r.balanceBefore || 0)),
-        escape(Number(r.balanceAfter || 0)),
-        escape(r.description),
-        escape(r.userName),
-      ].join(','));
-    }
+    const outletLabelResolved = outletLabel !== 'Semua Outlet'
+      ? outletLabel
+      : (combined[0]?.outletName || outletLabel);
+    const periodLabel = startDate && endDate
+      ? `${fmtCsvDateOnly(startDate)} – ${fmtCsvDateOnly(endDate)}`
+      : 'Semua periode';
 
-    const csv = '\uFEFF' + lines.join('\r\n'); // BOM supaya Excel detect UTF-8
-    const filename = `kas-outlet-${new Date().toISOString().slice(0, 10)}.csv`;
+    let topupTotal = 0;
+    let expenseTotal = 0;
+    for (const r of combined) {
+      if (r.trxType === 'topup') topupTotal += Number(r.amount || 0);
+      else expenseTotal += Number(r.amount || 0);
+    }
+    const netFlow = topupTotal - expenseTotal;
+
+    const lines = [];
+    lines.push(['Laporan Kas Operasional — My Waschen'].map(escape).join(','));
+    lines.push(['Outlet', outletLabelResolved].map(escape).join(','));
+    lines.push(['Periode', periodLabel].map(escape).join(','));
+    lines.push(['Diekspor', fmtCsvDateTime(new Date())].map(escape).join(','));
+    lines.push('');
+
+    const header = [
+      'No', 'Tanggal & Waktu', 'Outlet', 'Tipe Transaksi', 'Kategori',
+      'Nominal (Rp)', 'Saldo Sebelum (Rp)', 'Saldo Sesudah (Rp)', 'Deskripsi', 'Oleh',
+    ];
+    lines.push(header.map(escape).join(','));
+
+    combined.forEach((r, idx) => {
+      const isTopup = r.trxType === 'topup';
+      const catLabel = isTopup
+        ? (TOPUP_SOURCE_LABELS[r.category] || r.category)
+        : (CATEGORY_LABELS[r.category] || r.category);
+      const nominal = isTopup ? Number(r.amount) : -Number(r.amount);
+      lines.push([
+        idx + 1,
+        fmtCsvDateTime(r.createdAt),
+        r.outletName,
+        isTopup ? 'Top-up' : 'Pengeluaran',
+        catLabel,
+        nominal,
+        Number(r.balanceBefore || 0),
+        Number(r.balanceAfter || 0),
+        r.description,
+        r.userName,
+      ].map(escape).join(','));
+    });
+
+    lines.push('');
+    lines.push(['', '', '', 'RINGKASAN PERIODE', '', '', '', '', '', ''].map(escape).join(','));
+    lines.push(['', '', '', 'Total Top-up', '', topupTotal, '', '', `${combined.filter(r => r.trxType === 'topup').length} transaksi`, ''].map(escape).join(','));
+    lines.push(['', '', '', 'Total Pengeluaran', '', -expenseTotal, '', '', `${combined.filter(r => r.trxType === 'expense').length} transaksi`, ''].map(escape).join(','));
+    lines.push(['', '', '', 'Net Cash Flow', '', netFlow, '', '', netFlow >= 0 ? 'Surplus' : 'Defisit', ''].map(escape).join(','));
+
+    const csv = '\uFEFF' + lines.join('\r\n');
+    const rangePart = startDate && endDate ? `${startDate}_${endDate}` : new Date().toISOString().slice(0, 10);
+    const filename = `kas-outlet_${slugify(outletLabelResolved)}_${rangePart}.csv`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(csv);

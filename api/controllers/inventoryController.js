@@ -4,6 +4,22 @@ import { writeAudit } from '../utils/auditLog.js';
 const canManageStock = (role) => ['kasir', 'frontline', 'admin', 'produksi', 'finance', 'superadmin', 'owner'].includes(role);
 const canAdminInventory = (role) => ['admin', 'finance', 'superadmin', 'owner'].includes(role);
 
+const parseOutletId = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+const canAccessOutlet = (userOutlet, role, targetOutletId) => {
+  const target = parseOutletId(targetOutletId);
+  if (!target) return { ok: false, status: 400, message: 'Outlet tidak ditemukan.' };
+  const own = parseOutletId(userOutlet);
+  const isGlobal = ['admin', 'finance', 'superadmin', 'owner'].includes(role);
+  if (own && !isGlobal && own !== target) {
+    return { ok: false, status: 403, message: 'Akses outlet ditolak.' };
+  }
+  return { ok: true, outletId: target };
+};
+
 // ─── Helper: auto-create PR kalau stok di bawah min ────────────────────────
 // Dipanggil setelah adjustInventoryStock commit. Idempotent: kalau sudah ada
 // PR pending untuk inventory_id + outlet_id yang sama, tidak buat baru.
@@ -77,17 +93,16 @@ export const getOutletStock = async (req, res) => {
     const { outletId: qOutlet } = req.query;
     const role = req.user?.roleCode;
     const userOutlet = req.user?.outletId;
-    let outletId = qOutlet || userOutlet;
 
-    if (!outletId && (role === 'admin' || role === 'finance')) {
+    if (!qOutlet && !userOutlet && (role === 'admin' || role === 'finance')) {
       return res.status(400).json({ success: false, message: 'Untuk ringkasan semua outlet gunakan GET /api/inventory/summary-outlets' });
     }
-    if (!outletId) {
-      return res.status(400).json({ success: false, message: 'Outlet tidak ditemukan.' });
+
+    const access = canAccessOutlet(userOutlet, role, qOutlet || userOutlet);
+    if (!access.ok) {
+      return res.status(access.status).json({ success: false, message: access.message });
     }
-    if (userOutlet && role !== 'admin' && role !== 'finance' && userOutlet !== outletId) {
-      return res.status(403).json({ success: false, message: 'Akses outlet ditolak.' });
-    }
+    const outletId = access.outletId;
 
     const [rows] = await poolWaschenPos.execute(
       `SELECT
@@ -261,7 +276,6 @@ export const adjustInventoryStock = async (req, res) => {
     const { inventoryId, qtyDelta, notes, outletId: bodyOutlet } = req.body;
     const userOutlet = req.user?.outletId;
     const role = req.user?.roleCode;
-    const outletId = bodyOutlet || userOutlet;
     const userId = req.user?.userId;
 
     if (!inventoryId || qtyDelta === undefined || qtyDelta === null) {
@@ -271,12 +285,12 @@ export const adjustInventoryStock = async (req, res) => {
     if (!Number.isFinite(delta) || delta === 0) {
       return res.status(400).json({ success: false, message: 'qtyDelta tidak valid.' });
     }
-    if (!outletId) {
-      return res.status(400).json({ success: false, message: 'outletId wajib.' });
+
+    const access = canAccessOutlet(userOutlet, role, bodyOutlet || userOutlet);
+    if (!access.ok) {
+      return res.status(access.status).json({ success: false, message: access.message });
     }
-    if (userOutlet && role !== 'admin' && role !== 'finance' && userOutlet !== outletId) {
-      return res.status(403).json({ success: false, message: 'Akses outlet ditolak.' });
-    }
+    const outletId = access.outletId;
 
     await conn.beginTransaction();
 

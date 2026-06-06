@@ -2,16 +2,10 @@
 // QrPaymentPage — tampilkan QR / VA / deeplink dari Midtrans
 // ─────────────────────────────────────────────────────────────────────────────
 // Prinsip:
-//   - Polling tiap 12 detik (bukan 5 detik) → ringan untuk server & Midtrans
-//   - TIDAK pernah ?sync=1 di polling loop (Midtrans rate-limit)
-//   - Tombol "Cek Status" muncul setelah QR > 30 detik tanpa konfirmasi.
-//     Cooldown 10 detik antar klik supaya kasir tidak spam.
-//   - QR expired (default 15 menit) → polling stop, banner expired,
-//     tombol "Buat Ulang QR" untuk regenerate dengan order_id baru.
-//   - UI hanya ditampilkan "LUNAS" kalau:
-//       payment_status === 'paid', ATAU
-//       gateway_status === 'settlement' / 'capture'
-//     Status pending/challenge tidak boleh trigger sukses.
+//   - Notifikasi INSTANT via SSE (payment:settled) saat webhook Midtrans masuk
+//   - Polling tiap 2 detik sebagai fallback kalau SSE/webhook delay
+//   - Tombol "Cek Status" hanya fallback darurat setelah > 45 detik
+//   - UI hanya ditampilkan "LUNAS" kalau payment_status === 'paid' atau settlement
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { TopBar, Btn } from '../../components/ui';
@@ -20,14 +14,12 @@ import { rp } from '../../utils/helpers';
 import {
   getPaymentStatus, syncPaymentStatus, cancelPayment, chargePayment,
 } from '../../utils/paymentApi';
+import { useRealtime } from '../../utils/realtime';
+import { hapticSuccess } from '../../utils/haptic';
 import { alertSuccess, alertWarning, alertError } from '../../utils/alert';
 
-// Polling interval — 4 detik (cepet supaya kasir ga nunggu lama)
-// Webhook biasanya datang < 1 detik. 4 detik fallback yang cukup nyaman tanpa boros server.
-const POLL_INTERVAL_MS = 4_000;
-// Tombol "Cek Status" muncul setelah polling lebih dari 15 detik
-const MANUAL_SYNC_VISIBLE_AFTER_MS = 15_000;
-// Cooldown setelah klik tombol manual sync
+const POLL_INTERVAL_MS = 2_000;
+const MANUAL_SYNC_VISIBLE_AFTER_MS = 45_000;
 const MANUAL_SYNC_COOLDOWN_MS = 10_000;
 
 const CHANNEL_LABELS = {
@@ -100,14 +92,60 @@ export default function QrPaymentPage({ navigate, goBack, screenParams }) {
 
   const pollRef = useRef(null);
   const tickRef = useRef(null);
+  const paidHandledRef = useRef(false);
+  const orderIdRef = useRef(channelData.orderId);
+  const transactionIdRef = useRef(transactionId);
+
+  orderIdRef.current = channelData.orderId;
+  transactionIdRef.current = transactionId;
 
   const isExpired = secondsLeft <= 0 || gateway_status === 'expire';
   const isPaid = isPaidStatus({ payment_status, gateway_status });
   const isTerminal = isExpired || isPaid || isTerminalNonPaid(gateway_status);
 
-  // ── Polling loop (12 detik, no sync) ────────────────────────────────────
+  const markAsPaid = useCallback((source = 'poll') => {
+    if (paidHandledRef.current) return;
+    paidHandledRef.current = true;
+    setPolling(false);
+    setPaymentStatus('paid');
+    setGatewayStatus('settlement');
+    hapticSuccess();
+    alertSuccess(
+      source === 'realtime'
+        ? 'Pembayaran Midtrans diterima otomatis!'
+        : 'Pembayaran diterima!',
+      { title: 'Lunas ✅' }
+    );
+    setTimeout(() => {
+      if (transactionIdRef.current) {
+        navigate('detail_transaksi', { id: transactionIdRef.current }, { replace: true });
+      } else {
+        goBack?.();
+      }
+    }, 1200);
+  }, [navigate, goBack]);
+
+  const matchesPaymentEvent = useCallback((payload) => {
+    if (!payload) return false;
+    const p = payload.data || payload;
+    if (p.orderId && p.orderId === orderIdRef.current) return true;
+    const txId = transactionIdRef.current;
+    if (!txId) return false;
+    if (p.transactionId != null && String(p.transactionId) === String(txId)) return true;
+    if (p.transactionNo && String(p.transactionNo) === String(txId)) return true;
+    return false;
+  }, []);
+
+  // ── Realtime SSE — notifikasi instant saat webhook Midtrans masuk ─────────
+  useRealtime('payment:settled', useCallback((evt) => {
+    if (paidHandledRef.current) return;
+    if (!matchesPaymentEvent(evt)) return;
+    markAsPaid('realtime');
+  }, [matchesPaymentEvent, markAsPaid]));
+
+  // ── Polling fallback (2 detik) ───────────────────────────────────────────
   const pollOnce = useCallback(async () => {
-    if (!channelData.orderId) return;
+    if (!channelData.orderId || paidHandledRef.current) return;
     try {
       const data = await getPaymentStatus(channelData.orderId);
       if (!data) return;
@@ -117,21 +155,14 @@ export default function QrPaymentPage({ navigate, goBack, screenParams }) {
       setTotal(Number(data.total || amount));
 
       if (isPaidStatus({ payment_status: data.payment_status, gateway_status: data.gateway_status })) {
-        setPolling(false);
-        alertSuccess('Pembayaran diterima!', { title: 'Lunas ✅' });
-        setTimeout(() => {
-          // Replace history: jangan biarkan user back ke QR yang sudah selesai
-          if (transactionId) navigate('detail_transaksi', { id: transactionId }, { replace: true });
-          else goBack?.();
-        }, 1500);
+        markAsPaid('poll');
       } else if (isTerminalNonPaid(data.gateway_status)) {
         setPolling(false);
       }
     } catch (err) {
-      // Polling gagal — silent, retry di interval berikutnya
       console.error('[QrPayment] poll error:', err?.message);
     }
-  }, [channelData.orderId, amount, transactionId, navigate, goBack]);
+  }, [channelData.orderId, amount, markAsPaid]);
 
   useEffect(() => {
     if (!polling || isTerminal) return;
@@ -169,10 +200,9 @@ export default function QrPaymentPage({ navigate, goBack, screenParams }) {
     setManualSyncCooldownUntil(Date.now() + MANUAL_SYNC_COOLDOWN_MS);
     try {
       const data = await syncPaymentStatus(channelData.orderId);
-      // Re-poll untuk dapat data terbaru lengkap
       await pollOnce();
-      if (data?.internal_status === 'settlement') {
-        alertSuccess('Pembayaran terkonfirmasi!');
+      if (data?.internal_status === 'settlement' || paidHandledRef.current) {
+        if (!paidHandledRef.current) markAsPaid('sync');
       } else {
         alertWarning(`Status: ${data?.gateway_status || 'pending'} — pembayaran belum diterima.`);
       }
@@ -304,6 +334,9 @@ export default function QrPaymentPage({ navigate, goBack, screenParams }) {
             {!isTerminal && (
               <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginTop: 2 }}>
                 Sisa waktu: <strong>{fmtRemaining(secondsLeft)}</strong>
+                {polling && (
+                  <span style={{ color: '#15803D', marginLeft: 8 }}>● Menunggu otomatis</span>
+                )}
               </div>
             )}
           </div>
@@ -339,7 +372,7 @@ export default function QrPaymentPage({ navigate, goBack, screenParams }) {
             </div>
             <img src={channelData.qrImageUrl} alt="QR Code" style={{ width: 240, height: 240, objectFit: 'contain', margin: '0 auto', display: 'block', border: `1px solid ${C.n100}`, borderRadius: 8 }} />
             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 12 }}>
-              Status update otomatis kalau pembayaran masuk
+              Notifikasi lunas otomatis — tidak perlu cek manual
             </div>
           </div>
         )}
@@ -387,28 +420,27 @@ export default function QrPaymentPage({ navigate, goBack, screenParams }) {
           </div>
         )}
 
-        {/* Tombol "Cek Status" — muncul setelah 30 detik tanpa konfirmasi */}
+        {/* Fallback manual sync — hanya muncul kalau otomatis belum konfirmasi */}
         {showManualSync && !isPaid && (
           <button
             onClick={handleManualSync}
             disabled={!canClickSync}
             style={{
               width: '100%', padding: '12px',
-              border: `1.5px solid ${canClickSync ? C.primary : C.n200}`,
-              background: canClickSync ? 'white' : C.n50,
-              color: canClickSync ? C.primary : C.n500,
+              border: `1.5px solid ${canClickSync ? C.n300 : C.n200}`,
+              background: C.n50,
+              color: C.n600,
               borderRadius: 12,
-              fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
               cursor: canClickSync ? 'pointer' : 'not-allowed',
               marginBottom: 10,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}
           >
             {manualSyncing
               ? '⏳ Mengecek ke Midtrans...'
               : cooldownLeft > 0
               ? `Tunggu ${Math.ceil(cooldownLeft / 1000)}s`
-              : '🔄 Cek Status Pembayaran ke Midtrans'}
+              : '🔄 Pembayaran belum masuk? Cek manual ke Midtrans'}
           </button>
         )}
 

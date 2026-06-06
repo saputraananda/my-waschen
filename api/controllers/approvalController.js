@@ -48,6 +48,11 @@ export const getApprovals = async (req, res) => {
         a.type,
         a.reason AS description,
         t.total AS amount,
+        t.subtotal AS transactionSubtotal,
+        t.manual_discount AS currentDiscount,
+        t.id AS transactionId,
+        t.transaction_no AS transactionNo,
+        c.name AS customerName,
         a.status,
         a.requested_at AS date,
         a.resolved_at AS resolvedAt,
@@ -58,6 +63,7 @@ export const getApprovals = async (req, res) => {
       JOIN mst_user u ON u.id = a.requested_by
       LEFT JOIN mst_user r ON r.id = a.approved_by
       LEFT JOIN tr_transaction t ON t.id = a.transaction_id
+      LEFT JOIN mst_customer c ON c.id = t.customer_id
       ${whereSql}
       ORDER BY
         FIELD(a.status, 'pending', 'approved', 'rejected'),
@@ -65,11 +71,23 @@ export const getApprovals = async (req, res) => {
       LIMIT ${limitNum} OFFSET ${offset}`
     );
 
-    const data = rows.map((a) => ({
-      ...a,
-      date: a.date ? new Date(a.date).toISOString().slice(0, 10) : null,
-      amount: a.amount ? Number(a.amount) : null,
-    }));
+    const data = rows.map((a) => {
+      let extra = {};
+      // Parse diskon JSON dari reason field
+      if (a.type === 'diskon' && a.description) {
+        try {
+          extra = JSON.parse(a.description);
+        } catch {}
+      }
+      return {
+        ...a,
+        date: a.date ? new Date(a.date).toISOString().slice(0, 10) : null,
+        amount: a.amount ? Number(a.amount) : null,
+        transactionSubtotal: a.transactionSubtotal ? Number(a.transactionSubtotal) : null,
+        currentDiscount: a.currentDiscount ? Number(a.currentDiscount) : null,
+        diskonData: extra,
+      };
+    });
 
     return res.status(200).json({
       success: true,
@@ -152,15 +170,34 @@ export const resolveApproval = async (req, res) => {
       } else if (approvalType === 'delete_transaction' && txId) {
         // SOFT DELETE — data tetap ada di DB untuk audit/finance, tapi tidak tampil di UI
         await conn.execute(
-          `UPDATE tr_transaction 
+          `UPDATE tr_transaction
            SET deleted_at = NOW(),
                deleted_by = ?,
                delete_reason = COALESCE(delete_reason, 'Dihapus via Approval Admin'),
                notes = CONCAT(COALESCE(notes, ''), ' | [Dihapus via Approval Admin]'),
-               updated_at = NOW() 
+               updated_at = NOW()
            WHERE id = ?`,
           [resolvedBy, txId]
         );
+      } else if (approvalType === 'diskon' && txId) {
+        // Apply diskon to the transaction
+        // reason field stores JSON: { type: 'percent'|'fixed', value: number, amount: number }
+        try {
+          const diskonData = check[0].reason ? JSON.parse(check[0].reason) : null;
+          if (diskonData && diskonData.amount) {
+            // Update manual_discount = diskon amount (already calculated by kasir)
+            await conn.execute(
+              `UPDATE tr_transaction
+               SET manual_discount = ?,
+                   total = subtotal - promo_discount - COALESCE(member_discount,0) - ? + delivery_fee,
+                   updated_at = NOW()
+               WHERE id = ?`,
+              [Number(diskonData.amount), Number(diskonData.amount), txId]
+            );
+          }
+        } catch (e) {
+          console.warn('[approval diskon] parse gagal:', e.message);
+        }
       }
     }
 

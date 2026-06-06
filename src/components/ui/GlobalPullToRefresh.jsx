@@ -174,11 +174,15 @@ export const GlobalPullToRefresh = ({ children, threshold = 70 }) => {
  *   }, [outletId]);
  */
 export const useAppRefresh = (handler, deps = []) => {
+  const handlerRef = useRef(handler);
   useEffect(() => {
-    if (typeof handler !== 'function') return;
-    const wrapped = () => handler();
+    handlerRef.current = handler;
+  }, [handler]);
+
+  useEffect(() => {
+    const wrapped = () => handlerRef.current?.();
     window.addEventListener('app:refresh', wrapped);
     return () => window.removeEventListener('app:refresh', wrapped);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 };

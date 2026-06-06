@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// KasApprovalPage — admin approve/reject pengeluaran outlet > limit
+// KasApprovalPage — admin approve/reject pengeluaran kas operasional outlet
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { C } from '../../utils/theme';
@@ -28,7 +28,7 @@ export default function KasApprovalPage({ goBack }) {
       const data = await getCashApprovals(statusFilter);
       setItems(data);
     } catch (err) {
-      console.error('[fetchApprovals]', err);
+      console.error('[fetchKasApprovals]', err);
     } finally {
       setLoading(false);
     }
@@ -41,10 +41,10 @@ export default function KasApprovalPage({ goBack }) {
     setActionLoading(`${id}_approve`);
     try {
       await resolveCashApproval(id, 'approve');
-      alertSuccess('Pengeluaran disetujui. Saldo dipotong.');
+      alertSuccess('Pengeluaran kas disetujui. Saldo dipotong.');
       await fetchData();
     } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal approve.');
+      alertError(err?.response?.data?.message || 'Gagal approve pengeluaran kas.');
     } finally {
       setActionLoading(null);
     }
@@ -52,38 +52,37 @@ export default function KasApprovalPage({ goBack }) {
 
   const handleReject = async () => {
     if (!rejectReason.trim()) {
-      alertError('Alasan reject wajib diisi.');
+      alertError('Alasan tolak wajib diisi.');
       return;
     }
     setActionLoading(`${rejectModal}_reject`);
     try {
       await resolveCashApproval(rejectModal, 'reject', rejectReason.trim());
-      alertSuccess('Pengeluaran ditolak.');
+      alertSuccess('Pengeluaran kas ditolak.');
       setRejectModal(null);
       setRejectReason('');
       await fetchData();
     } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal reject.');
+      alertError(err?.response?.data?.message || 'Gagal tolak pengeluaran kas.');
     } finally {
       setActionLoading(null);
     }
   };
 
   const pending = useMemo(() => items.filter(it => it.status === 'pending'), [items]);
-  const done = useMemo(() => items.filter(it => it.status !== 'pending'), [items]);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar
-        title="Approval Pengeluaran Outlet"
-        subtitle={`${pending.length} menunggu`}
+        title="Approval Kas Outlet"
+        subtitle={`${pending.length} pengeluaran menunggu`}
         onBack={goBack}
       />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         <div style={{ display: 'flex', gap: 8, paddingBottom: 12 }}>
           {[
-            { value: 'pending',  label: 'Pending' },
+            { value: 'pending', label: 'Pending' },
             { value: 'approved', label: 'Disetujui' },
             { value: 'rejected', label: 'Ditolak' },
           ].map(s => (
@@ -100,7 +99,7 @@ export default function KasApprovalPage({ goBack }) {
         {!loading && items.length === 0 && (
           <div style={{ textAlign: 'center', padding: 50, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-            <div>Tidak ada approval {statusFilter === 'pending' ? 'pending' : statusFilter}.</div>
+            <div>Tidak ada approval kas {statusFilter === 'pending' ? 'pending' : statusFilter}.</div>
           </div>
         )}
 
@@ -112,7 +111,6 @@ export default function KasApprovalPage({ goBack }) {
               boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
               borderLeft: `4px solid ${it.status === 'pending' ? '#F59E0B' : it.status === 'approved' ? '#10B981' : '#EF4444'}`,
             }}>
-              {/* Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{
@@ -134,40 +132,30 @@ export default function KasApprovalPage({ goBack }) {
                 </div>
               </div>
 
-              {/* Reason */}
               <div style={{ background: C.n50, borderRadius: 10, padding: '8px 12px', marginBottom: 10 }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n800 }}>
                   📝 {it.description}
                 </div>
-                {it.reason && it.reason !== it.description && (
-                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 4 }}>
-                    {it.reason}
-                  </div>
-                )}
               </div>
 
-              {/* Receipt */}
               {it.receiptPhotoUrl && (
                 <a href={it.receiptPhotoUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginBottom: 10 }}>
                   <img src={it.receiptPhotoUrl} alt="bon" style={{ width: 70, height: 70, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.n200}` }} />
                 </a>
               )}
 
-              {/* Footer */}
               <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginBottom: 10 }}>
                 Diajukan: {fmtDate(it.requestedAt)}
                 {it.resolverName && ` · Diproses oleh ${it.resolverName}`}
                 {it.resolvedAt && ` · ${fmtDate(it.resolvedAt)}`}
               </div>
 
-              {/* Reject reason if rejected */}
               {it.status === 'rejected' && it.rejectReason && (
                 <div style={{ background: '#FEE2E2', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontFamily: 'Poppins', fontSize: 11, color: '#991B1B' }}>
-                  ❌ Alasan reject: {it.rejectReason}
+                  ❌ Alasan tolak: {it.rejectReason}
                 </div>
               )}
 
-              {/* Actions (pending only) */}
               {it.status === 'pending' && (
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Btn
@@ -187,7 +175,6 @@ export default function KasApprovalPage({ goBack }) {
                 </div>
               )}
 
-              {/* Status badge for done */}
               {it.status !== 'pending' && (
                 <div style={{
                   display: 'inline-block',
@@ -204,8 +191,7 @@ export default function KasApprovalPage({ goBack }) {
         })}
       </div>
 
-      {/* Reject modal */}
-      <Modal visible={!!rejectModal} onClose={() => setRejectModal(null)} title="Tolak Pengeluaran">
+      <Modal visible={!!rejectModal} onClose={() => setRejectModal(null)} title="Tolak Pengeluaran Kas">
         <div style={{ padding: '8px 18px 18px' }}>
           <Textarea
             label="Alasan menolak"

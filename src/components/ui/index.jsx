@@ -265,22 +265,63 @@ function _isWeekend(d) {
   return dow === 'Sat' || dow === 'Sun';
 }
 
-const DateInputCustom = forwardRef(({ value, onClick, placeholder, focused }, ref) => (
-  <div onClick={onClick} ref={ref} style={{
-    width: '100%', height: 48, borderRadius: 10,
-    padding: '0 14px',
-    border: `${focused ? 2 : 1.5}px solid ${focused ? C.primary : C.n300}`,
-    fontFamily: 'Poppins', fontSize: 14, color: value ? C.n900 : C.n500,
-    background: C.white, outline: 'none', boxSizing: 'border-box',
-    transition: 'border-color 0.2s', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  }}>
-    <span>{value || placeholder || 'Pilih tanggal'}</span>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.n500} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-  </div>
-));
+const CALENDAR_ICON = ({ color = C.n500, size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
 
-export const DateInput = ({ label, value, onChange, placeholder, minDate, maxDate, filterDate, error, returnDate = false }) => {
+const DateInputCustom = forwardRef(({ value, onClick, placeholder, focused, iconOnlyEmpty, compact }, ref) => {
+  const h = compact ? 44 : 48;
+  const empty = !value;
+
+  if (iconOnlyEmpty && empty) {
+    return (
+      <div
+        onClick={onClick}
+        ref={ref}
+        role="button"
+        tabIndex={0}
+        aria-label="Pilih tanggal"
+        style={{
+          width: '100%', height: h, borderRadius: 10,
+          border: `${focused ? 2 : 1.5}px solid ${focused ? C.primary : C.n300}`,
+          background: focused ? `${C.primary}08` : C.white,
+          outline: 'none', boxSizing: 'border-box',
+          transition: 'border-color 0.2s, background 0.2s',
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: focused ? C.primary : C.n500,
+        }}
+      >
+        <CALENDAR_ICON color={focused ? C.primary : C.n500} />
+      </div>
+    );
+  }
+
+  return (
+    <div onClick={onClick} ref={ref} style={{
+      width: '100%', height: h, borderRadius: 10,
+      padding: '0 12px',
+      border: `${focused ? 2 : 1.5}px solid ${focused ? C.primary : C.n300}`,
+      fontFamily: 'Poppins', fontSize: compact ? 13 : 14,
+      color: value ? C.n900 : C.n500,
+      background: C.white, outline: 'none', boxSizing: 'border-box',
+      transition: 'border-color 0.2s', cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+    }}>
+      <span style={{ fontWeight: value ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {value || (iconOnlyEmpty ? '' : (placeholder || 'Pilih tanggal'))}
+      </span>
+      <CALENDAR_ICON color={focused ? C.primary : C.n500} size={16} />
+    </div>
+  );
+});
+
+export const DateInput = ({ label, value, onChange, placeholder, minDate, maxDate, filterDate, error, returnDate = false, compact = false, iconOnlyEmpty = false }) => {
   _ensureDateStyles();
   const [focused, setFocused] = useState(false);
 
@@ -317,7 +358,7 @@ export const DateInput = ({ label, value, onChange, placeholder, minDate, maxDat
   );
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: compact ? 0 : 16 }}>
       {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
       <DatePicker
         selected={selected}
@@ -333,7 +374,7 @@ export const DateInput = ({ label, value, onChange, placeholder, minDate, maxDat
         renderDayContents={renderDayContents}
         onCalendarOpen={() => setFocused(true)}
         onCalendarClose={() => setFocused(false)}
-        customInput={<DateInputCustom focused={focused} placeholder={placeholder} />}
+        customInput={<DateInputCustom focused={focused} placeholder={placeholder} iconOnlyEmpty={iconOnlyEmpty} compact={compact} />}
         popperPlacement="bottom-start"
         popperProps={{
           strategy: 'fixed',
@@ -438,7 +479,7 @@ export const TimeInput = ({ label, value, onChange, error, placeholder, name, id
 // ── DateTimeInput ─────────────────────────────────────────
 // DatePicker + TimePicker inline (2 field) — return ISO datetime string.
 // Lebih konsisten daripada native datetime-local yang inkonsisten antar browser.
-export const DateTimeInput = ({ label, value, onChange, error, minDate, maxDate, placeholder }) => {
+export const DateTimeInput = ({ label, value, onChange, error, minDate, maxDate, filterDate, placeholder, timeOptional = false }) => {
   // value: ISO string "2026-06-01T00:00:00" atau null
   const initial = value ? new Date(value) : null;
   const [date, setDate] = useState(initial && !Number.isNaN(initial.getTime()) ? initial : null);
@@ -447,9 +488,23 @@ export const DateTimeInput = ({ label, value, onChange, error, minDate, maxDate,
     : ''
   );
 
-  // Emit ISO string saat date+time keduanya sudah dipilih
+  // Emit ISO string
+  // - timeOptional=false (default): butuh date + time baru emit
+  // - timeOptional=true: emit begitu date dipilih, time default 00:00
   const emit = (d, t) => {
-    if (!d || !t) {
+    if (!d) {
+      onChange(null);
+      return;
+    }
+    if (timeOptional && !t) {
+      // Auto set 00:00 kalau time belum diisi
+      const yyyy = d.getFullYear();
+      const MM = String(d.getMonth() + 1).padStart(2, '0');
+      const DD = String(d.getDate()).padStart(2, '0');
+      onChange(`${yyyy}-${MM}-${DD}T00:00:00`);
+      return;
+    }
+    if (!t) {
       onChange(null);
       return;
     }
@@ -471,10 +526,11 @@ export const DateTimeInput = ({ label, value, onChange, error, minDate, maxDate,
         <div style={{ flex: 2 }}>
           <DateInput
             value={date}
-            onChange={(d) => { setDate(d); emit(d, time); }}
+            onChange={(d) => { setDate(d); emit(d, time || (timeOptional ? '00:00' : '')); }}
             placeholder={placeholder || 'Pilih tanggal'}
             minDate={minDate}
             maxDate={maxDate}
+            filterDate={filterDate}
             returnDate
           />
         </div>
@@ -492,7 +548,7 @@ export const DateTimeInput = ({ label, value, onChange, error, minDate, maxDate,
 
 // ── Select ────────────────────────────────────────────────
 // Custom styled dropdown — portal-based, works inside Modal/overflow containers
-export const Select = ({ label, value, onChange, options, error, placeholder }) => {
+export const Select = ({ label, value, onChange, options, error, placeholder, compact = false }) => {
   const [open, setOpen] = useState(false);
   const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
   const triggerRef = useRef(null);
@@ -619,7 +675,7 @@ export const Select = ({ label, value, onChange, options, error, placeholder }) 
     : null;
 
   return (
-    <div style={{ marginBottom: 16, position: 'relative' }}>
+    <div style={{ marginBottom: compact ? 0 : 16, position: 'relative' }}>
       {label && (
         <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>
           {label}
@@ -753,21 +809,133 @@ export const Chip = ({ label, active, onClick, color = C.primary }) => (
 export const Divider = ({ mx = 0, my = 12 }) => <div style={{ height: 1, background: C.n100, margin: `${my}px ${mx}px` }} />;
 
 // ── SearchBar ─────────────────────────────────────────────
-export const SearchBar = ({ value, onChange, placeholder = 'Cari...', name = 'search' }) => (
-  <div style={{ position: 'relative', marginBottom: 12 }}>
-    <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.n600 }}>
+const SEARCH_INPUT_H = 44;
+
+export const SearchBar = ({ value, onChange, placeholder = 'Cari...', name = 'search', compact = false }) => (
+  <div style={{
+    position: 'relative',
+    marginBottom: compact ? 0 : 12,
+    height: compact ? SEARCH_INPUT_H : undefined,
+  }}>
+    <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.n600, pointerEvents: 'none', display: 'flex' }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
     </div>
     <input
       id={name} name={name}
       value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-      style={{ width: '100%', height: 44, borderRadius: 10, padding: '0 40px 0 38px', border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: C.white, outline: 'none', boxSizing: 'border-box' }}
+      style={{
+        width: '100%', height: SEARCH_INPUT_H, margin: 0,
+        borderRadius: 10, padding: '0 40px 0 38px',
+        border: `1.5px solid ${C.n300}`,
+        fontFamily: 'Poppins', fontSize: 14, lineHeight: '20px',
+        color: C.n900, background: C.white, outline: 'none',
+        boxSizing: 'border-box', display: 'block',
+        WebkitAppearance: 'none', appearance: 'none',
+      }}
     />
     {value && (
-      <button onClick={() => onChange('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: C.n600, display: 'flex', padding: 4 }}>
+      <button type="button" onClick={() => onChange('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: C.n600, display: 'flex', padding: 4, margin: 0, minHeight: 'unset', height: 'auto' }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
     )}
+  </div>
+);
+
+const FILTER_ICON_SVG = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="4" y1="6" x2="14" y2="6" />
+    <circle cx="16" cy="6" r="2" />
+    <line x1="20" y1="6" x2="18" y2="6" />
+    <line x1="4" y1="12" x2="6" y2="12" />
+    <circle cx="8" cy="12" r="2" />
+    <line x1="20" y1="12" x2="10" y2="12" />
+    <line x1="4" y1="18" x2="12" y2="18" />
+    <circle cx="14" cy="18" r="2" />
+    <line x1="20" y1="18" x2="16" y2="18" />
+  </svg>
+);
+
+// ── FilterIconButton — tombol filter 44×44, sejajar dengan SearchBar ──
+export const FilterIconButton = ({ onClick, activeCount = 0, ariaLabel = 'Buka filter' }) => (
+  <button
+    type="button"
+    className="search-filter-btn"
+    onClick={onClick}
+    aria-label={ariaLabel}
+    style={{
+      position: 'relative',
+      padding: 0,
+      margin: 0,
+      borderRadius: 10,
+      border: `1.5px solid ${activeCount > 0 ? C.primary : C.n300}`,
+      background: activeCount > 0 ? `${C.primary}10` : 'white',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: activeCount > 0 ? C.primary : C.n700,
+      flexShrink: 0,
+      width: SEARCH_INPUT_H,
+      height: SEARCH_INPUT_H,
+      minHeight: SEARCH_INPUT_H,
+      maxHeight: SEARCH_INPUT_H,
+      boxSizing: 'border-box',
+      WebkitAppearance: 'none',
+      appearance: 'none',
+    }}
+  >
+    {FILTER_ICON_SVG}
+    {activeCount > 0 && (
+      <span style={{
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        background: C.primary,
+        color: 'white',
+        fontFamily: 'Poppins',
+        fontSize: 9,
+        fontWeight: 800,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0 3px',
+      }}>
+        {activeCount}
+      </span>
+    )}
+  </button>
+);
+
+// ── SearchFilterRow — search + filter icon sejajar (pola admin approval) ──
+export const SearchFilterRow = ({
+  searchValue,
+  onSearchChange,
+  searchPlaceholder = 'Cari...',
+  onFilterClick,
+  activeFilterCount = 0,
+  marginBottom = 10,
+}) => (
+  <div
+    className="search-filter-row"
+    style={{
+      display: 'grid',
+      gridTemplateColumns: `1fr ${SEARCH_INPUT_H}px`,
+      gap: 8,
+      marginBottom,
+      height: SEARCH_INPUT_H,
+      alignItems: 'stretch',
+    }}
+  >
+    <SearchBar
+      value={searchValue}
+      onChange={onSearchChange}
+      placeholder={searchPlaceholder}
+      compact
+    />
+    <FilterIconButton onClick={onFilterClick} activeCount={activeFilterCount} />
   </div>
 );
 
@@ -1147,3 +1315,8 @@ export const PhotoLightbox = ({ visible, photos = [], index = 0, onClose, onInde
 
   return ReactDOM.createPortal(lightbox, document.body);
 };
+
+// ── New components (split from monolith) ──────────────────────────────────
+export { GlobalErrorBoundary } from './GlobalErrorBoundary';
+export { GlobalLoading } from './GlobalLoading';
+export { default as OutletDropdown } from './OutletDropdown';

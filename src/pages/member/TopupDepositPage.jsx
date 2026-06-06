@@ -2,11 +2,11 @@ import { useState } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn } from '../../components/ui';
+import { TopBar, Btn, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning, alertInfo } from '../../utils/alert';
 import { createTopupSnap, openSnapPopup, getPaymentStatus } from '../../utils/paymentApi';
 
-const PRESETS = [50000, 100000, 200000, 500000];
+const PRESETS = ['50000', '100000', '200000', '500000'];
 
 const PAY_METHODS = [
   { key: 'cash',     label: '💵 Tunai',          desc: 'Customer bayar di kasir' },
@@ -123,22 +123,17 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
           <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Nominal Top Up</div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             {PRESETS.map((p) => (
-              <button key={p} onClick={() => setAmount(String(p))} style={{ padding: '8px 14px', borderRadius: 10, border: `1.5px solid ${amount === String(p) ? C.primary : C.n300}`, background: amount === String(p) ? C.primaryLight : C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: amount === String(p) ? C.primary : C.n600 }}>
-                {rp(p)}
+              <button key={p} onClick={() => setAmount(p)} style={{ padding: '8px 14px', borderRadius: 10, border: `1.5px solid ${amount === p ? C.primary : C.n300}`, background: amount === p ? C.primaryLight : C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: amount === p ? C.primary : C.n600 }}>
+                {rp(Number(p))}
               </button>
             ))}
           </div>
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n600 }}>Rp</span>
-            <input
-              type="text"
-              value={amount ? Number(amount).toLocaleString('id-ID') : ''}
-              onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
-              placeholder="0"
-              inputMode="numeric"
-              style={{ width: '100%', height: 52, borderRadius: 12, padding: '0 14px 0 42px', border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: C.n900, background: C.white, outline: 'none', boxSizing: 'border-box' }}
-            />
-          </div>
+          <MoneyInput
+            label="Nominal Top Up"
+            value={amount}
+            onChange={(v) => setAmount(v)}
+            placeholder="0"
+          />
         </div>
 
         <div style={{ background: C.white, borderRadius: 16, padding: '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>

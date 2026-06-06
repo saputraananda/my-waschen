@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, Avatar, SkeletonList, useAppRefresh } from '../../components/ui';
+import { TopBar, Avatar, SkeletonList, useAppRefresh, SearchBar } from '../../components/ui';
 import { useRealtimeMulti } from '../../utils/realtime';
 import { STAGES } from '../../utils/helpers';
 
@@ -193,12 +193,10 @@ export default function ProduksiAntrianPage({ navigate, goBack }) {
 
         {/* Search */}
         <div style={{ position: 'relative', marginBottom: 10 }}>
-          <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input
+          <SearchBar
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
             placeholder="Cari customer, no nota, atau layanan…"
-            style={{ width: '100%', height: 40, borderRadius: 10, border: `1.5px solid ${C.n200}`, background: 'white', fontFamily: 'Poppins', fontSize: 12, paddingLeft: 36, paddingRight: 12, boxSizing: 'border-box', outline: 'none' }}
           />
         </div>
 

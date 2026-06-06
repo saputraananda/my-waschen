@@ -6,7 +6,7 @@ import { C } from '../../utils/theme';
 
 import { rp } from '../../utils/helpers';
 
-import { TopBar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
+import { TopBar, Btn, Chip, Modal, Input, Select, SearchBar, MoneyInput } from '../../components/ui';
 
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
 
@@ -227,7 +227,7 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
 
     try {
 
-      const basePrice = Number(parseRibuan(form.price));
+      const basePrice = Number(form.price) || 0;
       const slaReg = form.slaRegular ? Number(form.slaRegular) : null;
       const payload = {
         name: form.name.trim(),
@@ -235,7 +235,7 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
         price: basePrice,
         unit: form.unit,
         expressExtra: form.expressEligible 
-          ? (form.expressExtra ? Number(parseRibuan(form.expressExtra)) : basePrice) 
+          ? (form.expressExtra ? Number(form.expressExtra) : basePrice) 
           : 0,
         expressEligible: form.expressEligible,
         minQty: form.minQty ? Number(form.minQty) : 1,
@@ -704,24 +704,13 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
 
         <Select label="Kategori" value={form.category} onChange={(v) => setForm((f) => ({ ...f, category: v }))} options={['Cuci', 'Setrika', 'Dry Clean', 'Sepatu', 'Karpet', 'Boneka', 'Helm', 'Lainnya'].map((c) => ({ value: c, label: c }))} />
 
-        {/* Harga dengan format ribuan */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Harga (Rp)</div>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={formatRibuan(form.price)}
-            onChange={(e) => {
-              const raw = parseRibuan(e.target.value);
-              setForm((f) => ({ ...f, price: raw }));
-            }}
-            placeholder="cth: 7.000"
-            style={{ width: '100%', height: 44, borderRadius: 10, border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 14, padding: '0 12px', boxSizing: 'border-box', outline: 'none' }}
-          />
-          {form.price && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>= {rp(Number(parseRibuan(form.price)))}</div>
-          )}
-        </div>
+        {/* Harga dengan MoneyInput */}
+        <MoneyInput
+          label="Harga (Rp)"
+          value={form.price}
+          onChange={(v) => setForm((f) => ({ ...f, price: v }))}
+          placeholder="0"
+        />
 
         <Select label="Satuan" value={form.unit} onChange={(v) => setForm((f) => ({ ...f, unit: v }))} options={[
 
@@ -797,19 +786,13 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
 
         {form.expressEligible && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Biaya Express Tambahan (Rp)</div>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={formatRibuan(form.expressExtra)}
-              onChange={(e) => {
-                const raw = parseRibuan(e.target.value);
-                setForm((f) => ({ ...f, expressExtra: raw }));
-              }}
-              placeholder={`Otomatis: ${form.price ? formatRibuan(parseRibuan(form.price)) : '0'} (2× normal)`}
-              style={{ width: '100%', height: 44, borderRadius: 10, border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 14, padding: '0 12px', boxSizing: 'border-box', outline: 'none' }}
+            <MoneyInput
+              label="Biaya Express Tambahan (Rp)"
+              value={form.expressExtra}
+              onChange={(v) => setForm((f) => ({ ...f, expressExtra: v }))}
+              placeholder={form.price ? `${form.price} (2× normal)` : '0'}
             />
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: -8 }}>
               *Kosongkan untuk otomatis biaya tambahan sama dengan harga normal
             </div>
           </div>

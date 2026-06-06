@@ -418,16 +418,26 @@ function TopServicesCard({ topServices }) {
 // Main Page
 // ════════════════════════════════════════════════════════════════════════════
 export default function KasirLaporanPage({ navigate, goBack }) {
-  const { user } = useApp();
+  const { user, adminOutletId } = useApp();
   const [period, setPeriod] = useState('month');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Admin outlet picker
-  const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(user?.originalRoleCode || user?.roleCode || user?.role);
+  // Admin / finance / owner — bisa pilih outlet
+  const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner', 'ga'].includes(user?.originalRoleCode || user?.roleCode || user?.role);
   const [outlets, setOutlets] = useState([]);
-  const [selectedOutletId, setSelectedOutletId] = useState(user?.outletId || '');
+  const initialOutletId = isGlobalRole && adminOutletId && adminOutletId !== '_all'
+    ? adminOutletId
+    : (user?.outletId || '');
+  const [selectedOutletId, setSelectedOutletId] = useState(initialOutletId);
+
+  useEffect(() => {
+    if (!isGlobalRole) return;
+    if (adminOutletId && adminOutletId !== '_all') {
+      setSelectedOutletId(adminOutletId);
+    }
+  }, [isGlobalRole, adminOutletId]);
 
   useEffect(() => {
     if (!isGlobalRole) return;

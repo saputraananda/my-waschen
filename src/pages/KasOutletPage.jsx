@@ -65,6 +65,8 @@ export default function KasOutletPage({ goBack }) {
   // Filters
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState(PERIOD_PRESETS[2]); // default 30 hari
+  const [reportPeriod, setReportPeriod] = useState(PERIOD_PRESETS[2]);
+  const [reportCustomRange, setReportCustomRange] = useState(() => periodToRange(PERIOD_PRESETS[2]));
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -101,6 +103,18 @@ export default function KasOutletPage({ goBack }) {
 
   // Filter range
   const { startDate, endDate } = useMemo(() => periodToRange(period), [period]);
+  const { startDate: reportStartDate, endDate: reportEndDate } = useMemo(() => {
+    if (reportPeriod?.key === 'custom' && reportCustomRange.startDate && reportCustomRange.endDate) {
+      return reportCustomRange;
+    }
+    return periodToRange(reportPeriod);
+  }, [reportPeriod, reportCustomRange]);
+
+  useEffect(() => {
+    if (reportPeriod?.key !== 'custom') {
+      setReportCustomRange(periodToRange(reportPeriod));
+    }
+  }, [reportPeriod]);
 
   // ── Infinite list expenses
   const expensesList = useInfiniteList({
@@ -145,7 +159,7 @@ export default function KasOutletPage({ goBack }) {
     try {
       const data = await getCashSummary({
         outletId: selectedOutletId,
-        startDate, endDate,
+        startDate: reportStartDate, endDate: reportEndDate,
       });
       setReportData(data);
     } catch (err) {
@@ -153,7 +167,7 @@ export default function KasOutletPage({ goBack }) {
     } finally {
       setReportLoading(false);
     }
-  }, [selectedOutletId, startDate, endDate]);
+  }, [selectedOutletId, reportStartDate, reportEndDate]);
 
   useEffect(() => {
     if (tab === 'report') fetchReport();
@@ -390,7 +404,7 @@ export default function KasOutletPage({ goBack }) {
                   try {
                     await exportCashCsv({
                       outletId: selectedOutletId || undefined,
-                      startDate, endDate,
+                      startDate: reportStartDate, endDate: reportEndDate,
                     });
                     alertSuccess('CSV berhasil diunduh.');
                   } catch (err) {
@@ -412,8 +426,19 @@ export default function KasOutletPage({ goBack }) {
             <ReportPanel
               data={reportData}
               loading={reportLoading}
-              period={period}
-              setPeriod={setPeriod}
+              period={reportPeriod}
+              setPeriod={setReportPeriod}
+              customRange={reportCustomRange}
+              setCustomRange={setReportCustomRange}
+              rangeStart={reportStartDate}
+              rangeEnd={reportEndDate}
+              onApplyCustomRange={() => {
+                if (!reportCustomRange.startDate || !reportCustomRange.endDate) return;
+                let { startDate: s, endDate: e } = reportCustomRange;
+                if (s > e) [s, e] = [e, s];
+                setReportCustomRange({ startDate: s, endDate: e });
+                setReportPeriod({ key: 'custom', label: 'Custom', days: 0 });
+              }}
               outletName={balance?.outletName}
             />
           </>
@@ -654,7 +679,17 @@ function TopupCard({ item }) {
 // ════════════════════════════════════════════════════════════════════════════
 // Report Panel
 // ════════════════════════════════════════════════════════════════════════════
-function ReportPanel({ data, loading, period, setPeriod, outletName }) {
+function formatReportRange(start, end) {
+  if (!start || !end) return 'Semua periode';
+  try {
+    const fmt = (s) => new Date(`${s}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${fmt(start)} – ${fmt(end)}`;
+  } catch {
+    return `${start} – ${end}`;
+  }
+}
+
+function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomRange, onApplyCustomRange, outletName, rangeStart, rangeEnd }) {
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat laporan…</div>;
   }
@@ -672,6 +707,33 @@ function ReportPanel({ data, loading, period, setPeriod, outletName }) {
 
   return (
     <div>
+      <div style={{
+        background: 'white', borderRadius: 12, padding: '10px 14px', marginBottom: 12,
+        border: `1px solid ${C.n200}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+      }}>
+        <div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: C.n500, letterSpacing: 0.3 }}>
+            RENTANG LAPORAN
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900, marginTop: 2 }}>
+            {formatReportRange(rangeStart, rangeEnd)}
+          </div>
+          {outletName && (
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 2 }}>
+              {outletName}
+            </div>
+          )}
+        </div>
+        <div style={{
+          fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
+          padding: '4px 8px', borderRadius: 999,
+          background: `${C.primary}12`, color: C.primary,
+        }}>
+          {period?.label || 'Periode'}
+        </div>
+      </div>
+
       {/* Period selector */}
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12, scrollbarWidth: 'none' }}>
         {PERIOD_PRESETS.map(p => {
@@ -691,6 +753,58 @@ function ReportPanel({ data, loading, period, setPeriod, outletName }) {
             >{p.label}</button>
           );
         })}
+      </div>
+
+      {/* Custom date range */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+        <label style={{ display: 'block' }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginBottom: 4 }}>Dari</div>
+          <input
+            type="date"
+            value={customRange?.startDate || ''}
+            onChange={(e) => setCustomRange({
+              startDate: e.target.value,
+              endDate: customRange?.endDate || '',
+            })}
+            style={{
+              width: '100%', height: 36, borderRadius: 8,
+              border: `1.5px solid ${C.n200}`,
+              padding: '0 10px', fontFamily: 'Poppins', fontSize: 11,
+              color: C.n900, background: 'white', boxSizing: 'border-box',
+            }}
+          />
+        </label>
+        <label style={{ display: 'block' }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginBottom: 4 }}>Sampai</div>
+          <input
+            type="date"
+            value={customRange?.endDate || ''}
+            onChange={(e) => setCustomRange({
+              startDate: customRange?.startDate || '',
+              endDate: e.target.value,
+            })}
+            style={{
+              width: '100%', height: 36, borderRadius: 8,
+              border: `1.5px solid ${C.n200}`,
+              padding: '0 10px', fontFamily: 'Poppins', fontSize: 11,
+              color: C.n900, background: 'white', boxSizing: 'border-box',
+            }}
+          />
+        </label>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={onApplyCustomRange}
+          disabled={!customRange?.startDate || !customRange?.endDate}
+          style={{
+            flex: 1, padding: '8px 10px', borderRadius: 10,
+            border: `1.5px solid ${C.primary}`,
+            background: 'white', color: C.primary,
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+            cursor: !customRange?.startDate || !customRange?.endDate ? 'not-allowed' : 'pointer',
+            opacity: !customRange?.startDate || !customRange?.endDate ? 0.6 : 1,
+          }}
+        >Terapkan Rentang</button>
       </div>
 
       {/* Summary cards */}

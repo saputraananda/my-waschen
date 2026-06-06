@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Chip, Select, DateInput } from '../../components/ui';
+import { TopBar, Btn, Chip, Select, DateTimeInput } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 
 const F = { fontFamily: 'Poppins' };
@@ -236,8 +236,8 @@ export default function AdminShiftReportPage({ navigate, goBack }) {
         <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
           {/* Date row — side by side, no arrow */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <DateInput label="Dari" value={dateFrom} onChange={setDateFrom} />
-            <DateInput label="Sampai" value={dateTo} onChange={setDateTo} />
+            <DateTimeInput label="Dari" value={dateFrom ? `${dateFrom}T00:00:00` : ''} onChange={(v) => setDateFrom(v ? v.slice(0, 10) : '')} timeOptional />
+            <DateTimeInput label="Sampai" value={dateTo ? `${dateTo}T00:00:00` : ''} onChange={(v) => setDateTo(v ? v.slice(0, 10) : '')} timeOptional />
           </div>
           {/* Outlet selector */}
           <Select label="Outlet" value={outletId} onChange={setOutletId}

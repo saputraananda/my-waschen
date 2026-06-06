@@ -673,6 +673,7 @@ export const checkoutTransaction = async (req, res) => {
     // Fetch hasil untuk response
     const [[trxRow]] = await poolWaschenPos.execute(
       `SELECT
+        t.id,
         t.transaction_no AS transactionNo,
         t.total,
         t.subtotal,
@@ -1610,7 +1611,8 @@ export const getProductionQueue = async (req, res) => {
       FROM tr_transaction t
       JOIN mst_customer c ON c.id = t.customer_id
       WHERE t.deleted_at IS NULL
-        AND t.status IN ('draft', 'pending', 'process')
+        AND t.status IN ('draft', 'pending', 'process', 'ready_for_pickup', 'ready_for_delivery')
+        AND (t.status NOT IN ('ready_for_pickup', 'ready_for_delivery') OR t.created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY))
       ${userOutletId ? 'AND t.outlet_id = ?' : ''}
       ORDER BY t.is_express DESC, t.estimated_done_at ASC, t.created_at ASC
       LIMIT 200`,
@@ -1871,7 +1873,6 @@ export const updateProductionStage = async (req, res) => {
       'ironing': 'Setrika', 'packing': 'Packing', 'ready': 'Selesai',
     };
     const dbStatus = stageMap[stage] || 'received';
-
     const [rows] = await poolWaschenPos.execute(
       `SELECT id, pickup_type FROM tr_transaction
        WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
@@ -1883,6 +1884,15 @@ export const updateProductionStage = async (req, res) => {
     const txId = rows[0].id;
     const pickupType = rows[0].pickup_type;
 
+    if (dbStatus === 'ready') {
+      const [photoCheck] = await poolWaschenPos.execute(
+        `SELECT id FROM tr_transaction_item_photo WHERE transaction_id = ? AND photo_type = 'packing' LIMIT 1`,
+        [txId]
+      );
+      if (!photoCheck.length) {
+        return res.status(400).json({ success: false, code: 'PACKING_PHOTO_REQUIRED', message: 'Wajib foto packing / serah terima sebelum menandai selesai.' });
+      }
+    }
     // ── Per-item mode (itemId dikirim) ──────────────────────────────────────
     if (itemId) {
       const [itemCheck] = await poolWaschenPos.execute(
@@ -1982,7 +1992,6 @@ export const updateProductionStage = async (req, res) => {
         [unit.id, req.user?.userId, dbStatus, `Stage diubah menjadi: ${stage}`]
       );
     }
-
     if (dbStatus === 'packing' || dbStatus === 'ready') {
       const nextStatus = pickupType === 'delivery' ? 'ready_for_delivery' : 'ready_for_pickup';
       await poolWaschenPos.execute(
@@ -2633,7 +2642,7 @@ const PRODUCTION_STATUS_LABEL = {
 };
 
 const RECEIVE_PHOTO_TYPES = new Set(['initial_condition', 'damage']);
-const PACKING_PHOTO_TYPES = new Set(['packing']);
+const PACKING_PHOTO_TYPES = new Set(['packing', 'qc']);
 
 /** Ringkasan status produksi + foto per transaksi (batch). */
 const getProductionMetaBatch = async (transactionIds) => {
@@ -2727,8 +2736,7 @@ export const getProductionHistory = async (req, res) => {
       params.push(userOutletId);
     }
 
-    // Ambil PER-ITEM dari nota yang SEMUA item-nya sudah selesai produksi
-    // (nota udah lulus dari antrian → masuk ke Riwayat).
+    // Ambil PER-ITEM yang sudah selesai produksi.
     // Item dianggap "selesai" kalau SEMUA unit-nya sudah ready atau done.
     // Status item: 'done' jika nota sudah dipickup customer, else 'ready'.
     // Pre-aggregate per (transaction_item_id, transaction_id) supaya kompatibel only_full_group_by.
@@ -2751,8 +2759,7 @@ export const getProductionHistory = async (req, res) => {
         t.created_at AS createdAt,
         c.name AS customerName,
         c.phone AS customerPhone,
-        o.name AS outletName,
-        tx_agg.txAllReady
+        o.name AS outletName
       FROM (
         SELECT
           iu.transaction_item_id AS itemId,
@@ -2768,14 +2775,6 @@ export const getProductionHistory = async (req, res) => {
         FROM tr_item_unit iu
         GROUP BY iu.transaction_item_id, iu.transaction_id
       ) agg
-      JOIN (
-        SELECT
-          iu.transaction_id AS txId,
-          SUM(CASE WHEN iu.production_status NOT IN ('ready','done') THEN 1 ELSE 0 END) AS txUnfinishedUnits,
-          CASE WHEN SUM(CASE WHEN iu.production_status NOT IN ('ready','done') THEN 1 ELSE 0 END) = 0 THEN 1 ELSE 0 END AS txAllReady
-        FROM tr_item_unit iu
-        GROUP BY iu.transaction_id
-      ) tx_agg ON tx_agg.txId = agg.txId
       JOIN tr_transaction_item ti ON ti.id = agg.itemId
       JOIN tr_transaction t ON t.id = agg.txId
       JOIN mst_customer c ON c.id = t.customer_id
@@ -2784,7 +2783,6 @@ export const getProductionHistory = async (req, res) => {
         AND t.status <> 'cancelled'
         AND agg.unfinishedCount = 0
         AND agg.totalUnits > 0
-        AND tx_agg.txAllReady = 1
         AND agg.itemUpdatedAt >= DATE_SUB(NOW(), INTERVAL ? DAY)
         ${outletSql}
       ORDER BY agg.itemUpdatedAt DESC
@@ -2792,7 +2790,7 @@ export const getProductionHistory = async (req, res) => {
       params
     );
 
-    // Hitung total untuk pagination — match same filter (nota yg semua item-nya ready)
+    // Hitung total untuk pagination — match same filter (item yang sudah selesai)
     const countParams = [days];
     if (userOutletId) countParams.push(userOutletId);
     const [countRows] = await poolWaschenPos.execute(
@@ -2800,15 +2798,8 @@ export const getProductionHistory = async (req, res) => {
         SELECT iu.transaction_item_id
         FROM tr_item_unit iu
         JOIN tr_transaction t ON t.id = iu.transaction_id
-        JOIN (
-          SELECT iu2.transaction_id AS txId,
-                 SUM(CASE WHEN iu2.production_status NOT IN ('ready','done') THEN 1 ELSE 0 END) AS txUnfinishedUnits
-          FROM tr_item_unit iu2
-          GROUP BY iu2.transaction_id
-        ) tx_agg ON tx_agg.txId = iu.transaction_id
         WHERE t.deleted_at IS NULL
           AND t.status <> 'cancelled'
-          AND tx_agg.txUnfinishedUnits = 0
           AND iu.updated_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
           ${outletSql}
         GROUP BY iu.transaction_item_id, iu.transaction_id

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, memo } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Chip, Select, DateInput, StatCard, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, HourlyHeatBar } from '../../components/ui';
+import { TopBar, Chip, Select, DateTimeInput, StatCard, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, HourlyHeatBar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency } from '../../utils/exportReport';
 
@@ -213,8 +213,8 @@ export default function GeneralReportPage({ goBack }) {
             ))}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <DateInput label="Dari" value={startDate} onChange={setStartDate} placeholder="Start" />
-            <DateInput label="Sampai" value={endDate} onChange={setEndDate} placeholder="End" />
+            <DateTimeInput label="Dari" value={startDate ? `${startDate}T00:00:00` : ''} onChange={(v) => setStartDate(v ? v.slice(0, 10) : '')} placeholder="Start" timeOptional />
+            <DateTimeInput label="Sampai" value={endDate ? `${endDate}T00:00:00` : ''} onChange={(v) => setEndDate(v ? v.slice(0, 10) : '')} placeholder="End" timeOptional />
           </div>
           <Select label="Outlet" value={outletId} onChange={onOutletChange} options={outletOpts} placeholder="Pilih outlet" />
           <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, margin: '8px 0 0', lineHeight: 1.4 }}>

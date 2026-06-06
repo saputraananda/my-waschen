@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { rp } from '../../utils/helpers';
+import { rp, inPeriod } from '../../utils/helpers';
 import { TopBar, Avatar, Btn, SearchBar, Chip, useAppRefresh } from '../../components/ui';
 import { useInfiniteList } from '../../utils/useInfiniteList';
 
@@ -17,18 +17,6 @@ export default function ApprovalPage({ goBack }) {
   const [statusFilter, setStatusFilter] = useState('semua');
   const [query, setQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState('all');
-
-  const inPeriod = (dateValue) => {
-    if (periodFilter === 'all') return true;
-    const d = new Date(dateValue);
-    if (Number.isNaN(d.getTime())) return false;
-    const now = new Date();
-    if (periodFilter === 'today') return d.toDateString() === now.toDateString();
-    const diffDays = Math.floor((now - d) / 86400000);
-    if (periodFilter === '7d') return diffDays <= 7;
-    if (periodFilter === '30d') return diffDays <= 30;
-    return true;
-  };
 
   // ── Pending list — tampilkan semua tanpa pagination (jarang banyak)
   const pendingList = useInfiniteList({
@@ -84,10 +72,9 @@ export default function ApprovalPage({ goBack }) {
         : (a.requester || '').toLowerCase().includes(q)
           || (a.description || '').toLowerCase().includes(q)
           || (a.type || '').toLowerCase().includes(q);
-      return matchQuery && inPeriod(a.date);
+      return matchQuery && inPeriod(a.date, periodFilter);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingList.items, query, periodFilter, statusFilter]);
+  }, [pendingList.items, query, periodFilter, statusFilter, inPeriod]);
 
   const filteredHistory = useMemo(() => {
     if (statusFilter === 'pending') return [];
@@ -98,10 +85,9 @@ export default function ApprovalPage({ goBack }) {
         : (a.requester || '').toLowerCase().includes(q)
           || (a.description || '').toLowerCase().includes(q)
           || (a.type || '').toLowerCase().includes(q);
-      return matchQuery && inPeriod(a.date);
+      return matchQuery && inPeriod(a.date, periodFilter);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyList.items, query, periodFilter, statusFilter]);
+  }, [historyList.items, query, periodFilter, statusFilter, inPeriod]);
 
   const handleApprove = async (id) => {
     setActionLoading(id + '_approve');

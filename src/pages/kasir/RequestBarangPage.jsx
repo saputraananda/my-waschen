@@ -2,12 +2,26 @@
 // RequestBarangPage — kasir input pengadaan barang (optimized)
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api, { withFresh } from '../../utils/api';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Modal, Input, Select, Textarea, useAppRefresh, SearchBar, MoneyInput } from '../../components/ui';
+import { TopBar, Btn, Modal, Input, Select, Textarea, useAppRefresh, SearchFilterRow, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
-import { useInfiniteList } from '../../utils/useInfiniteList';
+
+async function fetchWithRetry(requestFn, maxRetries = 2) {
+  let lastErr;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await requestFn();
+    } catch (err) {
+      lastErr = err;
+      if (err?.response?.status !== 429 || attempt >= maxRetries) throw err;
+      const retryAfterSec = Number(err?.response?.headers?.['retry-after'] || 1);
+      await new Promise((r) => setTimeout(r, Math.max(retryAfterSec * 1000, 800)));
+    }
+  }
+  throw lastErr;
+}
 
 const URGENCY_META = {
   normal:   { label: 'Normal',   bg: '#DBEAFE', fg: '#1E40AF', color: '#3B82F6', icon: '📋' },
@@ -30,66 +44,89 @@ const fmtDate = (v) => {
   catch { return '-'; }
 };
 
-export default function RequestBarangPage({ goBack }) {
+export default function RequestBarangPage({ goBack, navigate, preselectedItem }) {
   const [showForm, setShowForm] = useState(false);
-  const [editTarget, setEditTarget] = useState(null); // request yang status='revised', mau di-edit
+  const [editTarget, setEditTarget] = useState(null);
   const [showFilter, setShowFilter] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [urgencyFilter, setUrgencyFilter] = useState('all');
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
-  // Lazy load list
-  const list = useInfiniteList({
-    fetchPage: useCallback(async ({ page, pageSize, signal }) => {
-      const params = { page, limit: pageSize };
+  // Auto-open form if navigated with preselectedItem
+  useEffect(() => {
+    if (preselectedItem) {
+      setShowForm(true);
+    }
+  }, [preselectedItem]);
+
+  const fetchData = useCallback(async (fresh = false) => {
+    setLoading(true);
+    setFetchError(null);
+    try {
+      const params = { page: 1, limit: 100 };
       if (statusFilter !== 'all') params.status = statusFilter;
       if (urgencyFilter !== 'all') params.urgency = urgencyFilter;
-      const res = await axios.get('/api/purchase-requests', { params, signal });
-      return {
-        items: res?.data?.data || [],
-        total: res?.data?.pagination?.total ?? null,
-      };
-    }, [statusFilter, urgencyFilter]),
-    pageSize: 20,
-    deps: [statusFilter, urgencyFilter],
-  });
+      const config = fresh ? withFresh({ params }) : { params };
+      const res = await fetchWithRetry(() => api.get('/api/purchase-requests', config));
+      setItems(res?.data?.data || []);
+      setTotal(res?.data?.pagination?.total ?? null);
+    } catch (err) {
+      const msg = err?.response?.status === 429
+        ? 'Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.'
+        : (err?.response?.data?.message || 'Gagal memuat request.');
+      setFetchError(msg);
+      console.error('[RequestBarang fetch]', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, urgencyFilter]);
 
-  // Load inventory items
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useAppRefresh(() => fetchData(true), [fetchData]);
+
+  // Load inventory items (cached + dedup — tidak perlu withFresh)
   useEffect(() => {
-    axios.get('/api/inventory/items').then(r => {
+    api.get('/api/inventory/items').then(r => {
       setInventoryItems(r?.data?.data || []);
     }).catch(() => {});
   }, []);
 
-  useAppRefresh(() => list.refresh(), [list.refresh]);
-
   // Client-side search filter (di atas server filter)
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return list.items;
-    return list.items.filter(it => {
+    if (!q) return items;
+    return items.filter(it => {
       return (
         (it.itemName || '').toLowerCase().includes(q) ||
         (it.brand || '').toLowerCase().includes(q) ||
         (it.reason || '').toLowerCase().includes(q)
       );
     });
-  }, [list.items, search]);
+  }, [items, search]);
 
   const stats = useMemo(() => {
-    const total = list.items.length;
-    const pending = list.items.filter(i => i.status === 'pending').length;
-    const revised = list.items.filter(i => i.status === 'revised').length;
-    const critical = list.items.filter(i => i.urgency === 'critical' && i.status === 'pending').length;
-    return { total, pending, revised, critical };
-  }, [list.items]);
+    const pending = items.filter(i => i.status === 'pending').length;
+    const revised = items.filter(i => i.status === 'revised').length;
+    const critical = items.filter(i => i.urgency === 'critical' && i.status === 'pending').length;
+    return { pending, revised, critical };
+  }, [items]);
 
   const activeFilterCount = (statusFilter !== 'all' ? 1 : 0) + (urgencyFilter !== 'all' ? 1 : 0);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Request Barang" subtitle={`${list.total ?? list.items.length} request`} onBack={goBack} />
+      <TopBar
+        title="Pengadaan Barang"
+        subtitle={`${total ?? items.length} pengajuan`}
+        onBack={goBack}
+        rightAction={navigate ? () => navigate('kasir_stok_bahan', { tab: 'stok' }) : undefined}
+        rightIcon={<span style={{ fontSize: 18 }} title="Lihat Stok">📦</span>}
+      />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Hero info banner */}
@@ -128,82 +165,83 @@ export default function RequestBarangPage({ goBack }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}
         >
-          <span style={{ fontSize: 16 }}>+</span> Buat Request Baru
+          <span style={{ fontSize: 16 }}>+</span> Buat Pengajuan Baru
         </button>
 
-        {/* Search + Filter row */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-          <div style={{ flex: 1 }}>
-            <SearchBar value={search} onChange={setSearch} placeholder="Cari barang, merek, alasan..." />
-          </div>
-          <button
-            onClick={() => setShowFilter(true)}
-            style={{
-              position: 'relative', padding: 10, borderRadius: 10,
-              border: `1.5px solid ${activeFilterCount > 0 ? C.primary : C.n200}`,
-              background: activeFilterCount > 0 ? `${C.primary}10` : 'white',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: activeFilterCount > 0 ? C.primary : C.n700,
-              flexShrink: 0, marginBottom: 12,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" y1="6" x2="14" y2="6" />
-              <circle cx="16" cy="6" r="2" />
-              <line x1="20" y1="6" x2="18" y2="6" />
-              <line x1="4" y1="12" x2="6" y2="12" />
-              <circle cx="8" cy="12" r="2" />
-              <line x1="20" y1="12" x2="10" y2="12" />
-              <line x1="4" y1="18" x2="12" y2="18" />
-              <circle cx="14" cy="18" r="2" />
-              <line x1="20" y1="18" x2="16" y2="18" />
-            </svg>
-            {activeFilterCount > 0 && (
-              <span style={{
-                position: 'absolute', top: 1, right: 1,
-                width: 16, height: 16, borderRadius: 8,
-                background: C.primary, color: 'white',
-                fontFamily: 'Poppins', fontSize: 9, fontWeight: 800,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{activeFilterCount}</span>
+        {activeFilterCount > 0 && (
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10,
+            padding: '8px 10px', borderRadius: 10,
+            background: `${C.primary}08`, border: `1px solid ${C.primary}22`,
+          }}>
+            {statusFilter !== 'all' && (
+              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, background: 'white', padding: '3px 8px', borderRadius: 999 }}>
+                📌 {STATUS_META[statusFilter]?.label || statusFilter}
+              </span>
             )}
-          </button>
-        </div>
+            {urgencyFilter !== 'all' && (
+              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, background: 'white', padding: '3px 8px', borderRadius: 999 }}>
+                {URGENCY_META[urgencyFilter]?.icon} {URGENCY_META[urgencyFilter]?.label}
+              </span>
+            )}
+          </div>
+        )}
+
+        <SearchFilterRow
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Cari barang, merek, alasan..."
+          onFilterClick={() => setShowFilter(true)}
+          activeFilterCount={activeFilterCount}
+        />
 
         {/* List */}
-        {list.loading && (
+        {loading && (
           <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat…</div>
         )}
 
-        {!list.loading && filtered.length === 0 && (
+        {!loading && fetchError && (
+          <div style={{
+            textAlign: 'center', padding: '24px 16px', marginBottom: 12,
+            background: '#FEF2F2', borderRadius: 12, border: '1px solid #FECACA',
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#991B1B', marginBottom: 12 }}>
+              {fetchError}
+            </div>
+            <button
+              onClick={() => fetchData(true)}
+              style={{
+                padding: '8px 16px', borderRadius: 10,
+                border: 'none', background: C.primary, color: 'white',
+                fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Coba Lagi
+            </button>
+          </div>
+        )}
+
+        {!loading && !fetchError && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: 50 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>📦</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>
-              {search || activeFilterCount > 0 ? 'Tidak ada hasil sesuai filter.' : 'Belum ada request.'}
+              {search || activeFilterCount > 0 ? 'Tidak ada hasil sesuai filter.' : 'Belum ada pengajuan barang.'}
             </div>
           </div>
         )}
 
-        {!list.loading && filtered.map(it => (
+        {!loading && !fetchError && filtered.map(it => (
           <RequestCard key={it.id} item={it} onEdit={() => setEditTarget(it)} />
         ))}
-
-        {list.hasMore && !list.loading && (
-          <div ref={list.sentinelRef} style={{ padding: '14px 0', textAlign: 'center' }}>
-            {list.loadingMore ? (
-              <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Memuat lebih banyak…</span>
-            ) : (
-              <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400 }}>·</span>
-            )}
-          </div>
-        )}
       </div>
 
       {showForm && (
         <RequestForm
           inventoryItems={inventoryItems}
-          onClose={() => setShowForm(false)}
-          onSuccess={() => { setShowForm(false); list.refresh(); }}
+          preselectedItem={preselectedItem}
+          onClose={() => { setShowForm(false); if (navigate) navigate('dashboard'); }}
+          onSuccess={() => { setShowForm(false); fetchData(true); }}
         />
       )}
 
@@ -212,7 +250,7 @@ export default function RequestBarangPage({ goBack }) {
           inventoryItems={inventoryItems}
           editing={editTarget}
           onClose={() => setEditTarget(null)}
-          onSuccess={() => { setEditTarget(null); list.refresh(); }}
+          onSuccess={() => { setEditTarget(null); fetchData(true); }}
         />
       )}
 
@@ -338,7 +376,7 @@ function FilterModal({ statusFilter, setStatusFilter, urgencyFilter, setUrgencyF
     cursor: 'pointer', textAlign: 'center',
   });
   return (
-    <Modal visible onClose={onClose} title="Filter">
+    <Modal visible onClose={onClose} title="Filter Pengajuan">
       <div style={{ padding: '8px 18px 18px' }}>
         <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
           🚨 Tingkat Urgensi
@@ -373,16 +411,16 @@ function FilterModal({ statusFilter, setStatusFilter, urgencyFilter, setUrgencyF
   );
 }
 
-function RequestForm({ inventoryItems, onClose, onSuccess, editing = null }) {
+function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, preselectedItem = null }) {
   const isEditing = !!editing;
-  const [inventoryId, setInventoryId] = useState(editing?.inventoryId ? String(editing.inventoryId) : '');
-  const [itemName, setItemName] = useState(editing?.itemName || '');
+  const [inventoryId, setInventoryId] = useState(editing?.inventoryId ? String(editing.inventoryId) : preselectedItem ? String(preselectedItem.id) : '');
+  const [itemName, setItemName] = useState(editing?.itemName || preselectedItem?.name || '');
   const [brand, setBrand] = useState(editing?.brand || '');
-  const [qty, setQty] = useState(editing?.qty != null ? String(editing.qty) : '');
-  const [unit, setUnit] = useState(editing?.unit || 'pcs');
+  const [qty, setQty] = useState(editing?.qty != null ? String(editing.qty) : preselectedItem ? String(Math.max(1, Math.ceil(2 * Number(preselectedItem.minStock || 0) - Number(preselectedItem.stockQty || 0)))) : '');
+  const [unit, setUnit] = useState(editing?.unit || preselectedItem?.unit || 'pcs');
   const [estimatedPrice, setEstimatedPrice] = useState(editing?.estimatedPrice != null ? String(editing.estimatedPrice) : '');
-  const [urgency, setUrgency] = useState(editing?.urgency || 'normal');
-  const [reason, setReason] = useState(editing?.reason || '');
+  const [urgency, setUrgency] = useState(editing?.urgency || preselectedItem?.lowStock ? 'urgent' : 'normal');
+  const [reason, setReason] = useState(editing?.reason || preselectedItem ? `Stok ${preselectedItem.name} tinggal ${preselectedItem.stockQty} ${preselectedItem.unit || 'pcs'} — minimum ${preselectedItem.minStock || 0}. Butuh tambahan segera.` : '');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -402,7 +440,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null }) {
     setLoading(true);
     try {
       if (isEditing) {
-        await axios.patch(`/api/purchase-requests/${editing.id}/resubmit`, {
+        await api.patch(`/api/purchase-requests/${editing.id}/resubmit`, {
           itemName: itemName.trim(),
           brand: brand.trim() || null,
           qty: Number(qty),
@@ -413,7 +451,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null }) {
         });
         await alertSuccess('Pengajuan dikirim ulang ke admin.');
       } else {
-        await axios.post('/api/purchase-requests', {
+        await api.post('/api/purchase-requests', {
           inventoryId: inventoryId || null,
           itemName: itemName.trim(),
           brand: brand.trim() || null,
@@ -423,7 +461,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null }) {
           urgency,
           reason: reason.trim(),
         });
-        await alertSuccess(urgency === 'critical' ? 'Request kritis dikirim! Admin akan diberi tahu.' : 'Request berhasil dikirim ke admin.');
+        await alertSuccess(urgency === 'critical' ? 'Pengajuan kritis dikirim! Admin akan diberi tahu.' : 'Pengajuan barang berhasil dikirim ke admin.');
       }
       onSuccess();
     } catch (err) {
@@ -432,7 +470,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null }) {
       if (err?.response?.status === 409) {
         alertError(msg || 'Sudah ada pengajuan untuk item ini.');
       } else {
-        alertError(msg || 'Gagal kirim request.');
+        alertError(msg || 'Gagal kirim pengajuan barang.');
       }
     } finally {
       setLoading(false);
@@ -440,7 +478,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null }) {
   };
 
   return (
-    <Modal visible onClose={onClose} title={isEditing ? 'Edit & Kirim Ulang' : 'Request Barang Baru'}>
+    <Modal visible onClose={onClose} title={isEditing ? 'Edit & Kirim Ulang' : 'Pengajuan Barang Baru'}>
       <div style={{ padding: '8px 18px 18px' }}>
         {isEditing && editing.adminNote && (
           <div style={{
@@ -538,7 +576,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null }) {
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>Batal</Btn>
           <Btn variant="primary" onClick={submit} loading={loading} style={{ flex: 1 }}>
-            {isEditing ? 'Kirim Ulang' : 'Kirim Request'}
+            {isEditing ? 'Kirim Ulang' : 'Kirim Pengajuan'}
           </Btn>
         </div>
       </div>

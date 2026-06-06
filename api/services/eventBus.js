@@ -42,8 +42,8 @@ const bus = new RealtimeBus();
 export const emitTransactionCheckout = (outletId, transactionNo, transactionId) =>
   bus.publish('transaction:checkout', { outletId, transactionNo, transactionId });
 
-export const emitPaymentSettled = (outletId, transactionId, amount, method) =>
-  bus.publish('payment:settled', { outletId, transactionId, amount, method });
+export const emitPaymentSettled = (outletId, transactionId, amount, method, extra = {}) =>
+  bus.publish('payment:settled', { outletId, transactionId, amount, method, ...extra });
 
 export const emitPhotoSaved = (outletId, transactionId, unitId, kind) =>
   bus.publish('production:photo', { outletId, transactionId, unitId, kind });

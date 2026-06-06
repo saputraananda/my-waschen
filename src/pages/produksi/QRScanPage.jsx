@@ -57,6 +57,32 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
     setScanning(false);
   }, []);
 
+  // Store lookupTransaction in ref to avoid stale closure without eslint-disable
+  const lookupTransactionRef = useRef(null);
+
+  // ── Lookup transaksi ───────────────────────────────────────────────────────
+  const lookupTransaction = useCallback(async (notaNo) => {
+    if (!notaNo?.trim()) return;
+    setLoading(true);
+    setError('');
+    setFoundTx(null);
+    try {
+      const res = await axios.get(`/api/transactions/${encodeURIComponent(notaNo.trim())}`);
+      const tx  = res?.data?.data;
+      if (!tx) { setError('Nota tidak ditemukan.'); return; }
+      setFoundTx(tx);
+    } catch (err) {
+      const msg = err?.response?.data?.message;
+      setError(msg || 'Nota tidak ditemukan. Cek kembali nomor nota.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    lookupTransactionRef.current = lookupTransaction;
+  }, [lookupTransaction]);
+
   // ── Scan frame ─────────────────────────────────────────────────────────────
   const scanFrame = useCallback(() => {
     const video  = videoRef.current;
@@ -76,18 +102,15 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
     });
 
     if (decoded?.data) {
-      // Ekstrak transaction_no dari hasil decode
-      // Format QR: "WAS-XXXXXX" atau URL yang berisi "nota=WAS-XXXXXX"
       const raw = decoded.data.trim();
       const notaMatch = raw.match(/([A-Z]{2,5}-\d{4,})/);
       const notaNo = notaMatch ? notaMatch[1] : raw;
       setResult(notaNo);
       stopCamera();
-      lookupTransaction(notaNo);
+      lookupTransactionRef.current?.(notaNo);
       return;
     }
     frameRef.current = requestAnimationFrame(scanFrame);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopCamera]);
 
   useEffect(() => {
@@ -112,29 +135,12 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
     } catch { /* tidak semua device support */ }
   };
 
-  // ── Lookup transaksi ───────────────────────────────────────────────────────
-  const lookupTransaction = async (notaNo) => {
-    if (!notaNo?.trim()) return;
-    setLoading(true);
-    setError('');
-    setFoundTx(null);
-    try {
-      const res = await axios.get(`/api/transactions/${encodeURIComponent(notaNo.trim())}`);
-      const tx  = res?.data?.data;
-      if (!tx) { setError('Nota tidak ditemukan.'); return; }
-      setFoundTx(tx);
-    } catch (err) {
-      const msg = err?.response?.data?.message;
-      setError(msg || 'Nota tidak ditemukan. Cek kembali nomor nota.');
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const handleManualSearch = () => {
     if (!manualNo.trim()) { setError('Masukkan nomor nota.'); return; }
     setResult(manualNo.trim());
-    lookupTransaction(manualNo.trim());
+    lookupTransactionRef.current?.(manualNo.trim());
   };
 
   const handleNavigate = () => {

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { writeLimiter } from '../middleware/rateLimit.js';
 import {
   getDrawerEntries,
   addDrawerEntry,
@@ -13,10 +14,10 @@ const router = Router();
 router.get('/entries', authenticate, getDrawerEntries);
 
 // Tambah entri masuk/keluar manual
-router.post('/entry', authenticate, addDrawerEntry);
+router.post('/entry', authenticate, writeLimiter, addDrawerEntry);
 
 // Hapus entri (hanya saat sesi masih open, oleh pencatat atau admin)
-router.delete('/entry/:id', authenticate, deleteDrawerEntry);
+router.delete('/entry/:id', authenticate, writeLimiter, deleteDrawerEntry);
 
 // Ringkasan lengkap per sesi (untuk laporan / tutup shift)
 router.get('/summary-by-session/:sessionId', authenticate, getDrawerSummaryBySession);

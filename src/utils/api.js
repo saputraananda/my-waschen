@@ -82,9 +82,9 @@ axios.interceptors.request.use(async (config) => {
 });
 
 // ─── Global response interceptor ──────────────────────────────────────────────
-// Auto-retry untuk error sementara (429 rate limit, 503, network).
-// Redirect ke login jika token expired / invalid.
-const RETRY_STATUS = new Set([429, 502, 503, 504]);
+// Auto-retry untuk gateway errors (502, 503, 504). 429 TIDAK di-retry supaya
+// tidak memperparah beban server (retry = lebih banyak request ke server yang sudah kelebihan beban).
+const RETRY_STATUS = new Set([502, 503, 504]);
 const MAX_RETRY = 2;
 
 axios.interceptors.response.use(

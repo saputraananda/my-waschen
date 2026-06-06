@@ -3,6 +3,7 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip } from '../../components/ui';
+import { useApp } from '../../context/AppContext';
 
 const ROLE_LABEL = {
   kasir: 'Frontline',
@@ -106,7 +107,8 @@ const SectionTab = ({ label, active, onClick }) => (
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function InfoOutletPage({ navigate, goBack, screenParams }) {
-  const outletId = screenParams?.outletId;
+  const { user } = useApp();
+  const outletId = screenParams?.outletId ?? user?.outletId;
 
   const [outlet, setOutlet] = useState(null);
   const [team, setTeam] = useState([]);
@@ -144,7 +146,7 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontFamily: 'Poppins', fontSize: 14, color: C.n600 }}>Outlet ID tidak ditemukan.</div>
-        <Btn variant="primary" onClick={() => navigate('dashboard')}>Kembali</Btn>
+        <Btn variant="primary" onClick={goBack}>Kembali</Btn>
       </div>
     );
   }

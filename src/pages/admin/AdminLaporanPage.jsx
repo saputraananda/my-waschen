@@ -5,7 +5,7 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Select, DateInput, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency, fmtDate } from '../../utils/exportReport';
-import { DATE_PRESETS, getDateRangePreset } from '../../utils/filterPresets';
+import { getDateRangePreset } from '../../utils/filterPresets';
 
 const METHOD_LABEL = {
   cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit',
@@ -21,6 +21,40 @@ const METHOD_COLOR = {
 };
 
 const F = { fontFamily: 'Poppins' };
+
+const PAGE_STYLES = `
+  .lap-content { padding: 12px 16px 24px; max-width: 960px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+  .lap-hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lap-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; margin-bottom: 12px; }
+  .lap-filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .lap-date-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 14px; }
+  .lap-date-col { flex: 1; min-width: 0; }
+  .lap-date-arrow { flex-shrink: 0; padding-bottom: 12px; color: ${C.n400}; font-size: 14px; }
+  .lap-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .lap-section-title { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .lap-section-title h3 { font-family: Poppins; font-size: 13px; font-weight: 700; color: ${C.n900}; margin: 0; line-height: 1.35; }
+  .lap-section-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+  .lap-export-pill { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: 999px; border: none; cursor: pointer; font-family: Poppins; font-size: 10px; font-weight: 600; white-space: nowrap; line-height: 1; }
+  .lap-export-pill--muted { color: ${C.n600}; background: ${C.n100}; }
+  .lap-export-pill--excel { color: #15803D; background: #DCFCE7; }
+  .lap-export-pill--pdf { color: #991B1B; background: #FEE2E2; }
+  .lap-payment-grid { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: center; }
+  .lap-quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+  @media (max-width: 520px) {
+    .lap-hero-grid { grid-template-columns: 1fr; }
+    .lap-filter-grid { grid-template-columns: 1fr; }
+    .lap-section-head { flex-direction: column; align-items: stretch; }
+    .lap-section-actions { justify-content: flex-start; width: 100%; }
+  }
+  @media (min-width: 640px) {
+    .lap-kpi-grid { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; }
+    .lap-payment-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  }
+  @media (max-width: 360px) {
+    .lap-date-row { flex-direction: column; align-items: stretch; }
+    .lap-date-arrow { display: none; }
+  }
+`;
 
 const DualBarChart = memo(function DualBarChartInner({ points, labelKey = 'label', maxBars = 14, height = 160 }) {
   const arr = [...(points || [])];
@@ -76,46 +110,61 @@ const HeroCard = ({ title, value, delta, icon, gradient }) => (
   <div style={{
     background: gradient, borderRadius: 16, padding: '14px 16px', color: C.white,
     boxShadow: '0 4px 16px rgba(91,0,95,0.18)', position: 'relative', overflow: 'hidden',
+    minWidth: 0,
   }}>
     <div style={{ position: 'absolute', top: -12, right: -12, width: 64, height: 64, borderRadius: 32, background: 'rgba(255,255,255,0.12)' }} />
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, position: 'relative' }}>
-      <span style={{ fontSize: 18 }}>{icon}</span>
-      <span style={{ ...F, fontSize: 11, fontWeight: 600, opacity: 0.92, letterSpacing: 0.3 }}>{title}</span>
+      <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
+      <span style={{ ...F, fontSize: 10, fontWeight: 600, opacity: 0.92, letterSpacing: 0.3, lineHeight: 1.3 }}>{title}</span>
     </div>
-    <div style={{ ...F, fontSize: 22, fontWeight: 800, lineHeight: 1.1, position: 'relative' }}>{value}</div>
+    <div style={{ ...F, fontSize: 'clamp(18px, 4.5vw, 22px)', fontWeight: 800, lineHeight: 1.15, position: 'relative', wordBreak: 'break-word' }}>{value}</div>
     {delta != null && (
-      <div style={{ ...F, fontSize: 10, opacity: 0.9, marginTop: 4, position: 'relative' }}>{delta}</div>
+      <div style={{ ...F, fontSize: 10, opacity: 0.9, marginTop: 6, position: 'relative', lineHeight: 1.4 }}>{delta}</div>
     )}
   </div>
 );
 
 const KpiCard = ({ label, value, sub, icon, color = C.primary, accent }) => (
   <div style={{
-    background: C.white, borderRadius: 14, padding: '12px 14px',
+    background: C.white, borderRadius: 14, padding: '10px 12px',
     boxShadow: '0 2px 8px rgba(15,23,42,0.06)', borderLeft: `4px solid ${color}`,
-    display: 'flex', alignItems: 'center', gap: 12,
+    display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0,
   }}>
     <div style={{
-      width: 38, height: 38, borderRadius: 10, background: `${color}14`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18,
+      width: 34, height: 34, borderRadius: 9, background: `${color}14`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16,
     }}>{icon}</div>
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ ...F, fontSize: 10, color: C.n500, fontWeight: 600, letterSpacing: 0.3 }}>{label}</div>
-      <div style={{ ...F, fontSize: 16, fontWeight: 800, color: C.n900, marginTop: 2 }}>{value}</div>
-      {sub && <div style={{ ...F, fontSize: 10, color: accent || C.n500, fontWeight: 600, marginTop: 2 }}>{sub}</div>}
+      <div style={{ ...F, fontSize: 9, color: C.n500, fontWeight: 700, letterSpacing: 0.3, lineHeight: 1.2 }}>{label}</div>
+      <div style={{ ...F, fontSize: 'clamp(13px, 3.5vw, 16px)', fontWeight: 800, color: C.n900, marginTop: 2, lineHeight: 1.2, wordBreak: 'break-word' }}>{value}</div>
+      {sub && <div style={{ ...F, fontSize: 9, color: accent || C.n500, fontWeight: 600, marginTop: 3, lineHeight: 1.3 }}>{sub}</div>}
     </div>
   </div>
 );
 
 const SectionCard = ({ icon, title, action, children }) => (
-  <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-      <span style={{ fontSize: 16 }}>{icon}</span>
-      <h3 style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900, margin: 0, flex: 1 }}>{title}</h3>
-      {action}
+  <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)', minWidth: 0 }}>
+    <div className="lap-section-head">
+      <div className="lap-section-title">
+        <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+        <h3>{title}</h3>
+      </div>
+      {action && <div className="lap-section-actions">{action}</div>}
     </div>
     {children}
   </div>
+);
+
+const ExportToolbar = ({ pointCount, onExcel, onPdf }) => (
+  <>
+    <span className="lap-export-pill lap-export-pill--muted">{pointCount} titik</span>
+    <button type="button" className="lap-export-pill lap-export-pill--excel" onClick={onExcel}>
+      <span aria-hidden>⬇</span> Excel
+    </button>
+    <button type="button" className="lap-export-pill lap-export-pill--pdf" onClick={onPdf}>
+      <span aria-hidden>⬇</span> PDF
+    </button>
+  </>
 );
 
 export default function AdminLaporanPage({ navigate, goBack }) {
@@ -130,15 +179,12 @@ export default function AdminLaporanPage({ navigate, goBack }) {
   const [loading, setLoading] = useState(false);
 
   const applyPreset = (key) => {
-    const end = new Date();
-    const start = new Date();
-    if (key === '7d') start.setDate(end.getDate() - 6);
-    else if (key === '30d') start.setDate(end.getDate() - 29);
-    else if (key === 'month') start.setDate(1);
-    else if (key === '3m') { start.setMonth(end.getMonth() - 2); start.setDate(1); }
-    else { start.setMonth(end.getMonth() - 5); start.setDate(1); }
-    setStartDate(start.toISOString().slice(0, 10));
-    setEndDate(end.toISOString().slice(0, 10));
+    // Map display keys to getDateRangePreset keys
+    const presetKey = key === 'month' ? 'this_month' : key;
+    const range = getDateRangePreset(presetKey);
+    if (!range) return;
+    setStartDate(range.start);
+    setEndDate(range.end);
     setPreset(key);
   };
 
@@ -146,7 +192,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
     applyPreset('30d');
     (async () => {
       try {
-        const res = await axios.get('/api/master/outlets');
+        const res = await axios.get('/api/outlets');
         setOutlets(res?.data?.data || []);
       } catch { setOutlets([]); }
     })();
@@ -257,15 +303,22 @@ export default function AdminLaporanPage({ navigate, goBack }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+      <style>{PAGE_STYLES}</style>
       <TopBar title="Laporan Pusat" subtitle="Analitik omset & transaksi terpusat" onBack={goBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
-        {/* Filter Bar - Sticky */}
+      <div className="lap-content" style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Filter panel */}
         <div style={{
-          background: C.white, borderRadius: 14, padding: 12, marginBottom: 12,
+          background: C.white, borderRadius: 14, padding: '14px 14px 12px', marginBottom: 12,
           boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
         }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+          <div style={{ ...F, fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8, letterSpacing: 0.3 }}>
+            ⚡ Periode Cepat
+          </div>
+          <div style={{
+            display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 14,
+            scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 2,
+          }}>
             {[
               { key: '7d', label: '7 hari' },
               { key: '30d', label: '30 hari' },
@@ -276,15 +329,49 @@ export default function AdminLaporanPage({ navigate, goBack }) {
               <Chip key={p.key} label={p.label} active={preset === p.key} onClick={() => applyPreset(p.key)} />
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 8 }}>
-            <DateInput label="Dari" value={startDate} onChange={(v) => { setPreset(''); setStartDate(v); }} />
-            <DateInput label="Sampai" value={endDate} onChange={(v) => { setPreset(''); setEndDate(v); }} />
+
+          <div style={{ ...F, fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8, letterSpacing: 0.3 }}>
+            📅 Rentang Tanggal
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
-            <Select label="Outlet" value={outletId} onChange={setOutletId}
-              options={[{ value: '', label: '🏪 Semua outlet' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]} />
-            <Select label="Grafik" value={groupBy} onChange={setGroupBy}
-              options={[{ value: 'day', label: '📅 Per hari' }, { value: 'month', label: '📆 Per bulan' }]} />
+          <div className="lap-date-row">
+            <div className="lap-date-col">
+              <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n500, marginBottom: 4 }}>Dari</div>
+              <DateInput
+                compact
+                iconOnlyEmpty
+                value={startDate}
+                onChange={(v) => { setPreset(''); setStartDate(v || ''); }}
+                maxDate={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
+              />
+            </div>
+            <div className="lap-date-arrow">→</div>
+            <div className="lap-date-col">
+              <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n500, marginBottom: 4 }}>Sampai</div>
+              <DateInput
+                compact
+                iconOnlyEmpty
+                value={endDate}
+                onChange={(v) => { setPreset(''); setEndDate(v || ''); }}
+                minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
+              />
+            </div>
+          </div>
+
+          <div className="lap-filter-grid">
+            <Select
+              compact
+              label="Outlet"
+              value={outletId}
+              onChange={setOutletId}
+              options={[{ value: '', label: '🏪 Semua outlet' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]}
+            />
+            <Select
+              compact
+              label="Grafik"
+              value={groupBy}
+              onChange={setGroupBy}
+              options={[{ value: 'day', label: '📅 Per hari' }, { value: 'month', label: '📆 Per bulan' }]}
+            />
           </div>
         </div>
 
@@ -299,7 +386,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
         {!loading && report && (
           <>
             {/* Hero — dual */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="lap-hero-grid">
               <HeroCard
                 title="TOTAL TRANSAKSI"
                 value={rp(totalRevenue)}
@@ -311,13 +398,13 @@ export default function AdminLaporanPage({ navigate, goBack }) {
                 title="TOTAL PELUNASAN"
                 value={rp(totalPelunasan)}
                 delta={`Uang diterima${piutang > 0 ? ` · piutang ${rp(piutang)}` : ' · lunas semua'}`}
-                icon="�"
+                icon={'💰'}
                 gradient={`linear-gradient(135deg, #059669 0%, #047857 100%)`}
               />
             </div>
 
             {/* KPI Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 12, marginBottom: 12 }}>
+            <div className="lap-kpi-grid">
               <KpiCard label="TRANSAKSI" value={totalTx.toLocaleString('id-ID')} sub={`${(totalTx / totalDays).toFixed(1)} per hari`} icon="🧾" color={C.info} />
               <KpiCard label="RATA-RATA/TRX" value={rp(avgPerTx)} icon="📊" color={C.success} />
               <KpiCard label="RATA-RATA/HARI" value={rp(avgPerDay)} icon="📅" color="#F59E0B" />
@@ -332,31 +419,27 @@ export default function AdminLaporanPage({ navigate, goBack }) {
               icon="📈"
               title={`Tren ${report.groupBy === 'month' ? 'Bulanan' : 'Harian'} — Omset vs Pelunasan`}
               action={
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <span style={{ ...F, fontSize: 10, color: C.n500, background: C.n100, padding: '3px 8px', borderRadius: 999, fontWeight: 600 }}>{chartPoints.length} titik</span>
-                  <button
-                    onClick={() => handleExportExcel()}
-                    style={{ ...F, fontSize: 10, fontWeight: 600, color: C.success, background: '#DCFCE7', border: 'none', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}
-                  >⬇ Excel</button>
-                  <button
-                    onClick={() => handleExportPDF()}
-                    style={{ ...F, fontSize: 10, fontWeight: 600, color: '#991B1B', background: '#FEE2E2', border: 'none', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}
-                  >⬇ PDF</button>
-                </div>
+                <ExportToolbar
+                  pointCount={chartPoints.length}
+                  onExcel={handleExportExcel}
+                  onPdf={handleExportPDF}
+                />
               }
             >
               <RevenueAreaChart
                 data={chartPoints.map(p => ({ date: p.label, revenue: p.revenue, pelunasan: p.pelunasan }))}
-                height={180}
+                height={200}
               />
             </SectionCard>
 
             {/* Payment Mix — Recharts PieChart */}
             {(report.byMethod || []).length > 0 && (
               <SectionCard icon="💳" title="Distribusi Metode Pembayaran">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'center' }}>
-                  <PaymentPieChart data={report.byMethod || []} height={180} />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="lap-payment-grid">
+                  <div style={{ minWidth: 0, display: 'flex', justifyContent: 'center' }}>
+                    <PaymentPieChart data={report.byMethod || []} height={180} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
                     {(report.byMethod || []).map((m) => {
                       const pct = (Number(m.revenue) / methodTotalRevenue) * 100;
                       return (
@@ -380,7 +463,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
             {/* Outlet Leaderboard */}
             {sortedByOutlet.length > 0 && (
               <SectionCard icon="🏪" title="Performa Per Outlet" action={
-                <span style={{ ...F, fontSize: 10, color: C.n500 }}>{sortedByOutlet.length} outlet</span>
+                <span className="lap-export-pill lap-export-pill--muted">{sortedByOutlet.length} outlet</span>
               }>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {sortedByOutlet.map((row, idx) => {
@@ -398,7 +481,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
                           ...F, fontSize: 12, fontWeight: 800, color: C.white, flexShrink: 0,
                         }}>{idx + 1}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900, marginBottom: 4 }}>{row.outletName || '—'}</div>
+                          <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.outletName || '—'}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{ flex: 1, height: 6, background: C.n200, borderRadius: 3, overflow: 'hidden' }}>
                               <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${C.primary}, ${C.primaryDark})`, transition: 'width 0.5s' }} />
@@ -419,7 +502,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
 
             {/* Quick navigation */}
             <SectionCard icon="🔗" title="Lihat Detail Lainnya">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+              <div className="lap-quick-grid">
                 <QuickLink icon="📋" label="General Report" onClick={() => navigate('general_report')} />
                 <QuickLink icon="💰" label="Rekap Pendapatan" onClick={() => navigate('rekap_pendapatan')} />
                 <QuickLink icon="🕐" label="Shift Kasir" onClick={() => navigate('admin_shift')} />

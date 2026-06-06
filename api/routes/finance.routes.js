@@ -13,21 +13,21 @@ import {
 const router = Router();
 
 // GET /api/finance/stats — ringkasan omset & pending verifikasi
-router.get('/stats', authenticate, requireRole('admin', 'finance'), getFinanceStats);
+router.get('/stats', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance', 'ga'), getFinanceStats);
 
 // GET /api/finance/payments — daftar pembayaran transfer/QRIS
-router.get('/payments', authenticate, requireRole('admin', 'finance'), getPayments);
+router.get('/payments', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance', 'ga'), getPayments);
 
 // PATCH /api/finance/payments/:id/verify — verifikasi pembayaran (single)
-router.patch('/payments/:id/verify', authenticate, requireRole('admin', 'finance'), writeLimiter, verifyPayment);
+router.patch('/payments/:id/verify', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance', 'ga'), writeLimiter, verifyPayment);
 
 // PATCH /api/finance/payments/bulk-verify — verifikasi pembayaran (bulk)
-router.patch('/payments/bulk-verify', authenticate, requireRole('admin', 'finance'), approvalLimiter, bulkVerifyPayments);
+router.patch('/payments/bulk-verify', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance', 'ga'), approvalLimiter, bulkVerifyPayments);
 
 // GET /api/finance/revenue-recap — rekap pendapatan paginated
-router.get('/revenue-recap', authenticate, requireRole('admin', 'finance'), getRevenueRecap);
+router.get('/revenue-recap', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance', 'ga'), getRevenueRecap);
 
 // GET /api/finance/report — laporan keuangan per periode
-router.get('/report', authenticate, requireRole('admin', 'finance'), getFinanceReport);
+router.get('/report', authenticate, requireRole('admin', 'superadmin', 'owner', 'finance', 'ga'), getFinanceReport);
 
 export default router;

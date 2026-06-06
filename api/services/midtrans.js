@@ -14,6 +14,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import midtransClient from 'midtrans-client';
 import crypto from 'crypto';
+import https from 'https';
+
+// Workaround SSL certificate issue di development (Windows/localhost)
+// JANGAN aktifkan di production!
+if (process.env.NODE_ENV === 'development') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  console.log('[midtrans] ⚠️  SSL verification disabled untuk development environment');
+}
 
 // Support 2 cara konfigurasi env:
 //   MIDTRANS_ENV=sandbox|production (legacy)

@@ -200,7 +200,7 @@ export default function AdminDashboardPage({ user, navigate }) {
           <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 12 }}>Laporan & Analitik</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
-              { label: 'Laporan Outlet', desc: 'Revenue, payment mix, top services per outlet', screen: 'kasir_laporan', icon: '📊', color: '#7C3AED' },
+              { label: 'Laporan Outlet', desc: 'Revenue, payment mix, top services per outlet', screen: 'laporan_per_outlet', icon: '📊', color: '#7C3AED' },
               { label: 'Laporan Pusat', desc: 'Executive summary semua outlet', screen: 'admin_laporan', icon: '📈', color: C.info },
               { label: 'Perbandingan Periode', desc: 'Bandingkan 2 periode side-by-side', screen: 'comparison_report', icon: '⚖️', color: '#0891B2' },
               { label: 'Forecast', desc: 'Prediksi revenue berdasarkan tren', screen: 'forecast', icon: '🔮', color: '#7C3AED' },
@@ -227,14 +227,13 @@ export default function AdminDashboardPage({ user, navigate }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             {[
               { label: 'Approval', screen: 'approval', icon: '✅', color: '#8B5CF6' },
-              { label: 'Monitoring', screen: 'monitoring', icon: '📡', color: C.success },
               { label: 'Shift Kasir', screen: 'admin_shift', icon: '🕐', color: '#6366F1' },
               { label: 'Promo & SLA', screen: 'admin_promo', icon: '🏷️', color: '#F59E0B' },
               { label: 'Inventaris', screen: 'admin_stok', icon: '📦', color: '#0D9488' },
               { label: 'Tutup Buku', screen: 'admin_period_close', icon: '📒', color: '#6366F1' },
               { label: 'Kas Outlet', screen: 'kas_outlet', icon: '💼', color: '#10B981' },
               { label: 'Approval Kas', screen: 'kas_approval', icon: '🧾', color: '#EF4444' },
-              { label: 'Request Barang', screen: 'admin_purchase_requests', icon: '📦', color: '#F97316' },
+              { label: 'Approval Pengadaan', screen: 'approval_pengadaan_barang', icon: '📦', color: '#F97316' },
             ].map((item) => (
               <button key={item.label} onClick={() => navigate(item.screen)} style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 6px', borderRadius: 12,

@@ -52,22 +52,24 @@ export default function AddressCascadingPicker({
   }, [housing, regionId]);
 
   // ── Auto-cascade: kalau region berubah, validasi housing/block sebelumnya.
-  // Aman: tidak dihapus kalau user sebelumnya isi free-text (biar input mereka tidak hilang).
-  const lastRegion = useRef(regionId);
+  const lastRegionRef = useRef(regionId);
+  const housingRef = useRef(housing);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { housingRef.current = housing; }, [housing]);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
   useEffect(() => {
-    if (lastRegion.current !== regionId) {
+    if (lastRegionRef.current !== regionId) {
+      const currentHousing = housingRef.current;
       const stillExists = getHousingsByRegion(regionId)
-        .some((h) => h.name.toLowerCase() === String(housing || '').toLowerCase());
-      // Reset hanya kalau housing yang sebelumnya cocok dengan list region lama
-      // tapi bukan free-text. Free-text dibiarkan agar tidak hilang tidak sengaja.
-      const wasInOldList = getHousingsByRegion(lastRegion.current)
-        .some((h) => h.name.toLowerCase() === String(housing || '').toLowerCase());
+        .some((h) => h.name.toLowerCase() === String(currentHousing || '').toLowerCase());
+      const wasInOldList = getHousingsByRegion(lastRegionRef.current)
+        .some((h) => h.name.toLowerCase() === String(currentHousing || '').toLowerCase());
       if (wasInOldList && !stillExists) {
-        onChange({ regionId, housing: '', block: '' });
+        onChangeRef.current({ regionId, housing: '', block: '' });
       }
-      lastRegion.current = regionId;
+      lastRegionRef.current = regionId;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regionId]);
 
   // ── Auto-fill region kalau user pilih housing dari list (tapi region kosong)

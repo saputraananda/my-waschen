@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Chip, Select, DateInput } from '../../components/ui';
+import { TopBar, Btn, Chip, Select, DateTimeInput } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 
 const METHOD_LABEL = { cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit', ovo: 'OVO', gopay: 'GoPay', dana: 'DANA', shopeepay: 'ShopeePay' };
@@ -117,8 +117,8 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
             ))}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 8 }}>
-            <DateInput label="Dari" value={startDate} onChange={(v) => { setStartDate(v); setPage(1); setPreset(''); }} />
-            <DateInput label="Sampai" value={endDate} onChange={(v) => { setEndDate(v); setPage(1); setPreset(''); }} />
+            <DateTimeInput label="Dari" value={startDate ? `${startDate}T00:00:00` : ''} onChange={(v) => { setStartDate(v ? v.slice(0, 10) : ''); setPage(1); setPreset(''); }} timeOptional />
+            <DateTimeInput label="Sampai" value={endDate ? `${endDate}T00:00:00` : ''} onChange={(v) => { setEndDate(v ? v.slice(0, 10) : ''); setPage(1); setPreset(''); }} timeOptional />
           </div>
           <Select label="Outlet" value={outletId} onChange={(val) => { setOutletId(val); setPage(1); }}
             options={[{ value: '', label: '🏪 Semua outlet' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]} />

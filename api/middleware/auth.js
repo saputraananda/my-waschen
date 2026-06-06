@@ -65,9 +65,27 @@ export const requireRole = (...allowedRoles) => {
   };
 };
 
-// ─── Alias untuk role guard yang lebih spesifik ──────────────────────────────
-export const isAdmin = requireRole('admin');
-export const isCashier = requireRole('kasir', 'frontline');
+// ─── Sentralisasi Role Groups ────────────────────────────────────────────────
+// Semua definisi role-group ada di sini sebagai single source of truth.
+// File routes cukup menggunakan named middleware di bawah ini.
+export const ROLE_GROUPS = {
+  ADMIN: ['admin', 'superadmin', 'owner'],
+  FINANCE: ['admin', 'superadmin', 'owner', 'finance'],
+  CASHIER: ['kasir', 'frontline'],
+  PRODUCTION: ['produksi'],
+  GLOBAL: ['admin', 'superadmin', 'owner', 'finance'],
+};
+
+// ─── Named Role Guards ──────────────────────────────────────────────────────
+// Gunakan ini di route files agar konsisten dan mudah di-maintain.
+export const canManageMasterData = requireRole(...ROLE_GROUPS.ADMIN);
+export const canManageTransactions = requireRole(...ROLE_GROUPS.ADMIN, ...ROLE_GROUPS.CASHIER);
+export const canAccessFinance = requireRole(...ROLE_GROUPS.FINANCE);
+export const canAccessProduction = requireRole(...ROLE_GROUPS.ADMIN, ...ROLE_GROUPS.PRODUCTION);
+
+// ─── Legacy Aliases (backward compat) ────────────────────────────────────────
+export const isAdmin = requireRole(...ROLE_GROUPS.ADMIN);
+export const isCashier = requireRole(...ROLE_GROUPS.CASHIER);
 
 
 // ─── Middleware: outlet guard (user hanya bisa akses data outletnya sendiri) ──

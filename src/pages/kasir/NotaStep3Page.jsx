@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Input, Select, Divider, Modal, DateInput, DateTimeInput, MoneyInput } from '../../components/ui';
+import { rp, getCartLineSubtotal, getCartUnitPrice } from '../../utils/helpers';
+import { TopBar, Btn, Input, Select, Divider, Modal, DateTimeInput, MoneyInput } from '../../components/ui';
 import { alertError, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
 import { hapticSuccess, hapticError } from '../../utils/haptic';
@@ -45,6 +45,28 @@ function promoDiscountPreview(promo, subtotal) {
   return Math.round(d * 100) / 100;
 }
 
+// ─── Manual Diskon Calculator ───────────────────────────────────────────────────
+// Kasir bisa kasih diskon manual (persen/fixed).
+// Threshold: diskon > 20% atau > Rp 100.000 butuh approval admin.
+// reason tersimpan sebagai JSON di tr_transaction_approval.reason.
+export const DISKON_APPROVAL_THRESHOLD_PCT = 20;
+export const DISKON_APPROVAL_THRESHOLD_AMOUNT = 100000;
+
+export function manualDiskonPreview(type, value, subtotal) {
+  if (!subtotal || !value || value <= 0) return 0;
+  const d = type === 'percent'
+    ? subtotal * (Number(value) / 100)
+    : Math.min(Number(value), subtotal);
+  return Math.round(d * 100) / 100;
+}
+
+export function needsApproval(type, value, subtotal) {
+  const amount = manualDiskonPreview(type, value, subtotal);
+  if (amount <= 0) return false;
+  const pct = Number(value) || 0;
+  return pct > DISKON_APPROVAL_THRESHOLD_PCT || amount > DISKON_APPROVAL_THRESHOLD_AMOUNT;
+}
+
 export default function NotaStep3Page({ goBack }) {
   const { navigate, user, notaCustomer, notaCart, setNotaCart, setNotaCustomer } = useApp();
   // pickupType: 'self' (default, customer ambil sendiri) | 'pickup' (jemput kotor) | 'delivery' (antar bersih)
@@ -73,6 +95,10 @@ export default function NotaStep3Page({ goBack }) {
   const [qrisModal, setQrisModal] = useState(false);
   const [promos, setPromos] = useState([]);
   const [selectedPromoId, setSelectedPromoId] = useState('');
+  // ─── Manual Diskon (kasir input) ─────────────────────────────────────────
+  const [diskonMode, setDiskonMode] = useState('none'); // 'none' | 'percent' | 'fixed'
+  const [diskonValue, setDiskonValue] = useState('');
+  const [diskonApprovalId, setDiskonApprovalId] = useState(null); // approval ID kalau butuh approval
 
   // Fetch area zones for delivery fee calculation
   useEffect(() => {
@@ -98,7 +124,7 @@ export default function NotaStep3Page({ goBack }) {
 
   const selectedZone = areaZones.find((z) => z.id === areaZoneId);
   const logisticFee = pickupType === 'self' ? 0 : (selectedZone?.fee || 10000);
-  const subtotal = notaCart.reduce((sum, c) => sum + (c.price + (c.express ? c.expressExtra || 5000 : 0)) * c.qty, 0);
+  const subtotal = notaCart.reduce((sum, c) => sum + getCartLineSubtotal(c), 0);
   const selectedPromo = useMemo(
     () => promos.find((p) => p.id === selectedPromoId) || null,
     [promos, selectedPromoId]
@@ -107,7 +133,17 @@ export default function NotaStep3Page({ goBack }) {
     () => promoDiscountPreview(selectedPromo, subtotal),
     [selectedPromo, subtotal]
   );
-  const total = subtotal - promoDiscount + logisticFee;
+
+  // ─── Manual Diskon calculation ────────────────────────────────────────────
+  const diskonAmount = useMemo(
+    () => diskonMode === 'none' || !diskonValue ? 0 : manualDiskonPreview(diskonMode, diskonValue, subtotal),
+    [diskonMode, diskonValue, subtotal]
+  );
+  const diskonNeedApproval = useMemo(
+    () => needsApproval(diskonMode, diskonValue, subtotal),
+    [diskonMode, diskonValue, subtotal]
+  );
+  const total = subtotal - promoDiscount - diskonAmount + logisticFee;
 
   const doCheckout = async (opts = {}) => {
     const { silent = false, returnData = false } = opts;
@@ -172,8 +208,8 @@ export default function NotaStep3Page({ goBack }) {
           serviceName:     c.name,
           unit:            c.unit,
           qty:             c.qty,
-          price:           c.price + (c.express ? (c.expressExtra || 0) : 0),
-          subtotal:        (c.price + (c.express ? (c.expressExtra || 0) : 0)) * c.qty,
+          price:           getCartUnitPrice(c),
+          subtotal:        getCartLineSubtotal(c),
           isExpress:       c.express || false,
           notes:           c.notes  || null,
           carpetPanjangCm: c.carpetPanjangCm || null,
@@ -200,7 +236,7 @@ export default function NotaStep3Page({ goBack }) {
         courierName: pickupType === 'delivery' ? (courierName.trim() || null) : null,
         deliveryNotes: pickupType === 'delivery' ? (deliveryNotes.trim() || null) : null,
         notes,
-        dueDate: dueDate ? formatDate(dueDate) : null,
+        dueDate: dueDate ? dueDate.slice(0, 10) : null,
       };
 
       const res = await axios.post('/api/transactions/checkout', payload);
@@ -389,7 +425,7 @@ export default function NotaStep3Page({ goBack }) {
                 </div>
                 <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{item.qty} {item.unit}</div>
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{rp((item.price + (item.express ? item.expressExtra || 5000 : 0)) * item.qty)}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{rp(getCartLineSubtotal(item))}</div>
             </div>
           ))}
 
@@ -651,7 +687,7 @@ export default function NotaStep3Page({ goBack }) {
 
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 8 }}>METODE PEMBAYARAN</div>
               <PaymentMethodGrouped
-                value={payMethod === 'midtrans' ? 'qris' : payMethod}
+                value={payMethod === 'midtrans' ? (selectedMidtransChannel || 'qris') : payMethod}
                 onChange={(m) => {
                   // Map Midtrans channels (qris/gopay/etc) ke alur 'midtrans'
                   // tapi simpan channel terpilih untuk dipakai langsung ke chargePayment
@@ -683,14 +719,14 @@ export default function NotaStep3Page({ goBack }) {
             </div>
           )}
 
-          <DateInput
+          <DateTimeInput
             label="Estimasi Selesai"
             value={dueDate}
-            onChange={setDueDate}
+            onChange={(v) => setDueDate(v)}
             placeholder="Pilih estimasi selesai"
             minDate={minDateForPicker}
             filterDate={filterPastDates}
-            returnDate
+            timeOptional
           />
           <Input label="Catatan (opsional)" value={notes} onChange={setNotes} placeholder="Catatan khusus..." />
         </div>

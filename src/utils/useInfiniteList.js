@@ -16,6 +16,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+function isAbortError(err) {
+  return (
+    err?.name === 'AbortError'
+    || err?.name === 'CanceledError'
+    || err?.code === 'ERR_CANCELED'
+    || err?.message === 'canceled'
+  );
+}
+
 export function useInfiniteList({
   fetchPage,
   pageSize = 30,
@@ -32,15 +41,16 @@ export function useInfiniteList({
   const [hasMore, setHasMore] = useState(true);
 
   const abortRef = useRef(null);
+  const generationRef = useRef(0);
   const fetchPageRef = useRef(fetchPage);
   fetchPageRef.current = fetchPage;
 
   const sentinelRef = useRef(null);
   const observerRef = useRef(null);
 
-  // Load page tertentu
-  const loadPage = useCallback(async (pageToLoad, isReset = false) => {
+  const loadPage = useCallback(async (pageToLoad, isReset = false, requestGen = generationRef.current) => {
     if (!enabled) return;
+
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -50,79 +60,107 @@ export function useInfiniteList({
     setError(null);
 
     try {
-      const result = await fetchPageRef.current({
-        page: pageToLoad,
-        pageSize,
-        signal: controller.signal,
-      });
-      const newItems = Array.isArray(result?.items) ? result.items : [];
-      const newTotal = typeof result?.total === 'number' ? result.total : null;
+      let lastErr;
+      for (let attempt = 0; attempt <= 2; attempt += 1) {
+        try {
+          const result = await fetchPageRef.current({
+            page: pageToLoad,
+            pageSize,
+            signal: controller.signal,
+          });
 
-      setItems((prev) => isReset ? newItems : [...prev, ...newItems]);
-      setTotal(newTotal);
+          if (requestGen !== generationRef.current) return;
 
-      // hasMore: kalau jumlah item kurang dari pageSize, atau kita sudah punya total
-      if (newItems.length < pageSize) {
-        setHasMore(false);
-      } else if (newTotal !== null) {
-        const loaded = (isReset ? 0 : items.length) + newItems.length;
-        setHasMore(loaded < newTotal);
-      } else {
-        setHasMore(true);
+          const newItems = Array.isArray(result?.items) ? result.items : [];
+          const newTotal = typeof result?.total === 'number' ? result.total : null;
+
+          setItems((prev) => {
+            const merged = isReset ? newItems : [...prev, ...newItems];
+            if (newItems.length < pageSize) {
+              setHasMore(false);
+            } else if (newTotal !== null) {
+              setHasMore(merged.length < newTotal);
+            } else {
+              setHasMore(true);
+            }
+            return merged;
+          });
+          setTotal(newTotal);
+          return;
+        } catch (err) {
+          lastErr = err;
+          if (requestGen !== generationRef.current) return;
+          if (isAbortError(err)) return;
+          if (err?.response?.status === 429 && attempt < 2) {
+            const retryAfterSec = Number(err?.response?.headers?.['retry-after'] || 1);
+            await new Promise((r) => setTimeout(r, Math.max(retryAfterSec * 1000, 800)));
+            if (requestGen !== generationRef.current) return;
+            continue;
+          }
+          throw err;
+        }
       }
+      if (lastErr) throw lastErr;
     } catch (err) {
-      if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+      if (requestGen !== generationRef.current) return;
+      if (!isAbortError(err)) {
         console.error('[useInfiniteList] fetch error:', err);
         setError(err?.response?.data?.message || err.message || 'Gagal memuat data.');
-        // Stop infinite loop — kalau error, jangan tetap pretend hasMore
         setHasMore(false);
       }
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (requestGen === generationRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageSize, enabled]);
 
-  // Reset & load page 1 saat deps berubah
+  // Reset & load page 1 saat deps / enabled berubah
   useEffect(() => {
+    if (!enabled) return undefined;
+
+    const requestGen = ++generationRef.current;
     setPage(initialPage);
     setItems([]);
+    setTotal(null);
     setHasMore(true);
-    loadPage(initialPage, true);
-    return () => abortRef.current?.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+    setError(null);
+    loadPage(initialPage, true, requestGen);
 
-  // Load next page
+    return () => {
+      generationRef.current += 1;
+      abortRef.current?.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, ...deps]);
+
   const loadMore = useCallback(() => {
     if (!hasMore || loading || loadingMore || error) return;
     const next = page + 1;
     setPage(next);
-    loadPage(next, false);
+    loadPage(next, false, generationRef.current);
   }, [hasMore, loading, loadingMore, page, loadPage, error]);
 
-  // Refresh dari awal (untuk pull-to-refresh) — sekaligus reset error
   const refresh = useCallback(() => {
+    const requestGen = ++generationRef.current;
     setPage(initialPage);
     setHasMore(true);
     setError(null);
-    loadPage(initialPage, true);
+    loadPage(initialPage, true, requestGen);
   }, [initialPage, loadPage]);
 
-  // IntersectionObserver auto-load
   useEffect(() => {
     if (!sentinelRef.current) return;
     if (observerRef.current) observerRef.current.disconnect();
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        // Skip auto-load saat error untuk cegah loop request
         if (entries[0].isIntersecting && hasMore && !loading && !loadingMore && !error) {
           loadMore();
         }
       },
-      { rootMargin: '200px' } // pre-load saat user 200px dari sentinel
+      { rootMargin: '200px' }
     );
     observerRef.current.observe(sentinelRef.current);
 
@@ -140,7 +178,7 @@ export function useInfiniteList({
     loadMore,
     refresh,
     sentinelRef,
-    setItems, // expose untuk optimistic update
+    setItems,
   };
 }
 

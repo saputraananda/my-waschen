@@ -68,7 +68,7 @@ async function addStockOnApprove(conn, { outletId, inventoryId, qty, requestId, 
   await conn.execute(
     `INSERT INTO tr_inventory_movement
       (outlet_id, inventory_id, movement_type, qty, unit_cost, notes, created_by, created_at)
-     VALUES (?, ?, 'purchase_in', ?, NULL, ?, ?, NOW())`,
+     VALUES (?, ?, 'adjustment', ?, NULL, ?, ?, NOW())`,
     [outletId, inventoryId, Number(qty), `Approve PR #${requestId}`, userId]
   );
 
@@ -287,6 +287,19 @@ export const getRequests = async (req, res) => {
     }
     if (req.query.inventoryId) {
       where += ' AND p.inventory_id = ?'; params.push(Number(req.query.inventoryId));
+    }
+
+    const dateBasis = req.query.dateBasis === 'resolved' ? 'resolved' : 'created';
+    const dateExpr = dateBasis === 'resolved'
+      ? 'COALESCE(p.fulfilled_at, p.resolved_at, p.revised_at, p.created_at)'
+      : 'p.created_at';
+    if (req.query.startDate) {
+      where += ` AND DATE(${dateExpr}) >= ?`;
+      params.push(req.query.startDate);
+    }
+    if (req.query.endDate) {
+      where += ` AND DATE(${dateExpr}) <= ?`;
+      params.push(req.query.endDate);
     }
 
     const [countRows] = await poolWaschenPos.execute(

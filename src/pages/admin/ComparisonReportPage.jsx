@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Chip, Select, DateInput, ComparisonLineChart, SkeletonStatGrid } from '../../components/ui';
+import { TopBar, Chip, Select, DateTimeInput, ComparisonLineChart, SkeletonStatGrid } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { getDateRangePreset, DATE_PRESETS } from '../../utils/filterPresets';
 
@@ -100,8 +100,8 @@ export default function ComparisonReportPage({ goBack }) {
             ))}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <DateInput label="Dari" value={startDate} onChange={v => { setStartDate(v); setPreset(''); }} />
-            <DateInput label="Sampai" value={endDate} onChange={v => { setEndDate(v); setPreset(''); }} />
+            <DateTimeInput label="Dari" value={startDate ? `${startDate}T00:00:00` : ''} onChange={v => { setStartDate(v ? v.slice(0, 10) : ''); setPreset(''); }} timeOptional />
+            <DateTimeInput label="Sampai" value={endDate ? `${endDate}T00:00:00` : ''} onChange={v => { setEndDate(v ? v.slice(0, 10) : ''); setPreset(''); }} timeOptional />
           </div>
           <Select label="Outlet" value={outletId} onChange={setOutletId}
             options={[{ value: '', label: '🏪 Semua outlet' }, ...outlets.map(o => ({ value: o.id, label: o.name }))]} />
@@ -117,8 +117,8 @@ export default function ComparisonReportPage({ goBack }) {
             </div>
             {customCompare ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <DateInput label="Dari" value={compareStart} onChange={setCompareStart} />
-                <DateInput label="Sampai" value={compareEnd} onChange={setCompareEnd} />
+                <DateTimeInput label="Dari" value={compareStart ? `${compareStart}T00:00:00` : ''} onChange={(v) => setCompareStart(v ? v.slice(0, 10) : '')} timeOptional />
+                <DateTimeInput label="Sampai" value={compareEnd ? `${compareEnd}T00:00:00` : ''} onChange={(v) => setCompareEnd(v ? v.slice(0, 10) : '')} timeOptional />
               </div>
             ) : (
               <div style={{ ...F, fontSize: 11, color: C.n500, background: C.n50, padding: '8px 12px', borderRadius: 8 }}>

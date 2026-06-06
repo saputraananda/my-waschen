@@ -89,13 +89,19 @@ export async function exportCashCsv(filters = {}) {
     params: filters,
     responseType: 'blob',
   });
-  // Trigger download
+
+  const disposition = res.headers?.['content-disposition'] || '';
+  const match = disposition.match(/filename="?([^";\n]+)"?/i);
+  const fallbackRange = filters.startDate && filters.endDate
+    ? `${filters.startDate}_${filters.endDate}`
+    : new Date().toISOString().slice(0, 10);
+  const filename = match?.[1] || `kas-outlet_${fallbackRange}.csv`;
+
   const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const today = new Date().toISOString().slice(0, 10);
   a.href = url;
-  a.download = `kas-outlet-${today}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

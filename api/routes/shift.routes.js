@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { writeLimiter } from '../middleware/rateLimit.js';
 import {
   getShiftStatus,
   openShift,
@@ -12,8 +13,8 @@ import {
 const router = Router();
 
 router.get('/status', authenticate, getShiftStatus);
-router.post('/open', authenticate, openShift);
-router.post('/close', authenticate, closeShift);
+router.post('/open', authenticate, writeLimiter, openShift);
+router.post('/close', authenticate, writeLimiter, closeShift);
 router.get('/current-summary', authenticate, getShiftCurrentSummary);
 router.get('/sessions', authenticate, listShiftSessions);
 router.get('/outlet-summary', authenticate, getShiftOutletSummary);

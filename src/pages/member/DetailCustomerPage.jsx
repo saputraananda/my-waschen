@@ -21,6 +21,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
   const [txStatusFilter, setTxStatusFilter] = useState('all'); // all | selesai | proses | diambil | dibatalkan
   const [txPeriodFilter, setTxPeriodFilter] = useState('all'); // all | 30d | 90d | 1y
   const [txPaymentFilter, setTxPaymentFilter] = useState('all'); // all | paid | unpaid | partial
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
   const [downgrading, setDowngrading] = useState(false);
@@ -323,82 +324,58 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
             )}
           </div>
 
-          {/* Filter & Search */}
+          {/* Search + Filter Button */}
           {customerTx.length > 0 && (
-            <>
-              <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
                 <SearchBar value={txSearch} onChange={setTxSearch} placeholder="Cari nota / catatan..." />
               </div>
-
-              {/* Period filter */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
-                {[
-                  { v: 'all', l: 'Semua waktu' },
-                  { v: '30d', l: '30 hari' },
-                  { v: '90d', l: '3 bulan' },
-                  { v: '1y',  l: '1 tahun' },
-                ].map(p => (
-                  <Chip
-                    key={p.v}
-                    label={p.l}
-                    active={txPeriodFilter === p.v}
-                    onClick={() => setTxPeriodFilter(p.v)}
-                  />
-                ))}
-              </div>
-
-              {/* Status filter */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
-                {[
-                  { v: 'all', l: 'Semua status' },
-                  { v: 'proses', l: '⏳ Proses' },
-                  { v: 'selesai', l: '✅ Selesai' },
-                  { v: 'diambil', l: '📦 Diambil' },
-                  { v: 'dibatalkan', l: '❌ Batal' },
-                ].map(p => (
-                  <Chip
-                    key={p.v}
-                    label={p.l}
-                    active={txStatusFilter === p.v}
-                    onClick={() => setTxStatusFilter(p.v)}
-                  />
-                ))}
-              </div>
-
-              {/* Payment filter */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
-                {[
-                  { v: 'all', l: 'Semua bayar' },
-                  { v: 'paid', l: '💰 Lunas' },
-                  { v: 'partial', l: '🔸 Sebagian' },
-                  { v: 'unpaid', l: '⚠️ Belum bayar' },
-                ].map(p => (
-                  <Chip
-                    key={p.v}
-                    label={p.l}
-                    active={txPaymentFilter === p.v}
-                    onClick={() => setTxPaymentFilter(p.v)}
-                  />
-                ))}
-              </div>
-
-              {activeFilterCount > 0 && (
-                <button
-                  onClick={() => {
-                    setTxSearch(''); setTxStatusFilter('all');
-                    setTxPaymentFilter('all'); setTxPeriodFilter('all');
-                  }}
-                  style={{
-                    width: '100%', padding: '6px 10px', marginBottom: 10,
-                    background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8,
-                    color: '#92400E', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Hapus {activeFilterCount} filter
-                </button>
-              )}
-            </>
+              <button
+                onClick={() => setShowFilterModal(true)}
+                style={{
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 14px',
+                  background: activeFilterCount > 0 ? C.primary : C.n50,
+                  color: activeFilterCount > 0 ? 'white' : C.n700,
+                  border: activeFilterCount > 0 ? 'none' : `1px solid ${C.n200}`,
+                  borderRadius: 10,
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                </svg>
+                Filter
+                {activeFilterCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -6,
+                    minWidth: 20,
+                    height: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: '#EF4444',
+                    color: 'white',
+                    borderRadius: 999,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '0 6px',
+                  }}>
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
           )}
 
           {/* List */}
@@ -503,6 +480,199 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
           )}
         </div>
       </div>
+
+      {/* Filter Modal */}
+      {showFilterModal && (
+        <div
+          onClick={() => setShowFilterModal(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            zIndex: 1000,
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxHeight: '80vh',
+              background: 'white',
+              borderRadius: '20px 20px 0 0',
+              padding: '20px 16px 24px',
+              animation: 'slideUp 0.25s ease-out',
+              overflowY: 'auto',
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 16,
+              paddingBottom: 12,
+              borderBottom: `2px solid ${C.n100}`,
+            }}>
+              <div style={{
+                fontFamily: 'Poppins',
+                fontSize: 16,
+                fontWeight: 700,
+                color: C.n900,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                </svg>
+                Filter Transaksi
+              </div>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 8,
+                  cursor: 'pointer',
+                  color: C.n600,
+                  display: 'flex',
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Period Filter */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: 600,
+                color: C.n700,
+                marginBottom: 8,
+              }}>
+                📅 Periode Waktu
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {[
+                  { v: 'all', l: 'Semua waktu' },
+                  { v: '30d', l: '30 hari terakhir' },
+                  { v: '90d', l: '3 bulan terakhir' },
+                  { v: '1y',  l: '1 tahun terakhir' },
+                ].map(p => (
+                  <Chip
+                    key={p.v}
+                    label={p.l}
+                    active={txPeriodFilter === p.v}
+                    onClick={() => setTxPeriodFilter(p.v)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: 600,
+                color: C.n700,
+                marginBottom: 8,
+              }}>
+                📊 Status Transaksi
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {[
+                  { v: 'all', l: 'Semua status' },
+                  { v: 'proses', l: '⏳ Proses' },
+                  { v: 'selesai', l: '✅ Selesai' },
+                  { v: 'diambil', l: '📦 Diambil' },
+                  { v: 'dibatalkan', l: '❌ Dibatalkan' },
+                ].map(p => (
+                  <Chip
+                    key={p.v}
+                    label={p.l}
+                    active={txStatusFilter === p.v}
+                    onClick={() => setTxStatusFilter(p.v)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Payment Filter */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: 600,
+                color: C.n700,
+                marginBottom: 8,
+              }}>
+                💰 Status Pembayaran
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {[
+                  { v: 'all', l: 'Semua' },
+                  { v: 'paid', l: '💰 Lunas' },
+                  { v: 'partial', l: '🔸 Sebagian' },
+                  { v: 'unpaid', l: '⚠️ Belum bayar' },
+                ].map(p => (
+                  <Chip
+                    key={p.v}
+                    label={p.l}
+                    active={txPaymentFilter === p.v}
+                    onClick={() => setTxPaymentFilter(p.v)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              {activeFilterCount > 0 && (
+                <Btn
+                  variant="secondary"
+                  onClick={() => {
+                    setTxStatusFilter('all');
+                    setTxPaymentFilter('all');
+                    setTxPeriodFilter('all');
+                  }}
+                  style={{ flex: 1, border: `1px solid ${C.n300}`, color: C.n700 }}
+                >
+                  Reset
+                </Btn>
+              )}
+              <Btn
+                variant="primary"
+                onClick={() => setShowFilterModal(false)}
+                style={{ flex: activeFilterCount > 0 ? 1 : 'auto', minWidth: 120 }}
+              >
+                {activeFilterCount > 0 ? `Terapkan (${activeFilterCount})` : 'Tutup'}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

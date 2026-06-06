@@ -240,10 +240,11 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
 
   // Update charPerLine otomatis saat ganti printer type
   useEffect(() => {
-    if (cfg.printerType === 'thermal_58') set('charPerLine', 32);
-    else if (cfg.printerType === 'thermal_80') set('charPerLine', 48);
-    else if (cfg.printerType === 'a4') set('charPerLine', 80);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const defaults = { thermal_58: 32, thermal_80: 48, a4: 80 };
+    const defaultVal = defaults[cfg.printerType];
+    if (defaultVal !== undefined) {
+      setCfg(prev => prev.charPerLine !== defaultVal ? { ...prev, charPerLine: defaultVal } : prev);
+    }
   }, [cfg.printerType]);
 
   const groupedFields = CONTENT_FIELDS.reduce((acc, f) => {

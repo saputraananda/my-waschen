@@ -512,6 +512,8 @@ export default function ProduksiDashboardPage({ user, navigate }) {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [workstation, setWorkstation] = useState(() => localStorage.getItem('produksi_workstation') || 'Semua');
   const prevTxIds = useRef(new Set());
+  const fetchLockRef = useRef(false);
+  const fetchTimerRef = useRef(null);
 
   const handleWorkstationChange = (ws) => {
     setWorkstation(ws);
@@ -519,6 +521,17 @@ export default function ProduksiDashboardPage({ user, navigate }) {
   };
 
   const fetchQueue = useCallback(async (silent = false) => {
+    // Debounce guard: kalau request masih in-flight, skip supaya tidak menumpuk
+    // (cegah 429 dari realtime events + polling + StrictMode double-mount)
+    if (fetchLockRef.current) return;
+    fetchLockRef.current = true;
+
+    // Clear pending debounce timer
+    if (fetchTimerRef.current) {
+      clearTimeout(fetchTimerRef.current);
+      fetchTimerRef.current = null;
+    }
+
     if (!silent) { setError(null); setLoading(true); }
     try {
       const res = await axios.get('/api/transactions/production/queue');
@@ -542,22 +555,33 @@ export default function ProduksiDashboardPage({ user, navigate }) {
       if (!silent) setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
+      // Release lock setelah 2 detik supaya polling berikutnya bisa jalan
+      fetchTimerRef.current = setTimeout(() => { fetchLockRef.current = false; }, 2000);
     }
   }, []);
 
   useEffect(() => {
     fetchQueue();
     const interval = setInterval(() => fetchQueue(true), 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+    };
   }, [fetchQueue]);
 
-  // Pull-to-refresh
-  useAppRefresh(() => fetchQueue(), [fetchQueue]);
+  // Pull-to-refresh — bypass lock (user intent)
+  useAppRefresh(() => {
+    fetchLockRef.current = false;
+    fetchQueue();
+  }, [fetchQueue]);
 
-  // Realtime: refresh saat checkout / photo / production update
+  // Realtime: debounce 3 detik supaya burst events (multiple checkout) jadi 1 fetch
+  const realtimeTimerRef = useRef(null);
   useRealtimeMulti(['transaction:checkout', 'production:photo', 'production:update'], () => {
-    fetchQueue(true); // silent refresh — ga show loading
+    if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+    realtimeTimerRef.current = setTimeout(() => fetchQueue(true), 3000);
   });
+
 
   // Derived state
   const allActive = useMemo(() =>

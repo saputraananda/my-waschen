@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { TopBar, Avatar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
+import OutletDropdown from '../../components/ui/OutletDropdown';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
 
 export default function ManajemenUserPage({ navigate, goBack }) {
@@ -196,57 +197,28 @@ export default function ManajemenUserPage({ navigate, goBack }) {
       <div style={{ padding: '12px 16px 0' }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama, username, email, atau outlet..." />
 
-        {/* Filter compact: 3 dropdown side-by-side biar gak numpuk */}
+        {/* Filter compact: Chip components untuk status & role, select untuk outlet */}
         <div style={{ display: 'flex', gap: 8, marginTop: 6, marginBottom: 8 }}>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{
-              flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10,
-              border: `1.5px solid ${statusFilter === 'semua' ? C.n200 : C.primary}`,
-              background: statusFilter === 'semua' ? '#FFFFFF' : `${C.primary}10`,
-              color: statusFilter === 'semua' ? C.n700 : C.primary,
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, cursor: 'pointer', outline: 'none',
-            }}
-          >
-            <option value="semua">Semua Status</option>
-            <option value="aktif">Aktif</option>
-            <option value="nonaktif">Nonaktif</option>
-          </select>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            style={{
-              flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10,
-              border: `1.5px solid ${filter === 'semua' ? C.n200 : C.primary}`,
-              background: filter === 'semua' ? '#FFFFFF' : `${C.primary}10`,
-              color: filter === 'semua' ? C.n700 : C.primary,
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, cursor: 'pointer', outline: 'none',
-            }}
-          >
-            <option value="semua">Semua Role</option>
-            <option value="frontline">Frontline</option>
-            <option value="produksi">Produksi</option>
-            <option value="admin">Admin</option>
-            <option value="finance">Finance</option>
-          </select>
-          <select
-            value={outletFilter}
-            onChange={(e) => setOutletFilter(e.target.value)}
-            style={{
-              flex: 1, minWidth: 0, padding: '8px 10px', borderRadius: 10,
-              border: `1.5px solid ${outletFilter === 'semua' ? C.n200 : C.primary}`,
-              background: outletFilter === 'semua' ? '#FFFFFF' : `${C.primary}10`,
-              color: outletFilter === 'semua' ? C.n700 : C.primary,
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, cursor: 'pointer', outline: 'none',
-            }}
-          >
-            <option value="semua">Semua Outlet</option>
-            <option value="global">🌐 Global (Tanpa Outlet)</option>
-            {outlets.map((o) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+            <Chip label="Semua" active={statusFilter === 'semua'} onClick={() => setStatusFilter('semua')} />
+            <Chip label="Aktif" active={statusFilter === 'aktif'} onClick={() => setStatusFilter('aktif')} />
+            <Chip label="Nonaktif" active={statusFilter === 'nonaktif'} onClick={() => setStatusFilter('nonaktif')} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+            <Chip label="Semua" active={filter === 'semua'} onClick={() => setFilter('semua')} />
+            <Chip label="Frontline" active={filter === 'frontline'} onClick={() => setFilter('frontline')} />
+            <Chip label="Produksi" active={filter === 'produksi'} onClick={() => setFilter('produksi')} />
+            <Chip label="Admin" active={filter === 'admin'} onClick={() => setFilter('admin')} />
+            <Chip label="Finance" active={filter === 'finance'} onClick={() => setFilter('finance')} />
+          </div>
+          <OutletDropdown
+            value={outletFilter === 'semua' ? '' : outletFilter}
+            onChange={(val) => setOutletFilter(val || 'semua')}
+            outlets={outlets}
+            showGlobal
+            compact
+            style={{ flex: 1, minWidth: 0, marginBottom: 0 }}
+          />
         </div>
 
         <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginBottom: 8 }}>
