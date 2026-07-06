@@ -1,5 +1,8 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('Inventory');
 
 const canManageStock = (role) => ['kasir', 'frontline', 'admin', 'produksi', 'finance', 'superadmin', 'owner'].includes(role);
 const canAdminInventory = (role) => ['admin', 'finance', 'superadmin', 'owner'].includes(role);
@@ -82,7 +85,7 @@ export async function autoCreateReorderPR({ outletId, inventoryId, currentQty, r
 
     return { created: true, prId: result.insertId, qty: reorderQty };
   } catch (err) {
-    console.error('[autoCreateReorderPR]', err.message);
+    logger.error('[autoCreateReorderPR]', err.message);
     return { error: err.message };
   }
 }
@@ -134,7 +137,7 @@ export const getOutletStock = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('[getOutletStock]', err);
+    logger.error('[getOutletStock]', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat stok.' });
   }
 };
@@ -175,7 +178,7 @@ export const getInventoryOutletSummary = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('[getInventoryOutletSummary]', err);
+    logger.error('[getInventoryOutletSummary]', err);
     return res.status(500).json({ success: false, message: 'Gagal ringkasan stok.' });
   }
 };
@@ -260,7 +263,7 @@ export const getAllOutletStocks = async (req, res) => {
 
     return res.json({ success: true, data: result });
   } catch (err) {
-    console.error('[getAllOutletStocks]', err);
+    logger.error('[getAllOutletStocks]', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat stok semua outlet.' });
   }
 };
@@ -372,13 +375,13 @@ export const adjustInventoryStock = async (req, res) => {
         inventoryId,
         currentQty: newQty,
         requestedBy: userId,
-      }).catch(err => console.error('[reorder check]', err.message));
+      }).catch(err => logger.error('[reorder check]', err.message));
     }
 
     return res.status(201).json({ success: true, message: 'Stok diperbarui.', data: { inventoryId, outletId, newQty } });
   } catch (err) {
     await conn.rollback();
-    console.error('[adjustInventoryStock]', err);
+    logger.error('[adjustInventoryStock]', err);
     return res.status(500).json({ success: false, message: 'Gagal menyesuaikan stok.' });
   } finally {
     conn.release();
@@ -395,7 +398,7 @@ export const getInventoryCategories = async (req, res) => {
     );
     return res.json({ success: true, data: rows });
   } catch (err) {
-    console.error('[getInventoryCategories]', err);
+    logger.error('[getInventoryCategories]', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat kategori.' });
   }
 };
@@ -416,7 +419,7 @@ export const listInventoryItems = async (req, res) => {
     );
     return res.json({ success: true, data: rows });
   } catch (err) {
-    console.error('[listInventoryItems]', err);
+    logger.error('[listInventoryItems]', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat SKU.' });
   }
 };
@@ -459,7 +462,7 @@ export const createInventoryItem = async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ success: false, message: 'Kode item sudah dipakai.' });
     }
-    console.error('[createInventoryItem]', err);
+    logger.error('[createInventoryItem]', err);
     return res.status(500).json({ success: false, message: 'Gagal membuat SKU.' });
   }
 };
@@ -516,7 +519,7 @@ export const patchInventoryItem = async (req, res) => {
     });
     return res.json({ success: true, message: 'SKU diperbarui.' });
   } catch (err) {
-    console.error('[patchInventoryItem]', err);
+    logger.error('[patchInventoryItem]', err);
     return res.status(500).json({ success: false, message: 'Gagal update SKU.' });
   }
 };
@@ -572,7 +575,7 @@ export const patchOutletMinStock = async (req, res) => {
     });
     return res.json({ success: true, message: 'Minimum stok outlet diperbarui.' });
   } catch (err) {
-    console.error('[patchOutletMinStock]', err);
+    logger.error('[patchOutletMinStock]', err);
     return res.status(500).json({ success: false, message: 'Gagal set minimum stok.' });
   }
 };
@@ -599,7 +602,7 @@ export const listServiceInventoryUsage = async (req, res) => {
       data: rows.map((r) => ({ ...r, qtyPerUnit: Number(r.qtyPerUnit) })),
     });
   } catch (err) {
-    console.error('[listServiceInventoryUsage]', err);
+    logger.error('[listServiceInventoryUsage]', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat pemakaian bahan.' });
   }
 };
@@ -656,7 +659,7 @@ export const upsertServiceInventoryUsage = async (req, res) => {
     });
     return res.status(201).json({ success: true, message: 'Pemakaian bahan disimpan.', data: { id: rowId } });
   } catch (err) {
-    console.error('[upsertServiceInventoryUsage]', err);
+    logger.error('[upsertServiceInventoryUsage]', err);
     return res.status(500).json({ success: false, message: 'Gagal simpan pemakaian.' });
   }
 };
@@ -688,7 +691,332 @@ export const deleteServiceInventoryUsage = async (req, res) => {
     });
     return res.json({ success: true, message: 'Pemakaian dinonaktifkan.' });
   } catch (err) {
-    console.error('[deleteServiceInventoryUsage]', err);
+    logger.error('[deleteServiceInventoryUsage]', err);
     return res.status(500).json({ success: false, message: 'Gagal hapus.' });
+  }
+};
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PHASE 5: LOW-STOCK WORKFLOW - PRODUCTION TO FRONTLINER ALERT
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ─── Helper: determine urgency level ─────────────────────────────────────────
+function calculateUrgency(currentStock, minStock) {
+  if (currentStock === 0 || minStock === 0) return 'critical';
+  const pct = (currentStock / minStock) * 100;
+  if (pct <= 25) return 'critical';
+  if (pct <= 50) return 'high';
+  if (pct <= 75) return 'medium';
+  return 'low';
+}
+
+// ─── Helper: send in-app notification to kasir ──────────────────────────────
+async function notifyKasirLowStock({ conn, outletId, itemName, currentStock, minStock, urgency, sentBy }) {
+  // Create notification record for kasir
+  const [result] = await conn.execute(
+    `INSERT INTO tr_low_stock_alert (
+      outlet_id, item_name, current_stock, min_stock, urgency,
+      alert_sent_by, status, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 'sent', NOW())`,
+    [outletId, itemName, currentStock, minStock, urgency, sentBy]
+  );
+  return result.insertId;
+}
+
+// ─── POST /api/inventory/low-stock-alert ─────────────────────────────────────
+// Role B (inventory check) or production team sends low-stock alert to kasir
+// This creates an in-app notification and optionally auto-creates PR
+export const createLowStockAlert = async (req, res) => {
+  const conn = await poolWaschenPos.getConnection();
+  try {
+    const { inventoryId, outletId: bodyOutletId, currentStock, notes, autoCreatePR = true } = req.body;
+    const userId = req.user?.userId;
+    const userRole = req.user?.roleCode;
+    const userOutlet = req.user?.outletId;
+    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+
+    // Validation
+    if (!inventoryId) {
+      conn.release();
+      return res.status(400).json({ success: false, message: 'inventoryId wajib.' });
+    }
+
+    // Determine outlet
+    let targetOutletId;
+    if (isGlobal && bodyOutletId) {
+      targetOutletId = Number(bodyOutletId);
+    } else if (userOutlet) {
+      targetOutletId = Number(userOutlet);
+    } else {
+      conn.release();
+      return res.status(400).json({ success: false, message: 'outletId tidak ditemukan.' });
+    }
+
+    await conn.beginTransaction();
+
+    // Get item and stock info
+    const [[itemInfo]] = await conn.execute(
+      `SELECT i.id, i.name, i.unit, i.min_stock_default,
+              COALESCE(st.stock_qty, 0) AS currentStock,
+              COALESCE(st.min_stock, i.min_stock_default) AS minStock
+       FROM mst_inventory_item i
+       LEFT JOIN mst_inventory_outlet_stock st ON st.inventory_id = i.id AND st.outlet_id = ?
+       WHERE i.id = ? AND i.is_active = 1
+       LIMIT 1 FOR UPDATE`,
+      [targetOutletId, inventoryId]
+    );
+
+    if (!itemInfo) {
+      await conn.rollback();
+      conn.release();
+      return res.status(404).json({ success: false, message: 'Item inventaris tidak ditemukan.' });
+    }
+
+    const actualStock = currentStock != null ? Number(currentStock) : Number(itemInfo.currentStock);
+    const minStock = Number(itemInfo.minStock);
+    const urgency = calculateUrgency(actualStock, minStock);
+
+    // Check if alert already sent today for this item/outlet (prevent spam)
+    const [[existingAlert]] = await conn.execute(
+      `SELECT id FROM tr_low_stock_alert
+       WHERE outlet_id = ? AND item_name = ?
+         AND DATE(created_at) = CURDATE()
+         AND status = 'sent'
+       LIMIT 1`,
+      [targetOutletId, itemInfo.name]
+    );
+
+    if (existingAlert) {
+      await conn.rollback();
+      conn.release();
+      return res.status(429).json({
+        success: false,
+        message: `Alert untuk ${itemInfo.name} sudah dikirim hari ini. Tunggu besok untuk kirim lagi.`,
+        existingAlertId: existingAlert.id,
+      });
+    }
+
+    // Create alert notification
+    const alertId = await notifyKasirLowStock({
+      conn,
+      outletId: targetOutletId,
+      itemName: itemInfo.name,
+      currentStock: actualStock,
+      minStock,
+      urgency,
+      sentBy: userId,
+    });
+
+    // Optionally auto-create PR
+    let prResult = null;
+    if (autoCreatePR) {
+      prResult = await autoCreateReorderPR({
+        outletId: targetOutletId,
+        inventoryId,
+        currentQty: actualStock,
+        requestedBy: userId,
+      });
+    }
+
+    await conn.commit();
+
+    return res.status(201).json({
+      success: true,
+      message: `Alert stok rendah untuk ${itemInfo.name} berhasil dikirim ke kasir.`,
+      data: {
+        alertId,
+        itemName: itemInfo.name,
+        currentStock: actualStock,
+        minStock,
+        urgency,
+        outletId: targetOutletId,
+        prCreated: prResult?.created === true,
+        prId: prResult?.prId || null,
+        suggestedQty: prResult?.qty || Math.max(1, Math.ceil(2 * minStock - actualStock)),
+      },
+    });
+  } catch (err) {
+    await conn.rollback();
+    logger.error('[createLowStockAlert]', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengirim alert stok rendah.' });
+  } finally {
+    conn.release();
+  }
+};
+
+// ─── GET /api/inventory/low-stock-history ───────────────────────────────────
+// Get history of low-stock alerts for admin/audit
+export const getLowStockAlertHistory = async (req, res) => {
+  try {
+    const { outletId, page = 1, limit = 50 } = req.query;
+    const userRole = req.user?.roleCode;
+    const userOutlet = req.user?.outletId;
+    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+
+    let outletFilter = '';
+    const params = [];
+
+    if (!isGlobal && userOutlet) {
+      outletFilter = 'AND a.outlet_id = ?';
+      params.push(userOutlet);
+    } else if (outletId) {
+      outletFilter = 'AND a.outlet_id = ?';
+      params.push(outletId);
+    }
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Get alerts
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT a.id, a.outlet_id, a.item_name, a.current_stock, a.min_stock,
+              a.urgency, a.alert_sent_by, a.status, a.created_at,
+              o.name AS outlet_name,
+              u.name AS sent_by_name
+       FROM tr_low_stock_alert a
+       JOIN mst_outlet o ON o.id = a.outlet_id
+       LEFT JOIN mst_user u ON u.id = a.alert_sent_by
+       WHERE a.deleted_at IS NULL ${outletFilter}
+       ORDER BY a.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limitNum, offset]
+    );
+
+    // Count total
+    const [countRows] = await poolWaschenPos.execute(
+      `SELECT COUNT(*) as total FROM tr_low_stock_alert a WHERE deleted_at IS NULL ${outletFilter}`,
+      params
+    );
+    const total = Number(countRows[0]?.total || 0);
+
+    return res.json({
+      success: true,
+      data: rows.map(r => ({
+        id: r.id,
+        outletId: r.outlet_id,
+        outletName: r.outlet_name,
+        itemName: r.item_name,
+        currentStock: Number(r.current_stock),
+        minStock: Number(r.min_stock),
+        urgency: r.urgency,
+        sentBy: r.sent_by_name,
+        sentAt: r.created_at,
+        status: r.status,
+      })),
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum) || 1,
+      },
+    });
+  } catch (err) {
+    logger.error('[getLowStockAlertHistory]', err);
+    return res.status(500).json({ success: false, message: 'Gagal memuat riwayat alert.' });
+  }
+};
+
+// ─── POST /api/inventory/low-stock-to-pr ─────────────────────────────────────
+// Convert a low-stock alert to purchase request (for kasir)
+export const convertAlertToPurchaseRequest = async (req, res) => {
+  const conn = await poolWaschenPos.getConnection();
+  try {
+    const { alertId, qty, notes } = req.body;
+    const userId = req.user?.userId;
+    const userRole = req.user?.roleCode;
+    const userOutlet = req.user?.outletId;
+    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+
+    if (!alertId) {
+      conn.release();
+      return res.status(400).json({ success: false, message: 'alertId wajib.' });
+    }
+
+    await conn.beginTransaction();
+
+    // Get alert info
+    const [[alert]] = await conn.execute(
+      `SELECT a.*, o.name AS outlet_name
+       FROM tr_low_stock_alert a
+       JOIN mst_outlet o ON o.id = a.outlet_id
+       WHERE a.id = ? AND a.deleted_at IS NULL
+       LIMIT 1 FOR UPDATE`,
+      [alertId]
+    );
+
+    if (!alert) {
+      await conn.rollback();
+      conn.release();
+      return res.status(404).json({ success: false, message: 'Alert tidak ditemukan.' });
+    }
+
+    // Check outlet access
+    if (!isGlobal && userOutlet && Number(alert.outlet_id) !== Number(userOutlet)) {
+      await conn.rollback();
+      conn.release();
+      return res.status(403).json({ success: false, message: 'Akses ditolak.' });
+    }
+
+    // Get inventory item id from name
+    const [[item]] = await conn.execute(
+      `SELECT id, unit, default_cost FROM mst_inventory_item WHERE name = ? AND is_active = 1 LIMIT 1`,
+      [alert.item_name]
+    );
+
+    if (!item) {
+      await conn.rollback();
+      conn.release();
+      return res.status(404).json({ success: false, message: 'Item inventaris tidak ditemukan.' });
+    }
+
+    // Calculate qty
+    const requestedQty = qty || alert.min_stock;
+    const estimatedPrice = Number(item.default_cost) > 0 ? Number(item.default_cost) * requestedQty : null;
+
+    // Create PR
+    const [prResult] = await conn.execute(
+      `INSERT INTO tr_purchase_request (
+        outlet_id, inventory_id, item_name, qty, unit, estimated_price,
+        urgency, reason, status, requested_by, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())`,
+      [
+        alert.outlet_id,
+        item.id,
+        alert.item_name,
+        requestedQty,
+        item.unit || 'pcs',
+        estimatedPrice,
+        alert.urgency === 'critical' ? 'urgent' : alert.urgency,
+        notes || `[Dari Alert #${alertId}] Stok rendah: ${alert.current_stock}/${alert.min_stock}`,
+        userId,
+      ]
+    );
+
+    // Mark alert as converted
+    await conn.execute(
+      `UPDATE tr_low_stock_alert SET status = 'converted', updated_at = NOW() WHERE id = ?`,
+      [alertId]
+    );
+
+    await conn.commit();
+
+    return res.status(201).json({
+      success: true,
+      message: `Purchase request untuk ${alert.item_name} berhasil dibuat.`,
+      data: {
+        prId: prResult.insertId,
+        alertId,
+        itemName: alert.item_name,
+        qty: requestedQty,
+        estimatedPrice,
+      },
+    });
+  } catch (err) {
+    await conn.rollback();
+    logger.error('[convertAlertToPurchaseRequest]', err);
+    return res.status(500).json({ success: false, message: 'Gagal membuat purchase request.' });
+  } finally {
+    conn.release();
   }
 };

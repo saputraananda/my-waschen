@@ -1,362 +1,748 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
+import { TopBar, SkeletonList, useAppRefresh, Chip, FilterModal, FilterSection, FilterChipGroup } from '../../components/ui';
 import { C } from '../../utils/theme';
-import { TopBar, Avatar, SkeletonList, useAppRefresh, SearchBar } from '../../components/ui';
 import { useRealtimeMulti } from '../../utils/realtime';
-import { STAGES } from '../../utils/helpers';
+import {
+  ProductionSearchBar,
+  SectionLabel,
+  ProductionEmptyState,
+  PAGE_BG,
+  STAGE_TAGS,
+  CARD_BG,
+  TEXT_PRIMARY,
+  TEXT_SECONDARY,
+  TEXT_MUTED,
+  getAvatarColor,
+  getInitials,
+} from '../../components/ProductionShared';
+import { STAGE_ICONS } from '../../utils/productionDesign';
 
-const STAGE_ICONS = {
-  'Diterima': '📥', 'Cuci': '🫧',
-  'Setrika': '♨️', 'Packing': '📦', 'Selesai': '✅',
+const STAGE_DOTS = {
+  Diterima: '#a78bfa',
+  Cuci:     '#38bdf8',
+  Setrika:  '#fbbf24',
+  Packing:  '#4ade80',
 };
 
-const STAGE_COLORS = {
-  'Diterima': '#3B82F6', 'Cuci': '#06B6D4',
-  'Setrika': '#F59E0B', 'Packing': '#8B5CF6', 'Selesai': '#10B981',
-};
+// ─── Enhanced per-item card with avatar and full info ─────────────────────────────────────────
+function AntrianItemCard({ item, nota, onPress }) {
+  const custName  = nota?.customerName || 'Customer';
+  const custPhone = nota?.customerPhone;
+  const notaNo    = nota?.id || '-';
+  const isExpress = item.isExpress || nota?.isExpress;
+  const sla       = formatSLA(nota?.estimatedDoneAt);
+  const isOverdue = sla?.color === C.danger;
+  const stage     = item.currentStage || 'Diterima';
+  const tag       = STAGE_TAGS[stage] || STAGE_TAGS['Diterima'];
+  
+  // Progress: calculate filled based on stage index
+  const stageOrder = ['Diterima', 'Cuci', 'Setrika', 'Packing'];
+  const stageIdx = stageOrder.indexOf(stage);
+  const filled = stageIdx >= 0 ? stageIdx + 1 : 0;
 
-const STAGE_DB_TO_LABEL = {
-  'received': 'Diterima', 'waiting': 'Diterima',
-  'washing': 'Cuci', 'drying': 'Cuci',
-  'ironing': 'Setrika', 'qc': 'Setrika',
-  'packing': 'Packing', 'ready': 'Selesai', 'done': 'Selesai',
-};
+  // Avatar
+  const initials = getInitials(custName);
+  const avColor  = getAvatarColor(custName);
 
-// Filter tabs — tanpa info kasir/payment
-const FILTER_TABS = [
-  { key: 'all', label: 'Semua', icon: '📋' },
-  { key: 'urgent', label: 'Mendesak', icon: '🔥' },
-  { key: 'today', label: 'Hari Ini', icon: '⏰' },
-];
+  const badges = [];
+  if (isExpress) badges.push({ label: '⚡ Express', bg: C.validationWarningBg, color: C.validationWarningText });
+  if (nota?.pickupType === 'pickup')   badges.push({ label: '🚗 Jemput', bg: C.validationInfoBg, color: C.validationInfoText });
+  if (nota?.pickupType === 'delivery') badges.push({ label: '🛵 Antar',  bg: C.successBg, color: C.successDark });
 
-const STAGE_FILTERS = [
-  { key: 'all', label: 'Semua Tahap' },
-  { key: 'Diterima', label: '📥 Diterima' },
-  { key: 'Cuci', label: '🫧 Cuci' },
-  { key: 'Setrika', label: '♨️ Setrika' },
-  { key: 'Packing', label: '📦 Packing' },
-];
+  return (
+    <div
+      onClick={onPress}
+      style={{
+        background: CARD_BG,
+        borderRadius: 14,
+        border: `1px solid ${isOverdue ? C.danger : 'rgba(0,0,0,0.07)'}`,
+        boxShadow: isOverdue
+          ? '0 2px 12px rgba(239,68,68,0.18)'
+          : '0 1px 4px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
+        marginBottom: 10,
+        position: 'relative',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        transition: 'transform 0.1s',
+      }}
+      onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.99)'; }}
+      onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+    >
+      {/* Left accent bar */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: tag.accent }} />
+      
+      <div style={{ padding: '12px 12px 10px 16px' }}>
 
-const formatSLA = (estimatedDoneAt) => {
+        {/* Header: Avatar + Customer + Phone */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          {/* Avatar */}
+          <div style={{
+            width: 42, height: 42, borderRadius: 21,
+            background: avColor.bg,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+            color: avColor.text, flexShrink: 0,
+            boxShadow: `0 2px 6px ${avColor.bg}60`,
+          }}>
+            {initials}
+          </div>
+
+          {/* Customer info */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+              color: TEXT_PRIMARY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {custName}
+            </div>
+            <div style={{
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 400,
+              color: TEXT_SECONDARY, marginTop: 1,
+            }}>
+              {custPhone ? `📞 ${custPhone}` : `📋 ${notaNo}`}
+            </div>
+          </div>
+
+          {/* Badges */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0 }}>
+            {badges.map((b) => (
+              <div key={b.label} style={{
+                background: b.bg, color: b.color,
+                fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
+                padding: '2px 7px', borderRadius: 999,
+              }}>
+                {b.label}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: 'rgba(0,0,0,0.06)', marginBottom: 10 }} />
+
+        {/* Service + Stage Tag */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          {/* Service icon */}
+          <div style={{
+            width: 34, height: 34, borderRadius: 10,
+            background: `${tag.accent}18`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 15, flexShrink: 0,
+          }}>
+            {STAGE_ICONS[stage] || '🧺'}
+          </div>
+
+          {/* Service name + qty */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+              color: TEXT_PRIMARY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {item.name || 'Layanan'}
+            </div>
+            <div style={{
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 500,
+              color: TEXT_SECONDARY, marginTop: 1,
+            }}>
+              {item.qty} {item.unit || 'pcs'}
+            </div>
+          </div>
+
+          {/* Stage tag */}
+          <div style={{
+            background: tag.bg, color: tag.text,
+            padding: '4px 10px', borderRadius: 999,
+            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
+            boxShadow: tag.dotGlow ? `0 0 6px ${tag.dotGlow}` : 'none',
+          }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: tag.accent, boxShadow: tag.dotGlow || 'none', flexShrink: 0,
+            }} />
+            {stage}
+          </div>
+        </div>
+
+        {/* Item details (material/brand/special care) */}
+        {(item.material || item.brand || item.specialCareAlert) && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            {item.material && (
+              <span style={{ background: C.infoBg, color: C.infoDark, fontSize: '10px', fontFamily: 'Poppins', fontWeight: 500, padding: '3px 7px', borderRadius: '6px' }}>
+                🧵 {item.material}
+              </span>
+            )}
+            {item.brand && (
+              <span style={{ background: C.infoBg, color: C.primary, fontSize: '10px', fontFamily: 'Poppins', fontWeight: 500, padding: '3px 7px', borderRadius: '6px' }}>
+                🏷️ {item.brand}
+              </span>
+            )}
+            {item.specialCareAlert && (
+              <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontSize: '10px', fontFamily: 'Poppins', fontWeight: 600, padding: '3px 7px', borderRadius: '6px' }}>
+                ⚠️ {item.specialCareAlert}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Visual Progress Bar with Icons */}
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
+            {['Diterima', 'Cuci', 'Setrika', 'Packing'].map((s, i) => {
+              const done = i < filled;
+              const current = i === filled;
+              const dotAccent = STAGE_TAGS[s]?.accent || '#a78bfa';
+              
+              return (
+                <div key={`${s}-${i}`} style={{ flex: 1, display: 'flex', alignItems: 'center', position: 'relative' }}>
+                  {/* Connector line */}
+                  {i > 0 && (
+                    <div style={{
+                      position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+                      width: '100%', height: 2, background: done ? dotAccent : 'rgba(0,0,0,0.1)',
+                      zIndex: 0, marginLeft: '-50%',
+                    }} />
+                  )}
+                  
+                  {/* Stage Icon */}
+                  <div style={{
+                    width: 22, height: 22, borderRadius: 11,
+                    background: done ? dotAccent : current ? `${dotAccent}30` : '#f3f4f6',
+                    border: current ? `2px solid ${dotAccent}` : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, flexShrink: 0, position: 'relative', zIndex: 1,
+                    boxShadow: current ? `0 0 0 3px ${dotAccent}20` : 'none',
+                    margin: '0 auto',
+                  }}>
+                    {done ? (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <span>{STAGE_ICONS[s]}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Stage Labels */}
+          <div style={{ display: 'flex', gap: 0, marginTop: 3 }}>
+            {['Diterima', 'Cuci', 'Setrika', 'Packing'].map((s, i) => {
+              const done = i < filled;
+              const current = i === filled;
+              const dotAccent = STAGE_TAGS[s]?.accent || '#a78bfa';
+              
+              return (
+                <div key={s} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{
+                    fontFamily: 'Poppins', fontSize: 7, fontWeight: current || done ? 600 : 400,
+                    color: done ? dotAccent : current ? dotAccent : '#9ca3af',
+                    lineHeight: 1.1,
+                  }}>
+                    {s}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SLA / Deadline */}
+        {sla && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+            color: sla.color,
+          }}>
+            <span>{sla.icon}</span>
+            <span>{sla.text}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── SLA helper ─────────────────────────────────────────────────
+function formatSLA(estimatedDoneAt) {
   if (!estimatedDoneAt) return null;
   const diffMin = Math.round((new Date(estimatedDoneAt) - Date.now()) / 60000);
   const abs = Math.abs(diffMin);
   if (diffMin < 0) {
-    if (abs < 60) return { text: `Telat ${abs}m`, color: '#DC2626', bg: '#FEE2E2', icon: '🔴' };
-    return { text: `Telat ${Math.floor(abs / 60)}j`, color: '#DC2626', bg: '#FEE2E2', icon: '🔴' };
+    if (abs < 60) return { text: `Telat ${abs}m`, color: C.danger, icon: '🕐' };
+    return { text: `Telat ${Math.floor(abs / 60)}j ${abs % 60}m`, color: C.danger, icon: '🕐' };
   }
-  if (diffMin < 60) return { text: `${diffMin}m lagi`, color: '#92400E', bg: '#FEF3C7', icon: '⚠️' };
-  if (diffMin < 360) return { text: `${Math.floor(diffMin / 60)}j lagi`, color: '#1E40AF', bg: '#DBEAFE', icon: '⏰' };
-  if (diffMin < 1440) return { text: `${Math.floor(diffMin / 60)}j lagi`, color: '#475569', bg: '#F1F5F9', icon: '🕐' };
-  return { text: `${Math.round(diffMin / 1440)}h lagi`, color: '#475569', bg: '#F1F5F9', icon: '📆' };
-};
+  if (diffMin < 60)  return { text: `${diffMin}m lagi`, color: C.warning, icon: '⏰' };
+  if (diffMin < 360) return { text: `${Math.floor(diffMin / 60)}j ${diffMin % 60}m lagi`, color: C.warning, icon: '⏰' };
+  return { text: `${Math.floor(diffMin / 60)}j lagi`, color: C.n400, icon: '🕐' };
+}
 
-export default function ProduksiAntrianPage({ navigate, goBack }) {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [stageFilter, setStageFilter] = useState('all');
+// ─── Main ─────────────────────────────────────────────────────
+export default function AntrianPage({ navigate, goBack }) {
+  const [queue, setQueue]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
+  const [search, setSearch]       = useState('');
+  const [stageFilter, setStageFilter]   = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [refreshing, setRefreshing]     = useState(false);
+  const [pendingHandover, setPendingHandover] = useState(null);
+  const [acceptLoading, setAcceptLoading] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
 
-  const fetchQueue = useCallback(async () => {
-    setLoading(true);
+  // Check for pending handover
+  useEffect(() => {
+    axios.get('/api/shifts/pending-handover')
+      .then(r => setPendingHandover(r?.data?.data || null))
+      .catch(() => {});
+  }, []);
+
+  const handleAcceptHandover = async () => {
+    if (!pendingHandover) return;
+    setAcceptLoading(true);
     try {
-      const res = await axios.get('/api/transactions/production/queue?limit=100');
-      setOrders(res?.data?.data || []);
+      await axios.post('/api/shifts/accept-handover', {
+        sessionId: pendingHandover.sessionId,
+      });
+      setPendingHandover(null);
     } catch (err) {
-      console.error('[ProduksiAntrian]', err);
-      setOrders([]);
+      alert(err.response?.data?.message || 'Gagal terima operan.');
+    } finally {
+      setAcceptLoading(false);
+    }
+  };
+
+  // ── fetch ───────────────────────────────────────────────────
+  const fetchQueue = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.get('/api/transactions/production/queue', { params: { limit: 200 } });
+      setQueue(Array.isArray(res.data?.data) ? res.data.data : []);
+    } catch (e) {
+      if (!e?.response) setError('Tidak dapat terhubung ke server.');
+      else setError(e.response?.data?.message || 'Gagal memuat antrian.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => { fetchQueue(); }, [fetchQueue]);
 
-  // Auto-refresh every 30s
-  useEffect(() => {
-    const interval = setInterval(fetchQueue, 30000);
-    return () => clearInterval(interval);
-  }, [fetchQueue]);
-
   // Pull-to-refresh
-  useAppRefresh(() => fetchQueue(), [fetchQueue]);
+  useAppRefresh(() => fetchQueue(true));
 
-  // Realtime: refresh saat ada checkout baru, photo saved, atau production update
-  useRealtimeMulti(['transaction:checkout', 'production:photo', 'production:update'], () => {
-    fetchQueue();
-  });
+  // Realtime: refresh on any production event
+  useRealtimeMulti(
+    ['transaction:checkout', 'production:new-item', 'production:update'],
+    () => fetchQueue(true)
+  );
 
-  // Build flat item list (per-layanan, bukan per-nota)
-  // Include semua tahap termasuk Selesai — frontend yang filter by stage
-  const items = useMemo(() => {
+  // ── Flatten to per-item list ────────────────────────────────
+  // Each card = one item, not one nota
+  const flatItems = useMemo(() => {
     const result = [];
-    for (const tx of orders) {
-      const txItems = tx.items || [];
-      for (const item of txItems) {
-        // currentStage berasal dari backend (sudah dihitung dari progress logs)
-        const stageLabel = item.currentStage
-          || STAGE_DB_TO_LABEL[item.productionStatus]
-          || 'Diterima';
-        result.push({
-          txId: tx.id,
-          txNo: tx.transactionNo || tx.id,
-          customerName: tx.customerName,
-          customerInitials: (tx.customerName || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-          isExpress: tx.isExpress || item.isExpress,
-          estimatedDoneAt: tx.estimatedDoneAt,
-          createdAt: tx.createdAt,
-          itemId: item.itemId || item.id,
-          itemName: item.serviceName || item.name,
-          qty: item.qty,
-          unit: item.unit,
-          stage: stageLabel,
-          isDone: item.isDone || stageLabel === 'Selesai',
-          progress: item.progress || [],
-          packingDone: item.packingDone || 0,
-          packingNeeded: item.packingNeeded || 1,
-          tx,
-          item,
-        });
+    for (const nota of queue) {
+      for (const item of nota.items || []) {
+        // Skip items already at Selesai (they belong in Riwayat)
+        if (item.currentStage === 'Selesai') continue;
+        result.push({ item, nota });
       }
     }
     return result;
-  }, [orders]);
+  }, [queue]);
 
-  const filteredItems = useMemo(() => {
-    let result = items;
+  // ── stats ───────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const s = { total: 0, Diterima: 0, Cuci: 0, Setrika: 0, Packing: 0 };
+    flatItems.forEach(({ item }) => {
+      const stage = item.currentStage || 'Diterima';
+      if (s[stage] !== undefined) s[stage] += 1;
+      s.total += 1;
+    });
+    return s;
+  }, [flatItems]);
 
-    // Default: hide yang sudah Selesai kecuali user filter eksplisit
-    if (stageFilter !== 'Selesai' && stageFilter !== 'all_with_done') {
-      result = result.filter(i => !i.isDone && i.stage !== 'Selesai');
+  const activeFilterCount = [
+    stageFilter !== 'all',
+    statusFilter !== 'all',
+  ].filter(Boolean).length;
+
+  // ── filtering + sorting ────────────────────────────────────
+  const filtered = useMemo(() => {
+    let items = flatItems;
+
+    // Stage filter
+    if (stageFilter !== 'all') {
+      items = items.filter(({ item }) => (item.currentStage || 'Diterima') === stageFilter);
+    }
+
+    // Status filter - FIXED: "Hari Ini" now includes overdue + today deadline items
+    if (statusFilter !== 'all') {
+      const now = Date.now();
+      items = items.filter(({ nota }) => {
+        const eta = nota.estimatedDoneAt
+          ? new Date(nota.estimatedDoneAt).getTime()
+          : null;
+        if (statusFilter === 'urgent') {
+          // Mendesak: overdue OR < 60 minutes
+          const diffMin = eta ? Math.round((eta - now) / 60000) : Infinity;
+          return diffMin < 0 || (diffMin > 0 && diffMin <= 60);
+        }
+        if (statusFilter === 'today') {
+          // Hari Ini: overdue OR due today OR < 3 hours
+          if (!eta) return false;
+          const diffMin = Math.round((eta - now) / 60000);
+          
+          // Include overdue items (prioritas hari ini!)
+          if (diffMin < 0) return true;
+          
+          // Include items < 3 hours
+          if (diffMin <= 180) return true;
+          
+          // Include items due today
+          const d = new Date(eta);
+          const today = new Date();
+          return (
+            d.getFullYear() === today.getFullYear() &&
+            d.getMonth() === today.getMonth() &&
+            d.getDate() === today.getDate()
+          );
+        }
+        return true;
+      });
     }
 
     // Search filter
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter(i =>
-        (i.customerName || '').toLowerCase().includes(q) ||
-        (i.txNo || '').toLowerCase().includes(q) ||
-        (i.itemName || '').toLowerCase().includes(q)
-      );
-    }
-
-    // Urgent filter
-    if (filter === 'urgent') {
-      result = result.filter(i => {
-        const sla = formatSLA(i.estimatedDoneAt);
-        return sla && (sla.color === '#DC2626' || sla.color === '#92400E');
-      });
-    } else if (filter === 'today') {
-      const today = new Date().toDateString();
-      result = result.filter(i => {
-        if (!i.estimatedDoneAt) return false;
-        return new Date(i.estimatedDoneAt).toDateString() === today;
+      items = items.filter(({ item, nota }) => {
+        const notaId = (nota.id || '').toLowerCase();
+        const custName = (nota.customerName || '').toLowerCase();
+        const svcName  = (item.name || '').toLowerCase();
+        return notaId.includes(q) || custName.includes(q) || svcName.includes(q);
       });
     }
 
-    // Stage filter
-    if (stageFilter !== 'all' && stageFilter !== 'all_with_done') {
-      result = result.filter(i => i.stage === stageFilter);
-    }
-
-    // Sort: express first, then by SLA urgency (ascending estimated done at)
-    result.sort((a, b) => {
-      if (a.isExpress && !b.isExpress) return -1;
-      if (!a.isExpress && b.isExpress) return 1;
-      const aTime = a.estimatedDoneAt ? new Date(a.estimatedDoneAt).getTime() : Infinity;
-      const bTime = b.estimatedDoneAt ? new Date(b.estimatedDoneAt).getTime() : Infinity;
-      return aTime - bTime;
+    // Sort: express first, then by estimatedDoneAt asc
+    items = [...items].sort((a, b) => {
+      const aExpr = a.item.isExpress || a.nota.isExpress ? 0 : 1;
+      const bExpr = b.item.isExpress || b.nota.isExpress ? 0 : 1;
+      if (aExpr !== bExpr) return aExpr - bExpr;
+      const aTs = a.nota.estimatedDoneAt ? new Date(a.nota.estimatedDoneAt).getTime() : Infinity;
+      const bTs = b.nota.estimatedDoneAt ? new Date(b.nota.estimatedDoneAt).getTime() : Infinity;
+      return aTs - bTs;
     });
 
-    return result;
-  }, [items, search, filter, stageFilter]);
+    return items;
+  }, [flatItems, stageFilter, statusFilter, search]);
 
-  // Stats per stage (termasuk Selesai untuk visibility)
-  const stageStats = useMemo(() => {
-    const stats = { Diterima: 0, Cuci: 0, Setrika: 0, Packing: 0, Selesai: 0 };
-    for (const i of items) {
-      if (stats[i.stage] != null) stats[i.stage]++;
-    }
-    return stats;
-  }, [items]);
+  const handleItemPress = ({ item, nota }) => {
+    navigate('detail_item_produksi', {
+      id: nota.id,
+      transactionUuid: nota.transactionUuid,
+      item: {
+        itemId: item.itemId,
+        name: item.name,
+        qty: item.qty,
+        unit: item.unit,
+        isExpress: item.isExpress,
+        progress: item.progress,
+        currentStage: item.currentStage,
+        packingNeeded: item.packingNeeded,
+        packingDone: item.packingDone,
+        packingNotes: item.packingNotes,
+      },
+    });
+  };
 
+  // ── render ──────────────────────────────────────────────────
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: '100%', background: PAGE_BG,
+      fontFamily: 'Inter, system-ui',
+    }}>
+
+      {/* Topbar */}
       <TopBar
         title="Antrian Produksi"
-        subtitle={`${filteredItems.length} layanan dalam antrian`}
+        subtitle={`${stats.total} item dalam antrian`}
         onBack={goBack}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 20px' }}>
-
-        {/* Search */}
-        <div style={{ position: 'relative', marginBottom: 10 }}>
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder="Cari customer, no nota, atau layanan…"
-          />
+      {/* Handover Banner */}
+      {pendingHandover && (
+        <div style={{
+          background: C.validationInfoBg, padding: '12px 14px', margin: '8px 14px 0',
+          borderRadius: 12, border: `1.5px solid ${C.info}40`, display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{ fontSize: 24 }}>🔀</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.infoDark }}>
+              Operan dari {pendingHandover.kasirName}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.infoDark, marginTop: 2 }}>
+              Kas diserahkan: <strong>Rp {Number(pendingHandover.handoverCash).toLocaleString('id-ID')}</strong>
+              {pendingHandover.handoverNotes ? ` — ${pendingHandover.handoverNotes}` : ''}
+            </div>
+          </div>
+          <button
+            onClick={handleAcceptHandover}
+            disabled={acceptLoading}
+            style={{
+              padding: '8px 16px', borderRadius: 10, border: 'none',
+              background: C.info, color: 'white',
+              fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
+              cursor: acceptLoading ? 'default' : 'pointer',
+              opacity: acceptLoading ? 0.6 : 1,
+            }}
+          >
+            {acceptLoading ? '...' : '✅ Terima'}
+          </button>
         </div>
+      )}
 
-        {/* Quick filter tabs */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
-          {FILTER_TABS.map(t => {
-            const active = filter === t.key;
-            return (
+      {/* Search & Filter Header */}
+      <div style={{ background: 'white', padding: '8px 14px 10px', borderBottom: `1px solid ${C.n100}` }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{
+            flex: 1,
+            background: C.n50,
+            borderRadius: 10,
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke={C.n400} strokeWidth="2" strokeLinecap="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Cari customer, no nota, atau layanan…"
+              style={{
+                flex: 1, border: 'none', background: 'transparent',
+                fontFamily: 'Poppins', fontSize: 13,
+                color: C.n900, outline: 'none',
+              }}
+            />
+            {search && (
               <button
-                key={t.key}
-                onClick={() => setFilter(t.key)}
+                onClick={() => setSearch('')}
                 style={{
-                  flexShrink: 0, padding: '6px 14px', borderRadius: 999,
-                  border: `1.5px solid ${active ? C.primary : C.n200}`,
-                  background: active ? `${C.primary}12` : 'white',
-                  fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 500,
-                  color: active ? C.primary : C.n600, cursor: 'pointer',
+                  border: 'none', background: 'none', cursor: 'pointer',
+                  padding: 0, display: 'flex', alignItems: 'center',
                 }}
               >
-                {t.icon} {t.label}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke={C.n400} strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setFilterOpen(true)}
+            aria-label="Filter"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 10,
+              border: `1.5px solid ${activeFilterCount > 0 ? C.primary : C.n200}`,
+              background: activeFilterCount > 0 ? `${C.primary}10` : 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: activeFilterCount > 0 ? C.primary : C.n600,
+              position: 'relative',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="4" y1="6" x2="14" y2="6" />
+              <line x1="20" y1="6" x2="18" y2="6" />
+              <circle cx="16" cy="6" r="2" />
+              <line x1="4" y1="12" x2="6" y2="12" />
+              <line x1="20" y1="12" x2="10" y2="12" />
+              <circle cx="8" cy="12" r="2" />
+              <line x1="4" y1="18" x2="12" y2="18" />
+              <line x1="20" y1="18" x2="16" y2="18" />
+              <circle cx="14" cy="18" r="2" />
+            </svg>
+            {activeFilterCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                minWidth: 16,
+                height: 16,
+                borderRadius: 8,
+                background: C.primary,
+                color: 'white',
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 3px',
+              }}>{activeFilterCount}</span>
+            )}
+          </button>
+        </div>
+
+        {/* Quick stage tabs */}
+        <div style={{
+          display: 'flex', gap: 6, marginTop: 10, overflowX: 'auto',
+          scrollbarWidth: 'none', paddingBottom: 2,
+        }}>
+          {[
+            { key: 'all', label: 'Semua', count: stats.total },
+            { key: 'Diterima', label: 'Diterima', count: stats.Diterima },
+            { key: 'Cuci', label: 'Cuci', count: stats.Cuci },
+            { key: 'Setrika', label: 'Setrika', count: stats.Setrika },
+            { key: 'Packing', label: 'Packing', count: stats.Packing },
+          ].map(p => {
+            const active = stageFilter === p.key;
+            return (
+              <button
+                key={p.key}
+                onClick={() => setStageFilter(p.key)}
+                style={{
+                  flexShrink: 0,
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  background: active ? C.primary : C.n50,
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  fontWeight: active ? 600 : 500,
+                  color: active ? 'white' : C.n600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                {p.label}
+                {p.count > 0 && (
+                  <span style={{
+                    background: active ? 'rgba(255,255,255,0.25)' : C.n200,
+                    padding: '1px 5px',
+                    borderRadius: 999,
+                    fontSize: 10,
+                  }}>
+                    {p.count}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
-
-        {/* Stage stats — pipeline visual */}
-        <div style={{ background: 'white', borderRadius: 12, padding: '10px 12px', marginBottom: 10, border: `1px solid ${C.n100}`, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {STAGES.map((stage, idx) => {
-            const count = stageStats[stage] || 0;
-            const isActive = stageFilter === stage;
-            const isLast = idx === STAGES.length - 1;
-            return (
-              <div key={stage} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                <button
-                  onClick={() => setStageFilter(isActive ? 'all' : stage)}
-                  style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    padding: '6px 4px', borderRadius: 8,
-                    border: 'none', cursor: 'pointer',
-                    background: isActive ? `${STAGE_COLORS[stage]}14` : 'transparent',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 14,
-                    background: count > 0 ? STAGE_COLORS[stage] : C.n100,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: 'Poppins', fontSize: 11, fontWeight: 800,
-                    color: count > 0 ? 'white' : C.n400,
-                    boxShadow: isActive ? `0 0 0 3px ${STAGE_COLORS[stage]}30` : 'none',
-                  }}>
-                    {count}
-                  </div>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: count > 0 ? STAGE_COLORS[stage] : C.n500 }}>{stage}</span>
-                </button>
-                {!isLast && <div style={{ width: 8, height: 1, background: C.n200, flexShrink: 0 }} />}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* List */}
-        {loading && (
-          <SkeletonList count={4} lines={2} />
-        )}
-
-        {!loading && filteredItems.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 32, background: 'white', borderRadius: 14 }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>🎉</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n700 }}>Tidak ada antrian</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>Semua layanan sudah ditangani</div>
-          </div>
-        )}
-
-        {!loading && filteredItems.map((it) => {
-          const sla = formatSLA(it.estimatedDoneAt);
-          const stageColor = STAGE_COLORS[it.stage] || C.primary;
-          const isPackingStage = it.stage === 'Packing';
-          const packingPct = isPackingStage ? Math.round((it.packingDone / Math.max(1, it.packingNeeded)) * 100) : 0;
-
-          return (
-            <div
-              key={`${it.txId}-${it.itemId}`}
-              onClick={() => navigate('detail_item_produksi', { ...it.tx, item: it.item })}
-              style={{
-                background: 'white', borderRadius: 14, padding: '12px 14px',
-                marginBottom: 8, cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
-                borderLeft: `4px solid ${stageColor}`,
-                position: 'relative', overflow: 'hidden',
-              }}
-            >
-              {it.isExpress && (
-                <div style={{ position: 'absolute', top: 8, right: 8, background: '#FEF3C7', color: '#92400E', fontFamily: 'Poppins', fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 999 }}>
-                  ⚡ EXPRESS
-                </div>
-              )}
-
-              {/* Customer info */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <Avatar initials={it.customerInitials} size={36} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {it.customerName}
-                  </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
-                    Nota {it.txNo}
-                  </div>
-                </div>
-              </div>
-
-              {/* Layanan */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: `${stageColor}08`, borderRadius: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 18 }}>{STAGE_ICONS[it.stage]}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{it.itemName}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
-                    {it.qty} {it.unit} · Tahap: <strong style={{ color: stageColor }}>{it.stage}</strong>
-                    {isPackingStage && it.packingNeeded > 1 && (
-                      <span style={{ marginLeft: 6 }}>· 📦 {it.packingDone}/{it.packingNeeded}</span>
-                    )}
-                  </div>
-                </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </div>
-
-              {/* SLA badge */}
-              {sla && (
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                  padding: '3px 10px', borderRadius: 999,
-                  background: sla.bg, color: sla.color,
-                  fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
-                }}>
-                  {sla.icon} {sla.text}
-                </div>
-              )}
-
-              {/* Mini progress bar */}
-              <div style={{ marginTop: 8, height: 4, background: C.n100, borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${(it.progress.length / 4) * 100}%`,
-                  background: stageColor,
-                  borderRadius: 2,
-                  transition: 'width 0.4s',
-                }} />
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Auto-refresh indicator */}
-        <div style={{ textAlign: 'center', fontFamily: 'Poppins', fontSize: 10, color: C.n400, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-          <span style={{ width: 6, height: 6, borderRadius: 3, background: '#10B981', display: 'inline-block', animation: 'pulse 2s infinite' }} />
-          Auto-refresh aktif setiap 30 detik
-        </div>
       </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px 80px' }}>
+        <SectionLabel label="Antrian Aktif" count={filtered.length} />
+
+        {loading ? (
+          <SkeletonList count={5} />
+        ) : error ? (
+          <ProductionEmptyState title="Gagal memuat" sub={error} />
+        ) : filtered.length === 0 ? (
+          <ProductionEmptyState
+            title="Tidak ada antrian"
+            sub={
+              search || stageFilter !== 'all' || statusFilter !== 'all'
+                ? 'Coba ubah filter atau kata kunci pencarian.'
+                : 'Belum ada item di antrian produksi.'
+            }
+          />
+        ) : (
+          filtered.map(({ item, nota }, idx) => (
+            <AntrianItemCard
+              key={`${nota.id}-${item.itemId}`}
+              item={item}
+              nota={nota}
+              onPress={() => handleItemPress({ item, nota })}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Auto-refresh indicator */}
+      {refreshing && (
+        <div style={{
+          position: 'fixed', bottom: 82, left: '50%', transform: 'translateX(-50%)',
+                            background: C.n800, color: '#ffffff',
+          padding: '6px 14px', borderRadius: 999,
+          fontFamily: 'Inter, system-ui', fontSize: 11, fontWeight: 500,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          display: 'flex', alignItems: 'center', gap: 6, zIndex: 50,
+        }}>
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+                        background: C.primary, animation: 'refPulse 1s infinite',
+          }} />
+          Memperbarui…
+        </div>
+      )}
+
+      <style>{`
+        @keyframes refPulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.3; }
+        }
+      `}</style>
+
+      <FilterModal
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        title="Filter Antrian"
+        onApply={() => setFilterOpen(false)}
+        onReset={() => {
+          setStageFilter('all');
+          setStatusFilter('all');
+        }}
+      >
+        <FilterSection title="Tahap Produksi">
+          <FilterChipGroup
+            options={[
+              { value: 'all', label: 'Semua' },
+              { value: 'Diterima', label: 'Diterima' },
+              { value: 'Cuci', label: 'Cuci' },
+              { value: 'Setrika', label: 'Setrika' },
+              { value: 'Packing', label: 'Packing' },
+            ]}
+            selected={stageFilter}
+            onChange={(val) => setStageFilter(val)}
+            multiple={false}
+          />
+        </FilterSection>
+
+        <FilterSection title="Status Waktu">
+          <FilterChipGroup
+            options={[
+              { value: 'all', label: 'Semua' },
+              { value: 'urgent', label: 'Mendesak' },
+              { value: 'today', label: 'Hari Ini' },
+            ]}
+            selected={statusFilter}
+            onChange={(val) => setStatusFilter(val)}
+            multiple={false}
+          />
+        </FilterSection>
+      </FilterModal>
     </div>
   );
 }

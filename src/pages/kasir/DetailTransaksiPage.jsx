@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp, photoTypeLabel, getTransactionItemLineTotal } from '../../utils/helpers';
 import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select, MoneyInput, DateTimeInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
-import { chargePayment } from '../../utils/paymentApi';
-import PaymentChannelSelector from '../../components/PaymentChannelSelector';
 
 const PAY_METHOD_LABEL = {
   cash: 'Tunai',
@@ -48,9 +46,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
   const [pelAmountStr, setPelAmountStr] = useState('');
   const [pelCashStr, setPelCashStr] = useState('');
   const [pelLoading, setPelLoading] = useState(false);
-
-  // Midtrans pelunasan
-  const [showMidtransSelector, setShowMidtransSelector] = useState(false);
 
   // Edit delivery type
   const [deliveryModal, setDeliveryModal] = useState(false);
@@ -286,7 +281,10 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           '',
           window.location.pathname,
         );
-      } catch {}
+      } catch (e) {
+        // Silent fail - history.replaceState tidak kritis
+ console.warn('Failed to replace history state:', e?.message);
+      }
       setTimeout(() => setReviewModal(true), 500);
     } catch (err) {
       alertError(err?.response?.data?.message || 'Gagal update status.');
@@ -385,50 +383,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
     }
   };
 
-  // ── Midtrans pelunasan
-  const openMidtransSettlement = () => {
-    const payAmt = Number(pelAmountStr);
-    if (!Number.isFinite(payAmt) || payAmt <= 0) {
-      alertWarning('Nominal tidak valid.');
-      return;
-    }
-    setPelunasanModal(false);
-    setShowMidtransSelector(true);
-  };
-
-  const handleSelectMidtransChannel = async (channel) => {
-    const tid = tx.transactionUuid || tx.id;
-    const payAmt = Number(pelAmountStr) || balanceDue;
-    setPelLoading(true);
-    try {
-      const result = await chargePayment({
-        transactionId: tid,
-        channel,
-        amount: payAmt,
-      });
-      setShowMidtransSelector(false);
-      navigate('qr_payment', {
-        paymentItemId: result.paymentItemId,
-        orderId: result.orderId,
-        channel: result.channel,
-        amount: result.amount,
-        qrImageUrl: result.qrImageUrl,
-        qrString: result.qrString,
-        vaNumber: result.vaNumber,
-        billerCode: result.billerCode,
-        deeplinkUrl: result.deeplinkUrl,
-        expiresAt: result.expiresAt,
-        transactionId: tid,
-        customerName: tx.customerName,
-      });
-    } catch (err) {
-      console.error('[midtrans charge] error:', err);
-      alertError(err?.response?.data?.message || 'Gagal memproses pembayaran via Midtrans.');
-    } finally {
-      setPelLoading(false);
-    }
-  };
-  
   // PERBAIKAN: Safely format avatar initials agar tidak crash
   const customerInitials = (tx?.customerName || 'Unknown')
     .split(' ')
@@ -443,13 +397,13 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {/* Header card */}
-        <div style={{ background: `linear-gradient(135deg, ${C.primary}08, ${C.white})`, borderRadius: 16, padding: '16px 16px', marginBottom: 14, boxShadow: '0 2px 12px rgba(15,23,42,0.08)', border: `1px solid ${C.n100}` }}>
+        <div style={{ background: `linear-gradient(135deg, ${C.primary}08, ${C.white})`, borderRadius: 16, padding: '16px 16px', marginBottom: 14, boxShadow: SHADOW.md, border: `1px solid ${C.n100}` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900 }}>{tx.customerName || 'Pelanggan'}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900 }}>{tx.customerName || 'Pelanggan'}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.n500} strokeWidth="2" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{tx.customerPhone || '-'}</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="C.n600" strokeWidth="2" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>{tx.customerPhone || '-'}</span>
               </div>
             </div>
             <Badge status={tx.status || 'baru'} />
@@ -457,18 +411,18 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
           {/* Total + Type — prominent */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, padding: '10px 14px', background: C.white, borderRadius: 12, border: `1.5px solid ${C.n100}` }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color: C.primary }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color: C.n900 }}>
               {rp(tx.total || 0)}
             </div>
-            <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: tx.isExpress ? '#92400E' : C.n600, background: tx.isExpress ? '#FEF3C7' : C.n100, padding: '3px 10px', borderRadius: 999 }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: tx.isExpress ? 'C.warning' : 'C.n600', background: tx.isExpress ? 'C.warningBg' : C.n100, padding: '3px 10px', borderRadius: 999 }}>
               {tx.isExpress ? '⚡ Express' : '📦 Reguler'}
             </span>
           </div>
 
           {/* Transaction ID + Copy */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 10px', background: C.n50, borderRadius: 10 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
-            <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="C.n600" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+            <span style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {tx.id || tx.transactionNo}
             </span>
             <button onClick={handleCopyId} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: `1px solid ${C.n200}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: copied ? C.success : C.primary }}>
@@ -479,51 +433,51 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
 
         {/* Rincian Transaksi — collapsible */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm }}>
           <button onClick={() => setItemsOpen(!itemsOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: itemsOpen ? 12 : 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🧺</div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Rincian Layanan</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#EFF6FF', color: '#1D4ED8' }}>{tx.items?.length || 0}</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'C.infoBg', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🧺</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Rincian Layanan</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: 'C.infoBg', color: 'C.info' }}>{tx.items?.length || 0}</span>
             </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2.5" strokeLinecap="round" style={{ transform: itemsOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="C.n600" strokeWidth="2.5" strokeLinecap="round" style={{ transform: itemsOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9" /></svg>
           </button>
           {itemsOpen && (
             <>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginBottom: 8 }}>Ketuk layanan untuk melihat detail & linimasanya</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600', marginBottom: 8 }}>Ketuk layanan untuk melihat detail & linimasanya</div>
               {tx.items?.map((item, index) => {
                 const itemStatus = tx.status === 'selesai' || tx.status === 'diambil' ? 'Selesai' : tx.status === 'proses' ? 'Dalam proses pengerjaan' : 'Menunggu pengerjaan';
-                const itemStatusColor = tx.status === 'selesai' || tx.status === 'diambil' ? C.success : tx.status === 'proses' ? '#0EA5E9' : C.n500;
+                const itemStatusColor = tx.status === 'selesai' || tx.status === 'diambil' ? C.success : tx.status === 'proses' ? 'C.info' : 'C.n600';
                 const pkgNeededVal = Number(item.packingNeeded) || 1;
                 const pkgDoneVal = Number(item.packingDone) || 0;
                 return (
                   <div key={item.id || `item-${index}`} style={{ background: C.n50, borderRadius: 10, marginBottom: 6, overflow: 'hidden' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
                       <div style={{ width: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.primary }}>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.primary }}>
                           {item.unit === 'm2' ? Number(item.qty).toFixed(2) : item.qty}
                         </span>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, textTransform: 'uppercase' }}>{item.unit === 'm2' ? 'm²' : item.unit}</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 9, color: 'C.n600', textTransform: 'uppercase' }}>{item.unit === 'm2' ? 'm²' : item.unit}</span>
                       </div>
                       <div style={{ flex: 1, borderLeft: `2px solid ${C.n200}`, paddingLeft: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{item.name || item.serviceName}</span>
-                          {item.express && <span style={{ background: '#FEF3C7', color: C.warning, fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⚡</span>}
-                          {item.unit === 'm2' && <span style={{ background: '#E0F2FE', color: '#0369A1', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>📐 Karpet</span>}
+                          {item.express && <span style={{ background: 'C.warningBg', color: C.warning, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999 }}>⚡</span>}
+                          {item.unit === 'm2' && <span style={{ background: 'C.infoBg', color: 'C.info', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999 }}>📐 Karpet</span>}
                         </div>
                         {/* Carpet dimensions */}
                         {item.unit === 'm2' && item.carpetPanjangCm && item.carpetLebarCm && (
-                          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#0369A1', marginTop: 2 }}>
+                          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.info', marginTop: 2 }}>
                             📏 {item.carpetPanjangCm} cm × {item.carpetLebarCm} cm = {Number(item.qty).toFixed(2)} m²
                           </div>
                         )}
                         <div style={{ fontFamily: 'Poppins', fontSize: 11, color: itemStatusColor, marginTop: 2 }}>{itemStatus}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                          <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#5B21B6', background: '#EDE9FE', padding: '1px 7px', borderRadius: 999, fontWeight: 600 }}>
+                          <span style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.n600', background: 'C.infoBg', padding: '1px 7px', borderRadius: 999, fontWeight: 600 }}>
                             📦 {pkgDoneVal}/{pkgNeededVal} paket
                           </span>
                           {item.packingNotes && (
-                            <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#92400E' }}>· {item.packingNotes}</span>
+                            <span style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.warning' }}>· {item.packingNotes}</span>
                           )}
                         </div>
                       </div>
@@ -540,24 +494,24 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               })}
               <Divider my={8} />
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900 }}>Total</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.primary }}>{rp(tx.total || 0)}</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900 }}>Total</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900 }}>{rp(tx.total || 0)}</span>
               </div>
             </>
           )}
         </div>
 
         {/* Dokumentasi produksi (foto terima & packing) */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📷</div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Bukti Foto Produksi</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'C.warningBg', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📷</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Bukti Foto Produksi</span>
             </div>
             {tx.production && (
               <div style={{ display: 'flex', gap: 4 }}>
-                {tx.production.hasReceivePhoto && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: '#EFF6FF', color: '#1E40AF' }}>📥 Terima</span>}
-                {tx.production.hasPackingPhoto && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999, background: '#ECFDF5', color: '#065F46' }}>📦 Packing</span>}
+                {tx.production.hasReceivePhoto && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 999, background: 'C.infoBg', color: 'C.info' }}>📥 Terima</span>}
+                {tx.production.hasPackingPhoto && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 999, background: 'C.successBg', color: 'C.success' }}>📦 Packing</span>}
               </div>
             )}
           </div>
@@ -569,20 +523,20 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                     <img src={p.url} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.n200}` }} />
                   </a>
                   <div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n800 }}>{photoTypeLabel(p.type)}</div>
-                    {p.notes && <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{p.notes}</div>}
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n800 }}>{photoTypeLabel(p.type)}</div>
+                    {p.notes && <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.n600' }}>{p.notes}</div>}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, textAlign: 'center', padding: 14 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600', textAlign: 'center', padding: 14 }}>
               Belum ada foto dari tim produksi
             </div>
           )}
           {docPhotos.length > 0 && (
             <>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n500, margin: '12px 0 8px' }}>Lampiran kasir (belum disimpan ke server)</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: 'C.n600', margin: '12px 0 8px' }}>Lampiran kasir (belum disimpan ke server)</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {docPhotos.map((p) => (
                   <div key={p.id} style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.n200}` }}>
@@ -593,9 +547,9 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
             </>
           )}
           {photoUploading && photoProgress && (
-            <div style={{ marginTop: 10, padding: '10px 12px', background: '#EFF6FF', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 16, height: 16, border: '2px solid #BFDBFE', borderTopColor: '#1D4ED8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#1E40AF', fontWeight: 600 }}>
+            <div style={{ marginTop: 10, padding: '10px 12px', background: 'C.infoBg', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 16, height: 16, border: `2px solid ${C.info}`, borderTopColor: C.info, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.info', fontWeight: 600 }}>
                 {photoProgress.status === 'compress'
                   ? `Mengompres foto ${photoProgress.current}/${photoProgress.total}…`
                   : `Mengirim ke server…`}
@@ -607,7 +561,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
             disabled={photoUploading}
             style={{
               marginTop: 10, fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-              color: photoUploading ? C.n400 : C.primary,
+              color: photoUploading ? 'C.n600' : C.primary,
               background: photoUploading ? C.n100 : `${C.primary}10`,
               border: 'none', borderRadius: 8, padding: '6px 14px',
               cursor: photoUploading ? 'not-allowed' : 'pointer',
@@ -618,21 +572,21 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
 
         {/* Status Pembayaran — collapsible */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm }}>
           <button onClick={() => setPayOpen(!payOpen)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: payOpen ? 12 : 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: paymentStatus === 'paid' ? '#DCFCE7' : paymentStatus === 'partial' ? '#FEF3C7' : '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>💰</div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Pembayaran</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: paymentStatus === 'paid' ? 'C.successBg' : paymentStatus === 'partial' ? 'C.warningBg' : 'C.dangerBg', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>💰</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Pembayaran</span>
               <span style={{
-                fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
+                fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
                 padding: '2px 8px', borderRadius: 999,
-                background: paymentStatus === 'paid' ? '#DCFCE7' : paymentStatus === 'partial' ? '#FEF3C7' : '#FEE2E2',
-                color: paymentStatus === 'paid' ? '#166534' : paymentStatus === 'partial' ? '#92400E' : '#991B1B',
+                background: paymentStatus === 'paid' ? 'C.successBg' : paymentStatus === 'partial' ? 'C.warningBg' : 'C.dangerBg',
+                color: paymentStatus === 'paid' ? C.success : paymentStatus === 'partial' ? C.warning : C.danger,
               }}>
                 {PAY_STATUS_LABEL[paymentStatus] || paymentStatus}
               </span>
             </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2.5" strokeLinecap="round" style={{ transform: payOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="C.n600" strokeWidth="2.5" strokeLinecap="round" style={{ transform: payOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9" /></svg>
           </button>
           {payOpen && (
             <>
@@ -645,41 +599,41 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               ))}
               <Divider my={8} />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Sub-Total</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Sub-Total</span>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(tx.subtotal || tx.total || 0)}</span>
               </div>
               {tx.deliveryFee > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Biaya Kirim</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Biaya Kirim</span>
                   <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(tx.deliveryFee)}</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Grand Total</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{rp(tx.total || 0)}</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Grand Total</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{rp(tx.total || 0)}</span>
               </div>
               <Divider my={8} />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Terbayar</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Terbayar</span>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(tx.paidAmount || 0)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Sisa tagihan</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: needsSettlement ? C.danger : C.success }}>{rp(balanceDue)}</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Sisa tagihan</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: needsSettlement ? C.danger : C.success }}>{rp(balanceDue)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Metode utama</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Metode utama</span>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>{PAY_METHOD_LABEL[tx.payMethod] || tx.payMethod || '-'}</span>
               </div>
               {tx.payments?.length > 0 && (
                 <>
                   <Divider my={8} />
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 6 }}>Riwayat pembayaran</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'C.n600', marginBottom: 6 }}>Riwayat pembayaran</div>
                   {tx.payments.map((p) => (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <div>
                         <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n900 }}>{PAY_METHOD_LABEL[p.method] || p.method}</div>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.n600' }}>
                           {p.recordedAt ? new Date(p.recordedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : ''}
                         </div>
                       </div>
@@ -692,9 +646,9 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                 <>
                   <Divider my={8} />
                   <div style={{
-                    background: '#FEE2E2', border: '1px solid #FCA5A5',
+                    background: 'C.dangerBg', border: '1px solid C.danger',
                     borderRadius: 8, padding: '8px 12px',
-                    fontFamily: 'Poppins', fontSize: 11, color: '#991B1B',
+                    fontFamily: 'Poppins', fontSize: 11, color: 'C.danger',
                     display: 'flex', alignItems: 'center', gap: 8,
                   }}>
                     <span>⚠️</span>
@@ -707,20 +661,20 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
 
         {/* Detail Transaksi — timeline + info */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📋</div>
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Informasi Order</span>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'C.successBg', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📋</div>
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Informasi Order</span>
           </div>
 
           {/* Status message */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: C.n50, borderRadius: 10, marginBottom: 12 }}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>{tx.status === 'selesai' ? '✅' : tx.status === 'proses' ? '🔄' : tx.status === 'dibatalkan' ? '❌' : tx.status === 'diambil' ? '📦' : '×'}</span>
             <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
                 {tx.status === 'selesai' ? 'Selesai' : tx.status === 'proses' ? 'Dalam Proses' : tx.status === 'dibatalkan' ? 'Dibatalkan' : tx.status === 'diambil' ? 'Sudah Diambil' : 'Belum Selesai'}
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600', marginTop: 2 }}>
                 {tx.status === 'baru' ? 'Semua layanan belum ada yang dikerjakan' : tx.status === 'proses' ? 'Sedang dalam proses pengerjaan' : tx.status === 'selesai' ? 'Semua layanan sudah selesai dikerjakan' : ''}
               </div>
             </div>
@@ -729,11 +683,11 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           {/* Kasir & Workshop */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Kasir Penerima</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600' }}>Kasir Penerima</div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{tx.createdBy || tx.kasirName || '-'}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Workshop</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600' }}>Workshop</div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{tx.outletName || '-'}</div>
             </div>
           </div>
@@ -741,14 +695,14 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           {/* Timeline panah: Order Diterima → Estimasi Selesai */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 0', borderTop: `1px solid ${C.n100}`, marginTop: 4 }}>
             <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>Order Diterima</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.n600' }}>Order Diterima</div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                 {tx.createdAt ? new Date(tx.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : tx.date || '-'}
               </div>
             </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="C.n600" strokeWidth="2" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>Estimasi Selesai</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.n600' }}>Estimasi Selesai</div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                 {tx.estimatedDoneAt ? new Date(tx.estimatedDoneAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : tx.dueDate || '-'}
               </div>
@@ -757,10 +711,10 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
           {/* Pengantaran row + edit button */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Jenis Pengantaran</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Jenis Pengantaran</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
-                {tx.pickupType === 'delivery' ? '🚚 Diantar Kurir' : tx.pickupType === 'pickup' ? '🛵 Dijemput' : '🏪 Ambil Sendiri'}
+                {tx.pickupType === 'delivery' ? '🚚 Diantar Kurir' : tx.pickupType === 'pickup' ? '🛵 Dijemput' : tx.pickupType === 'both' ? '🔄 Jemput + Antar' : '🏪 Ambil Sendiri'}
               </span>
               {tx.status !== 'dibatalkan' && tx.status !== 'diambil' && (
                 <button
@@ -774,7 +728,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           </div>
           {tx.deliveryFee > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Biaya Pengantaran</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Biaya Pengantaran</span>
               <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>{rp(tx.deliveryFee)}</span>
             </div>
           )}
@@ -784,7 +738,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
             if (!userNotes) return null;
             return (
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Catatan</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Catatan</span>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900, textAlign: 'right', maxWidth: '55%' }}>{userNotes}</span>
               </div>
             );
@@ -793,10 +747,10 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
         {/* Progress */}
         {tx.progress && tx.progress.length > 0 && (
-          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🔄</div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Progress Produksi</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'C.infoBg', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🔄</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Progress Produksi</span>
             </div>
             <ProgressTimeline progress={tx.progress} />
           </div>
@@ -804,10 +758,10 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
         {/* Logistics Info */}
         {hasLogistics && (
-          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🚚</div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Logistik</span>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'C.infoBg', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🚚</div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Logistik</span>
             </div>
             {logisticOrders.map((lo) => (
               <div key={lo.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.n50}` }}>
@@ -815,12 +769,12 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                   <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                     {lo.type === 'pickup' ? 'Jemput' : 'Antar'} — {lo.status}
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600' }}>
                     {lo.scheduledAt ? new Date(lo.scheduledAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                   </div>
-                  {lo.areaZone && <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{lo.areaZone}</div>}
+                  {lo.areaZone && <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.n600' }}>{lo.areaZone}</div>}
                 </div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary }}>{rp(lo.deliveryFee)}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(lo.deliveryFee)}</div>
               </div>
             ))}
             {activeLogistic && (
@@ -832,7 +786,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
       {/* Bottom Actions — hierarki: pelunasan / pickup → cetak → pembatalan */}
       <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900, textAlign: 'center', marginBottom: 2 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, textAlign: 'center', marginBottom: 2 }}>
           Aksi Untuk Transaksi Ini
         </div>
 
@@ -853,7 +807,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                     variant="primary"
                     style={{
                       width: '100%', height: 52, fontWeight: 800, fontSize: 14,
-                      background: 'linear-gradient(135deg, #DC2626, #B91C1C)',
+                      background: `linear-gradient(135deg, ${C.danger}, ${C.danger}CC)`,
                     }}
                     onClick={() => navigate('pelunasan', { id: tx.id || tx.transactionNo })}
                   >
@@ -861,7 +815,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                   </Btn>
                   {isReady && (
                     <div style={{
-                      fontFamily: 'Poppins', fontSize: 10, color: '#991B1B',
+                      fontFamily: 'Poppins', fontSize: 10, color: 'C.danger',
                       textAlign: 'center', marginTop: -2, marginBottom: 2,
                     }}>
                       Cucian belum bisa diambil sebelum lunas
@@ -896,7 +850,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                 <>
                   <div style={{ height: 1, background: C.n100, margin: '4px 0 2px' }} />
                   <div style={{
-                    fontFamily: 'Poppins', fontSize: 10, color: C.n500,
+                    fontFamily: 'Poppins', fontSize: 10, color: 'C.n600',
                     textAlign: 'center', marginBottom: 2,
                   }}>
                     Aksi sensitif (perlu approval admin)
@@ -906,8 +860,8 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                       onClick={() => setApprovalModal('cancel_nota')}
                       style={{
                         flex: 1, padding: '10px',
-                        border: `1.5px solid #FCA5A5`, background: 'white',
-                        color: '#991B1B', borderRadius: 10,
+                        border: `1.5px solid C.danger`, background: 'white',
+                        color: 'C.danger', borderRadius: 10,
                         fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
                         cursor: 'pointer',
                       }}
@@ -919,7 +873,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                       style={{
                         flex: 1, padding: '10px',
                         border: `1.5px solid ${C.n200}`, background: 'white',
-                        color: C.n600, borderRadius: 10,
+                        color: 'C.n600', borderRadius: 10,
                         fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
                         cursor: 'pointer',
                       }}
@@ -936,7 +890,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
       {/* Approval Modal */}
       <Modal visible={!!approvalModal} onClose={() => { setApprovalModal(null); setApprovalReason(''); }} title={approvalModal === 'cancel_nota' ? 'Ajukan Pembatalan' : 'Ajukan Penghapusan'}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 12 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600', marginBottom: 12 }}>
           {approvalModal === 'cancel_nota'
             ? 'Pengajuan pembatalan akan dikirim ke Admin untuk disetujui.'
             : 'Pengajuan penghapusan (soft-delete) akan dikirim ke Admin. Data tetap ada di database untuk audit keuangan.'}
@@ -974,7 +928,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
       {/* Pelunasan */}
       <Modal visible={pelunasanModal} onClose={() => setPelunasanModal(false)} title="Catat pelunasan">
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 12 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600', marginBottom: 12 }}>
           Sisa tagihan: <strong>{rp(balanceDue)}</strong>. Nominal di bawah tidak boleh melebihi sisa (kelebihan tunai dihitung kembalian).
         </div>
         <Select
@@ -986,18 +940,8 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
             { value: 'transfer', label: 'Transfer Bank' },
             { value: 'qris', label: 'QRIS (EDC manual)' },
             { value: 'deposit', label: 'Deposit member' },
-            { value: 'ovo', label: 'OVO' },
-            { value: 'gopay', label: 'GoPay' },
-            { value: 'dana', label: 'DANA' },
-            { value: 'shopeepay', label: 'ShopeePay' },
-            { value: 'midtrans', label: '⚡ Midtrans (QRIS / E-Wallet / VA)' },
           ]}
         />
-        {pelMethod === 'midtrans' && (
-          <div style={{ background: '#F0FDF4', borderRadius: 8, padding: '8px 12px', marginTop: 6, marginBottom: 8, fontFamily: 'Poppins', fontSize: 11, color: '#15803D' }}>
-            ⚡ Saat klik "Bayar via Midtrans", kamu akan diminta pilih channel. Customer scan QR atau buka aplikasi.
-          </div>
-        )}
         <MoneyInput label="Nominal ke tagihan (Rp)" value={pelAmountStr} onChange={setPelAmountStr} placeholder={Number(Math.round(balanceDue)).toLocaleString('id-ID')} />
         {pelMethod === 'cash' && (
           <MoneyInput
@@ -1009,24 +953,9 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         )}
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <Btn variant="secondary" onClick={() => setPelunasanModal(false)} style={{ flex: 1 }}>Batal</Btn>
-          {pelMethod === 'midtrans' ? (
-            <Btn variant="primary" onClick={openMidtransSettlement} loading={pelLoading} style={{ flex: 1 }}>
-              Bayar via Midtrans
-            </Btn>
-          ) : (
-            <Btn variant="primary" onClick={submitPelunasan} loading={pelLoading} style={{ flex: 1 }}>Simpan</Btn>
-          )}
+          <Btn variant="primary" onClick={submitPelunasan} loading={pelLoading} style={{ flex: 1 }}>Simpan</Btn>
         </div>
       </Modal>
-
-      {/* Midtrans channel selector untuk pelunasan */}
-      <PaymentChannelSelector
-        visible={showMidtransSelector}
-        onClose={() => setShowMidtransSelector(false)}
-        onSelect={handleSelectMidtransChannel}
-        amount={Number(pelAmountStr) || balanceDue}
-        title="Pilih Channel Pelunasan"
-      />
 
       {/* Edit Delivery Type Modal */}
       {deliveryModal && (
@@ -1035,18 +964,19 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           onClick={() => setDeliveryModal(false)}
         >
           <div
-            style={{ width: '100%', background: C.white, borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', boxShadow: '0 -8px 32px rgba(15,23,42,0.15)' }}
+            style={{ width: '100%', background: C.white, borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', boxShadow: SHADOW.lg }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ width: 40, height: 4, borderRadius: 2, background: C.n200, margin: '0 auto 16px' }} />
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, marginBottom: 4 }}>Ubah Jenis Pengantaran</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 16 }}>Pilih bagaimana customer mendapatkan laundry mereka.</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, marginBottom: 4 }}>Ubah Jenis Pengantaran</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600', marginBottom: 16 }}>Pilih bagaimana customer mendapatkan laundry mereka.</div>
 
             {/* Options */}
             {[
               { key: 'self',     label: '🏪 Ambil Sendiri',  desc: 'Customer datang langsung ke outlet',   fee: 'Gratis' },
               { key: 'pickup',   label: '🛵 Dijemput Kurir', desc: 'Kurir menjemput laundry dari customer', fee: 'Rp 10.000' },
               { key: 'delivery', label: '🚚 Diantar Kurir',  desc: 'Kurir mengantar laundry ke customer',   fee: 'Rp 10.000' },
+              { key: 'both',     label: '🔄 Jemput + Antar', desc: 'Jemput kotoran, antar cucian bersih',  fee: 'Rp 20.000' },
             ].map((opt) => (
               <button
                 key={opt.key}
@@ -1055,10 +985,10 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               >
                 <div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: dlvType === opt.key ? C.primary : C.n900 }}>{opt.label}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>{opt.desc}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600', marginTop: 2 }}>{opt.desc}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: dlvType === opt.key ? C.primary : C.n600 }}>{opt.fee}</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: dlvType === opt.key ? C.primary : 'C.n600' }}>{opt.fee}</span>
                   <div style={{ width: 18, height: 18, borderRadius: 9, border: `2px solid ${dlvType === opt.key ? C.primary : C.n300}`, background: dlvType === opt.key ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {dlvType === opt.key && <div style={{ width: 6, height: 6, borderRadius: 3, background: 'white' }} />}
                   </div>
@@ -1071,7 +1001,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               <div style={{ marginBottom: 12 }}>
               <div style={{ marginBottom: 14 }}>
                 <DateTimeInput
-                  label={`Jadwal ${dlvType === 'pickup' ? 'Penjemputan' : 'Pengiriman'} (opsional)`}
+                  label={`Jadwal ${dlvType === 'pickup' ? 'Penjemputan' : dlvType === 'delivery' ? 'Pengiriman' : 'Jemput + Kirim'} (opsional)`}
                   value={dlvSchedule}
                   onChange={(v) => setDlvSchedule(v || '')}
                   minDate={new Date()}
@@ -1101,7 +1031,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               <button
                 onClick={submitDeliveryChange}
                 disabled={dlvLoading}
-                style={{ flex: 2, height: 46, borderRadius: 12, border: 'none', background: dlvLoading ? C.n300 : C.primary, fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: 'white', cursor: dlvLoading ? 'default' : 'pointer' }}
+                style={{ flex: 2, height: 46, borderRadius: 12, border: 'none', background: dlvLoading ? C.n300 : C.primary, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: 'white', cursor: dlvLoading ? 'default' : 'pointer' }}
               >
                 {dlvLoading ? 'Menyimpan…' : 'Simpan Perubahan'}
               </button>
@@ -1112,7 +1042,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
       {/* Review Modal */}
       <Modal visible={reviewModal} onClose={() => setReviewModal(false)} title="Customer Review">
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, marginBottom: 16, textAlign: 'center' }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: 'C.n600', marginBottom: 16, textAlign: 'center' }}>
           Tanyakan kepada {tx?.customerName || 'pelanggan'} bagaimana pengalaman laundry-nya hari ini.
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
@@ -1120,7 +1050,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
             <button 
               key={star} 
               onClick={() => setReviewRating(star)} 
-              style={{ background: 'none', border: 'none', fontSize: 36, color: star <= reviewRating ? '#FBBF24' : C.n200, cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', fontSize: 36, color: star <= reviewRating ? 'C.warning' : C.n200, cursor: 'pointer' }}
             >
               ★
             </button>
@@ -1135,7 +1065,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
       {/* Modal Edit Packing */}
       <Modal isOpen={!!packingModal} onClose={() => setPackingModal(null)} title={`📦 Info Packing — ${packingModal?.name || ''}`}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 16 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600', marginBottom: 16 }}>
           Atur jumlah paket yang dibutuhkan dan catatan khusus untuk layanan ini. Informasi ini akan digunakan tim produksi saat tahap packing.
         </div>
 
@@ -1145,15 +1075,15 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               onClick={() => setPkgNeeded(v => Math.max(1, v - 1))}
-              style={{ width: 40, height: 40, borderRadius: 20, border: `1.5px solid ${C.n300}`, background: C.n100, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: C.n700 }}
+              style={{ width: 40, height: 40, borderRadius: 20, border: `1.5px solid ${C.n300}`, background: C.n100, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 20, fontWeight: 600, color: C.n700 }}
             >−</button>
             <div style={{ flex: 1, textAlign: 'center' }}>
               <span style={{ fontFamily: 'Poppins', fontSize: 32, fontWeight: 900, color: C.primary }}>{pkgNeeded}</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}> paket</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: 'C.n600' }}> paket</span>
             </div>
             <button
               onClick={() => setPkgNeeded(v => v + 1)}
-              style={{ width: 40, height: 40, borderRadius: 20, border: 'none', background: C.primary, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: 'white' }}
+              style={{ width: 40, height: 40, borderRadius: 20, border: 'none', background: C.primary, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 20, fontWeight: 600, color: 'white' }}
             >+</button>
           </div>
         </div>

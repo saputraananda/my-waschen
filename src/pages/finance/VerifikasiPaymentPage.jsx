@@ -60,7 +60,7 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
   };
 
   const METHOD_LABEL = { transfer: '🏦 Transfer', qris: '📱 QRIS' };
-  const METHOD_COLOR = { transfer: '#2563EB', qris: '#7C3AED' };
+  const METHOD_COLOR = { transfer: C.info, qris: C.primary };
 
   // Filter by search
   const filtered = payments.filter((p) => {
@@ -110,7 +110,7 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12 }}>
-            <div style={{ width: 80, height: 80, borderRadius: 40, background: filter === 'pending' ? '#DCFCE7' : C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 80, height: 80, borderRadius: 40, background: filter === 'pending' ? C.successBg : C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: 36 }}>{filter === 'pending' ? '✅' : '📋'}</span>
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900, textAlign: 'center' }}>
@@ -156,7 +156,7 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
 
                   {/* Bottom row — meta + action */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: `1px solid ${C.n100}` }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, lineHeight: 1.5 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, lineHeight: 1.5 }}>
                       {p.outletName && <span>{p.outletName} · </span>}
                       {p.cashierName && <span>{p.cashierName} · </span>}
                       {p.createdAt ? new Date(p.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
@@ -175,13 +175,13 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
                     ) : (
                       <span style={{
                         fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
-                        color: C.success, background: '#DCFCE7',
+                        color: C.success, background: C.successBg,
                         padding: '3px 10px', borderRadius: 999,
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                       }}>
                         ✓ {p.verifiedByName || 'Verified'}
                         {p.verifiedAt && (
-                          <span style={{ fontWeight: 400, color: '#166534' }}>
+                          <span style={{ fontWeight: 400, color: C.successDark }}>
                             · {new Date(p.verifiedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                           </span>
                         )}
@@ -262,12 +262,12 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
                 </div>
               ))}
               {detailModal.verified && (
-                <div style={{ marginTop: 10, padding: '8px 12px', background: '#DCFCE7', borderRadius: 8 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#166534' }}>
+                <div style={{ marginTop: 10, padding: '8px 12px', background: C.successBg, borderRadius: 8 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.successDark }}>
                     ✓ Diverifikasi oleh {detailModal.verifiedByName || '-'}
                   </div>
                   {detailModal.verifiedAt && (
-                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#166534', marginTop: 2 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.successDark, marginTop: 2 }}>
                       {new Date(detailModal.verifiedAt).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>
                   )}

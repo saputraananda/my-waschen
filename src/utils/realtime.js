@@ -61,6 +61,7 @@ export function connectRealtime(token) {
       'payment:settled',
       'production:photo',
       'production:update',
+      'production:new-item',
       'cash:low',
       'notification:new',
     ];

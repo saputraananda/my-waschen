@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { poolWaschenPos } from '../db/connection.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is required. Set it in your .env file.');
@@ -106,4 +107,42 @@ export const requireSameOutlet = (req, res, next) => {
   }
 
   next();
+};
+
+// ─── Middleware: cek shift aktif ─────────────────────────────────────────────
+// Blokir transaksi keuangan (checkout, payment, topup deposit) jika shift belum buka.
+// Bypass untuk: user tanpa outletId (dev), role non-kasir (produksi).
+export const requireActiveShift = async (req, res, next) => {
+  const userId = req.user?.userId;
+  const outletId = req.user?.outletId;
+
+  // Tanpa outlet = bypass (dev environment atau role tanpa outlet)
+  if (!outletId) return next();
+
+  // Role non-kasir tidak punya shift (produksi, finance read-only, dll.)
+  const CASHIER_ROLES = new Set(['kasir', 'frontline']);
+  if (!CASHIER_ROLES.has(req.user.roleCode)) return next();
+
+  try {
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT id FROM tr_cashier_session
+       WHERE cashier_id = ? AND status = 'open' AND deleted_at IS NULL
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        code: 'SHIFT_CLOSED',
+        message: 'Buka shift terlebih dahulu untuk melakukan transaksi ini.',
+      });
+    }
+
+    next();
+  } catch (err) {
+    console.error('[requireActiveShift] DB error:', err);
+    // Jika gagal cek DB, izinkan saja (fail open — avoid blocking legitimate ops)
+    next();
+  }
 };

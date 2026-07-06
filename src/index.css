@@ -1,9 +1,166 @@
-/* Tailwind removed — using vanilla CSS with design tokens from theme.js */
+/* ================================================================
+   WASCHEN DESIGN SYSTEM v3.0 — Global Styles
+   July 2026 — Updated colors to match official logo sampling
+   Ref: My_Waschen_Redesign_Spec_dan_Prompt.md Section 2
+   ================================================================ */
 
-/* ───────────────────────────────────────────────────────────────
-   Time picker styling (Purple Theme)
-   ─────────────────────────────────────────────────────────────── */
+/* ─── Design System CSS Variables ─────────────────────────────── */
+:root {
+  /* ─── Brand Colors (from logo sampling) ─────────────────────── */
+  /* Purple family */
+  --purple-900:   #4D0051;   /* Purple 900 (shade) - dasar gradient gelap, header admin */
+  --purple-700:   #5B005F;   /* Purple 700 (core) - logo, teks/icon penting, border aktif */
+  --purple-500:   #8C4C8F;   /* Purple 500 (mid) - hover state, titik tengah gradient */
+  --purple-300:   #AD80AF;   /* Purple 300 (soft) - ilustrasi pendukung, divider halus */
+  --purple-100:   #E6D9E7;   /* Purple 100 (tint) - background section terang */
+  --purple-50:    #F4EDF4;   /* Purple 50 (wash) - background halaman/app-shell */
 
+  /* Orange family */
+  --orange-700:   #F93E11;   /* Orange 700 (core) - CTA utama, badge urgent/lunas */
+  --orange-400:   #FA6541;   /* Orange 400 (soft) - hover tombol, aksen ikon */
+  --orange-100:   #FDB2A0;   /* Orange 100 (tint) - badge/chip ringan (mis. "DP") */
+  --orange-50:    #FED8CF;   /* Orange 50 (wash) - background alert ringan */
+
+  /* Aliases for backward compatibility */
+  --brand:         #5B005F;   /* Primary purple */
+  --brand-dark:    #4D0051;   /* Darker shade */
+  --brand-light:   #8C4C8F;   /* Lighter shade / hover */
+  --brand-tint:    #E6D9E7;   /* Light tint background */
+  --brand-tint2:   #AD80AF;   /* Softer tint */
+
+  /* Accent colors */
+  --accent-orange: #F93E11;   /* Orange CTA */
+  --accent-orange-light: #FA6541;
+  --accent-orange-tint: #FDB2A0;
+  --accent-yellow: #FBBF24;
+  --accent-yellow-light: #FCD34D;
+  --accent-yellow-tint: #FEF9E7;
+
+  /* Semantic colors */
+  --color-success:    #059669;
+  --color-success-bg:   #e1f5ee;
+  --color-success-dark: #0f6e56;
+  --color-warning:    #D97706;
+  --color-warning-bg:   #fef3e2;
+  --color-warning-dark: #ba7517;
+  --color-danger:     #E11D48;
+  --color-danger-bg:   #fce8eb;
+  --color-danger-dark: #a32d2d;
+  --color-info:       #0891B2;
+  --color-info-bg:      #e6f1fb;
+  --color-info-dark:    #185fa5;
+
+  /* Text colors */
+  --text-primary:   #1a1a1a;
+  --text-secondary: #5a5a5a;
+  --text-muted:     #9a9a9a;
+  --text-disabled:  #c4c4c4;
+
+  /* Surface colors */
+  --surface:        #ffffff;
+  --surface2:       #f7f5f8;
+  --surface3:       #f0ecf2;
+
+  /* Border colors */
+  --border:         #e8e2ea;
+  --border-strong:  #d4cad8;
+
+  /* Border radius */
+  --radius-sm:   8px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full:  9999px;
+
+  /* Shadows - updated to use new brand color #5B005F */
+  --shadow-card:       0 1px 3px rgba(91, 0, 95, 0.07), 0 6px 20px rgba(91, 0, 95, 0.09);
+  --shadow-card-hover: 0 2px 8px rgba(91, 0, 95, 0.10), 0 12px 32px rgba(91, 0, 95, 0.14);
+  --shadow-focal:      0 4px 20px rgba(91, 0, 95, 0.25), 0 1px 4px rgba(91, 0, 95, 0.12);
+  --shadow-sm:         0 1px 4px rgba(91, 0, 95, 0.08);
+  --shadow-btn-brand:  0 4px 14px rgba(91, 0, 95, 0.40);
+  --shadow-nav:        0 -2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-modal:      0 8px 40px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  /* Glassmorphism tokens - updated to new brand */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-blur: blur(20px);
+  --glass-shadow: 0 8px 32px rgba(91, 0, 95, 0.12), 0 2px 8px rgba(91, 0, 95, 0.06);
+
+  /* ─── Spec-defined Gradients (Section 2) ──────────────────────── */
+  /* Hero panel login — gelap ke medium, satu keluarga ungu */
+  --gradient-hero: linear-gradient(160deg, #4D0051 0%, #5B005F 35%, #8C4C8F 100%);
+
+  /* Background app-shell dashboard — sangat halus */
+  --gradient-shell: linear-gradient(180deg, #F4EDF4 0%, #FFFFFF 60%);
+
+  /* Aksen CTA (tombol ingin sedikit depth, bukan wajib) */
+  --gradient-cta: linear-gradient(135deg, #F93E11 0%, #FA6541 100%);
+}
+
+/* ─── Base ─────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', -apple-system, 'Inter', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+/* ─── Glassmorphism Utilities ──────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+
+/* ─── Premium Claymorphism Animations ──────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(91, 0, 95, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(91, 0, 95, 0.5); }
+}
+
+/* ─── Skeleton Loading ────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface3) 25%, var(--border) 50%, var(--surface3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ─── Stagger Animation Helper ────────────────────────────────── */
+.stagger-child {
+  animation: fadeInUp 0.4s ease-out both;
+}
+.stagger-child:nth-child(1) { animation-delay: 0ms; }
+.stagger-child:nth-child(2) { animation-delay: 60ms; }
+.stagger-child:nth-child(3) { animation-delay: 120ms; }
+.stagger-child:nth-child(4) { animation-delay: 180ms; }
+.stagger-child:nth-child(5) { animation-delay: 240ms; }
+.stagger-child:nth-child(6) { animation-delay: 300ms; }
+
+/* ─── Time Picker Styling ─────────────────────────────────────── */
 input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(34%) sepia(48%) saturate(3418%) hue-rotate(248deg) brightness(94%) contrast(96%);
@@ -17,18 +174,18 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 input[type="time"]::-webkit-datetime-edit-hour-field,
 input[type="time"]::-webkit-datetime-edit-minute-field {
-  color: #5B005F;
+  color: var(--brand);
   font-weight: 500;
 }
 
 input[type="time"]::-webkit-datetime-edit-hour-field:focus,
 input[type="time"]::-webkit-datetime-edit-minute-field:focus {
-  background-color: #F3E6F5;
+  background-color: var(--brand-tint);
   border-radius: 4px;
   outline: none;
 }
 
-/* Search + filter row — tinggi tetap, sejajar search & tombol filter */
+/* ─── Search + Filter Row ─────────────────────────────────────── */
 .search-filter-row {
   align-items: stretch;
 }
@@ -41,29 +198,116 @@ input[type="time"]::-webkit-datetime-edit-minute-field:focus {
   padding: 0 !important;
 }
 
-/* ───────────────────────────────────────────────────────────────
-   SweetAlert2 (Waschen Theme)
-   ─────────────────────────────────────────────────────────────── */
+/* ─── Card System (Design System 6.1) ─────────────────────────── */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
 
+.card:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+
+.card-focal {
+  background: var(--brand);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-focal);
+  padding: 18px;
+  color: #fff;
+}
+
+/* ─── Badge / Status Chip (Design System 6.2) ─────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.badge-brand { background: var(--brand-tint);  color: var(--brand); }
+.badge-success { background: var(--color-success-bg); color: var(--color-success-dark); }
+.badge-warning { background: var(--color-warning-bg); color: var(--color-warning-dark); }
+.badge-danger  { background: var(--color-danger-bg);  color: var(--color-danger-dark); }
+.badge-info    { background: var(--color-info-bg);    color: var(--color-info-dark); }
+.badge-neutral { background: var(--surface3);          color: var(--text-secondary); }
+
+/* ─── Page Header (Design System 6.7) ─────────────────────────── */
+.page-header {
+  background: var(--brand);
+  padding: 20px 16px 24px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.page-header::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+/* ─── Bottom Navigation (Design System 6.8) ────────────────────── */
+.bottom-nav {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-nav);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 8px 0 4px;
+  position: sticky;
+  bottom: 0;
+}
+
+.nav-item { color: var(--text-muted); }
+.nav-item.active { color: var(--brand); }
+.nav-item span { font-size: 9px; font-weight: 400; }
+
+.nav-fab {
+  background: var(--brand);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  box-shadow: var(--shadow-btn-brand);
+  border: 3px solid var(--surface2);
+  margin-top: -20px;
+}
+
+/* ─── SweetAlert2 (Waschen Theme) ─────────────────────────────── */
 .waschen-swal {
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   padding: 12px 14px;
-  font-family: 'Poppins', sans-serif;
+  font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
   width: 300px;
   max-width: 86vw;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--shadow-modal);
 }
 
 .waschen-swal__title {
   font-size: 16px;
-  font-weight: 700;
-  color: #0F172A;
+  font-weight: 600;
+  color: var(--text-primary);
   margin-top: 4px;
 }
 
 .waschen-swal__text {
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
@@ -73,39 +317,63 @@ input[type="time"]::-webkit-datetime-edit-minute-field:focus {
 
 .waschen-swal__btn {
   border: none;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 8px 12px;
   min-width: 96px;
-  font-family: 'Poppins', sans-serif;
+  font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
 }
 
 .waschen-swal__btn--confirm {
-  background: linear-gradient(135deg, #8A4A8D, #5B005F);
-  color: #FFFFFF;
-  box-shadow: 0 6px 16px rgba(91, 0, 95, 0.25);
+  background: var(--brand);
+  color: #ffffff;
+  box-shadow: var(--shadow-btn-brand);
+  transition: background 0.15s, transform 0.1s;
 }
+
+.waschen-swal__btn--confirm:hover  { background: var(--brand-light); }
+.waschen-swal__btn--confirm:active { background: var(--brand-dark); transform: scale(0.98); }
 
 .waschen-swal__btn--cancel {
-  background: #F6F1F7;
-  color: #5B005F;
-  border: 1px solid #E2E8F0;
+  background: var(--surface);
+  color: var(--brand);
+  border: 1.5px solid var(--brand-tint2);
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s;
 }
 
-/* ───────────────────────────────────────────────────────────────
-   TABLET / IPAD RESPONSIVE (min-width: 768px)
-   Full-width responsive — no max-width constraint
-   ─────────────────────────────────────────────────────────────── */
+.waschen-swal__btn--cancel:hover { background: var(--brand-tint); }
 
+/* ─── Number Counter Animation ─────────────────────────────────── */
+.counter-animated {
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ─── Pulse Dot (for live indicators) ─────────────────────────── */
+.pulse-dot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: inherit;
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* ─── Tablet / iPad Responsive ─────────────────────────────────── */
 @media (min-width: 768px) {
-  /* Touch targets — minimum 44px on tablet */
   .app-inner button {
     min-height: 44px;
   }
 
-  /* Make modals wider on tablet */
   .waschen-swal {
     width: 420px !important;
     max-width: 85vw !important;
@@ -124,5 +392,187 @@ input[type="time"]::-webkit-datetime-edit-minute-field:focus {
     padding: 11px 20px !important;
     min-width: 110px !important;
     font-size: 14px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   WASCHEN ANIMATIONS — Premium Claymorphism + Glassmorphism
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Keyframe Animations ──────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(124, 58, 237, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(124, 58, 237, 0.5); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-down {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fade-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes blur-in {
+  from { opacity: 0; filter: blur(10px); }
+  to { opacity: 1; filter: blur(0); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.15); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.1); }
+  60% { transform: scale(1); }
+}
+
+/* ─── Animation Utility Classes ───────────────────────────────────── */
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-shimmer { animation: shimmer 2s linear infinite; }
+.animate-bounce-subtle { animation: bounce-subtle 1s ease-in-out infinite; }
+.animate-wiggle { animation: wiggle 0.5s ease-in-out infinite; }
+.animate-heartbeat { animation: heartbeat 1.5s ease-in-out infinite; }
+.animate-fade-in-up { animation: fade-in-up 0.5s ease-out forwards; }
+.animate-fade-in-down { animation: fade-in-down 0.5s ease-out forwards; }
+.animate-fade-in-left { animation: fade-in-left 0.5s ease-out forwards; }
+.animate-fade-in-right { animation: fade-in-right 0.5s ease-out forwards; }
+.animate-scale-in { animation: scale-in 0.3s ease-out forwards; }
+.animate-blur-in { animation: blur-in 0.4s ease-out forwards; }
+.animate-gradient { background-size: 200% 200%; animation: gradient-shift 3s ease infinite; }
+
+/* ─── Stagger Children Animation ──────────────────────────────────── */
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 250ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 350ms; }
+.stagger-children > *:nth-child(9) { animation-delay: 400ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 450ms; }
+
+/* ─── Hover Lift Effect ──────────────────────────────────────────── */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(91, 0, 95, 0.15), -4px -4px 16px rgba(255, 255, 255, 0.95);
+}
+
+/* ─── Pulse Dot Animation ─────────────────────────────────────────── */
+.pulse-dot-active::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: inherit;
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* ─── Gradient Text ────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #5B005F, #8C4C8F, #F93E11);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Selection Styling ───────────────────────────────────────────── */
+::selection {
+  background: rgba(91, 0, 95, 0.2);
+  color: #5B005F;
+}
+
+/* ─── Scrollbar Styling ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(91, 0, 95, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(91, 0, 95, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(91, 0, 95, 0.3);
+}
+
+/* ─── Reduced Motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

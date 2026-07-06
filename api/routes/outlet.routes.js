@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireSameOutlet, canManageMasterData } from '../middleware/auth.js';
 import { getOutletDetail, getOutletTeam, getOutletKasBalance, getOutletsAdmin, updateOutlet, toggleOutletActive, createOutlet, deleteOutlet } from '../controllers/outletController.js';
-import { getOutlets } from '../controllers/masterController.js';
+import { getOutlets } from '../controllers/authController.js';
 
 const router = Router();
 

@@ -9,6 +9,28 @@ const getInitials = (name) => {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
+// ─── Controller: GET /api/auth/me — validate session token ─────────────────────
+export const getMe = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT u.id AS userId, u.name, u.email, u.phone, u.avatar,
+              r.code AS roleCode,
+              o.id AS outletId, o.name AS outletName
+       FROM mst_user u
+       JOIN mst_role r ON r.id = u.primary_role_id
+       LEFT JOIN mst_outlet o ON o.id = u.outlet_id
+       WHERE u.id = ? AND u.is_active = 1`,
+      [userId]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error('[getMe]', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengambil data user' });
+  }
+};
+
 // ─── Controller: POST /api/auth/login ─────────────────────────────────────────
 // Login bisa pakai username ATAU email — dicek keduanya
 export const login = async (req, res) => {

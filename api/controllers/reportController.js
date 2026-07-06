@@ -1006,3 +1006,153 @@ export const getOutletSummary = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Gagal memuat laporan outlet.' });
   }
 };
+
+// ─── Data Export Endpoints ─────────────────────────────────────────────────────
+// Returns JSON data formatted for client-side Excel/PDF generation
+
+// Helper: build date filter
+function buildDateFilter(query) {
+  const end = query.endDate || new Date().toISOString().slice(0, 10);
+  const start = query.startDate || (() => { const d = new Date(); d.setDate(d.getDate() - 29); return d.toISOString().slice(0, 10); })();
+  return { startDate: start, endDate: end };
+}
+
+// GET /api/reports/export/transactions
+export const exportTransactions = async (req, res) => {
+  try {
+    const { startDate, endDate } = buildDateFilter(req.query);
+    const outlet = buildOutletFilter(req);
+    const base = `t.status <> 'cancelled' AND t.deleted_at IS NULL AND DATE(t.created_at) BETWEEN ? AND ?`;
+    const params = [startDate, endDate, ...outlet.params];
+
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT t.transaction_no, c.name AS customer_name, o.name AS outlet_name,
+              DATE_FORMAT(t.created_at, '%d/%m/%Y %H:%i') AS created_at,
+              t.status, t.payment_status,
+              t.subtotal, t.discount, t.total, t.paid_amount,
+              (t.total - COALESCE(t.paid_amount, 0)) AS remaining,
+              u.name AS created_by_name
+       FROM tr_transaction t
+       LEFT JOIN mst_customer c ON c.id = t.customer_id
+       LEFT JOIN mst_outlet o ON o.id = t.outlet_id
+       LEFT JOIN mst_user u ON u.id = t.created_by
+       WHERE ${base} ${outlet.where}
+       ORDER BY t.created_at DESC
+       LIMIT 5000`,
+      params
+    );
+
+    return res.json({ success: true, data: rows, meta: { count: rows.length, startDate, endDate } });
+  } catch (err) {
+    console.error('[exportTransactions]', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengekspor transaksi.' });
+  }
+};
+
+// GET /api/reports/export/customers
+export const exportCustomers = async (req, res) => {
+  try {
+    const outlet = buildOutletFilter(req);
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT c.name, c.phone, c.email, c.address,
+              z.name AS area_zone,
+              CASE WHEN c.is_member = 1 THEN 'Member' ELSE 'Non-Member' END AS membership_status,
+              COALESCE(c.deposit_balance, 0) AS deposit_balance,
+              (SELECT COUNT(*) FROM tr_transaction t WHERE t.customer_id = c.id AND t.status <> 'cancelled' AND t.deleted_at IS NULL) AS total_transactions,
+              DATE_FORMAT(c.created_at, '%d/%m/%Y') AS created_at
+       FROM mst_customer c
+       LEFT JOIN mst_area_zone z ON z.id = c.zone_id
+       WHERE c.is_active = 1 ${outlet.where ? outlet.where.replace(/t\./g, 'c.') : ''}
+       ORDER BY c.name ASC
+       LIMIT 5000`,
+      outlet.params
+    );
+
+    return res.json({ success: true, data: rows, meta: { count: rows.length } });
+  } catch (err) {
+    console.error('[exportCustomers]', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengekspor pelanggan.' });
+  }
+};
+
+// GET /api/reports/export/services
+export const exportServices = async (req, res) => {
+  try {
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT s.name, sc.name AS category, s.unit, s.price, s.express_price,
+              s.sla_hours,
+              CASE WHEN s.is_active = 1 THEN 'Ya' ELSE 'Tidak' END AS is_active
+       FROM mst_service s
+       LEFT JOIN mst_service_category sc ON sc.id = s.category_id
+       WHERE s.deleted_at IS NULL
+       ORDER BY sc.name, s.name
+       LIMIT 2000`
+    );
+
+    return res.json({ success: true, data: rows, meta: { count: rows.length } });
+  } catch (err) {
+    console.error('[exportServices]', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengekspor layanan.' });
+  }
+};
+
+// GET /api/reports/export/inventory
+export const exportInventory = async (req, res) => {
+  try {
+    const outlet = buildOutletFilter(req);
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT i.name AS item_name, ic.name AS category,
+              o.name AS outlet_name,
+              s.stock, i.unit,
+              COALESCE(s.min_stock, 0) AS min_stock,
+              DATE_FORMAT(s.last_restock_at, '%d/%m/%Y') AS last_restock
+       FROM mst_inventory_outlet_stock s
+       JOIN mst_inventory_item i ON i.id = s.item_id
+       LEFT JOIN mst_inventory_category ic ON ic.id = i.category_id
+       LEFT JOIN mst_outlet o ON o.id = s.outlet_id
+       WHERE s.deleted_at IS NULL ${outlet.where ? outlet.where.replace(/t\./g, 's.') : ''}
+       ORDER BY o.name, ic.name, i.name
+       LIMIT 5000`,
+      outlet.params
+    );
+
+    return res.json({ success: true, data: rows, meta: { count: rows.length } });
+  } catch (err) {
+    console.error('[exportInventory]', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengekspor inventori.' });
+  }
+};
+
+// GET /api/reports/export/financial
+export const exportFinancialReport = async (req, res) => {
+  try {
+    const { startDate, endDate } = buildDateFilter(req.query);
+    const outlet = buildOutletFilter(req);
+    const base = `t.status <> 'cancelled' AND t.deleted_at IS NULL AND DATE(t.created_at) BETWEEN ? AND ?`;
+    const params = [startDate, endDate, ...outlet.params];
+
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT DATE(t.created_at) AS date, o.name AS outlet_name,
+              COALESCE(SUM(t.total),0) AS total_sales,
+              COALESCE(SUM(t.paid_amount),0) AS total_payment,
+              COALESCE(SUM(CASE WHEN pi.method = 'cash' THEN pi.amount ELSE 0 END),0) AS cash,
+              COALESCE(SUM(CASE WHEN pi.method = 'transfer' THEN pi.amount ELSE 0 END),0) AS transfer,
+              COALESCE(SUM(CASE WHEN pi.method = 'qris' THEN pi.amount ELSE 0 END),0) AS qris,
+              COALESCE(SUM(CASE WHEN pi.method = 'deposit' THEN pi.amount ELSE 0 END),0) AS deposit,
+              COALESCE(SUM(t.total - t.paid_amount),0) AS pending
+       FROM tr_transaction t
+       LEFT JOIN mst_outlet o ON o.id = t.outlet_id
+       LEFT JOIN tr_payment_item pi ON pi.transaction_id = t.id
+       WHERE ${base} ${outlet.where}
+       GROUP BY DATE(t.created_at), o.name
+       ORDER BY date DESC
+       LIMIT 500`,
+      params
+    );
+
+    return res.json({ success: true, data: rows, meta: { count: rows.length, startDate, endDate } });
+  } catch (err) {
+    console.error('[exportFinancialReport]', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengekspor laporan keuangan.' });
+  }
+};

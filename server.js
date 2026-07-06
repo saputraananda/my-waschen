@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import compression from 'compression'
 import http from 'http'
 import os from 'os'
 import path from 'path'
@@ -14,7 +15,6 @@ const REQUIRED_ENV = [
   'HOST_WASCHEN_POS',
   'PORT_WASCHEN_POS',
   'USER_WASCHEN_POS',
-  'PASS_WASCHEN_POS',
   'DB_WASCHEN_POS',
 ];
 const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
@@ -49,18 +49,39 @@ import reportRoutes from './api/routes/report.routes.js';
 import targetRoutes from './api/routes/targets.routes.js';
 import periodRoutes from './api/routes/periods.routes.js';
 import auditRoutes from './api/routes/audit.routes.js';
-import paymentRoutes from './api/routes/payment.routes.js';
-import webhookRoutes from './api/routes/webhook.routes.js';
+
 import outletCashRoutes from './api/routes/outletCash.routes.js';
 import purchaseRequestRoutes from './api/routes/purchaseRequests.routes.js';
 import settingsRoutes from './api/routes/settings.routes.js';
 import realtimeRoutes from './api/routes/realtime.routes.js';
+import whatsappRoutes from './api/routes/whatsapp.routes.js';
+import customerAddressRoutes from './api/routes/customerAddress.routes.js';
+import cashDepositRoutes from './api/routes/cashDeposit.routes.js';
+import adminDashboardRoutes from './api/routes/adminDashboard.routes.js';
+import dashboardIntelligenceRoutes from './api/routes/dashboardIntelligence.routes.js';
+import deliveryRoutes from './api/routes/delivery.routes.js';
+import membershipRoutes from './api/routes/membership.routes.js';
+import refundRoutes from './api/routes/refund.routes.js';
+import segmentationRoutes from './api/routes/segmentation.routes.js';
+import birthdayRoutes from './api/routes/birthday.routes.js';
+import errorRoutes from './api/routes/error.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express()
-const PORT = process.env.APP_PORT || 5000
+const PORT = Number(process.env.PORT || 5000)
+
+// Compress all responses except SSE (realtime events)
+app.use((req, res, next) => {
+  if (req.originalUrl.startsWith('/api/realtime')) {
+    // Explicitly disable compression for SSE
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('X-Accel-Buffering', 'no');
+    return next();
+  }
+  compression()(req, res, next);
+});
 
 function getLocalIPAddress() {
   const networkInterfaces = os.networkInterfaces()
@@ -111,14 +132,19 @@ app.use(auditTrailMiddleware(poolWaschenPos))
 
 app.get('/api/health', async (req, res) => {
   try {
-    // Cek DB connection juga
-    await poolWaschenPos.query('SELECT 1');
+    const dbHealth = await poolWaschenPos.healthCheck();
+    const memUsage = process.memoryUsage();
     res.json({
-      status: 'OK',
+      status: dbHealth.ok ? 'OK' : 'DEGRADED',
       message: 'My Waschen API is running',
-      database: 'connected',
+      database: dbHealth.ok ? 'connected' : 'disconnected',
       timestamp: new Date().toISOString(),
       env: process.env.NODE_ENV || 'development',
+      uptime: process.uptime().toFixed(0) + 's',
+      memory: {
+        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB',
+      },
     });
   } catch (err) {
     res.status(503).json({
@@ -149,12 +175,22 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/targets', targetRoutes);
 app.use('/api/periods', periodRoutes);
 app.use('/api/audit-log', auditRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/webhook', webhookRoutes);
+
 app.use('/api/outlet-cash', outletCashRoutes);
 app.use('/api/purchase-requests', purchaseRequestRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/realtime', realtimeRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/customer-addresses', customerAddressRoutes);
+app.use('/api/cash-deposits', cashDepositRoutes);
+app.use('/api/admin-dashboard', adminDashboardRoutes);
+app.use('/api/dashboard-intelligence', dashboardIntelligenceRoutes);
+app.use('/api/deliveries', deliveryRoutes);
+app.use('/api/membership', membershipRoutes);
+app.use('/api/refunds', refundRoutes);
+app.use('/api/segmentation', segmentationRoutes);
+app.use('/api/birthday', birthdayRoutes);
+app.use('/api/errors', errorRoutes);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (req, res) => {
@@ -166,21 +202,69 @@ app.use('/api/*', (req, res) => {
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'dist')))
+  app.use(express.static(path.join(__dirname, 'dist'), {
+    maxAge: '1d',
+    etag: false,
+    lastModified: true
+  }))
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'))
   })
 }
 
-// Global error handler
+// Global error handler — centralized, production-safe
 app.use((err, req, res, next) => {
-  console.error('[GlobalError]', err.stack || err)
+  // Log full error server-side (never expose to client)
+  const errorId = `ERR-${Date.now().toString(36).toUpperCase()}`;
+  console.error(`[${errorId}]`, {
+    method: req.method,
+    path: req.originalUrl,
+    ip: req.ip,
+    userId: req.user?.userId,
+    error: err.message,
+    stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
+  });
+
+  // Handle specific error types
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      errorId,
+      message: 'Data yang dikirim tidak valid.',
+    });
+  }
+
+  if (err.name === 'UnauthorizedError' || err.status === 401) {
+    return res.status(401).json({
+      success: false,
+      errorId,
+      message: 'Sesi Anda telah berakhir. Silakan login kembali.',
+    });
+  }
+
+  if (err.code === 'ER_DUP_ENTRY') {
+    return res.status(409).json({
+      success: false,
+      errorId,
+      message: 'Data sudah ada. Tidak boleh duplikat.',
+    });
+  }
+
+  if (err.code === 'ECONNREFUSED' || err.code === 'PROTOCOL_CONNECTION_LOST') {
+    return res.status(503).json({
+      success: false,
+      errorId,
+      message: 'Koneksi database terputus. Coba beberapa saat lagi.',
+    });
+  }
+
   res.status(err.status || 500).json({
     success: false,
+    errorId,
     message: process.env.NODE_ENV === 'production'
       ? 'Terjadi kesalahan pada server.'
       : err.message || 'Internal Server Error',
-  })
+  });
 })
 
 const server = http.createServer(app);

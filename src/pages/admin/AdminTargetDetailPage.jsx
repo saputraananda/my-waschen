@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { TopBar, Select, Btn } from '../../components/ui';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 
 const MONTHS = [
@@ -15,12 +15,12 @@ const MONTHS = [
 ];
 
 const STATUS_META = {
-  safe:     { color: '#10B981', bg: '#DCFCE7', label: 'Tercapai',  icon: '✅' },
-  warning:  { color: '#F59E0B', bg: '#FEF3C7', label: 'Hampir',    icon: '⚠️' },
-  missed:   { color: '#EF4444', bg: '#FEE2E2', label: 'Kurang',    icon: '📉' },
-  zero:     { color: '#94A3B8', bg: '#F1F5F9', label: 'Kosong',    icon: '⊘' },
-  pending:  { color: '#CBD5E1', bg: '#F8FAFC', label: 'Belum',     icon: '⏳' },
-  no_target:{ color: '#94A3B8', bg: '#F1F5F9', label: '-',         icon: '·' },
+  safe:     { color: C.success, bg: C.successBg, label: 'Tercapai',  icon: '✅' },
+  warning:  { color: C.warning, bg: C.warningBg, label: 'Hampir',    icon: '⚠️' },
+  missed:   { color: C.danger, bg: C.dangerBg, label: 'Kurang',    icon: '📉' },
+  zero:     { color: C.n800, bg: C.n100, label: 'Kosong',    icon: '⊘' },
+  pending:  { color: C.n300, bg: C.n50,  label: 'Belum', icon: '⏳' },
+  no_target:{ color: C.n800, bg: C.n100, label: '-',        icon: '·' },
 };
 
 export default function AdminTargetDetailPage({ navigate, goBack, screenParams }) {
@@ -76,7 +76,7 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: 'white', borderRadius: 12, padding: 12, marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
+        <div style={{ background: 'white', borderRadius: 12, padding: 12, marginBottom: 14, boxShadow: SHADOW.sm }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <Select
               label="Tahun"
@@ -100,7 +100,7 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', color: C.n500 }}>
+          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', color: C.n800 }}>
             Memuat capaian...
           </div>
         )}
@@ -108,13 +108,13 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
         {!loading && (!data || data.monthlyTarget === 0) && (
           <div style={{
             background: 'white', borderRadius: 16, padding: '40px 20px',
-            textAlign: 'center', boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+            textAlign: 'center', boxShadow: SHADOW.sm,
           }}>
             <div style={{ fontSize: 56, marginBottom: 12 }}>🎯</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900, marginBottom: 6 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 6 }}>
               Belum ada target untuk periode ini
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 16, lineHeight: 1.5 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n800, marginBottom: 16, lineHeight: 1.5 }}>
               Set target bulanan dulu di halaman Manajemen Target,<br />
               lalu balik ke sini untuk lihat detail capaian harian.
             </div>
@@ -160,8 +160,8 @@ function HeroCard({ data }) {
   return (
     <div style={{
       background: isOnTrack
-        ? 'linear-gradient(135deg, #10B981, #059669)'
-        : 'linear-gradient(135deg, #4F46E5, #7C3AED)',
+        ? `linear-gradient(135deg, ${C.success}, ${C.successDark})`
+        : `linear-gradient(135deg, ${C.info}, ${C.primaryDark})`,
       borderRadius: 16, padding: '20px 22px', color: 'white',
       marginBottom: 14, position: 'relative', overflow: 'hidden',
     }}>
@@ -171,7 +171,7 @@ function HeroCard({ data }) {
           {isOnTrack ? '🎯 ON TRACK' : '🚀 BUTUH KEJAR-KEJARAN'}
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-          <span style={{ fontFamily: 'Poppins', fontSize: 32, fontWeight: 800 }}>{progressPct}%</span>
+          <span style={{ fontFamily: 'Poppins', fontSize: 32, fontWeight: 600 }}>{progressPct}%</span>
           <span style={{ fontFamily: 'Poppins', fontSize: 12, opacity: 0.85 }}>tercapai</span>
         </div>
 
@@ -190,11 +190,11 @@ function HeroCard({ data }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 16 }}>
           <div>
             <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8 }}>Sudah Masuk</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800 }}>{rp(totalActual)}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600 }}>{rp(totalActual)}</div>
           </div>
           <div>
             <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8 }}>Target Bulan Ini</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800 }}>{rp(monthlyTarget)}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600 }}>{rp(monthlyTarget)}</div>
           </div>
         </div>
 
@@ -206,7 +206,7 @@ function HeroCard({ data }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 11, opacity: 0.9 }}>
               📌 Sisa {daysLeft} hari, butuh masuk lagi:
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, marginTop: 2 }}>
               {rp(remaining)}
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.85, marginTop: 2 }}>
@@ -227,7 +227,7 @@ function TodayCard({ today, summary }) {
   return (
     <div style={{
       background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 14,
-      boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+      boxShadow: SHADOW.sm,
       border: `2px solid ${meta.color}30`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -236,10 +236,10 @@ function TodayCard({ today, summary }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
         }}>{meta.icon}</div>
         <div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, fontWeight: 600 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n800, fontWeight: 600 }}>
             HARI INI · TANGGAL {today.day}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: meta.color }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: meta.color }}>
             {meta.label} target
           </div>
         </div>
@@ -247,13 +247,13 @@ function TodayCard({ today, summary }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>TARGET HARI INI</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>{rp(today.target)}</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800, fontWeight: 600 }}>TARGET HARI INI</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{rp(today.target)}</div>
         </div>
         <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>SUDAH MASUK</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: meta.color }}>{rp(today.actual)}</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>{today.txCount} transaksi</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800, fontWeight: 600 }}>SUDAH MASUK</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: meta.color }}>{rp(today.actual)}</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800 }}>{today.txCount} transaksi</div>
         </div>
       </div>
 
@@ -261,7 +261,7 @@ function TodayCard({ today, summary }) {
         <div style={{
           marginTop: 10, padding: '8px 12px',
           background: meta.bg, borderRadius: 8,
-          fontFamily: 'Poppins', fontSize: 11, color: meta.color, fontWeight: 700,
+          fontFamily: 'Poppins', fontSize: 11, color: meta.color, fontWeight: 600,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <span>{diffPositive ? 'Surplus' : 'Selisih'}</span>
@@ -272,10 +272,10 @@ function TodayCard({ today, summary }) {
       {summary?.cumulativeGap !== undefined && (
         <div style={{
           marginTop: 8, padding: '8px 12px',
-          background: summary.cumulativeGap >= 0 ? '#DCFCE7' : '#FEE2E2',
+          background: summary.cumulativeGap >= 0 ? C.successBg : C.dangerBg,
           borderRadius: 8,
           fontFamily: 'Poppins', fontSize: 10,
-          color: summary.cumulativeGap >= 0 ? '#15803D' : '#991B1B',
+          color: summary.cumulativeGap >= 0 ? C.successDark : C.dangerDark,
           lineHeight: 1.4,
         }}>
           📊 <strong>Akumulasi sebulan:</strong> {summary.cumulativeGap >= 0 ? 'Lebih cepat' : 'Tertinggal'}
@@ -293,12 +293,12 @@ function DailyChart({ data }) {
   return (
     <div style={{
       background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 14,
-      boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+      boxShadow: SHADOW.sm,
     }}>
-      <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900, marginBottom: 4 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, marginBottom: 4 }}>
         📊 Capaian Harian
       </div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginBottom: 12 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n800, marginBottom: 12 }}>
         Garis putus = target harian {rp(data.dailyTarget)}
       </div>
 
@@ -307,7 +307,7 @@ function DailyChart({ data }) {
         <div style={{
           position: 'absolute', left: 0, right: 0,
           bottom: `${(data.dailyTarget / maxActual) * 100}%`,
-          height: 1, borderTop: '1.5px dashed #94A3B8',
+          height: 1, borderTop: `1.5px dashed ${C.n600}`,
           zIndex: 1,
         }} />
 
@@ -329,7 +329,7 @@ function DailyChart({ data }) {
                   background: meta.color,
                   borderRadius: '2px 2px 0 0',
                   opacity: d.isFuture ? 0.25 : 1,
-                  border: d.isToday ? '2px solid #1E293B' : 'none',
+                  border: d.isToday ? `2px solid ${C.n800}` : 'none',
                   transition: 'all 0.4s ease',
                 }}
               />
@@ -344,7 +344,7 @@ function DailyChart({ data }) {
           <div key={d.day} style={{
             flex: 1, textAlign: 'center',
             fontFamily: 'Poppins', fontSize: 8,
-            color: d.isToday ? C.primary : C.n400,
+            color: d.isToday ? C.primary : C.n800,
             fontWeight: d.isToday ? 700 : 400,
           }}>
             {d.day % 5 === 0 || d.day === 1 || d.isToday ? d.day : ''}
@@ -357,7 +357,7 @@ function DailyChart({ data }) {
         {Object.entries(STATUS_META).filter(([k]) => k !== 'no_target' && k !== 'pending').map(([k, m]) => (
           <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 8, height: 8, background: m.color, borderRadius: 2 }} />
-            <span style={{ color: C.n600 }}>{m.label}</span>
+            <span style={{ color: C.n800 }}>{m.label}</span>
           </div>
         ))}
       </div>
@@ -370,27 +370,27 @@ function SummaryStats({ summary }) {
   return (
     <div style={{
       background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 14,
-      boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+      boxShadow: SHADOW.sm,
     }}>
-      <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900, marginBottom: 12 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
         📈 Ringkasan Hari
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
         {[
-          { label: 'Tercapai', value: summary.safeDays, color: '#10B981', icon: '✅' },
-          { label: 'Hampir', value: summary.warningDays, color: '#F59E0B', icon: '⚠️' },
-          { label: 'Kurang', value: summary.missedDays, color: '#EF4444', icon: '📉' },
-          { label: 'Kosong', value: summary.zeroDays, color: '#94A3B8', icon: '⊘' },
+          { label: 'Tercapai', value: summary.safeDays, color: C.success, icon: '✅' },
+          { label: 'Hampir', value: summary.warningDays, color: C.warning, icon: '⚠️' },
+          { label: 'Kurang', value: summary.missedDays, color: C.danger, icon: '📉' },
+          { label: 'Kosong', value: summary.zeroDays, color: C.n800, icon: '⊘' },
         ].map(s => (
           <div key={s.label} style={{
             background: `${s.color}10`, borderRadius: 10, padding: '10px 8px',
             textAlign: 'center',
           }}>
             <div style={{ fontSize: 18 }}>{s.icon}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: s.color, marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, color: s.color, marginTop: 2 }}>
               {s.value}
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800, fontWeight: 600 }}>
               {s.label}
             </div>
           </div>
@@ -408,14 +408,14 @@ function DailyTable({ days }) {
   return (
     <div style={{
       background: 'white', borderRadius: 14, padding: '14px 16px',
-      boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+      boxShadow: SHADOW.sm,
     }}>
-      <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900, marginBottom: 12 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
         📅 Detail Per Hari
       </div>
 
       {visibleDays.length === 0 ? (
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, textAlign: 'center', padding: 20 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n800, textAlign: 'center', padding: 20 }}>
           Belum ada hari yang lewat di bulan ini.
         </div>
       ) : visibleDays.map(d => {
@@ -433,7 +433,7 @@ function DailyTable({ days }) {
               border: d.isToday ? `2px solid ${meta.color}` : 'none',
               flexShrink: 0,
             }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: meta.color, lineHeight: 1 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: meta.color, lineHeight: 1 }}>
                 {d.day}
               </div>
               <div style={{ fontSize: 9, marginTop: 1 }}>{meta.icon}</div>
@@ -441,21 +441,21 @@ function DailyTable({ days }) {
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                   {rp(d.actual)}
                   {d.isToday && (
                     <span style={{ fontSize: 9, color: C.primary, marginLeft: 6, fontWeight: 600 }}>HARI INI</span>
                   )}
                 </div>
                 <div style={{
-                  fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
-                  color: d.diff >= 0 ? '#15803D' : '#991B1B',
+                  fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                  color: d.diff >= 0 ? C.successDark : C.dangerDark,
                 }}>
                   {d.diff >= 0 ? '+' : ''}{rp(d.diff)}
                 </div>
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 2 }}>
-                Target: {rp(d.target)} · {d.txCount} transaksi · <span style={{ color: meta.color, fontWeight: 700 }}>{meta.label}</span>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n800, marginTop: 2 }}>
+                Target: {rp(d.target)} · {d.txCount} transaksi · <span style={{ color: meta.color, fontWeight: 600 }}>{meta.label}</span>
               </div>
               {/* Mini progress bar */}
               <div style={{

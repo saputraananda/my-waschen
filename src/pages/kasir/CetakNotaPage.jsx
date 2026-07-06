@@ -1,8 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, EmptyState, QRCodeView } from '../../components/ui';
+
+// ─── Payment Status Helper ───────────────────────────────────────────────────────
+function getPaymentStatus(paidAmount, total) {
+  if (!paidAmount || paidAmount <= 0) return 'bayar_nanti';
+  if (paidAmount >= total) return 'lunas';
+  return 'dp';
+}
+
+const PAYMENT_STATUS_PRINT = {
+  lunas: { label: 'LUNAS', color: '#059669' },
+  dp: { label: 'DP', color: '#d97706' },
+  bayar_nanti: { label: 'HUTANG', color: '#6b7280' },
+};
 
 const STORAGE_KEY = 'waschen_printer_config';
 const DEFAULT_CFG = {
@@ -68,11 +81,11 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
         <TopBar title="Cetak Nota" onBack={goBack} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
-          <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 28, background: C.validationErrorBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontSize: 24 }}>⚠️</span>
           </div>
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Gagal Memuat Data</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>{error}</div>
           <Btn variant="primary" onClick={fetchTrx} style={{ marginTop: 8 }}>Coba Lagi</Btn>
         </div>
       </div>
@@ -110,15 +123,21 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
           >
             ⚙️ Printer
           </button>
+          <button
+            onClick={() => navigate('dashboard')}
+            style={{ padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}
+          >
+            🏠 Beranda
+          </button>
         </div>
         {/* Config badge */}
-        <div style={{ padding: '6px 16px', background: '#EFF6FF', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ padding: '6px 16px', background: C.infoBg, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
             cfg.printerType === 'thermal_58' ? '📄 58mm' : cfg.printerType === 'thermal_80' ? '📄 80mm' : cfg.printerType === 'a4' ? '📄 A4' : `📄 ${cfg.customWidthMm}mm`,
             cfg.barcodeEnabled ? `🔲 ${cfg.barcodeType.toUpperCase()}` : null,
             cfg.printLabel ? '🏷️ Label ON' : null,
           ].filter(Boolean).map(b => (
-            <span key={b} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: '#1D4ED8', background: '#DBEAFE', padding: '2px 8px', borderRadius: 999 }}>{b}</span>
+            <span key={b} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.infoDark, background: C.white, padding: '2px 8px', borderRadius: 999 }}>{b}</span>
           ))}
         </div>
       </div>
@@ -142,6 +161,7 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
             {cfg.showTransactionDate && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tgl Masuk:</span><span>{data.createdAt ? new Date(data.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (data.date || '-')}</span></div>}
             {cfg.showEstimatedDone  && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Est. Selesai:</span><span>{data.estimatedDoneAt ? new Date(data.estimatedDoneAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</span></div>}
             {cfg.showCashierName    && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Kasir:</span><span>{data.createdBy || data.kasirName || '-'}</span></div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span>Status:</span><span style={{ color: data.paymentStatus === 'paid' ? '#059669' : '#dc2626' }}>{data.paymentStatus === 'paid' ? 'Lunas' : 'Belum Lunas'}</span></div>
             <div style={{ borderBottom: '1px dashed #000', margin: '6px 0' }} />
             {cfg.showCustomerName   && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Pelanggan:</span><span style={{ fontWeight: 'bold' }}>{data.customerName}</span></div>}
             {cfg.showCustomerPhone  && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>HP:</span><span>{data.customerPhone || '-'}</span></div>}
@@ -177,10 +197,30 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
             {cfg.showMemberDiscount && data.memberDiscount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Diskon Member:</span><span>-{rp(data.memberDiscount)}</span></div>}
             {data.promoDiscount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Diskon Promo:</span><span>-{rp(data.promoDiscount)}</span></div>}
             {cfg.showDeliveryFee && data.deliveryFee > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Ongkir:</span><span>{rp(data.deliveryFee)}</span></div>}
+            {/* Payment Status Badge */}
+            {(() => {
+              const status = getPaymentStatus(data.paidAmount, data.total);
+              const cfg2 = PAYMENT_STATUS_PRINT[status] || PAYMENT_STATUS_PRINT.bayar_nanti;
+              return (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                  <span>Status Bayar:</span>
+                  <span style={{ fontWeight: 700, fontSize: 12, color: cfg2.color }}>[{cfg2.label}]</span>
+                </div>
+              );
+            })()}
+            {(() => {
+              const balance = Math.max(0, (data.total || 0) - (data.paidAmount || 0));
+              return balance > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Sisa:</span>
+                  <span style={{ fontWeight: 700, color: '#ef4444' }}>{rp(balance)}</span>
+                </div>
+              ) : null;
+            })()}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 14, marginTop: 4 }}><span>TOTAL:</span><span>{rp(data.total)}</span></div>
             {cfg.showPaymentMethod && data.payMethod && <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}><span>Bayar ({data.payMethod}):</span><span>{rp(data.paidAmount)}</span></div>}
             {cfg.showChange && data.changeAmount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Kembali:</span><span>{rp(data.changeAmount)}</span></div>}
-            {cfg.showNotes && data.notes && <div style={{ marginTop: 6, fontSize: 10, opacity: 0.8 }}>Catatan: {data.notes}</div>}
+            {cfg.showNotes && data.notes && <div style={{ marginTop: 6, fontSize: 10, opacity: 0.8 }}>Catatan: {data.notes.replace(/^\[Bayar:[^\]]*\]\n?/, '')}</div>}
           </div>
 
           {/* Barcode / QR — real scannable */}

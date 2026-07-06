@@ -45,7 +45,7 @@ const DailyChart = ({ data, maxDays = 14 }) => {
 const METHOD_COLORS = {
   cash: { bg: '#10B981', label: 'Tunai', icon: '💵' },
   transfer: { bg: '#2563EB', label: 'Transfer', icon: '🏦' },
-  qris: { bg: '#7C3AED', label: 'QRIS', icon: '📱' },
+  qris: { bg: '#6e2e78', label: 'QRIS', icon: '📱' },
   deposit: { bg: '#F59E0B', label: 'Deposit', icon: '💳' },
 };
 
@@ -154,7 +154,7 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
           ))}
           {/* Export button inline */}
           {report?.daily?.length > 0 && (
-            <Chip label="📥 Export" active={false} onClick={exportCSV} color="#0EA5E9" />
+            <Chip label="📥 Export" active={false} onClick={exportCSV} color={C.info} />
           )}
         </div>
         {outlets.length > 1 && (
@@ -171,7 +171,7 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
             ))}
           </div>
         ) : !report ? (
-          <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Tidak ada data</div>
+          <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Tidak ada data</div>
         ) : (
           <>
             {/* ── Summary Card ───────────────────────────────────────── */}
@@ -205,10 +205,10 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
                 </div>
                 <DailyChart data={report.daily} maxDays={period === '7d' ? 7 : 14} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600 }}>
                     {report.daily[report.daily.length - 1]?.date ? new Date(report.daily[report.daily.length - 1].date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : ''}
                   </span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600 }}>
                     {report.daily[0]?.date ? new Date(report.daily[0].date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : ''}
                   </span>
                 </div>
@@ -242,8 +242,8 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
                         <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: mc.bg }}>{rp(m.revenue)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{m.txCount} transaksi</span>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{pct}%</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{m.txCount} transaksi</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{pct}%</span>
                       </div>
                     </div>
                   </div>
@@ -274,7 +274,7 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
             <div style={{ background: C.white, borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>📅 Detail Harian</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{report.daily.length} hari</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{report.daily.length} hari</div>
               </div>
               {report.daily.slice(0, 21).map((d, i) => (
                 <div key={d.date} style={{ padding: '10px 0', borderBottom: i < Math.min(report.daily.length, 21) - 1 ? `1px solid ${C.n50}` : 'none' }}>
@@ -283,16 +283,16 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
                       <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>
                         {new Date(d.date).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}
                       </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{d.txCount} transaksi</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{d.txCount} transaksi</div>
                     </div>
                     <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{rp(d.revenue)}</div>
                   </div>
                   {/* Mini method breakdown */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    {d.cashRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: '#10B981', background: '#DCFCE7', padding: '1px 6px', borderRadius: 999 }}>💵 {rp(d.cashRevenue)}</span>}
-                    {d.transferRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: '#2563EB', background: '#DBEAFE', padding: '1px 6px', borderRadius: 999 }}>🏦 {rp(d.transferRevenue)}</span>}
-                    {d.qrisRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: '#7C3AED', background: '#EDE9FE', padding: '1px 6px', borderRadius: 999 }}>📱 {rp(d.qrisRevenue)}</span>}
-                    {d.depositRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: '#B45309', background: '#FEF3C7', padding: '1px 6px', borderRadius: 999 }}>💳 {rp(d.depositRevenue)}</span>}
+                    {d.cashRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.success, background: C.successBg, padding: '1px 6px', borderRadius: 999 }}>💵 {rp(d.cashRevenue)}</span>}
+                    {d.transferRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.info, background: C.infoBg, padding: '1px 6px', borderRadius: 999 }}>🏦 {rp(d.transferRevenue)}</span>}
+                    {d.qrisRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.primary, background: C.primaryTint, padding: '1px 6px', borderRadius: 999 }}>📱 {rp(d.qrisRevenue)}</span>}
+                    {d.depositRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.warning, background: C.warningBg, padding: '1px 6px', borderRadius: 999 }}>💳 {rp(d.depositRevenue)}</span>}
                   </div>
                 </div>
               ))}

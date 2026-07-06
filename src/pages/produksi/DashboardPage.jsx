@@ -1,97 +1,105 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C } from '../../utils/theme';
 import { STAGES } from '../../utils/helpers';
-import { Avatar, Btn, SkeletonList, useAppRefresh } from '../../components/ui';
+import { Avatar, Btn, ErrorBoundary, SkeletonList, useAppRefresh } from '../../components/ui';
 import { alertInfo } from '../../utils/alert';
 import { useRealtimeMulti } from '../../utils/realtime';
+import {
+  STAGE_STYLE, STAGE_ICONS, STAGE_TAG, SLA_STYLES,
+  LAYOUT, PROD_SHADOW, HEADER, BOTTOM_NAV, URGENT_BAR, CARD,
+  getSLALevel, formatSLA, getStageStyle, getSlaStyle,
+} from '../../utils/productionDesign';
 
-// ════════════════════════════════════════════════════════════════════════════
-// Design tokens — production-focused
-// ════════════════════════════════════════════════════════════════════════════
-const COLORS = {
-  overdue:  { bg: '#FEF2F2', border: '#FCA5A5', text: '#991B1B', accent: '#DC2626', soft: '#FEE2E2' },
-  urgent:   { bg: '#FFFBEB', border: '#FCD34D', text: '#92400E', accent: '#F59E0B', soft: '#FEF3C7' },
-  warning:  { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', accent: '#3B82F6', soft: '#DBEAFE' },
-  normal:   { bg: '#F8FAFC', border: '#E2E8F0', text: '#475569', accent: '#64748B', soft: '#F1F5F9' },
-  done:     { bg: '#F0FDF4', border: '#86EFAC', text: '#065F46', accent: '#10B981', soft: '#DCFCE7' },
-  primary:  '#5B005F',
-  express:  '#F59E0B',
-  delivery: '#7C3AED',
-};
+// ─── Premium Animation Assets ───────────────────────────────────────────────
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp'
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp'
+import soapBubble from '../../assets/Decorative icon/soap-bubble.webp'
 
-const STAGE_ICONS = {
-  Diterima: '📥',
-  Cuci:     '🫧',
-  Setrika:  '♨️',
-  Packing:  '📦',
-  Selesai:  '✅',
-};
+// ─── Premium Animation Components ──────────────────────────────────────────────
+const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.4 }) => (
+  <motion.div
+    animate={{ y: [0, -15, 0], scale: [1, 1.08, 1], opacity: [opacity * 0.5, opacity, opacity * 0.5] }}
+    transition={{ duration, repeat: Infinity, ease: 'easeInOut', delay }}
+    style={{ position: 'absolute', top, left, right, bottom, width: size, height: size, pointerEvents: 'none', zIndex: 0 }}
+  >
+    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.08))' }} loading="lazy" />
+  </motion.div>
+);
 
-const STAGE_COLORS = {
-  Diterima: '#3B82F6',
-  Cuci:     '#06B6D4',
-  Setrika:  '#F59E0B',
-  Packing:  '#10B981',
-  Selesai:  '#059669',
-};
+const Sparkle = ({ top, left, size = 5, delay = 0 }) => (
+  <motion.div
+    style={{ position: 'absolute', top, left, width: size, height: size, background: '#E85D04', borderRadius: '50%', boxShadow: `0 0 ${size}px #E85D04`, pointerEvents: 'none', zIndex: 1 }}
+    animate={{ scale: [0, 1, 0], opacity: [0, 1, 0], rotate: [0, 180, 360] }}
+    transition={{ duration: 2, delay, repeat: Infinity, ease: 'easeOut' }}
+  />
+);
 
-// ════════════════════════════════════════════════════════════════════════════
-// Helpers
-// ════════════════════════════════════════════════════════════════════════════
-const getSLALevel = (estimatedDoneAt) => {
-  if (!estimatedDoneAt) return null;
-  const diffMin = (new Date(estimatedDoneAt) - Date.now()) / 60000;
-  if (diffMin < 0)   return 'overdue';
-  if (diffMin < 120) return 'urgent';
-  if (diffMin < 360) return 'warning';
-  return 'normal';
-};
+// ─── Hero Header — Header Gelap dengan Stats Filter Tabs ────────
+function HeroHeader({ user, allActive, allDone, activeItemCount, overdueCount, onRefresh, onProfileClick, activeTab, onTabChange }) {
+  const stats = useMemo(() => {
+    let proses = 0, selesai = 0;
+    allActive.forEach(tx => {
+      (tx.items || []).forEach(item => {
+        if (!item.isDone) proses++;
+      });
+    });
+    allDone.forEach(tx => {
+      (tx.items || []).forEach(item => {
+        if (item.isDone) selesai++;
+      });
+    });
+    return {
+      semua: activeItemCount,
+      proses,
+      telat: overdueCount,
+      selesai,
+    };
+  }, [allActive, allDone, activeItemCount, overdueCount]);
 
-const formatSLA = (estimatedDoneAt) => {
-  if (!estimatedDoneAt) return '—';
-  const diffMin = Math.round((new Date(estimatedDoneAt) - Date.now()) / 60000);
-  const abs = Math.abs(diffMin);
-  if (diffMin < 0) {
-    if (abs < 60) return `Telat ${abs}m`;
-    return `Telat ${Math.floor(abs / 60)}j ${abs % 60}m`;
-  }
-  if (diffMin < 60) return `${diffMin}m lagi`;
-  if (diffMin < 1440) return `${Math.floor(diffMin / 60)}j lagi`;
-  return `${Math.round(diffMin / 1440)}h lagi`;
-};
+  const tabs = [
+    { key: 'semua',   label: 'Semua',   count: stats.semua },
+    { key: 'proses',  label: 'Proses',  count: stats.proses },
+    { key: 'telat',   label: 'Telat',   count: stats.telat, urgent: stats.telat > 0 },
+    { key: 'selesai', label: 'Selesai', count: stats.selesai },
+  ];
 
-// ════════════════════════════════════════════════════════════════════════════
-// Sub-components
-// ════════════════════════════════════════════════════════════════════════════
-
-// ── Hero Header — compact dengan greeting + 3 KPI inline
-function HeroHeader({ user, allActive, activeItemCount, urgentCount, overdueCount, onRefresh, onProfileClick }) {
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0C4A6E 100%)',
+      background: HEADER.bg,
       padding: '10px 16px 12px',
       flexShrink: 0,
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* Decorative blur shapes */}
+      {/* Decorative accent circle */}
       <div style={{
         position: 'absolute', top: -40, right: -40,
         width: 140, height: 140, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(124,58,237,0.4), transparent 70%)',
+        background: HEADER.accent,
         filter: 'blur(20px)', pointerEvents: 'none',
       }} />
 
       {/* Top row: greeting + avatar */}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: 'rgba(255,255,255,0.6)', letterSpacing: 0.4, fontWeight: 600 }}>
+          <div style={{
+            fontFamily: 'Poppins', fontSize: 9, color: HEADER.textMuted,
+            letterSpacing: HEADER.letterSpacingUpper, fontWeight: 600,
+          }}>
             🏭 {user?.outlet?.name || user?.outletName || 'Outlet'}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 800, color: 'white', marginTop: 1, lineHeight: 1.15 }}>
-            Hai, {user?.name?.split(' ')[0] || 'Tim'} <span style={{ fontSize: 13 }}>👋</span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.65)', marginLeft: 6 }}>
+          <div style={{
+            fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: HEADER.textWhite,
+            marginTop: 1, lineHeight: 1.15,
+          }}>
+            Hai, {user?.name?.split(' ')[0] || 'Tim'}
+            <span style={{ fontSize: 13 }}> 👋</span>
+            <span style={{
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 500,
+              color: HEADER.textSub, marginLeft: 6,
+            }}>
               · {activeItemCount} layanan
             </span>
           </div>
@@ -117,140 +125,45 @@ function HeroHeader({ user, allActive, activeItemCount, urgentCount, overdueCoun
         </div>
       </div>
 
-      {/* KPI cards row — compact horizontal */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, position: 'relative' }}>
-        <KpiTile
-          icon="📋"
-          value={allActive.length}
-          label="Nota"
-          tone="white"
-        />
-        <KpiTile
-          icon="🧺"
-          value={activeItemCount}
-          label="Layanan"
-          tone="white"
-        />
-        <KpiTile
-          icon={overdueCount > 0 ? '🔥' : urgentCount > 0 ? '⚠️' : '✓'}
-          value={overdueCount + urgentCount}
-          label={overdueCount > 0 ? 'Telat' : urgentCount > 0 ? 'Mendesak' : 'On Track'}
-          tone={overdueCount > 0 ? 'red' : urgentCount > 0 ? 'amber' : 'green'}
-        />
-      </div>
-    </div>
-  );
-}
-
-function KpiTile({ icon, value, label, tone = 'white' }) {
-  const styles = {
-    white: { bg: 'rgba(255,255,255,0.10)', border: 'rgba(255,255,255,0.15)', text: 'white', sub: 'rgba(255,255,255,0.7)' },
-    red:   { bg: 'rgba(239,68,68,0.20)',   border: 'rgba(252,165,165,0.35)', text: '#FEE2E2', sub: '#FECACA' },
-    amber: { bg: 'rgba(245,158,11,0.20)',  border: 'rgba(252,211,77,0.35)',  text: '#FEF3C7', sub: '#FDE68A' },
-    green: { bg: 'rgba(16,185,129,0.20)',  border: 'rgba(110,231,183,0.35)', text: '#D1FAE5', sub: '#A7F3D0' },
-  };
-  const s = styles[tone];
-  return (
-    <div style={{
-      background: s.bg,
-      border: `1px solid ${s.border}`,
-      borderRadius: 10,
-      padding: '6px 9px',
-      backdropFilter: 'blur(10px)',
-      WebkitBackdropFilter: 'blur(10px)',
-      display: 'flex', alignItems: 'center', gap: 7,
-    }}>
-      <span style={{ fontSize: 15, flexShrink: 0 }}>{icon}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: s.text, lineHeight: 1 }}>{value}</div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: s.sub, fontWeight: 600, marginTop: 1 }}>{label}</div>
-      </div>
-    </div>
-  );
-}
-
-// ── Stage Pipeline — show count per stage horizontally
-function StagePipeline({ transactions }) {
-  const stageCount = useMemo(() => {
-    const counts = {};
-    STAGES.forEach(s => counts[s] = 0);
-    transactions.forEach(tx => {
-      (tx.items || []).forEach(item => {
-        if (item.isDone) return;
-        const stage = item.currentStage || 'Diterima';
-        if (counts[stage] !== undefined) counts[stage]++;
-      });
-    });
-    return counts;
-  }, [transactions]);
-
-  const totalActive = Object.values(stageCount).reduce((s, n) => s + n, 0);
-  if (totalActive === 0) return null;
-
-  const stages = STAGES.slice(0, -1); // exclude 'Selesai'
-
-  return (
-    <div style={{
-      background: 'white',
-      borderRadius: 12,
-      margin: '8px 16px 0',
-      padding: '8px 12px',
-      boxShadow: '0 2px 6px rgba(15,23,42,0.04)',
-      border: `1px solid ${C.n100}`,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: C.n500, letterSpacing: 0.5 }}>
-          🚦 ALUR PRODUKSI
-        </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 800, color: C.primary }}>
-          {totalActive} layanan
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {stages.map((s, i) => {
-          const count = stageCount[s];
-          const stageColor = STAGE_COLORS[s];
-          const isActive = count > 0;
+      {/* Stats filter tabs */}
+<div style={{ display: 'flex', gap: 0, position: 'relative' }}>
+        {tabs.map(tab => {
+          const isActive = activeTab === tab.key;
           return (
-            <div key={s} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
+            <button
+              key={tab.key}
+              onClick={() => onTabChange(tab.key)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: 4, padding: '7px 4px',
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                position: 'relative',
+              }}
+            >
+              <span style={{
+                fontFamily: 'Poppins', fontSize: 10,
+                fontWeight: isActive ? 600 : 500,
+                color: isActive ? HEADER.textWhite : HEADER.textMuted,
+                letterSpacing: HEADER.letterSpacing,
+ }}>
+                {tab.key === 'telat' && tab.urgent ? '🔥 ' : ''}{tab.label}
+              </span>
+              <span style={{
+                fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                color: isActive ? HEADER.textWhite : tab.urgent ? HEADER.overdueText : HEADER.textMuted,
+                textShadow: tab.urgent && !isActive ? '0 0 8px rgba(249,115,22,0.5)' : 'none',
+              }}>
+                {tab.count}
+              </span>
+              {/* Active underline */}
+              {isActive && (
                 <div style={{
-                  width: 30, height: 30, margin: '0 auto 2px',
-                  borderRadius: 9,
-                  background: isActive ? `${stageColor}15` : C.n50,
-                  border: `1.5px solid ${isActive ? stageColor : C.n200}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14,
-                  position: 'relative',
-                }}>
-                  {STAGE_ICONS[s]}
-                  {count > 0 && (
-                    <span style={{
-                      position: 'absolute', top: -4, right: -4,
-                      minWidth: 16, height: 16, padding: '0 3px',
-                      borderRadius: 8, background: stageColor, color: 'white',
-                      fontFamily: 'Poppins', fontSize: 9, fontWeight: 800,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: '1.5px solid white',
-                    }}>
-                      {count}
-                    </span>
-                  )}
-                </div>
-                <div style={{
-                  fontFamily: 'Poppins', fontSize: 8.5, fontWeight: isActive ? 700 : 500,
-                  color: isActive ? stageColor : C.n500,
-                }}>
-                  {s}
-                </div>
-              </div>
-              {i < stages.length - 1 && (
-                <div style={{
-                  width: 6, height: 1, background: C.n200, flexShrink: 0, marginBottom: 12,
-                  borderRadius: 1,
+                  position: 'absolute', bottom: 0, left: '15%', right: '15%',
+                  height: 2, borderRadius: 1,
+                  background: HEADER.tabUnderline,
                 }} />
               )}
-            </div>
+            </button>
           );
         })}
       </div>
@@ -258,217 +171,386 @@ function StagePipeline({ transactions }) {
   );
 }
 
-// ── Item card — kompak & presisi
+// ─── Urgent Bar ─────────────────────────────────────────────────
+function UrgentBar({ count }) {
+  if (count === 0) return null;
+  return (
+    <div style={{
+      margin: '8px 16px 0',
+      padding: '8px 14px',
+      background: URGENT_BAR.bg,
+      border: URGENT_BAR.border,
+      borderRadius: URGENT_BAR.borderRadius,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 14 }}>🔥</span>
+        <span style={{
+          fontFamily: 'Poppins', fontSize: 11, fontWeight: 500,
+          color: C.danger,
+        }}>
+          {count} item melewati estimasi selesai
+        </span>
+      </div>
+      <div style={{
+        background: URGENT_BAR.badgeBg, color: URGENT_BAR.badgeText,
+        fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+        padding: '2px 8px', borderRadius: 999,
+        boxShadow: '0 1px 4px rgba(249,115,22,0.2)',
+      }}>
+        Segera
+      </div>
+    </div>
+  );
+}
+
+// ─── Stage Filter Bar (Pill Chips) ──────────────────────────────
+function StageFilterBar({ workstation, workstationCounts, onChange }) {
+  const options = ['Semua', 'Cuci', 'Setrika', 'Packing'];
+  return (
+    <div style={{
+      padding: '8px 16px 0',
+      overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+    }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {options.map(ws => {
+          const isActive = workstation === ws;
+          const count = workstationCounts[ws] || 0;
+          const stageStyle = getStageStyle(ws === 'Semua' ? 'Diterima' : ws);
+          const color = ws === 'Semua' ? HEADER.primary : stageStyle.accent;
+
+          return (
+            <button
+              key={ws}
+              onClick={() => onChange(ws)}
+              style={{
+                flexShrink: 0,
+                padding: '5px 12px',
+                borderRadius: 999,
+                border: `1.5px solid ${isActive ? color : C.n200}`,
+                background: isActive ? HEADER.bg : stageStyle.bg,
+                cursor: 'pointer',
+                fontFamily: 'Poppins', fontSize: 11,
+                fontWeight: isActive ? 600 : 500,
+                color: isActive ? '#ffffff' : stageStyle.text,
+                display: 'flex', alignItems: 'center', gap: 4,
+                transition: 'all 0.15s',
+              }}
+            >
+              {ws !== 'Semua' && <span style={{ fontSize: 12 }}>{STAGE_ICONS[ws]}</span>}
+              {ws}
+              {count > 0 && (
+                <span style={{
+                  background: isActive ? 'rgba(255,255,255,0.2)' : C.n200,
+                  color: isActive ? '#ffffff' : C.n600,
+                  fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
+                  padding: '0 5px', borderRadius: 999, minWidth: 16,
+                  textAlign: 'center', lineHeight: '14px',
+                }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Item Card — Enhanced with Avatar + Better Progress ───────────────────────────
 function ItemCard({ tx, item, onPress }) {
   const isDone = item.isDone;
   const stage = item.currentStage || 'Diterima';
-  const isExpress = item.isExpress;
+  const stageStyle = getStageStyle(stage);
   const sla = isDone ? null : getSLALevel(tx.estimatedDoneAt);
-  const slaC = sla ? COLORS[sla] : null;
-  const stageColor = STAGE_COLORS[stage] || C.primary;
+  const slaStyle = sla ? getSlaStyle(sla) : null;
 
-  const accent = isDone ? COLORS.done.accent
-    : sla === 'overdue' ? COLORS.overdue.accent
-    : sla === 'urgent' ? COLORS.urgent.accent
-    : stageColor;
-
-  // Stage progress count
-  const stageIdx = STAGES.indexOf(stage);
-  const totalStages = STAGES.length;
-  const progressPct = isDone ? 100 : Math.max(0, Math.min(100, ((stageIdx + (item.progress?.length ? 0.5 : 0)) / totalStages) * 100));
+  // Progress data
+  const progress = item.progress || [];
+  const ACTIVE_STAGES = ['Diterima', 'Cuci', 'Setrika', 'Packing'];
+  
+  // Avatar initials
+  const customerName = tx.customerName || 'U';
+  const initials = customerName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <button
+<button
       onClick={() => onPress(tx, item)}
       style={{
         width: '100%', textAlign: 'left',
-        background: 'white',
-        borderRadius: 12,
-        padding: '10px 12px',
-        border: `1.5px solid ${isDone ? COLORS.done.border : sla === 'overdue' ? COLORS.overdue.border : sla === 'urgent' ? COLORS.urgent.border : C.n100}`,
-        boxShadow: isExpress
-          ? `0 1px 6px rgba(245,158,11,0.14), inset 3px 0 0 ${COLORS.express}`
-          : '0 1px 4px rgba(15,23,42,0.04)',
+        background: C.white,
+        borderRadius: CARD.borderRadius,
+        padding: '12px',
+        border: `1px solid ${sla === 'overdue' ? C.validationErrorBg : C.n200}`,
+        boxShadow: sla === 'overdue' ? PROD_SHADOW.urgent : PROD_SHADOW.card,
         cursor: 'pointer',
         position: 'relative',
-        transition: 'transform 0.1s, box-shadow 0.1s',
-        marginBottom: 6,
+        overflow: 'hidden',
+        transition: 'box-shadow 0.1s, transform 0.1s',
+        marginBottom: CARD.cardGap,
       }}
-      onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.99)'; }}
-      onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+      onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.99)'; e.currentTarget.style.boxShadow = PROD_SHADOW.cardTap; }}
+      onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = sla === 'overdue' ? PROD_SHADOW.urgent : PROD_SHADOW.card; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = sla === 'overdue' ? PROD_SHADOW.urgent : PROD_SHADOW.card; }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        {/* Stage icon */}
+      {/* Left accent bar */}
+      <div style={{
+        position: 'absolute', left: 0, top: 0, bottom: 0,
+        width: 3,
+        background: stageStyle.accent,
+        borderRadius: `${CARD.borderRadius}px 0 0 ${CARD.borderRadius}px`,
+      }} />
+
+      {/* Header: Avatar + Customer Info + Badges */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, paddingLeft: 5 }}>
+        {/* Avatar */}
         <div style={{
-          width: 40, height: 40,
-          borderRadius: 11,
-          background: isDone ? COLORS.done.soft : `${accent}15`,
-          border: `1.5px solid ${isDone ? COLORS.done.border : `${accent}30`}`,
+          width: 40, height: 40, borderRadius: 20,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 19, flexShrink: 0,
+          fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+          color: '#ffffff', flexShrink: 0,
+          boxShadow: '0 2px 8px rgba(102,126,234,0.25)',
         }}>
-          {STAGE_ICONS[stage] || '⬜'}
+          {initials}
         </div>
 
-        {/* Main info */}
+        {/* Customer Info */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Service name + badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginBottom: 1 }}>
+          <div style={{
+            fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+            color: C.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {tx.customerName || 'Customer'}
+          </div>
+          <div style={{
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 400,
+            color: C.n500, marginTop: 1,
+          }}>
+            {tx.customerPhone ? `📞 ${tx.customerPhone}` : `📋 ${tx.id}`}
+          </div>
+        </div>
+
+        {/* Badges */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0 }}>
+          {item.isExpress && (
             <span style={{
-              fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
+              background: C.validationWarningBg, color: C.validationWarningText,
+              fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
+              padding: '2px 7px', borderRadius: 999,
+              boxShadow: '0 1px 3px rgba(180,83,9,0.1)',
+            }}>⚡ Express</span>
+          )}
+          {tx.pickupType === 'delivery' && (
+            <span style={{
+              background: C.successBg, color: C.successDark,
+              fontFamily: 'Poppins', fontSize: 9, fontWeight: 500,
+              padding: '2px 7px', borderRadius: 999,
+            }}>🛵 Antar</span>
+          )}
+          {tx.pickupType === 'pickup' && (
+            <span style={{
+              background: C.infoBg, color: C.infoDark,
+              fontFamily: 'Poppins', fontSize: 9, fontWeight: 500,
+              padding: '2px 7px', borderRadius: 999,
+            }}>🚗 Jemput</span>
+          )}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div style={{ height: 1, background: 'rgba(0,0,0,0.06)', margin: '0 0 10px 5px' }} />
+
+      {/* Service Info */}
+      <div style={{ paddingLeft: 5 }}>
+        {/* Service name + stage tag */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+              color: C.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {item.name}
-            </span>
-            {isExpress && (
-              <span style={{
-                background: COLORS.express, color: 'white',
-                fontFamily: 'Poppins', fontSize: 8, fontWeight: 800,
-                padding: '1px 5px', borderRadius: 999,
-              }}>⚡</span>
-            )}
-            {tx.pickupType === 'delivery' && (
-              <span style={{
-                background: '#F3E8FF', color: COLORS.delivery,
-                fontFamily: 'Poppins', fontSize: 8, fontWeight: 700,
-                padding: '1px 5px', borderRadius: 999,
-              }}>🚗</span>
-            )}
-          </div>
-
-          {/* Customer + qty */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 10.5, color: C.n600, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 700, color: C.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
-              👤 {tx.customerName || 'Tanpa nama'}
-            </span>
-            <span style={{ color: C.n400 }}>·</span>
-            <span style={{ fontWeight: 600 }}>{item.qty} {item.unit}</span>
-          </div>
-
-          {/* Stage progress */}
-          <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ flex: 1, height: 3, borderRadius: 2, background: C.n100, overflow: 'hidden' }}>
-              <div style={{
-                width: `${progressPct}%`, height: '100%',
-                background: isDone ? COLORS.done.accent : accent,
-                borderRadius: 2, transition: 'width 0.4s',
-              }} />
             </div>
-            <span style={{
-              fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
-              color: isDone ? COLORS.done.accent : accent,
-              flexShrink: 0,
+            <div style={{
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 500,
+              color: C.n500, marginTop: 1,
             }}>
-              {isDone ? '✓ Done' : stage}
-            </span>
+              {item.qty} {item.unit}
+            </div>
+          </div>
+
+          {/* Stage tag */}
+          <div style={{
+            background: stageStyle.bg, color: stageStyle.text,
+            padding: '4px 10px', borderRadius: 999,
+            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 5,
+            boxShadow: stageStyle.dotShadow ? `0 0 6px ${stageStyle.dotShadow}` : 'none',
+            flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 12 }}>{STAGE_ICONS[stage]}</span>
+            {stage}
           </div>
         </div>
 
-        {/* Right: SLA + arrow */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
-          {sla && slaC ? (
-            <div style={{
-              background: slaC.soft, color: slaC.text,
-              padding: '2px 8px', borderRadius: 999,
-              fontFamily: 'Poppins', fontSize: 9, fontWeight: 800,
-              border: `1px solid ${slaC.border}`,
-              whiteSpace: 'nowrap',
-            }}>
-              {sla === 'overdue' && '🔥 '}
-              {formatSLA(tx.estimatedDoneAt)}
-            </div>
-          ) : isDone ? (
-            <div style={{
-              background: COLORS.done.soft, color: COLORS.done.text,
-              padding: '2px 8px', borderRadius: 999,
-              fontFamily: 'Poppins', fontSize: 9, fontWeight: 800,
-              border: `1px solid ${COLORS.done.border}`,
-            }}>
-              ✓
-            </div>
-          ) : null}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
+        {/* Item details (material/brand/special care) */}
+        {(item.material || item.brand || item.specialCareAlert) && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            {item.material && (
+              <span style={{ background: C.infoBg, color: C.infoDark, fontSize: '10px', fontFamily: 'Poppins', fontWeight: 500, padding: '3px 7px', borderRadius: '6px' }}>
+                🧵 {item.material}
+              </span>
+            )}
+            {item.brand && (
+              <span style={{ background: C.infoBg, color: C.primary, fontSize: '10px', fontFamily: 'Poppins', fontWeight: 500, padding: '3px 7px', borderRadius: '6px' }}>
+                🏷️ {item.brand}
+              </span>
+            )}
+            {item.specialCareAlert && (
+              <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontSize: '10px', fontFamily: 'Poppins', fontWeight: 600, padding: '3px 7px', borderRadius: '6px' }}>
+                ⚠️ {item.specialCareAlert}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Visual Progress Tracker with Icons */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
+            {ACTIVE_STAGES.map((s, idx) => {
+              const stageDone = progress.some(p => p.stage === s);
+              const isCurrent = s === stage;
+              const stStyle = getStageStyle(s);
+
+              return (
+                <div key={s} style={{ flex: 1, display: 'flex', alignItems: 'center', position: 'relative' }}>
+                  {/* Connector line */}
+                  {idx > 0 && (
+                    <div style={{
+                      position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+                      width: '100%', height: 2, background: stageDone ? stStyle.accent : 'rgba(0,0,0,0.1)',
+                      zIndex: 0, marginLeft: '-50%',
+                    }} />
+                  )}
+                  
+                  {/* Stage Icon */}
+                  <div style={{
+                    width: 26, height: 26, borderRadius: 13,
+                    background: stageDone ? stStyle.accent : isCurrent ? `${stStyle.accent}30` : C.n100,
+                    border: isCurrent ? `2px solid ${stStyle.accent}` : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, flexShrink: 0, position: 'relative', zIndex: 1,
+                    boxShadow: isCurrent ? `0 0 0 3px ${stStyle.accent}20` : 'none',
+                    margin: '0 auto',
+                  }}>
+                    {stageDone ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : (
+                      <span>{STAGE_ICONS[s]}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Stage Labels */}
+          <div style={{ display: 'flex', gap: 0, marginTop: 4 }}>
+            {ACTIVE_STAGES.map((s) => {
+              const stageDone = progress.some(p => p.stage === s);
+              const isCurrent = s === stage;
+              const stStyle = getStageStyle(s);
+              
+              return (
+                <div key={s} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{
+                    fontFamily: 'Poppins', fontSize: 8, fontWeight: isCurrent || stageDone ? 600 : 400,
+                    color: stageDone ? stStyle.text : isCurrent ? stStyle.text : C.n400,
+                    lineHeight: 1.2,
+                  }}>
+                    {s}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
+
+        {/* SLA / Deadline */}
+        {sla && slaStyle && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: slaStyle.bg, color: slaStyle.text,
+            padding: '5px 10px', borderRadius: 8,
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+            marginTop: 6,
+          }}>
+            <span style={{ fontSize: 13 }}>{sla === 'overdue' ? '🔥' : '⏰'}</span>
+            <span>{formatSLA(tx.estimatedDoneAt)}</span>
+          </div>
+        )}
+        {isDone && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: C.successBg, color: C.successDark,
+            padding: '5px 10px', borderRadius: 8,
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+            marginTop: 6,
+          }}>
+            <span>✓ Selesai Produksi</span>
+          </div>
+        )}
       </div>
     </button>
   );
 }
 
-// ── Section header (group items by SLA urgency)
-function SectionHeader({ icon, label, count, accentColor, rightContent }) {
+// ─── Section Header ─────────────────────────────────────────────
+function SectionHeader({ icon, label, count, accentColor }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      padding: '6px 4px',
-      marginTop: 4,
+      display: 'flex', alignItems: 'center', gap: 6,
+      padding: '16px 16px 8px',
     }}>
-      <span style={{ fontSize: 14 }}>{icon}</span>
+      <span style={{ fontSize: 13 }}>{icon}</span>
       <div style={{
-        fontFamily: 'Poppins', fontSize: 11, fontWeight: 800,
-        color: accentColor, letterSpacing: 0.5,
+        fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+        color: accentColor, letterSpacing: HEADER.letterSpacingUpper,
       }}>
         {label.toUpperCase()}
       </div>
       <div style={{
-        background: accentColor, color: 'white',
-        fontFamily: 'Poppins', fontSize: 10, fontWeight: 800,
-        padding: '1px 8px', borderRadius: 999,
+        background: accentColor, color: '#ffffff',
+        fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
+        padding: '1px 6px', borderRadius: 999,
       }}>
         {count}
       </div>
-      <div style={{ flex: 1, height: 1, background: `${accentColor}25`, marginLeft: 4 }} />
-      {rightContent}
+      <div style={{ flex: 1, height: 1, background: `${accentColor}20`, marginLeft: 4 }} />
     </div>
   );
 }
 
-// ── Filter toggle icons — buat tab switcher Aktif/Selesai
-function FilterToggle({ filter, setFilter, activeCount, doneCount }) {
-  const items = [
-    { key: 'aktif',   icon: '📋', count: activeCount, title: 'Aktif' },
-    { key: 'selesai', icon: '✅', count: doneCount,   title: 'Selesai' },
-  ];
-  return (
-    <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-      {items.map(it => {
-        const isActive = filter === it.key;
-        return (
-          <button
-            key={it.key}
-            onClick={() => setFilter(it.key)}
-            title={it.title}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '5px 10px', borderRadius: 999,
-              border: `1.5px solid ${isActive ? C.primary : C.n200}`,
-              background: isActive ? `${C.primary}12` : 'white',
-              cursor: 'pointer', flexShrink: 0,
-              transition: 'all 0.15s',
-              minHeight: 30,
-            }}
-          >
-            <span style={{ fontSize: 15, lineHeight: 1 }}>{it.icon}</span>
-            {it.count > 0 && (
-              <span style={{
-                fontFamily: 'Poppins', fontSize: 11, fontWeight: 800,
-                color: isActive ? C.primary : C.n600,
-                lineHeight: 1,
-              }}>
-                {it.count}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// ─── Empty State ────────────────────────────────────────────────
+function EmptyState({ lastRefresh, activeTab, workstation, overdueCount }) {
+  let title = 'Antrian kosong';
+  let subtitle = 'Semua item sudah selesai diproses';
 
-// ── Empty state
-function EmptyState({ filter, lastRefresh }) {
+  if (activeTab === 'telat' && overdueCount === 0) {
+    title = 'Tidak ada item telat';
+    subtitle = '🎉 Semua item masih dalam target waktu';
+  } else if (activeTab === 'selesai') {
+    title = 'Belum ada item selesai';
+    subtitle = 'Item yang sudah selesai akan muncul di sini';
+  } else if (workstation !== 'Semua') {
+    title = `Tidak ada item di ${workstation}`;
+    subtitle = `Belum ada item yang sedang diproses di stasiun ${workstation}`;
+  }
+
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column',
@@ -477,20 +559,21 @@ function EmptyState({ filter, lastRefresh }) {
     }}>
       <div style={{
         width: 80, height: 80, borderRadius: 24,
-        background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)',
+        background: C.n100,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         marginBottom: 16, fontSize: 38,
-        boxShadow: '0 8px 24px rgba(16,185,129,0.15)',
       }}>
-        {filter === 'aktif' ? '✨' : '📋'}
+        {activeTab === 'telat' && overdueCount === 0 ? '🎉' : '✅'}
       </div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: C.n900, marginBottom: 6 }}>
-        {filter === 'aktif' ? 'Semua selesai!' : 'Belum ada data'}
+      <div style={{
+        fontFamily: 'Poppins', fontSize: 16, fontWeight: 500, color: C.n800, marginBottom: 6,
+      }}>
+        {title}
       </div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500, lineHeight: 1.5, maxWidth: 280 }}>
-        {filter === 'aktif'
-          ? 'Tidak ada antrian aktif saat ini. Order baru akan muncul otomatis di sini.'
-          : 'Tidak ada data yang sesuai filter.'}
+      <div style={{
+        fontFamily: 'Poppins', fontSize: 13, color: C.n400,
+      }}>
+        {subtitle}
       </div>
       {lastRefresh && (
         <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n400, marginTop: 14 }}>
@@ -501,11 +584,9 @@ function EmptyState({ filter, lastRefresh }) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// Main Dashboard
-// ════════════════════════════════════════════════════════════════════════════
-export default function ProduksiDashboardPage({ user, navigate }) {
-  const [filter, setFilter] = useState('aktif');
+// ─── Main Dashboard ──────────────────────────────────────────────
+export function ProduksiDashboardPage({ user, navigate }) {
+  const [activeTab, setActiveTab] = useState('semua');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -521,16 +602,9 @@ export default function ProduksiDashboardPage({ user, navigate }) {
   };
 
   const fetchQueue = useCallback(async (silent = false) => {
-    // Debounce guard: kalau request masih in-flight, skip supaya tidak menumpuk
-    // (cegah 429 dari realtime events + polling + StrictMode double-mount)
     if (fetchLockRef.current) return;
     fetchLockRef.current = true;
-
-    // Clear pending debounce timer
-    if (fetchTimerRef.current) {
-      clearTimeout(fetchTimerRef.current);
-      fetchTimerRef.current = null;
-    }
+    if (fetchTimerRef.current) { clearTimeout(fetchTimerRef.current); fetchTimerRef.current = null; }
 
     if (!silent) { setError(null); setLoading(true); }
     try {
@@ -555,7 +629,6 @@ export default function ProduksiDashboardPage({ user, navigate }) {
       if (!silent) setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
-      // Release lock setelah 2 detik supaya polling berikutnya bisa jalan
       fetchTimerRef.current = setTimeout(() => { fetchLockRef.current = false; }, 2000);
     }
   }, []);
@@ -569,19 +642,13 @@ export default function ProduksiDashboardPage({ user, navigate }) {
     };
   }, [fetchQueue]);
 
-  // Pull-to-refresh — bypass lock (user intent)
-  useAppRefresh(() => {
-    fetchLockRef.current = false;
-    fetchQueue();
-  }, [fetchQueue]);
+  useAppRefresh(() => { fetchLockRef.current = false; fetchQueue(); }, [fetchQueue]);
 
-  // Realtime: debounce 3 detik supaya burst events (multiple checkout) jadi 1 fetch
   const realtimeTimerRef = useRef(null);
   useRealtimeMulti(['transaction:checkout', 'production:photo', 'production:update'], () => {
     if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
     realtimeTimerRef.current = setTimeout(() => fetchQueue(true), 3000);
   });
-
 
   // Derived state
   const allActive = useMemo(() =>
@@ -600,347 +667,220 @@ export default function ProduksiDashboardPage({ user, navigate }) {
     [transactions]
   );
 
-  // Total active items
   const activeItemCount = useMemo(() =>
     allActive.reduce((s, t) => s + (t.items || []).filter(i => !i.isDone).length, 0),
     [allActive]
   );
 
-  // Total done items (per layanan, bukan per nota) — dipakai counter banner & FilterToggle konsisten
-  const doneItemCount = useMemo(() =>
-    transactions.reduce((s, t) => s + (t.items || []).filter(i => i.isDone).length, 0),
-    [transactions]
-  );
-
-  // Urgent & overdue counts (per item)
-  const { urgentCount, overdueCount } = useMemo(() => {
-    let urgent = 0, overdue = 0;
+  const overdueCount = useMemo(() => {
+    let count = 0;
     allActive.forEach(tx => {
       const sla = getSLALevel(tx.estimatedDoneAt);
-      if (sla === 'overdue') overdue += (tx.items || []).filter(i => !i.isDone).length;
-      else if (sla === 'urgent') urgent += (tx.items || []).filter(i => !i.isDone).length;
+      if (sla === 'overdue') count += (tx.items || []).filter(i => !i.isDone).length;
     });
-    return { urgentCount: urgent, overdueCount: overdue };
+    return count;
   }, [allActive]);
 
-  // Build flat list of items with tx context, with workstation filter
-  const flatItems = useMemo(() => {
-    const sourceTx = filter === 'aktif' ? allActive
-      : filter === 'selesai' ? allDone
-      : transactions;
+  // Broadcast overdueCount to BottomNav via custom event
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('produksi:overdue-count', { detail: { count: overdueCount } }));
+  }, [overdueCount]);
 
+  // Workstation counts yang mempertimbangkan activeTab
+  const workstationCounts = useMemo(() => {
+    const counts = { Semua: 0, Cuci: 0, Setrika: 0, Packing: 0 };
+    
+    // Untuk tab "Selesai", tidak perlu hitung workstation (workstation filter di-disable)
+    if (activeTab === 'selesai') {
+      return counts;
+    }
+
+    allActive.forEach(tx => {
+      (tx.items || []).forEach(item => {
+        if (item.isDone) return; // Skip done items
+
+        // Filter by activeTab first
+        if (activeTab === 'telat') {
+          const sla = getSLALevel(tx.estimatedDoneAt);
+          if (sla !== 'overdue') return;
+        }
+
+        // Count per workstation
+        counts.Semua += 1;
+        if (counts[item.currentStage] !== undefined) counts[item.currentStage]++;
+      });
+    });
+    return counts;
+  }, [allActive, activeTab]);
+
+  // Build flat item list dengan filter logic yang benar
+  const flatItems = useMemo(() => {
+    const sourceTx = activeTab === 'selesai' ? allDone : allActive;
     const items = [];
     sourceTx.forEach(tx => {
       (tx.items || []).forEach(item => {
-        // Filter by workstation: only show items that match current stage
-        if (workstation !== 'Semua' && !item.isDone) {
+        // Tab "Selesai" → show only done items, ignore workstation filter
+        if (activeTab === 'selesai') {
+          if (!item.isDone) return;
+          items.push({ tx, item });
+          return;
+        }
+
+        // Tab lain → exclude done items
+        if (item.isDone) return;
+
+        // Filter by workstation (only for non-done items)
+        if (workstation !== 'Semua') {
           if (item.currentStage !== workstation) return;
         }
-        // For "selesai" filter, show all done items (regardless of workstation)
-        // For "aktif", skip done items
-        if (filter === 'aktif' && item.isDone) return;
+
+        // Filter by activeTab
+        if (activeTab === 'telat') {
+          const sla = getSLALevel(tx.estimatedDoneAt);
+          if (sla !== 'overdue') return;
+        }
+
         items.push({ tx, item });
       });
     });
     return items;
-  }, [filter, allActive, allDone, transactions, workstation]);
+  }, [activeTab, allActive, allDone, workstation]);
 
-  // Group items by urgency level
+  // Group for "semua" and "proses" tabs (with grouping bahkan ketika workstation filter aktif)
   const groupedItems = useMemo(() => {
     const groups = { overdue: [], urgent: [], warning: [], normal: [], done: [] };
     flatItems.forEach(({ tx, item }) => {
-      if (item.isDone) {
-        groups.done.push({ tx, item });
-        return;
-      }
-      // Express always goes to highest active group it qualifies for
+      if (item.isDone) { groups.done.push({ tx, item }); return; }
       const sla = getSLALevel(tx.estimatedDoneAt);
       if (sla === 'overdue') groups.overdue.push({ tx, item });
       else if (sla === 'urgent') groups.urgent.push({ tx, item });
       else if (sla === 'warning') groups.warning.push({ tx, item });
       else groups.normal.push({ tx, item });
     });
-
-    // Within each group, sort: express first, then by deadline
+    // Sort: express first, then by deadline
     Object.keys(groups).forEach(k => {
       groups[k].sort((a, b) => {
-        const aExp = !!a.item.isExpress;
-        const bExp = !!b.item.isExpress;
-        if (aExp !== bExp) return aExp ? -1 : 1;
+        if (!!a.item.isExpress !== !!b.item.isExpress) return a.item.isExpress ? -1 : 1;
         const aTime = a.tx.estimatedDoneAt ? new Date(a.tx.estimatedDoneAt).getTime() : Infinity;
         const bTime = b.tx.estimatedDoneAt ? new Date(b.tx.estimatedDoneAt).getTime() : Infinity;
         return aTime - bTime;
       });
     });
-
     return groups;
   }, [flatItems]);
 
-  const onItemPress = (tx, item) => navigate('detail_item_produksi', { ...tx, item });
+  const onItemPress = (tx, item) => navigate('detail_item_produksi', {
+    ...tx,
+    id: tx.id,
+    transactionUuid: tx.transactionUuid || tx.id,
+    items: tx.items,
+    customerName: tx.customerName,
+    item,
+  });
 
-  // Workstation chips with badge counts
-  const workstationOptions = ['Semua', 'Cuci', 'Setrika', 'Packing'];
-  const workstationCounts = useMemo(() => {
-    const counts = { Semua: 0, Cuci: 0, Setrika: 0, Packing: 0 };
-    allActive.forEach(tx => {
-      (tx.items || []).forEach(item => {
-        if (item.isDone) return;
-        counts.Semua += 1;
-        if (counts[item.currentStage] !== undefined) counts[item.currentStage]++;
-      });
-    });
-    return counts;
-  }, [allActive]);
+  const renderList = () => {
+    if (loading) return <SkeletonList count={4} lines={3} />;
+    if (error) return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
+        <div style={{ width: 56, height: 56, borderRadius: 28, background: C.validationErrorBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: 24 }}>⚠️</span>
+        </div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 500, color: C.n800 }}>Gagal Memuat Data</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>{error}</div>
+        <Btn variant="primary" onClick={() => fetchQueue()} style={{ marginTop: 8 }}>Coba Lagi</Btn>
+      </div>
+    );
+    if (flatItems.length === 0) return <EmptyState lastRefresh={lastRefresh} activeTab={activeTab} workstation={workstation} overdueCount={overdueCount} />;
+
+    // Use grouping untuk tab "semua" dan "proses" (dengan atau tanpa workstation filter)
+    if ((activeTab === 'semua' || activeTab === 'proses') && flatItems.length > 0) {
+      return (
+        <>
+          {groupedItems.overdue.length > 0 && (
+            <>
+              <SectionHeader icon="🔥" label="TELAT" count={groupedItems.overdue.length} accentColor="#ef4444" />
+              <div style={{ padding: '0 16px' }}>
+                {groupedItems.overdue.map(({ tx, item }) => (
+                  <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
+                ))}
+              </div>
+            </>
+          )}
+          {groupedItems.urgent.length > 0 && (
+            <>
+              <SectionHeader icon="⚠️" label="MENDESAK" count={groupedItems.urgent.length} accentColor="#f97316" />
+              <div style={{ padding: '0 16px' }}>
+                {groupedItems.urgent.map(({ tx, item }) => (
+                  <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
+                ))}
+              </div>
+            </>
+          )}
+          {groupedItems.warning.length > 0 && (
+            <>
+              <SectionHeader icon="⏰" label="HARI INI" count={groupedItems.warning.length} accentColor="#3b82f6" />
+              <div style={{ padding: '0 16px' }}>
+                {groupedItems.warning.map(({ tx, item }) => (
+                  <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
+                ))}
+              </div>
+            </>
+          )}
+          {groupedItems.normal.length > 0 && (
+            <>
+              <SectionHeader icon="📋" label="ANTRIAN" count={groupedItems.normal.length} accentColor="#6b7280" />
+              <div style={{ padding: '0 16px' }}>
+                {groupedItems.normal.map(({ tx, item }) => (
+                  <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      );
+    }
+
+    // Flat list untuk tab "telat" dan "selesai"
+    return (
+      <div style={{ padding: '0 16px' }}>
+        {flatItems
+          .sort((a, b) => {
+            if (!!a.item.isExpress !== !!b.item.isExpress) return a.item.isExpress ? -1 : 1;
+            const aTime = a.tx.estimatedDoneAt ? new Date(a.tx.estimatedDoneAt).getTime() : Infinity;
+            const bTime = b.tx.estimatedDoneAt ? new Date(b.tx.estimatedDoneAt).getTime() : Infinity;
+            return aTime - bTime;
+          })
+          .map(({ tx, item }) => (
+            <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
+          ))}
+      </div>
+    );
+  };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8FAFC', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <HeroHeader
         user={user}
         allActive={allActive}
+        allDone={allDone}
         activeItemCount={activeItemCount}
-        urgentCount={urgentCount}
         overdueCount={overdueCount}
         onRefresh={() => fetchQueue()}
         onProfileClick={() => navigate('profil')}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
       />
 
-      {/* Stage pipeline visualization — cuma di mode "Semua" supaya focus mode lebih bersih */}
-      {filter === 'aktif' && workstation === 'Semua' && <StagePipeline transactions={allActive} />}
+      <UrgentBar count={overdueCount} />
 
-      {/* Workstation chips — kompak, ikon-utama */}
-      <div style={{ padding: '6px 16px 4px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-          {workstationOptions.map(ws => {
-            const isActive = workstation === ws;
-            const count = workstationCounts[ws] || 0;
-            const stageColor = ws === 'Semua' ? C.primary : (STAGE_COLORS[ws] || C.primary);
-            return (
-              <button
-                key={ws}
-                onClick={() => handleWorkstationChange(ws)}
-                style={{
-                  flexShrink: 0,
-                  padding: '5px 10px',
-                  borderRadius: 999,
-                  border: `1.5px solid ${isActive ? stageColor : C.n200}`,
-                  background: isActive ? `${stageColor}10` : 'white',
-                  cursor: 'pointer',
-                  fontFamily: 'Poppins', fontSize: 11,
-                  fontWeight: isActive ? 700 : 500,
-                  color: isActive ? stageColor : C.n700,
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {ws !== 'Semua' && <span style={{ fontSize: 12 }}>{STAGE_ICONS[ws]}</span>}
-                {ws}
-                {count > 0 && (
-                  <span style={{
-                    background: isActive ? stageColor : C.n200,
-                    color: isActive ? 'white' : C.n600,
-                    fontFamily: 'Poppins', fontSize: 9, fontWeight: 800,
-                    padding: '0 5px', borderRadius: 999, minWidth: 16,
-                    textAlign: 'center', lineHeight: '14px',
-                  }}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <StageFilterBar
+        workstation={workstation}
+        workstationCounts={workstationCounts}
+        onChange={handleWorkstationChange}
+      />
 
-      {/* List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 24px', display: 'flex', flexDirection: 'column' }}>
-        {loading && (
-          <SkeletonList count={4} lines={3} />
-        )}
-
-        {!loading && error && (
-          <div style={{
-            flex: 1, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            padding: '60px 24px', gap: 12, textAlign: 'center',
-          }}>
-            <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: 24 }}>⚠️</span>
-            </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>Gagal Memuat Data</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{error}</div>
-            <Btn variant="primary" onClick={() => fetchQueue()} style={{ marginTop: 8 }}>Coba Lagi</Btn>
-          </div>
-        )}
-
-        {!loading && !error && flatItems.length === 0 && (
-          <>
-            {/* Toggle tetap accessible biar user bisa balik ke filter lain */}
-            {(filter !== 'aktif' || allDone.length > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 4px 0' }}>
-                <FilterToggle
-                  filter={filter}
-                  setFilter={setFilter}
-                  activeCount={activeItemCount}
-                  doneCount={doneItemCount}
-                />
-              </div>
-            )}
-            <EmptyState filter={filter} lastRefresh={lastRefresh} />
-          </>
-        )}
-
-        {!loading && !error && flatItems.length > 0 && filter === 'aktif' && workstation !== 'Semua' && (() => {
-          // Focus mode: cuma 1 stage. Card di-sort by SLA (overdue → urgent → warning → normal),
-          // tanpa section heading kompleks. Heading 1 baris simpel + FilterToggle.
-          const stageColor = STAGE_COLORS[workstation] || C.primary;
-          return (
-            <>
-              <SectionHeader
-                icon={STAGE_ICONS[workstation]}
-                label={`STATION ${workstation.toUpperCase()}`}
-                count={flatItems.length}
-                accentColor={stageColor}
-                rightContent={
-                  <FilterToggle
-                    filter={filter}
-                    setFilter={setFilter}
-                    activeCount={activeItemCount}
-                    doneCount={doneItemCount}
-                  />
-                }
-              />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                {[...flatItems]
-                  .sort((a, b) => {
-                    // Express duluan
-                    if (!!a.item.isExpress !== !!b.item.isExpress) return a.item.isExpress ? -1 : 1;
-                    // Lalu deadline
-                    const aT = a.tx.estimatedDoneAt ? new Date(a.tx.estimatedDoneAt).getTime() : Infinity;
-                    const bT = b.tx.estimatedDoneAt ? new Date(b.tx.estimatedDoneAt).getTime() : Infinity;
-                    return aT - bT;
-                  })
-                  .map(({ tx, item }) => (
-                    <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
-                  ))}
-              </div>
-            </>
-          );
-        })()}
-
-        {!loading && !error && flatItems.length > 0 && filter === 'aktif' && workstation === 'Semua' && (() => {
-          // Tentukan section pertama yang akan dapat FilterToggle inline
-          const firstSection = groupedItems.overdue.length > 0 ? 'overdue'
-            : groupedItems.urgent.length > 0 ? 'urgent'
-            : groupedItems.warning.length > 0 ? 'warning'
-            : 'normal';
-          const toggle = (
-            <FilterToggle
-              filter={filter}
-              setFilter={setFilter}
-              activeCount={activeItemCount}
-              doneCount={doneItemCount}
-            />
-          );
-          return (
-          <>
-            {/* Overdue section */}
-            {groupedItems.overdue.length > 0 && (
-              <>
-                <SectionHeader
-                  icon="🔥"
-                  label="TELAT — SEGERA SELESAIKAN"
-                  count={groupedItems.overdue.length}
-                  accentColor={COLORS.overdue.accent}
-                  rightContent={firstSection === 'overdue' ? toggle : null}
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                  {groupedItems.overdue.map(({ tx, item }) => (
-                    <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Urgent section */}
-            {groupedItems.urgent.length > 0 && (
-              <>
-                <SectionHeader
-                  icon="⚠️"
-                  label="MENDESAK — < 2 JAM"
-                  count={groupedItems.urgent.length}
-                  accentColor={COLORS.urgent.accent}
-                  rightContent={firstSection === 'urgent' ? toggle : null}
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                  {groupedItems.urgent.map(({ tx, item }) => (
-                    <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Warning section */}
-            {groupedItems.warning.length > 0 && (
-              <>
-                <SectionHeader
-                  icon="⏰"
-                  label="HARI INI"
-                  count={groupedItems.warning.length}
-                  accentColor={COLORS.warning.accent}
-                  rightContent={firstSection === 'warning' ? toggle : null}
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                  {groupedItems.warning.map(({ tx, item }) => (
-                    <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Normal section */}
-            {groupedItems.normal.length > 0 && (
-              <>
-                <SectionHeader
-                  icon="📋"
-                  label="ANTRIAN BERIKUTNYA"
-                  count={groupedItems.normal.length}
-                  accentColor={C.n500}
-                  rightContent={firstSection === 'normal' ? toggle : null}
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                  {groupedItems.normal.map(({ tx, item }) => (
-                    <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-          );
-        })()}
-
-        {!loading && !error && flatItems.length > 0 && filter !== 'aktif' && (
-          <>
-            <SectionHeader
-              icon="✅"
-              label="SELESAI"
-              count={flatItems.length}
-              accentColor={COLORS.done.accent}
-              rightContent={
-                <FilterToggle
-                  filter={filter}
-                  setFilter={setFilter}
-                  activeCount={activeItemCount}
-                  doneCount={doneItemCount}
-                />
-              }
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {flatItems.map(({ tx, item }) => (
-                <ItemCard key={`${tx.id}-${item.itemId}`} tx={tx} item={item} onPress={onItemPress} />
-              ))}
-            </div>
-          </>
-        )}
+<div style={{ flex: 1, overflowY: 'auto', paddingBottom: 90 }}>
+        {renderList()}
 
         {lastRefresh && flatItems.length > 0 && (
           <div style={{
@@ -948,21 +888,19 @@ export default function ProduksiDashboardPage({ user, navigate }) {
             color: C.n400, padding: '14px 0 8px',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
           }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: COLORS.done.accent,
-              animation: 'pulse 2s infinite',
-            }} />
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.success }} />
             Auto-refresh aktif · {lastRefresh.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
           </div>
         )}
       </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(0.9); }
-        }
-      `}</style>
     </div>
+  );
+}
+
+export default function DashboardPage(props) {
+  return (
+    <ErrorBoundary>
+      <ProduksiDashboardPage {...props} />
+    </ErrorBoundary>
   );
 }

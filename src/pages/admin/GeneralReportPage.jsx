@@ -5,6 +5,79 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Chip, Select, DateTimeInput, StatCard, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, HourlyHeatBar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency } from '../../utils/exportReport';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronDown } from 'lucide-react';
+
+// ─── Collapsible Section Component ─────────────────────────────────────────────
+function CollapsibleSection({ title, icon, defaultOpen = true, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{
+        ...T.card,
+        marginBottom: 14,
+        padding: 14,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Section Header */}
+      <motion.button
+        onClick={() => setIsOpen(!isOpen)}
+        whileHover={{ backgroundColor: 'rgba(91, 0, 95, 0.02)' }}
+        whileTap={{ scale: 0.99 }}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '4px 0',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          outline: 'none',
+          marginBottom: isOpen ? 12 : 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16 }}>{icon}</span>
+          <h3 style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900, margin: 0 }}>{title}</h3>
+        </div>
+        <motion.div
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronDown size={18} color={C.n500} />
+        </motion.div>
+      </motion.button>
+
+      {/* Section Content */}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            style={{ overflow: 'hidden' }}
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// Simplified SectionTitle for use inside CollapsibleSection
+const SectionTitle = ({ children, icon }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+    <span style={{ fontSize: 18 }}>{icon}</span>
+    <h3 style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900, margin: 0 }}>{children}</h3>
+  </div>
+);
 
 const PRESETS = [
   { key: '7d', label: '7 hari' },
@@ -35,17 +108,10 @@ const Delta = ({ value }) => {
   );
 };
 
-const SectionTitle = ({ children, icon }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-    <span style={{ fontSize: 18 }}>{icon}</span>
-    <h3 style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900, margin: 0 }}>{children}</h3>
-  </div>
-);
-
 const MiniBar = memo(function MiniBarInner({ points, valueKey = 'revenue', labelKey = 'label', height = 80, maxBars = 30 }) {
   const arr = [...(points || [])];
   const sliced = arr.length <= maxBars ? arr : arr.slice(-maxBars);
-  if (!sliced.length) return <p style={{ fontSize: 12, color: C.n400 }}>Belum ada data</p>;
+  if (!sliced.length) return <p style={{ fontSize: 12, color: C.n700 }}>Belum ada data</p>;
   const maxVal = Math.max(...sliced.map(p => Number(p[valueKey]) || 0), 1);
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height, padding: '4px 0 0' }}>
@@ -60,7 +126,7 @@ const MiniBar = memo(function MiniBarInner({ points, valueKey = 'revenue', label
               background: isLast ? `linear-gradient(180deg, ${C.primary}, ${C.primaryDark})` : `linear-gradient(180deg, ${C.primaryLight}, #94A3B844)`,
             }} />
             {sliced.length <= 14 && (
-              <span style={{ fontFamily: 'Poppins', fontSize: 7, color: C.n500, textAlign: 'center' }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 7, color: C.n700, textAlign: 'center' }}>
                 {String(p[labelKey] || '').slice(-5)}
               </span>
             )}
@@ -100,13 +166,13 @@ const PaymentBar = ({ mix }) => {
       <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', height: 24, marginBottom: 10 }}>
         {mix.map(m => (
           <div key={m.method} title={`${labels[m.method] || m.method}: ${m.pct}%`}
-            style={{ width: `${m.pct}%`, minWidth: m.pct > 0 ? 2 : 0, background: colors[m.method] || C.n400 }} />
+            style={{ width: `${m.pct}%`, minWidth: m.pct > 0 ? 2 : 0, background: colors[m.method] || C.n700 }} />
         ))}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px' }}>
         {mix.map(m => (
           <div key={m.method} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 3, background: colors[m.method] || C.n400 }} />
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: colors[m.method] || C.n700 }} />
             <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>
               {labels[m.method] || m.method} <b>{m.pct}%</b> ({rp(m.amount)})
             </span>
@@ -148,7 +214,8 @@ export default function GeneralReportPage({ goBack }) {
           value: o.id,
           label: o.code ? `🏪 ${o.name} · ${o.code}` : `🏪 ${o.name}`,
         })));
-      } catch {
+      } catch (e) {
+        console.warn('[GeneralReport] Failed to fetch outlets:', e?.message);
         setOutlets([]);
       }
     })();
@@ -217,7 +284,7 @@ export default function GeneralReportPage({ goBack }) {
             <DateTimeInput label="Sampai" value={endDate ? `${endDate}T00:00:00` : ''} onChange={(v) => setEndDate(v ? v.slice(0, 10) : '')} placeholder="End" timeOptional />
           </div>
           <Select label="Outlet" value={outletId} onChange={onOutletChange} options={outletOpts} placeholder="Pilih outlet" />
-          <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, margin: '8px 0 0', lineHeight: 1.4 }}>
+          <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, margin: '8px 0 0', lineHeight: 1.4 }}>
             {outletId ? (
               <>Semua angka di bawah ini <strong>hanya untuk {selectedOutletLabel}</strong>. Pilih akumulasi untuk gabungan semua outlet.</>
             ) : (
@@ -227,7 +294,7 @@ export default function GeneralReportPage({ goBack }) {
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: 32, color: C.n500, fontFamily: 'Poppins', fontSize: 13 }}>
+          <div style={{ textAlign: 'center', padding: 32, color: C.n700, fontFamily: 'Poppins', fontSize: 13 }}>
             Memuat data report...
           </div>
         )}
@@ -235,8 +302,7 @@ export default function GeneralReportPage({ goBack }) {
         {!loading && executive && (
           <>
             {/* Section A: Executive Summary */}
-            <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
-              <SectionTitle icon="📊">Executive Summary</SectionTitle>
+            <CollapsibleSection title="Executive Summary" icon="📊" defaultOpen={true}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                 <StatCard label="Total Omset" value={rp(executive.revenue)} icon="💰" color={C.primary}
                   sub={<Delta value={executive.revenueGrowth} />} />
@@ -246,17 +312,16 @@ export default function GeneralReportPage({ goBack }) {
                 <StatCard label="Rata-rata/Hari" value={rp(executive.avgPerDay)} icon="📅" color={C.warning} />
               </div>
               <div style={{ marginTop: 4 }}>
-                <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, margin: '0 0 4px' }}>Tren Harian — Omset & Pelunasan</p>
+                <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, margin: '0 0 4px' }}>Tren Harian — Omset & Pelunasan</p>
                 <RevenueAreaChart
                   data={(executive.daily || []).map(d => ({ date: d.date, revenue: d.revenue, pelunasan: d.pelunasan || 0 }))}
                   height={160}
                 />
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* Section B: Payment Mix — Recharts PieChart */}
-            <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
-              <SectionTitle icon="💳">Payment Mix</SectionTitle>
+            {/* Section B: Payment Mix */}
+            <CollapsibleSection title="Payment Mix" icon="💳" defaultOpen={true}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'center' }}>
                 <PaymentPieChart data={executive.paymentMix || []} height={180} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -265,18 +330,17 @@ export default function GeneralReportPage({ goBack }) {
                       <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>{m.method}</span>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n900 }}>{rp(m.amount)}</div>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>{m.pct}%</div>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n700 }}>{m.pct}%</div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* Section C: Outlet Scoreboard (hanya mode semua outlet — hindari data multi-outlet membingungkan saat filter satu outlet) */}
+            {/* Section C: Outlet Scoreboard (hanya mode semua outlet) */}
             {!outletId && (outletPerf?.outlets?.length ?? 0) > 0 && (
-              <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
-                <SectionTitle icon="🏪">Outlet Scoreboard</SectionTitle>
+              <CollapsibleSection title="Outlet Scoreboard" icon="🏪" defaultOpen={false}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {outletPerf.outlets.map((o, i) => (
                     <div key={o.outletId} style={{
@@ -299,49 +363,47 @@ export default function GeneralReportPage({ goBack }) {
                     </div>
                   ))}
                 </div>
-              </div>
+              </CollapsibleSection>
             )}
 
             {/* Section D: Top Layanan */}
             {services && (
-              <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
-                <SectionTitle icon="🧺">Top Layanan</SectionTitle>
+              <CollapsibleSection title="Top Layanan" icon="🧺" defaultOpen={false}>
                 {services.topServices?.length ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {services.topServices.slice(0, 10).map((s, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, width: 20 }}>#{i + 1}</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, width: 20 }}>#{i + 1}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</p>
-                          <p style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, margin: 0 }}>{s.orderCount} order · {s.pct}%</p>
+                          <p style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, margin: 0 }}>{s.orderCount} order · {s.pct}%</p>
                         </div>
                         <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.primary }}>{rp(s.revenue)}</span>
                       </div>
                     ))}
                   </div>
-                ) : <p style={{ fontSize: 12, color: C.n400 }}>Belum ada data</p>}
+                ) : <p style={{ fontSize: 12, color: C.n700 }}>Belum ada data</p>}
                 {services.expressVsRegular && (
                   <div style={{ marginTop: 12, padding: '10px 12px', background: C.n100, borderRadius: 10 }}>
                     <p style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, margin: '0 0 4px' }}>Express vs Regular</p>
                     <div style={{ display: 'flex', gap: 16 }}>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>
                         ⚡ Express: {services.expressVsRegular.express.count} ({rp(services.expressVsRegular.express.revenue)})
                       </span>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>
                         📦 Regular: {services.expressVsRegular.regular.count} ({rp(services.expressVsRegular.regular.revenue)})
                       </span>
                     </div>
                   </div>
                 )}
-              </div>
+              </CollapsibleSection>
             )}
 
             {/* Section E: Performa Kasir */}
             {cashiers?.cashiers?.length > 0 && (
-              <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
-                <SectionTitle icon="👤">Performa Kasir</SectionTitle>
+              <CollapsibleSection title="Performa Kasir" icon="👤" defaultOpen={false}>
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Poppins', fontSize: 11 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Poppins', fontSize: 11, minWidth: 500 }}>
                     <thead>
                       <tr style={{ borderBottom: `1.5px solid ${C.n200}` }}>
                         <th style={thStyle}>Kasir</th>
@@ -368,13 +430,12 @@ export default function GeneralReportPage({ goBack }) {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </CollapsibleSection>
             )}
 
             {/* Section F: Customer Insights */}
             {customers && (
-              <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
-                <SectionTitle icon="👥">Customer Insights</SectionTitle>
+              <CollapsibleSection title="Customer Insights" icon="👥" defaultOpen={false}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
                   <MiniStatCard label="Baru" value={customers.newCustomers} color={C.success} />
                   <MiniStatCard label="Returning" value={customers.returningCustomers} color={C.info} />
@@ -388,7 +449,7 @@ export default function GeneralReportPage({ goBack }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {customers.topCustomers.slice(0, 5).map((c, i) => (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, width: 20 }}>#{i + 1}</span>
+                          <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, width: 20 }}>#{i + 1}</span>
                           <div style={{ flex: 1 }}>
                             <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                               {c.name} {c.isMember && <span style={{ fontSize: 9, color: C.primary, background: C.primaryLight, padding: '1px 5px', borderRadius: 4 }}>Member</span>}
@@ -405,35 +466,34 @@ export default function GeneralReportPage({ goBack }) {
                     <p style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, margin: '0 0 4px' }}>Sumber Awareness</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                       {customers.awarenessSources.map((a, i) => (
-                        <span key={i} style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{a.source}: <b>{a.count}</b></span>
+                        <span key={i} style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>{a.source}: <b>{a.count}</b></span>
                       ))}
                     </div>
                   </div>
                 )}
-              </div>
+              </CollapsibleSection>
             )}
 
-            {/* Section G: Peak Hours — Recharts */}
+            {/* Section G: Peak Hours */}
             {executive?.peakHours && (
-              <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
-                <SectionTitle icon="⏰">Peak Hours</SectionTitle>
+              <CollapsibleSection title="Peak Hours" icon="⏰" defaultOpen={false}>
                 <HourlyHeatBar data={executive.peakHours} height={90} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>00:00</span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>06:00</span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>12:00</span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>18:00</span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>23:00</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n700 }}>00:00</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n700 }}>06:00</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n700 }}>12:00</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n700 }}>18:00</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n700 }}>23:00</span>
                 </div>
                 {(() => {
                   const peak = executive.peakHours.reduce((a, b) => (b.txCount > a.txCount ? b : a), { hour: 0, txCount: 0 });
                   return peak.txCount > 0 ? (
-                    <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, margin: '8px 0 0', textAlign: 'center' }}>
+                    <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, margin: '8px 0 0', textAlign: 'center' }}>
                       Jam tersibuk: <b>{peak.hour}:00</b> ({peak.txCount} transaksi)
                     </p>
                   ) : null;
                 })()}
-              </div>
+              </CollapsibleSection>
             )}
           </>
         )}
@@ -444,7 +504,7 @@ export default function GeneralReportPage({ goBack }) {
 
 const MiniStat = ({ label, value, warn }) => (
   <div>
-    <p style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, margin: 0 }}>{label}</p>
+    <p style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n700, margin: 0 }}>{label}</p>
     <p style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: warn ? C.danger : C.n900, margin: 0 }}>{value}</p>
   </div>
 );
@@ -452,9 +512,9 @@ const MiniStat = ({ label, value, warn }) => (
 const MiniStatCard = ({ label, value, color }) => (
   <div style={{ textAlign: 'center', padding: '10px 6px', background: `${color}11`, borderRadius: 10 }}>
     <p style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color, margin: 0 }}>{value}</p>
-    <p style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, margin: '2px 0 0' }}>{label}</p>
+    <p style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, margin: '2px 0 0' }}>{label}</p>
   </div>
 );
 
-const thStyle = { fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n500, padding: '6px 4px', textAlign: 'left', whiteSpace: 'nowrap' };
+const thStyle = { fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, padding: '6px 4px', textAlign: 'left', whiteSpace: 'nowrap' };
 const tdStyle = { fontFamily: 'Poppins', fontSize: 11, color: C.n800, padding: '6px 4px', whiteSpace: 'nowrap' };

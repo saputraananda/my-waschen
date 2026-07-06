@@ -1,79 +1,110 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // PaymentMethodGrouped — komponen pilihan metode pembayaran terkelompok
 // ─────────────────────────────────────────────────────────────────────────────
-// Group metode jadi 4 tab biar tidak overwhelming:
+// Group metode:
 //   1. Tunai & Manual (cash, transfer, deposit, EDC)
-//   2. QRIS (Midtrans QRIS — universal scan)
-//   3. E-Wallet (GoPay, ShopeePay)
-//   4. Virtual Account (BCA, BNI, BRI, Permata, Mandiri)
-//
-// Props:
-//   value: string — selected method id
-//   onChange: (methodId) => void
-//   excludeIds: optional array — sembunyikan metode tertentu
-//   showDeposit: optional boolean — tampilkan opsi deposit (butuh customer member)
-//   depositBalance: optional number — display info saldo
-//   amount: optional number — untuk validasi (mis. cash tender)
+//   2. QRIS (QRIS Static)
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { C } from '../utils/theme';
 import { rp } from '../utils/helpers';
+import { brand } from '../utils/colors';
+import { IconMoney, IconClock, IconCheck, IconClose } from './ui/StatusIcons';
+
+// SVG Icons for payment methods
+const PaymentMethodIcon = ({ type, size = 22 }) => {
+  const baseStyle = { flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' };
+
+  switch (type) {
+    case 'cash':
+      return (
+        <span style={baseStyle}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <rect x="1" y="4" width="22" height="16" rx="2" stroke="#059669" strokeWidth="2"/>
+            <circle cx="12" cy="12" r="3" stroke="#059669" strokeWidth="2"/>
+            <path d="M1 10h2M21 10h2M1 14h2M21 14h2" stroke="#059669" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </span>
+      );
+    case 'transfer':
+      return (
+        <span style={baseStyle}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <path d="M17 1l4 4-4 4" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M7 23l-4-4 4-4" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
+      );
+    case 'edc':
+      return (
+        <span style={baseStyle}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="5" width="20" height="14" rx="2" stroke="#7C3AED" strokeWidth="2"/>
+            <path d="M2 10h20" stroke="#7C3AED" strokeWidth="2"/>
+            <path d="M6 15h4" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </span>
+      );
+    case 'deposit':
+      return (
+        <span style={baseStyle}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#F59E0B" stroke="#F59E0B" strokeWidth="1.5"/>
+          </svg>
+        </span>
+      );
+    case 'qris':
+      return (
+        <span style={baseStyle}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="7" height="7" rx="1" fill="#6e2e78"/>
+            <rect x="14" y="3" width="7" height="7" rx="1" fill="#6e2e78"/>
+            <rect x="3" y="14" width="7" height="7" rx="1" fill="#6e2e78"/>
+            <rect x="17" y="17" width="4" height="4" fill="#6e2e78"/>
+          </svg>
+        </span>
+      );
+    case 'manual':
+    default:
+      return (
+        <span style={baseStyle}>
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+            <rect x="1" y="4" width="22" height="16" rx="2" stroke="#6e2e78" strokeWidth="2"/>
+            <path d="M1 10h22" stroke="#6e2e78" strokeWidth="2"/>
+          </svg>
+        </span>
+      );
+  }
+};
 
 const EMPTY_EXCLUDE_IDS = [];
 
-// ─── Definisi grup ─────────────────────────────────────────────────────────
+// ─── Definisi grup — unified brand purple for all payment methods ───────────
 const GROUPS = [
   {
     id: 'manual',
     label: 'Tunai & Manual',
-    icon: '💵',
-    color: '#10B981',
+    icon: 'manual',
+    color: brand.primary,
     methods: [
-      { id: 'cash',     label: 'Tunai',          icon: '💵', desc: 'Bayar cash + auto kembalian' },
-      { id: 'transfer', label: 'Transfer Bank',  icon: '🔁', desc: 'Customer transfer, kasir verifikasi' },
-      { id: 'edc',      label: 'EDC Mesin',      icon: '💳', desc: 'Gesek di mesin EDC fisik' },
-      { id: 'deposit',  label: 'Saldo Deposit',  icon: '💎', desc: 'Pakai saldo member', requireMember: true },
+      { id: 'cash',     label: 'Tunai',          icon: 'cash', desc: 'Bayar cash + auto kembalian' },
+      { id: 'transfer', label: 'Transfer Bank',  icon: 'transfer', desc: 'Customer transfer, kasir verifikasi' },
+      { id: 'edc',      label: 'EDC Mesin',      icon: 'edc', desc: 'Gesek di mesin EDC fisik' },
+      { id: 'deposit',  label: 'Saldo Deposit',  icon: 'deposit', desc: 'Pakai saldo member', requireMember: true },
     ],
   },
   {
     id: 'qris',
     label: 'QRIS',
-    icon: '📱',
-    color: '#3B82F6',
+    icon: 'qris',
+    color: brand.primary,
     methods: [
-      { id: 'qris', label: 'QRIS Midtrans', icon: '📱', desc: 'Scan QR universal — semua e-wallet & m-banking' },
-    ],
-  },
-  {
-    id: 'ewallet',
-    label: 'E-Wallet',
-    icon: '👛',
-    color: '#A855F7',
-    methods: [
-      { id: 'gopay',     label: 'GoPay',     icon: '💚', desc: 'Buka aplikasi Gojek' },
-      { id: 'shopeepay', label: 'ShopeePay', icon: '🛒', desc: 'Buka aplikasi Shopee' },
-    ],
-  },
-  {
-    id: 'va',
-    label: 'Virtual Account',
-    icon: '🏦',
-    color: '#0F172A',
-    methods: [
-      { id: 'bca_va',     label: 'BCA',     icon: '🏛️', desc: 'Transfer via mobile/internet banking' },
-      { id: 'bni_va',     label: 'BNI',     icon: '🏛️' },
-      { id: 'bri_va',     label: 'BRI',     icon: '🏛️' },
-      { id: 'permata_va', label: 'Permata', icon: '🏛️' },
-      { id: 'mandiri_va', label: 'Mandiri', icon: '🏛️' },
+      { id: 'qris', label: 'QRIS Static', icon: 'qris', desc: 'Scan QRIS static — semua e-wallet & m-banking' },
     ],
   },
 ];
-
-const MIDTRANS_METHODS = new Set(['qris', 'gopay', 'shopeepay', 'bca_va', 'bni_va', 'bri_va', 'permata_va', 'mandiri_va']);
-
-export function isMidtransMethod(methodId) {
-  return MIDTRANS_METHODS.has(methodId);
-}
 
 export default function PaymentMethodGrouped({
   value,
@@ -128,18 +159,18 @@ export default function PaymentMethodGrouped({
                 border: `1.5px solid ${active ? g.color : C.n200}`,
                 background: active ? `${g.color}10` : 'white',
                 color: active ? g.color : C.n700,
-                fontFamily: 'Poppins', fontSize: 12, fontWeight: active ? 700 : 600,
+                fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 6,
                 whiteSpace: 'nowrap',
               }}
             >
-              <span style={{ fontSize: 14 }}>{g.icon}</span>
+              <PaymentMethodIcon type={g.icon} size={14} />
               {g.label}
               <span style={{
                 fontSize: 9, fontWeight: 700,
                 background: active ? `${g.color}20` : C.n100,
-                color: active ? g.color : C.n500,
+                color: active ? g.color : '#3a3a3a',
                 padding: '1px 6px', borderRadius: 999,
               }}>{g.methods.length}</span>
             </button>
@@ -171,17 +202,17 @@ export default function PaymentMethodGrouped({
                 transition: 'all 0.15s',
               }}
             >
-              <span style={{ fontSize: 22, flexShrink: 0 }}>{m.icon}</span>
+              <PaymentMethodIcon type={m.icon} size={22} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
-                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
+                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
                   color: active ? selectedGroup.color : C.n900,
                 }}>
                   {m.label}
                 </div>
                 {m.desc && (
                   <div style={{
-                    fontFamily: 'Poppins', fontSize: 9, color: C.n500,
+                    fontFamily: 'Poppins', fontSize: 9, color: '#3a3a3a',
                     marginTop: 2, lineHeight: 1.3,
                   }}>
                     {m.desc}
@@ -192,15 +223,16 @@ export default function PaymentMethodGrouped({
                     fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
                     color: insufficientDeposit ? '#DC2626' : '#15803D',
                     marginTop: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 3,
                   }}>
-                    {insufficientDeposit ? `❌ ${rp(depositBalance)}` : `✓ ${rp(depositBalance)}`}
+                    {insufficientDeposit ? <><IconClose size={10} color="#DC2626" /> {rp(depositBalance)}</> : <><IconCheck size={10} color="#15803D" /> {rp(depositBalance)}</>}
                   </div>
                 )}
               </div>
               {active && (
-                <span style={{
-                  fontSize: 16, color: selectedGroup.color, flexShrink: 0,
-                }}>✓</span>
+                <IconCheck size={16} color={selectedGroup.color} />
               )}
             </button>
           );
@@ -209,7 +241,7 @@ export default function PaymentMethodGrouped({
 
       {hint && (
         <div style={{
-          fontFamily: 'Poppins', fontSize: 10, color: C.n500,
+          fontFamily: 'Poppins', fontSize: 10, color: '#3a3a3a',
           marginTop: 8, lineHeight: 1.4,
         }}>
           {hint}

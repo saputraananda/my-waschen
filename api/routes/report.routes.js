@@ -10,6 +10,11 @@ import {
   getCohortAnalysis,
   getForecast,
   getOutletSummary,
+  exportTransactions,
+  exportCustomers,
+  exportServices,
+  exportInventory,
+  exportFinancialReport,
 } from '../controllers/reportController.js';
 
 const router = Router();
@@ -28,5 +33,12 @@ router.get('/forecast',           authenticate, adminOnly, getForecast);
 // Outlet summary — accessible by all authenticated users (kasir/produksi/finance/admin)
 // Default outlet = outlet user. Admin bisa pass outletId untuk lihat outlet lain.
 router.get('/outlet-summary',     authenticate, getOutletSummary);
+
+// ── Data Export Endpoints (CSV/Excel) ──────────────────────────────────────────
+router.get('/export/transactions',  authenticate, adminOnly, exportTransactions);
+router.get('/export/customers',     authenticate, adminOnly, exportCustomers);
+router.get('/export/services',      authenticate, adminOnly, exportServices);
+router.get('/export/inventory',    authenticate, adminOnly, exportInventory);
+router.get('/export/financial',    authenticate, adminOnly, exportFinancialReport);
 
 export default router;

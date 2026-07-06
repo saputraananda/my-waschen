@@ -2,18 +2,9 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { STAGES, txApiId, photoTypeLabel } from '../../utils/helpers';
-import { TopBar, Btn, Badge, Avatar, PhotoLightbox } from '../../components/ui';
+import { TopBar, Btn, Badge, Avatar, ErrorBoundary, PhotoLightbox } from '../../components/ui';
 import { alertWarning } from '../../utils/alert';
-
-const STAGE_ICONS = {
-  'Diterima': '📥', 'Cuci': '🫧',
-  'Setrika': '♨️', 'Packing': '📦', 'Selesai': '✅',
-};
-
-const STAGE_COLORS = {
-  'Diterima': '#3B82F6', 'Cuci': '#06B6D4',
-  'Setrika': '#F59E0B', 'Packing': '#8B5CF6', 'Selesai': '#10B981',
-};
+import { STAGE_STYLE, STAGE_ICONS, PROD_SHADOW, HEADER, CARD, getStageStyle } from '../../utils/productionDesign';
 
 const PROBLEM_PRESETS = [
   '🔴 Ada kerusakan / noda permanen',
@@ -26,13 +17,14 @@ const PROBLEM_PRESETS = [
 function getSLAStatus(estimatedDoneAt) {
   if (!estimatedDoneAt) return null;
   const diffMin = (new Date(estimatedDoneAt) - Date.now()) / 60000;
-  if (diffMin < 0) return { text: `Telat ${Math.abs(Math.round(diffMin))} menit!`, bg: '#FEE2E2', color: '#991B1B', icon: '🔴' };
-  if (diffMin < 60) return { text: `Hanya ${Math.round(diffMin)} menit lagi!`, bg: '#FEF3C7', color: '#92400E', icon: '⚠️' };
-  if (diffMin < 180) return { text: `${Math.round(diffMin / 60)} jam ${Math.round(diffMin % 60)} menit lagi`, bg: '#EFF6FF', color: '#1E40AF', icon: '🕐' };
+  if (diffMin < 0) return { text: `Telat ${Math.abs(Math.round(diffMin))} menit!`, bg: C.validationErrorBg, color: C.validationErrorText, icon: '🔴' };
+  if (diffMin < 60) return { text: `Hanya ${Math.round(diffMin)} menit lagi!`, bg: C.validationWarningBg, color: C.validationWarningText, icon: '⚠️' };
+  if (diffMin < 180) return { text: `${Math.round(diffMin / 60)} jam ${Math.round(diffMin % 60)} menit lagi`, bg: C.validationInfoBg, color: C.validationInfoText, icon: '🕐' };
   return null;
 }
 
-export default function DetailItemProduksiPage({ navigate, goBack, screenParams, user }) {
+// Internal component (wrapped by ErrorBoundary)
+export function DetailItemPageContent({ navigate, goBack, screenParams, user }) {
   const tx = screenParams;
   // item = layanan spesifik yang dipilih dari dashboard produksi
   const item = tx?.item || null;
@@ -48,6 +40,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
   const [customProblem, setCustomProblem] = useState('');
   const [reportingProblem, setReportingProblem] = useState(false);
   const [problemSent, setProblemSent] = useState(false);
+  const [showSelesaiConfirm, setShowSelesaiConfirm] = useState(false);
 
   // Photo lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -87,7 +80,9 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
         } else if (txData.progress) {
           setLocalProgress(txData.progress);
         }
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.warn('[DetailItemPage] fetchTx failed:', e?.message);
+      }
       finally { if (!cancelled) setPhotosLoading(false); }
     };
     fetchTx();
@@ -111,7 +106,9 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
           if (serverItem?.progress) setLocalProgress(serverItem.progress);
           if (serverItem?.packingDone != null) setPackingDone(Number(serverItem.packingDone) || 0);
         }
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.warn('[DetailItemPage] handlePhotoSaved failed:', e?.message);
+      }
     };
     window.addEventListener('produksi:photo-saved', handlePhotoSaved);
 
@@ -124,15 +121,17 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
   if (!tx) return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 }}>
       <div style={{ fontSize: 48 }}>😕</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900 }}>Order tidak ditemukan</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n800 }}>Order tidak ditemukan</div>
       <Btn variant="secondary" onClick={goBack}>← Kembali</Btn>
     </div>
   );
 
+  // STAGES tanpa Selesai (Selesai = end state, bukan active stage)
+  const ACTIVE_STAGES = STAGES.filter(s => s !== 'Selesai'); // ['Diterima','Cuci','Setrika','Packing']
   const doneStages = localProgress.map(p => p.stage);
-  const nextStage = STAGES.find(s => !doneStages.includes(s));
+  const nextStage = ACTIVE_STAGES.find(s => !doneStages.includes(s));
   const allDone = !nextStage;
-  const progressPct = Math.round((doneStages.length / STAGES.length) * 100);
+  const progressPct = Math.round((doneStages.length / ACTIVE_STAGES.length) * 100);
   const sla = getSLAStatus(tx.estimatedDoneAt);
   
   const packingNeeded = Number(item?.packingNeeded) || 1;
@@ -166,24 +165,35 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
   const handleUpdateStage = async () => {
     if (!nextStage || !canUpdateStage) return;
 
-    // Foto receive dihapus sebagai required — opsional saja
     // Cek hasPackingPhoto: dari server meta atau dari conditionPhotos lokal yang baru di-upload
     const hasPacking = productionMeta?.hasPackingPhoto || conditionPhotos.some((p) =>
       p.type === 'packing'
     );
 
-    if (nextStage === 'Selesai' && !hasPacking) {
-      alertWarning('Wajib foto packing / serah terima sebelum menandai selesai.');
+    // ✅ VALIDASI: Jika sedang di tahap Packing → wajib ada foto packing sebelum bisa selesaikan tahap ini
+    if (nextStage === 'Packing' && !hasPacking) {
+      alertWarning('Wajib foto packing sebelum bisa menyelesaikan tahap Packing.');
       openFoto('packing');
       return;
     }
+
+    // Tampilkan konfirmasi sebelum menandai selesai semua
+    if (allDone) {
+      setShowSelesaiConfirm(true);
+      return;
+    }
+
+    await doUpdateStage(nextStage);
+  };
+
+  const doUpdateStage = async (stage) => {
 
     setUpdating(true);
     setStageError('');
     try {
       const body = item
-        ? { stage: nextStage, itemId: item.itemId }
-        : { stage: nextStage };
+        ? { stage, itemId: item.itemId }
+        : { stage };
       const res = await axios.patch(`/api/transactions/${apiId}/production-stage`, body);
       const refreshUrl = item?.itemId
         ? `/api/transactions/${apiId}?itemId=${item.itemId}`
@@ -193,13 +203,13 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
       if (refreshed?.data?.data?.production) setProductionMeta(refreshed.data.data.production);
       const updatedProgress = res?.data?.data?.progress || [
         ...localProgress,
-        { stage: nextStage, timestamp: new Date().toISOString() },
+        { stage, timestamp: new Date().toISOString() },
       ];
       setLocalProgress(updatedProgress);
 
       // Kalau stage terakhir 'Selesai' — auto redirect ke dashboard setelah delay singkat
-      if (nextStage === 'Selesai') {
-        // Replace history supaya kalau back, tidak balik ke detail item yang sudah selesai
+      if (stage === 'Selesai') {
+        setShowSelesaiConfirm(false);
         setTimeout(() => {
           navigate('dashboard', null, { replace: true });
         }, 1500);
@@ -209,6 +219,17 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
       const msg = err?.response?.data?.message || 'Gagal mencatat. Coba lagi.';
       setStageError(msg);
       if (code === 'PACKING_PHOTO_REQUIRED') openFoto('packing');
+      // Rollback: re-fetch server progress so UI stays in sync
+      try {
+        const res = await axios.get(`/api/transactions/${apiId}${item?.itemId ? `?itemId=${item.itemId}` : ''}`);
+        const txData = res?.data?.data;
+        if (txData?.items && item?.itemId) {
+          const serverItem = txData.items.find(i => i.itemId === item.itemId);
+          if (serverItem?.progress) setLocalProgress(serverItem.progress);
+        } else if (txData?.progress) {
+          setLocalProgress(txData.progress);
+        }
+      } catch {}
     } finally {
       setUpdating(false);
     }
@@ -236,7 +257,9 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
       const txData = res?.data?.data;
       if (Array.isArray(txData?.conditionPhotos)) setConditionPhotos(txData.conditionPhotos);
       if (txData?.production) setProductionMeta(txData.production);
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.warn('[DetailItemPage] refreshPhotos failed:', e?.message);
+    }
   };
 
   const handleDeletePhoto = async (photoId) => {
@@ -284,7 +307,10 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
 
   const handleReportProblem = async () => {
     const text = problemText === '✍️ Tulis sendiri...' ? customProblem : problemText;
-    if (!text?.trim()) return;
+    if (!text?.trim()) {
+      alertWarning('Mohon isi deskripsi masalah.');
+      return;
+    }
     setReportingProblem(true);
     try {
       // Build photos array
@@ -317,9 +343,16 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
       const { uploadImage } = await import('../../utils/imageUpload.js');
       const results = await Promise.all(files.map(f => uploadImage(f, 'documentation').catch(() => null)));
       const valid = results.filter(r => r && r.dataUrl).map(r => r.dataUrl);
+      
+      // Feedback jika semua upload gagal
+      if (files.length > 0 && valid.length === 0) {
+        alertWarning('Gagal meng-upload foto. Silakan coba lagi.');
+      }
+      
       setProblemPhotos((prev) => [...prev, ...valid].slice(0, 5)); // max 5 photos
     } catch (err) {
       console.error('[AddProblemPhoto]', err);
+      alertWarning('Gagal meng-upload foto. Silakan coba lagi.');
     } finally {
       setProblemUploading(false);
       if (e.target) e.target.value = ''; // reset input
@@ -355,17 +388,17 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar
-        title={item ? item.name : 'Detail Order'}
-        subtitle={item ? `${item.qty} ${item.unit} · Nota ${tx.id}` : tx.id}
+        title={item ? 'Detail Item Cucian' : 'Detail Nota'}
+        subtitle={item ? `${tx.id} · ${item.name}` : tx.id}
         onBack={goBack}
-        rightAction={() => openFoto(nextStage === 'Selesai' || nextStage === 'Packing' ? 'packing' : 'receive')}
+        rightAction={() => openFoto(nextStage === 'Packing' || allDone ? 'packing' : 'receive')}
         rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
       />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {(nextStage === 'Selesai' || nextStage === 'Packing') && !productionMeta?.hasPackingPhoto && !conditionPhotos.some((p) => p.type === 'packing') && (
-          <div style={{ background: '#ECFDF5', borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: '#065F46' }}>
+        {(nextStage === 'Packing' || allDone) && !productionMeta?.hasPackingPhoto && !conditionPhotos.some((p) => p.type === 'packing') && (
+          <div style={{ background: C.successBg, borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: C.successDark }}>
             📦 <strong>Wajib foto packing</strong> sebelum order siap diambil customer.
           </div>
         )}
@@ -374,87 +407,128 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
         {sla && (
           <div style={{ background: sla.bg, borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 22 }}>{sla.icon}</span>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: sla.color }}>{sla.text}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: sla.color }}>{sla.text}</div>
           </div>
         )}
 
-        {/* Customer + ID */}
-        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        {/* Nota & Customer Info (Simplified) */}
+        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: PROD_SHADOW.card }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            <Avatar initials={tx.customerName?.split(' ').map(w => w[0]).join('').slice(0, 2)} size={46} />
+            <Avatar initials={(tx.customerName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()} size={46} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: C.n900 }}>{tx.customerName}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n800 }}>{tx.customerName}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>
-                {tx.isExpress && <span style={{ background: '#FEF3C7', color: '#92400E', fontFamily: 'Poppins', fontSize: 10, fontWeight: 800, padding: '1px 8px', borderRadius: 999 }}>⚡ EXPRESS</span>}
-                {tx.pickupType === 'delivery' && <span style={{ background: '#EDE9FE', color: '#5B21B6', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 999 }}>🚗 Antar</span>}
+                {tx.isExpress && <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, padding: '1px 8px', borderRadius: 999 }}>⚡ EXPRESS</span>}
+                {tx.pickupType === 'delivery' && <span style={{ background: C.infoBg, color: C.primary, fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, padding: '1px 8px', borderRadius: 999 }}>🚗 Antar</span>}
+                {tx.customerIsMember && <span style={{ background: C.successBg, color: C.successDark, fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, padding: '1px 8px', borderRadius: 999 }}>⭐ Member</span>}
                 <Badge status={tx.status === 'selesai' ? 'selesai' : 'proses'} small />
               </div>
             </div>
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>
-            📋 {tx.id} · 📅 Masuk: {tx.date}
-          </div>
-          {tx.estimatedDoneAt && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700, marginTop: 2 }}>
-              🏁 Target: {new Date(tx.estimatedDoneAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>
+              📋 {tx.id} · 📅 Masuk: {tx.date}
             </div>
-          )}
+            {tx.customerPhone && (
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>
+                📞 {tx.customerPhone}
+              </div>
+            )}
+            {tx.estimatedDoneAt && (
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>
+                🏁 Target: {new Date(tx.estimatedDoneAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
+          </div>
         </div>
 
+        {/* Item Detail (Focused) */}
+        {item && (
+          <div style={{ background: 'white', borderRadius: 16, padding: '16px', boxShadow: PROD_SHADOW.card }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em', marginBottom: 14 }}>ITEM YANG DIPROSES</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, color: C.n800 }}>{item.name}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n500 }}>{item.qty} {item.unit}</div>
+              </div>
+              
+              {/* Item Attributes */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {item.material && (
+                  <span style={{ background: C.infoBg, color: C.infoDark, fontSize: '11px', fontFamily: 'Poppins', padding: '6px 12px', borderRadius: '8px', fontWeight: 500 }}>🧵 Bahan: {item.material}</span>
+                )}
+                {item.brand && (
+                  <span style={{ background: C.infoBg, color: C.primary, fontSize: '11px', fontFamily: 'Poppins', padding: '6px 12px', borderRadius: '8px', fontWeight: 500 }}>🏷️ Merk: {item.brand}</span>
+                )}
+                {item.specialCareAlert && (
+                  <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontSize: '11px', fontFamily: 'Poppins', padding: '6px 12px', borderRadius: '8px', fontWeight: 500 }}>⚠️ Perhatian: {item.specialCareAlert}</span>
+                )}
+                {item.isExpress && (
+                  <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontSize: '11px', fontFamily: 'Poppins', padding: '6px 12px', borderRadius: '8px', fontWeight: 500 }}>⚡ EXPRESS</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CURRENT STAGE — compact hero */}
+        {(() => {
+          const stageStyle = getStageStyle(nextStage || 'Selesai');
+          return (
         <div style={{
           background: allDone
-            ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)'
-            : `linear-gradient(135deg, ${STAGE_COLORS[nextStage]}10 0%, ${STAGE_COLORS[nextStage]}05 100%)`,
-          borderRadius: 18, padding: '16px 18px', boxShadow: '0 4px 16px rgba(15,23,42,0.08)',
-          border: `2px solid ${allDone ? '#10B981' : STAGE_COLORS[nextStage] + '40'}`,
+            ? C.successBg
+            : stageStyle.bg,
+          borderRadius: 18, padding: '16px 18px',
+          boxShadow: PROD_SHADOW.card,
+          border: `2px solid ${allDone ? C.success : stageStyle.accent + '60'}`,
           display: 'flex', alignItems: 'center', gap: 14,
         }}>
           <div style={{
             width: 56, height: 56, borderRadius: 16, flexShrink: 0,
-            background: allDone ? '#10B981' : `${STAGE_COLORS[nextStage]}20`,
+            background: allDone ? C.success : stageStyle.accent + '20',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 28,
-            border: allDone ? 'none' : `2px solid ${STAGE_COLORS[nextStage]}40`,
+            border: allDone ? 'none' : `2px solid ${stageStyle.accent}40`,
+            boxShadow: stageStyle.dotShadow ? `0 0 8px ${stageStyle.dotShadow}` : 'none',
           }}>
             {STAGE_ICONS[nextStage || 'Selesai']}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: allDone ? '#065F46' : C.n500, fontWeight: 600, letterSpacing: 0.8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: allDone ? C.successDark : C.n500, fontWeight: 500, letterSpacing: '0.06em' }}>
               {allDone ? 'STATUS' : 'TAHAP SELANJUTNYA'}
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 900, color: allDone ? '#065F46' : STAGE_COLORS[nextStage] || C.primary, marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 600, color: allDone ? C.successDark : stageStyle.text, marginTop: 2 }}>
               {allDone ? 'SELESAI 🎉' : nextStage}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-              <div style={{ flex: 1, height: 6, background: `${allDone ? '#10B981' : STAGE_COLORS[nextStage]}20`, borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${progressPct}%`, background: allDone ? '#10B981' : STAGE_COLORS[nextStage], borderRadius: 3, transition: 'width 0.6s ease' }} />
+              <div style={{ flex: 1, height: 6, background: `${allDone ? C.success : stageStyle.accent}20`, borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${progressPct}%`, background: allDone ? C.success : stageStyle.accent, borderRadius: 3, transition: 'width 0.6s ease' }} />
               </div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: allDone ? '#065F46' : STAGE_COLORS[nextStage] }}>{progressPct}%</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: allDone ? C.successDark : stageStyle.text }}>{progressPct}%</span>
             </div>
           </div>
         </div>
+          );
+        })()}
 
         {/* Stage Pipeline — horizontal visual */}
-        <div style={{ background: 'white', borderRadius: 16, padding: '16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5, marginBottom: 14 }}>ALUR PRODUKSI</div>
-          
-          {/* Horizontal pipeline */}
+        <div style={{ background: 'white', borderRadius: 16, padding: '16px', boxShadow: PROD_SHADOW.card }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em', marginBottom: 14 }}>ALUR PRODUKSI</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 12 }}>
-            {STAGES.map((s, i) => {
+            {ACTIVE_STAGES.map((s, i) => {
               const isDone = doneStages.includes(s);
               const isCurrent = s === nextStage;
+              const stageStyle = getStageStyle(s);
               return (
                 <div key={s} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                  <div style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1,
-                  }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: 18, flexShrink: 0,
-                      background: isDone ? STAGE_COLORS[s] : isCurrent ? `${STAGE_COLORS[s]}20` : C.n100,
+                      background: isDone ? stageStyle.accent : isCurrent ? `${stageStyle.accent}20` : C.n100,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: isCurrent ? `2.5px solid ${STAGE_COLORS[s]}` : isDone ? 'none' : `1.5px solid ${C.n200}`,
-                      boxShadow: isCurrent ? `0 0 0 4px ${STAGE_COLORS[s]}15` : 'none',
+                      border: isCurrent ? `2.5px solid ${stageStyle.accent}` : isDone ? 'none' : `1.5px solid ${C.n200}`,
+                      boxShadow: isCurrent ? `0 0 0 4px ${stageStyle.accent}15` : 'none',
                       transition: 'all 0.3s',
                     }}>
                       {isDone
@@ -463,17 +537,17 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
                       }
                     </div>
                     <span style={{
-                      fontFamily: 'Poppins', fontSize: 9, fontWeight: isDone || isCurrent ? 700 : 500,
-                      color: isDone ? STAGE_COLORS[s] : isCurrent ? STAGE_COLORS[s] : C.n400,
+                      fontFamily: 'Poppins', fontSize: 9, fontWeight: isDone || isCurrent ? 600 : 400,
+                      color: isDone ? stageStyle.text : isCurrent ? stageStyle.text : C.n400,
                       textAlign: 'center', lineHeight: 1.1,
                     }}>
                       {s}
                     </span>
                   </div>
-                  {i < STAGES.length - 1 && (
+                  {i < ACTIVE_STAGES.length - 1 && (
                     <div style={{
                       height: 2, flex: 0.5, minWidth: 8,
-                      background: isDone ? STAGE_COLORS[s] : C.n200,
+                      background: isDone ? stageStyle.accent : C.n200,
                       borderRadius: 1, marginTop: -14,
                       transition: 'background 0.3s',
                     }} />
@@ -485,69 +559,72 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
 
           {/* Timestamp log */}
           {localProgress.length > 0 && (
-            <div style={{ borderTop: `1px solid ${C.n100}`, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {localProgress.map((p) => (
-                <div key={p.stage} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 10, color: STAGE_COLORS[p.stage] || C.n500, fontWeight: 700 }}>
+            <div style={{ borderTop: `1px solid ${C.n200}`, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {localProgress.map((p, pi) => {
+                const ps = getStageStyle(p.stage);
+                return (
+                <div key={`${p.stage}-${p.timestamp || pi}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 10, color: ps.text, fontWeight: 500 }}>
                     {STAGE_ICONS[p.stage]} {p.stage}
                   </span>
                   <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>
                     {p.timestamp ? new Date(p.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Packing Tracker — tampil saat tahap Packing tiba atau setelahnya */}
+        {/* Packing Tracker */}
         {item && (nextStage === 'Packing' || doneStages.includes('Packing')) && (
-          <div style={{ background: 'white', borderRadius: 16, padding: '16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)', border: `2px solid ${packingComplete ? '#10B981' : '#F59E0B'}` }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5, marginBottom: 12 }}>📦 PROGRESS PACKING</div>
+          <div style={{ background: 'white', borderRadius: 16, padding: '16px', boxShadow: PROD_SHADOW.card, border: `2px solid ${packingComplete ? C.success : C.warning}` }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em', marginBottom: 12 }}>📦 PROGRESS PACKING</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
               <button
                 onClick={() => handlePackingCount(packingDone - 1)}
                 disabled={packingDone <= 0 || packingUpdating}
-                style={{ width: 44, height: 44, borderRadius: 22, border: `2px solid ${C.n300}`, background: packingDone > 0 ? C.n100 : C.n50, cursor: packingDone > 0 ? 'pointer' : 'default', fontFamily: 'Poppins', fontSize: 22, fontWeight: 700, color: C.n700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                style={{ width: 44, height: 44, borderRadius: 22, border: `2px solid ${C.n300}`, background: packingDone > 0 ? C.n100 : C.n50, cursor: packingDone > 0 ? 'pointer' : 'default', fontFamily: 'Poppins', fontSize: 22, fontWeight: 600, color: C.n700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
               >−</button>
               <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 36, fontWeight: 900, color: packingComplete ? '#10B981' : '#F59E0B', lineHeight: 1 }}>
-                  {packingDone}<span style={{ fontSize: 18, color: C.n400 }}> / {packingNeeded}</span>
+                <div style={{ fontFamily: 'Poppins', fontSize: 36, fontWeight: 600, color: packingComplete ? C.success : C.warning, lineHeight: 1 }}>
+                  {packingDone}<span style={{ fontSize: 18, color: C.n500 }}> / {packingNeeded}</span>
                 </div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>paket selesai dipacking</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400, marginTop: 4 }}>paket selesai dipacking</div>
               </div>
               <button
                 onClick={() => handlePackingCount(packingDone + 1)}
                 disabled={packingDone >= packingNeeded || packingUpdating}
-                style={{ width: 44, height: 44, borderRadius: 22, border: 'none', background: packingDone < packingNeeded ? C.primary : C.n100, cursor: packingDone < packingNeeded ? 'pointer' : 'default', fontFamily: 'Poppins', fontSize: 22, fontWeight: 700, color: packingDone < packingNeeded ? 'white' : C.n400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                style={{ width: 44, height: 44, borderRadius: 22, border: 'none', background: packingDone < packingNeeded ? C.primary : C.n100, cursor: packingDone < packingNeeded ? 'pointer' : 'default', fontFamily: 'Poppins', fontSize: 22, fontWeight: 600, color: packingDone < packingNeeded ? 'white' : C.n400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
               >+</button>
             </div>
             <div style={{ height: 8, background: C.n100, borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
-              <div style={{ height: '100%', width: `${Math.min(100, (packingDone / packingNeeded) * 100)}%`, background: packingComplete ? '#10B981' : '#F59E0B', borderRadius: 4, transition: 'width 0.4s ease' }} />
+              <div style={{ height: '100%', width: `${Math.min(100, (packingDone / packingNeeded) * 100)}%`, background: packingComplete ? C.success : C.warning, borderRadius: 4, transition: 'width 0.4s ease' }} />
             </div>
             {packingNotes && (
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400E', background: '#FEF3C7', borderRadius: 8, padding: '6px 10px', marginBottom: 8 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText, background: C.validationWarningBg, borderRadius: 8, padding: '6px 10px', marginBottom: 8 }}>
                 📝 {packingNotes}
               </div>
             )}
             {packingComplete
-              ? <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: '#065F46', textAlign: 'center' }}>✅ Semua paket sudah dipacking! Lanjutkan ke tahap berikutnya.</div>
-              : <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400E', textAlign: 'center' }}>Selesaikan semua {packingNeeded} paket untuk lanjut tahap berikutnya.</div>
+              ? <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.successDark, textAlign: 'center' }}>✅ Semua paket sudah dipacking! Lanjutkan ke tahap berikutnya.</div>
+              : <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText, textAlign: 'center' }}>Selesaikan semua {packingNeeded} paket untuk lanjut tahap berikutnya.</div>
             }
           </div>
         )}
 
         {/* Bukti foto dokumentasi */}
-        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: PROD_SHADOW.card }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5 }}>BUKTI FOTO</div>
-            <button type="button" onClick={() => openFoto('receive')} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.primary, background: `${C.primary}12`, border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>+ Foto</button>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em' }}>BUKTI FOTO</div>
+            <button type="button" onClick={() => openFoto('receive')} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, color: C.primary, background: C.primaryTint, border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>+ Foto</button>
           </div>
           {photosLoading && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, textAlign: 'center', padding: 8 }}>Memuat foto…</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400, textAlign: 'center', padding: 8 }}>Memuat foto…</div>
           )}
           {!photosLoading && conditionPhotos.length === 0 && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, textAlign: 'center', padding: 10, background: C.n50, borderRadius: 10 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400, textAlign: 'center', padding: 10, background: C.n50, borderRadius: 10 }}>
               Belum ada dokumentasi. Foto packing wajib sebelum serah ke customer.
             </div>
           )}
@@ -557,7 +634,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
                 const isEditing = editingPhotoId === p.id;
                 return (
                 <div key={p.id} style={{
-                  background: isEditing ? '#FEF3C7' : C.n50,
+                  background: isEditing ? C.validationWarningBg : C.n50,
                   borderRadius: 10, padding: '8px 10px',
                   border: `1px solid ${isEditing ? '#FDE68A' : 'transparent'}`,
                   transition: 'background 0.15s',
@@ -580,7 +657,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
                           style={{
                             position: 'absolute', top: -6, right: -6,
                             width: 22, height: 22, borderRadius: 11,
-                            background: '#DC2626', border: '2px solid white',
+                            background: C.danger, border: '2px solid white',
                             cursor: 'pointer', padding: 0,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             boxShadow: '0 2px 6px rgba(220,38,38,0.4)',
@@ -618,10 +695,10 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
                         </>
                       ) : (
                         <>
-                          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n800 }}>{photoTypeLabel(p.type)}</div>
+                          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 500, color: C.n800 }}>{photoTypeLabel(p.type)}</div>
                           {p.notes && <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 2 }}>{p.notes}</div>}
                           {p.createdAt && (
-                            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400, marginTop: 2 }}>
+                            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, marginTop: 2 }}>
                               {new Date(p.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                               {p.uploadedByName ? ` · ${p.uploadedByName}` : ''}
                             </div>
@@ -635,7 +712,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
                   {isEditing ? (
                     <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end' }}>
                       <button onClick={() => { setEditingPhotoId(null); setEditingNotes(''); setEditingType(''); }} disabled={photoActionLoading} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.n300}`, background: 'white', color: C.n700, cursor: 'pointer' }}>Batal</button>
-                      <button onClick={handleSaveEditPhoto} disabled={photoActionLoading} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6, border: 'none', background: C.primary, color: 'white', cursor: photoActionLoading ? 'default' : 'pointer', opacity: photoActionLoading ? 0.6 : 1 }}>
+                      <button onClick={handleSaveEditPhoto} disabled={photoActionLoading} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 6, border: 'none', background: C.primary, color: 'white', cursor: photoActionLoading ? 'default' : 'pointer', opacity: photoActionLoading ? 0.6 : 1 }}>
                         {photoActionLoading ? (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <span style={{ width: 10, height: 10, border: '1.5px solid rgba(255,255,255,0.4)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.6s linear infinite', display: 'inline-block' }} />
@@ -655,45 +732,51 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button type="button" onClick={() => openFoto('receive')} style={{ flex: 1, padding: '8px', borderRadius: 10, border: `1px solid ${C.n200}`, background: '#EFF6FF', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: '#1E40AF', cursor: 'pointer' }}>📥 Foto terima</button>
-            <button type="button" onClick={() => openFoto('packing')} style={{ flex: 1, padding: '8px', borderRadius: 10, border: `1px solid ${C.n200}`, background: '#ECFDF5', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: '#065F46', cursor: 'pointer' }}>📦 Foto packing</button>
+            <button type="button" onClick={() => openFoto('receive')} style={{ flex: 1, padding: '8px', borderRadius: 10, border: `1px solid ${C.n200}`, background: C.validationInfoBg, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.validationInfoText, cursor: 'pointer' }}>📥 Foto terima</button>
+            <button type="button" onClick={() => openFoto('packing')} style={{ flex: 1, padding: '8px', borderRadius: 10, border: `1px solid ${C.n200}`, background: C.successBg, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.successDark, cursor: 'pointer' }}>📦 Foto packing</button>
           </div>
         </div>
 
-        {/* Items laundry */}
-        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5, marginBottom: 10 }}>ITEM CUCIAN</div>
-          {tx.items?.map((item, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < tx.items.length - 1 ? `1px solid ${C.n100}` : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{item.name || item.serviceName}</span>
-                {item.express && <span style={{ background: '#FEF3C7', color: '#92400E', fontFamily: 'Poppins', fontSize: 9, fontWeight: 800, padding: '1px 6px', borderRadius: 999 }}>⚡</span>}
-              </div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n700 }}>{item.qty} {item.unit}</span>
-            </div>
-          ))}
-          {(() => {
+        {/* Items laundry (Only if multiple items) */}
+        {tx.items && tx.items.length > 1 && (
+          <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: PROD_SHADOW.card }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em', marginBottom: 10 }}>ITEM LAIN DI NOTA INI</div>
+            {tx.items.map((itm, i) => {
+              if (itm.itemId === item?.itemId) return null;
+              return (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < tx.items.length - 1 ? `1px solid ${C.n200}` : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 500, color: C.n800 }}>{itm.name || itm.serviceName}</span>
+                    {(itm.express || itm.isExpress) && <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontFamily: 'Poppins', fontSize: 9, fontWeight: 500, padding: '1px 6px', borderRadius: 999 }}>⚡</span>}
+                  </div>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 500, color: C.n500 }}>{itm.qty} {itm.unit}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {(() => {
             const userNotes = (tx.notes || '').replace(/\[Bayar:[^\]]*\]/g, '').trim();
             if (!userNotes) return null;
             return (
-              <div style={{ marginTop: 10, padding: '8px 10px', background: '#FEF3C7', borderRadius: 8 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400E' }}>📝 Catatan: {userNotes}</span>
+              <div style={{ padding: '8px 10px', background: C.validationWarningBg, borderRadius: 8 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText }}>📝 Catatan: {userNotes}</span>
               </div>
             );
           })()}
-          {problemSent && (
-            <div style={{ marginTop: 8, padding: '8px 12px', background: '#ECFDF5', borderRadius: 8 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#065F46', fontWeight: 600 }}>✅ Laporan masalah berhasil dikirim</span>
-            </div>
-          )}
-        </div>
+        {problemSent && (
+          <div style={{ padding: '8px 12px', background: C.successBg, borderRadius: 8 }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.successDark, fontWeight: 600 }}>✅ Laporan masalah berhasil dikirim</span>
+          </div>
+        )}
 
       </div>
 
       {/* Bottom action area */}
       <div style={{ padding: '12px 16px', background: 'white', borderTop: `1px solid ${C.n100}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {stageError && (
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#991B1B', background: '#FEE2E2', borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.validationErrorText, background: C.validationErrorBg, borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
             ⚠️ {stageError}
           </div>
         )}
@@ -710,7 +793,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <span style={{ fontSize: 16 }}>🚨</span>
-              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: '#F1F5F9' }}>Laporan Masalah</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#f1f5f9' }}>Laporan Masalah</div>
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#CBD5E1', marginBottom: 8 }}>Pilih jenis masalah:</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -747,7 +830,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
 
             {/* Upload foto bukti */}
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #334155' }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: '#CBD5E1', marginBottom: 6 }}>📸 Foto bukti (opsional)</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>📸 Foto bukti (opsional)</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {problemPhotos.map((url, idx) => (
                   <div key={idx} style={{ position: 'relative', width: 56, height: 56, borderRadius: 8, overflow: 'hidden', border: `1.5px solid #475569` }}>
@@ -783,14 +866,18 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
               </button>
               <button
                 onClick={handleReportProblem}
-                disabled={!problemText || reportingProblem}
+                disabled={
+                  !problemText || 
+                  reportingProblem ||
+                  (problemText === '✍️ Tulis sendiri...' && !customProblem?.trim())
+                }
                 style={{
                   flex: 2, padding: '10px', borderRadius: 10, border: 'none',
-                  background: problemText ? 'linear-gradient(135deg, #EF4444, #DC2626)' : '#475569',
-                  cursor: problemText ? 'pointer' : 'default',
-                  fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
-                  color: problemText ? 'white' : '#94A3B8',
-                  boxShadow: problemText ? '0 4px 12px rgba(239,68,68,0.4)' : 'none',
+                  background: (problemText && !(problemText === '✍️ Tulis sendiri...' && !customProblem?.trim())) ? '#ef4444' : '#475569',
+                  cursor: (problemText && !(problemText === '✍️ Tulis sendiri...' && !customProblem?.trim())) ? 'pointer' : 'default',
+                  fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+                  color: (problemText && !(problemText === '✍️ Tulis sendiri...' && !customProblem?.trim())) ? 'white' : '#94A3B8',
+                  boxShadow: (problemText && !(problemText === '✍️ Tulis sendiri...' && !customProblem?.trim())) ? '0 4px 12px rgba(239,68,68,0.4)' : 'none',
                 }}
               >
                 {reportingProblem ? 'Mengirim...' : '🚨 Laporkan'}
@@ -801,9 +888,9 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
 
         {/* Revert stage modal */}
         {showRevert && (
-          <div style={{ marginBottom: 4, background: '#FEF3C7', borderRadius: 10, padding: '12px 14px', border: '1.5px solid #FDE68A' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 6 }}>↩️ Batalkan Tahap Terakhir</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#78350F', marginBottom: 8, lineHeight: 1.5 }}>
+          <div style={{ marginBottom: 4, background: C.validationWarningBg, borderRadius: 10, padding: '12px 14px', border: '1.5px solid #FDE68A' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.validationWarningText, marginBottom: 6 }}>↩️ Batalkan Tahap Terakhir</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginBottom: 8, lineHeight: 1.5 }}>
               Tahap terakhir akan dikembalikan ke tahap sebelumnya. Tulis alasan kenapa perlu di-revert (untuk audit trail).
             </div>
             <textarea
@@ -820,7 +907,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
               <button
                 onClick={handleRevertStage}
                 disabled={!revertReason.trim() || reverting}
-                style={{ flex: 2, padding: '8px', borderRadius: 8, border: 'none', background: revertReason.trim() ? '#F59E0B' : C.n200, cursor: revertReason.trim() ? 'pointer' : 'default', fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: 'white' }}
+                style={{ flex: 2, padding: '8px', borderRadius: 8, border: 'none', background: revertReason.trim() ? C.warning : C.n200, cursor: revertReason.trim() ? 'pointer' : 'default', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: 'white' }}
               >
                 {reverting ? 'Memproses...' : '↩️ Kembalikan ke Tahap Sebelumnya'}
               </button>
@@ -834,7 +921,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
             <button
               onClick={() => setShowRevert(!showRevert)}
               title="Batalkan tahap terakhir (kalau salah pencet)"
-              style={{ padding: '12px 14px', borderRadius: 14, border: `1.5px solid #F59E0B`, background: showRevert ? '#FEF3C7' : 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: '#F59E0B', flexShrink: 0 }}
+              style={{ padding: '12px 14px', borderRadius: 14, border: `1.5px solid ${C.warning}`, background: showRevert ? C.validationWarningBg : 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.warning, flexShrink: 0 }}
             >
               ↩️
             </button>
@@ -843,7 +930,7 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
           {/* Tombol masalah */}
           <button
             onClick={() => setShowProblem(!showProblem)}
-            style={{ padding: '12px 16px', borderRadius: 14, border: `1.5px solid #EF4444`, background: showProblem ? '#FEE2E2' : 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: '#EF4444', flexShrink: 0 }}
+            style={{ padding: '12px 16px', borderRadius: 14, border: `1.5px solid ${C.danger}`, background: showProblem ? C.validationErrorBg : 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.danger, flexShrink: 0 }}
           >
             🚨
           </button>
@@ -855,30 +942,93 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
               disabled={updating || !canUpdateStage}
               style={{
                 flex: 1, height: 54, borderRadius: 14, border: 'none', cursor: updating || !canUpdateStage ? 'default' : 'pointer',
-                background: updating || !canUpdateStage ? C.n200 : `linear-gradient(135deg, ${STAGE_COLORS[nextStage] || C.primary}, ${STAGE_COLORS[nextStage] || C.primary}DD)`,
-                fontFamily: 'Poppins', fontSize: 15, fontWeight: 800, color: updating || !canUpdateStage ? C.n500 : 'white',
+                background: updating || !canUpdateStage ? C.n200 : (() => {
+                  const s = getStageStyle(nextStage); return s.accent;
+                })(),
+                fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: updating || !canUpdateStage ? C.n400 : 'white',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                boxShadow: updating || !canUpdateStage ? 'none' : `0 6px 20px ${STAGE_COLORS[nextStage] || C.primary}40`,
+                boxShadow: updating || !canUpdateStage ? 'none' : PROD_SHADOW.card,
                 transition: 'all 0.2s',
               }}
             >
               {updating
                 ? <><div style={{ width: 20, height: 20, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />&nbsp;Mencatat...</>
                 : !canUpdateStage
-                ? <span style={{ fontSize: 12, fontWeight: 600 }}>Selesaikan packing dulu</span>
-                : <>{STAGE_ICONS[nextStage]} Selesai: {nextStage}</>
+                ? <span style={{ fontSize: 12, fontWeight: 500 }}>Selesaikan packing dulu</span>
+                : <>{STAGE_ICONS[nextStage]} {nextStage}</>
               }
             </button>
           ) : (
             <button
               onClick={goBack}
-              style={{ flex: 1, height: 54, borderRadius: 14, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, #10B981, #059669)', fontFamily: 'Poppins', fontSize: 15, fontWeight: 800, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 16px #10B98155' }}
+              style={{ flex: 1, height: 54, borderRadius: 14, border: 'none', cursor: 'pointer', background: C.success, fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: PROD_SHADOW.card }}
             >
               ✅ Semua Selesai! Kembali
             </button>
           )}
         </div>
       </div>
+
+      {/* Modal konfirmasi selesai */}
+      {showSelesaiConfirm && (
+        <div
+          onClick={() => setShowSelesaiConfirm(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 200,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 340, background: 'white', borderRadius: 18,
+              padding: 22, boxShadow: '0 12px 36px rgba(15,23,42,0.25)',
+            }}
+          >
+            <div style={{ textAlign: 'center', marginBottom: 14 }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: 28,
+                background: C.successBg,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 10px',
+              }}>
+                <span style={{ fontSize: 28 }}>✅</span>
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n800 }}>
+                Tandai Selesai?
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginTop: 6, lineHeight: 1.5 }}>
+                Item <strong>{item?.name}</strong> ({item?.qty} {item?.unit}) akan dipindahkan ke riwayat produksi dan ditandai siap diambil customer.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setShowSelesaiConfirm(false)}
+                style={{
+                  flex: 1, height: 42, borderRadius: 10,
+                  border: `1.5px solid ${C.n200}`, background: 'white',
+                  fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n700,
+                  cursor: 'pointer',
+                }}
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => doUpdateStage('Selesai')}
+                style={{
+                  flex: 1, height: 42, borderRadius: 10,
+                  border: 'none', background: C.success,
+                  fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: 'white',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(34,197,94,0.3)',
+                }}
+              >
+                ✅ Ya, Selesai
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal konfirmasi hapus foto */}
       {confirmDeletePhotoId && (
@@ -898,13 +1048,13 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
           >
             <div style={{ textAlign: 'center', marginBottom: 14 }}>
               <div style={{
-                width: 56, height: 56, borderRadius: 28, background: '#FEE2E2',
+                width: 56, height: 56, borderRadius: 28, background: C.validationErrorBg,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 margin: '0 auto 10px',
               }}>
                 <span style={{ fontSize: 28 }}>🗑️</span>
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n800 }}>
                 Hapus foto?
               </div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginTop: 6, lineHeight: 1.5 }}>
@@ -930,8 +1080,8 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
                 disabled={photoActionLoading}
                 style={{
                   flex: 1, height: 42, borderRadius: 10, border: 'none',
-                  background: photoActionLoading ? '#9CA3AF' : '#DC2626',
-                  fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: 'white',
+                  background: photoActionLoading ? C.n400 : C.danger,
+                  fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: 'white',
                   cursor: photoActionLoading ? 'default' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
@@ -960,3 +1110,13 @@ export default function DetailItemProduksiPage({ navigate, goBack, screenParams,
     </div>
   );
 }
+
+// ErrorBoundary wrapper
+export function DetailItemProduksiPage({ navigate, goBack, screenParams, user }) {
+  return (
+    <ErrorBoundary>
+      <DetailItemPageContent navigate={navigate} goBack={goBack} screenParams={screenParams} user={user} />
+    </ErrorBoundary>
+  );
+}
+export default DetailItemProduksiPage;

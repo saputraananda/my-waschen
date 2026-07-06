@@ -34,6 +34,7 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [saved, setSaved] = useState(false);
 
   const beforeFileRef = useRef(null);
   const afterFileRef = useRef(null);
@@ -69,6 +70,13 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
 
   const removePhoto = (idx) => {
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
+    setSaved(false);
+  };
+
+  const handleAddMore = () => {
+    setPhotos([]);
+    setNote('');
+    setSaved(false);
   };
 
   const handleSave = async () => {
@@ -90,12 +98,9 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
         phase,
         itemId: tx.item?.itemId,
       });
-      // Trigger refresh di DetailItemPage saat user kembali (via custom event)
       try { window.dispatchEvent(new CustomEvent('produksi:photo-saved', { detail: { phase } })); } catch {}
       await alertSuccess('Dokumentasi foto berhasil disimpan.');
-      // goBack supaya tidak push state baru — DetailItemPage akan tetap di stack
-      // dan bisa lanjut update stage tanpa kehilangan progress.
-      goBack?.();
+      setSaved(true);
     } catch (err) {
       alertError(err?.response?.data?.message || 'Gagal menyimpan dokumentasi.');
     } finally {
@@ -108,7 +113,7 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
       <TopBar title={cfg.title} subtitle={tx?.id || cfg.subtitle} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        <div style={{ background: phase === 'receive' ? '#EFF6FF' : '#ECFDF5', borderRadius: 12, padding: '10px 12px', marginBottom: 14, fontFamily: 'Poppins', fontSize: 11, color: phase === 'receive' ? '#1E40AF' : '#065F46' }}>
+        <div style={{ background: phase === 'receive' ? C.validationInfoBg : C.successBg, borderRadius: 12, padding: '10px 12px', marginBottom: 14, fontFamily: 'Poppins', fontSize: 11, color: phase === 'receive' ? C.validationInfoText : C.successDark }}>
           {phase === 'receive'
             ? '📥 Opsional. Boleh dilewati. Foto ini berguna jika ada catatan kerusakan / noda awal.'
             : '📦 Wajib diisi saat packing / sebelum customer mengambil. Mencegah salah serah barang.'}
@@ -137,11 +142,22 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
         </div>
 
         {uploading && uploadProgress && (
-          <div style={{ background: '#EFF6FF', borderRadius: 12, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 18, height: 18, border: '2.5px solid #BFDBFE', borderTopColor: '#1D4ED8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: '#1E40AF' }}>
+          <div style={{ background: C.validationInfoBg, borderRadius: 12, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 18, height: 18, border: `2.5px solid ${C.info}40`, borderTopColor: C.info, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.validationInfoText }}>
               Mengompres foto {uploadProgress.current}/{uploadProgress.total}…
             </span>
+          </div>
+        )}
+
+        {/* Saved confirmation */}
+        {saved && (
+          <div style={{ background: C.successBg, borderRadius: 12, padding: '12px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>✅</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.successDark }}>Dokumentasi tersimpan</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginTop: 1 }}>{photos.length} foto sudah disimpan ke server</div>
+            </div>
           </div>
         )}
 
@@ -159,7 +175,7 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
                       borderRadius: '50%', border: 'none',
                       background: 'rgba(0,0,0,0.6)', color: 'white', cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
+                      fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
                     }}
                   >×</button>
                 </div>
@@ -186,8 +202,17 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
       </div>
 
       <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: 10 }}>
-        <Btn variant="secondary" onClick={() => goBack?.()} style={{ flex: 1 }}>Batal</Btn>
-        <Btn variant="primary" loading={loading} onClick={handleSave} style={{ flex: 2 }}>Simpan Dokumentasi</Btn>
+        {saved ? (
+          <>
+            <Btn variant="secondary" onClick={handleAddMore} style={{ flex: 1 }}>+ Tambah Lagi</Btn>
+            <Btn variant="primary" onClick={() => goBack?.()} style={{ flex: 2 }}>Selesai</Btn>
+          </>
+        ) : (
+          <>
+            <Btn variant="secondary" onClick={() => goBack?.()} style={{ flex: 1 }}>Batal</Btn>
+            <Btn variant="primary" loading={loading} onClick={handleSave} style={{ flex: 2 }}>Simpan Dokumentasi</Btn>
+          </>
+        )}
       </div>
     </div>
   );

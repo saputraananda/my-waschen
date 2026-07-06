@@ -6,13 +6,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { TopBar, useAppRefresh, SearchBar } from '../../components/ui';
 
 const STATUS_META = {
-  safe:  { color: '#10B981', bg: '#DCFCE7', label: 'Aman' },
-  low:   { color: '#F59E0B', bg: '#FEF3C7', label: 'Tipis' },
-  empty: { color: '#DC2626', bg: '#FEE2E2', label: 'Habis' },
+  safe:  { color: C.success, bg: C.successBg, label: 'Aman' },
+  low:   { color: C.warning, bg: C.warningBg, label: 'Tipis' },
+  empty: { color: C.danger, bg: C.dangerBg, label: 'Habis' },
 };
 
 export default function AllOutletStocksPage({ goBack }) {
@@ -65,10 +65,10 @@ export default function AllOutletStocksPage({ goBack }) {
             onClick={() => setOnlyLow(!onlyLow)}
             style={{
               padding: '8px 12px', borderRadius: 10,
-              border: `1.5px solid ${onlyLow ? '#F59E0B' : C.n200}`,
-              background: onlyLow ? '#FEF3C7' : 'white',
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
-              color: onlyLow ? '#92400E' : C.n700,
+              border: `1.5px solid ${onlyLow ? C.warning : C.n200}`,
+              background: onlyLow ? C.warningBg : C.white,
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+              color: onlyLow ? C.warningDark : C.n700,
               cursor: 'pointer', whiteSpace: 'nowrap',
               marginBottom: 12,
             }}
@@ -77,12 +77,12 @@ export default function AllOutletStocksPage({ goBack }) {
           </button>
         </div>
 
-        {loading && <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat…</div>}
+        {loading && <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Memuat…</div>}
 
         {!loading && items.length === 0 && (
           <div style={{ textAlign: 'center', padding: 50 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>
               {onlyLow ? 'Semua stok aman, tidak ada yang perlu perhatian!' : 'Tidak ada data.'}
             </div>
           </div>
@@ -92,7 +92,7 @@ export default function AllOutletStocksPage({ goBack }) {
         {!loading && items.length > 0 && (
           <div style={{
             background: 'white', borderRadius: 12, overflow: 'hidden',
-            boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
+            boxShadow: SHADOW.sm,
           }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
@@ -110,9 +110,9 @@ export default function AllOutletStocksPage({ goBack }) {
                   {items.map((it) => (
                     <tr key={it.inventoryId} style={{ borderTop: `1px solid ${C.n100}` }}>
                       <td style={{ ...td, fontWeight: 600 }}>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>{it.categoryName}</div>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{it.categoryName}</div>
                         <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{it.itemName}</div>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>{it.itemCode} · {it.unit}</div>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600 }}>{it.itemCode} · {it.unit}</div>
                       </td>
                       {it.outlets.map((o) => {
                         const meta = STATUS_META[o.status];
@@ -125,19 +125,19 @@ export default function AllOutletStocksPage({ goBack }) {
                               minWidth: 70,
                             }}>
                               <div style={{
-                                fontFamily: 'Poppins', fontSize: 14, fontWeight: 800,
+                                fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
                                 color: meta.color,
                               }}>
                                 {Number(o.stockQty).toLocaleString('id-ID')}
                               </div>
                               <div style={{
-                                fontFamily: 'Poppins', fontSize: 8, fontWeight: 700,
+                                fontFamily: 'Poppins', fontSize: 8, fontWeight: 600,
                                 color: meta.color, textTransform: 'uppercase',
                               }}>
                                 {meta.label}
                               </div>
                               <div style={{
-                                fontFamily: 'Poppins', fontSize: 8, color: C.n500,
+                                fontFamily: 'Poppins', fontSize: 8, color: C.n600,
                                 marginTop: 1,
                               }}>
                                 min {Number(o.minStock).toLocaleString('id-ID')}
@@ -155,8 +155,8 @@ export default function AllOutletStocksPage({ goBack }) {
         )}
 
         {/* Legend */}
-        <div style={{ marginTop: 14, padding: '10px 12px', background: 'white', borderRadius: 10, fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Keterangan status:</div>
+        <div style={{ marginTop: 14, padding: '10px 12px', background: C.white, borderRadius: 10, fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Keterangan status:</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             {Object.entries(STATUS_META).map(([k, m]) => (
               <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -172,7 +172,7 @@ export default function AllOutletStocksPage({ goBack }) {
 }
 
 const th = {
-  fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+  fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
   color: C.n700, textAlign: 'left', padding: '12px 14px',
   textTransform: 'uppercase', letterSpacing: 0.3,
 };

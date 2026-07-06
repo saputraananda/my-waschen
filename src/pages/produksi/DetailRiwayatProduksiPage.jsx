@@ -47,7 +47,7 @@ const fmtDuration = (start, end) => {
 // Sub-components
 // ════════════════════════════════════════════════════════════════════
 function HeroCustomerCard({ data }) {
-  const initials = (data.customerName || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const initials = (data.customerName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div style={{
       background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0C4A6E 100%)',
@@ -66,7 +66,7 @@ function HeroCustomerCard({ data }) {
           <div style={{ fontFamily: 'Poppins', fontSize: 9, color: 'rgba(255,255,255,0.6)', letterSpacing: 0.5, fontWeight: 600 }}>
             📋 {data.id}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 17, fontWeight: 800, color: 'white', marginTop: 1, lineHeight: 1.2 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 17, fontWeight: 600, color: 'white', marginTop: 1, lineHeight: 1.2 }}>
             {data.customerName}
           </div>
           {data.customerPhone && (
@@ -82,9 +82,9 @@ function HeroCustomerCard({ data }) {
         </div>
         {data.isExpress && (
           <div style={{
-            background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+            background: C.warning,
             color: 'white',
-            fontFamily: 'Poppins', fontSize: 10, fontWeight: 800,
+            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
             padding: '5px 10px', borderRadius: 999,
             boxShadow: '0 2px 8px rgba(245,158,11,0.4)',
           }}>⚡ EXPRESS</div>
@@ -96,14 +96,14 @@ function HeroCustomerCard({ data }) {
 
 function TimeStatGrid({ data }) {
   const tiles = [
-    { icon: '📥', label: 'Diterima',  value: fmtDateTime(data.receivedAt),    bg: '#EFF6FF', fg: '#1E40AF' },
-    { icon: '✅', label: 'Selesai',   value: fmtDateTime(data.finishedAt),    bg: '#ECFDF5', fg: '#065F46' },
+    { icon: '📥', label: 'Diterima',  value: fmtDateTime(data.receivedAt),    bg: C.validationInfoBg, fg: C.validationInfoText },
+    { icon: '✅', label: 'Selesai',   value: fmtDateTime(data.finishedAt),    bg: C.successBg, fg: C.successDark },
   ];
   if (data.pickedUpAt) {
-    tiles.push({ icon: '🛍️', label: 'Diambil', value: fmtDateTime(data.pickedUpAt), bg: '#F5F3FF', fg: '#5B21B6' });
+    tiles.push({ icon: '🛍️', label: 'Diambil', value: fmtDateTime(data.pickedUpAt), bg: C.infoBg, fg: C.primary });
   }
   if (data.estimatedDoneAt) {
-    tiles.push({ icon: '🎯', label: 'Target', value: fmtDateTime(data.estimatedDoneAt), bg: '#FFFBEB', fg: '#92400E' });
+    tiles.push({ icon: '🎯', label: 'Target', value: fmtDateTime(data.estimatedDoneAt), bg: C.validationWarningBg, fg: C.validationWarningText });
   }
 
   const duration = fmtDuration(data.receivedAt, data.finishedAt);
@@ -115,15 +115,15 @@ function TimeStatGrid({ data }) {
       border: `1px solid ${C.n100}`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em' }}>
           ⏱️ WAKTU PRODUKSI
         </div>
         {duration && (
           <span style={{
-            fontFamily: 'Poppins', fontSize: 10, fontWeight: 800,
-            background: 'linear-gradient(135deg, #DCFCE7, #BBF7D0)',
-            color: '#15803D', padding: '3px 10px', borderRadius: 999,
-            border: '1px solid #86EFAC',
+            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+            background: C.successBg,
+            color: C.successDark, padding: '3px 10px', borderRadius: 999,
+            border: `1px solid ${C.success}40`,
           }}>
             ⚡ {duration}
           </span>
@@ -134,10 +134,10 @@ function TimeStatGrid({ data }) {
           <div key={i} style={{
             background: t.bg, borderRadius: 10, padding: '9px 11px',
           }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: t.fg, fontWeight: 700, opacity: 0.8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: t.fg, fontWeight: 600, opacity: 0.8 }}>
               {t.icon} {t.label}
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n900, marginTop: 4, lineHeight: 1.3 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n900, marginTop: 4, lineHeight: 1.3 }}>
               {t.value}
             </div>
           </div>
@@ -154,14 +154,14 @@ function StageTimeline({ timeline = [] }) {
       marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
       border: `1px solid ${C.n100}`,
     }}>
-      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5, marginBottom: 12 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.5, marginBottom: 12 }}>
         🚦 ALUR TAHAP
       </div>
       <div style={{ position: 'relative' }}>
         {/* Vertical line */}
         <div style={{
           position: 'absolute', left: 19, top: 18, bottom: 18, width: 2,
-          background: `linear-gradient(180deg, ${C.success}, ${C.n200})`,
+          background: C.success,
         }} />
         {STAGES.map((s, i) => {
           const log = timeline.find(p => p.stage === s);
@@ -184,12 +184,12 @@ function StageTimeline({ timeline = [] }) {
                   <div style={{
                     fontFamily: 'Poppins', fontSize: 13,
                     fontWeight: isDone ? 700 : 500,
-                    color: isDone ? C.n900 : C.n500,
+                    color: isDone ? C.n900 : C.n600,
                   }}>{s}</div>
                   {isDone && <span style={{ color: C.success, fontSize: 14 }}>✔</span>}
                 </div>
                 {isDone && log?.timestamp && (
-                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 2 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 2 }}>
                     {fmtDateTime(log.timestamp)}
                   </div>
                 )}
@@ -205,7 +205,7 @@ function StageTimeline({ timeline = [] }) {
           );
         })}
         {timeline.length === 0 && (
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, textAlign: 'center', padding: 8 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, textAlign: 'center', padding: 8 }}>
             Belum ada log tahap tercatat
           </div>
         )}
@@ -222,7 +222,7 @@ function ItemList({ items = [] }) {
       marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
       border: `1px solid ${C.n100}`,
     }}>
-      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5, marginBottom: 10 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.5, marginBottom: 10 }}>
         🧺 LAYANAN / ITEM
       </div>
       {items.map((item, idx) => {
@@ -239,13 +239,13 @@ function ItemList({ items = [] }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
             }}>{theme.icon}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{item.name}</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 2 }}>
-                Tahap: <span style={{ color: theme.accent, fontWeight: 700 }}>{item.currentStage || '-'}</span>
+              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{item.name}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#3a3a3a', marginTop: 2 }}>
+                Tahap: <span style={{ color: theme.accent, fontWeight: 600 }}>{item.currentStage || '-'}</span>
               </div>
             </div>
             <span style={{
-              fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700,
+              fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700,
               background: C.n50, padding: '3px 10px', borderRadius: 999,
             }}>{item.qty} {item.unit}</span>
           </div>
@@ -263,12 +263,12 @@ function PhotoSection({ title, icon, photos = [], emptyText, onPhotoClick }) {
       border: `1px solid ${C.n100}`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em' }}>
           {icon} {title}
         </div>
         {photos.length > 0 && (
           <span style={{
-            fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
             background: C.primaryLight, color: C.primary,
             padding: '2px 8px', borderRadius: 999,
           }}>{photos.length} foto</span>
@@ -276,7 +276,7 @@ function PhotoSection({ title, icon, photos = [], emptyText, onPhotoClick }) {
       </div>
       {photos.length === 0 ? (
         <div style={{
-          fontFamily: 'Poppins', fontSize: 11, color: C.n500, textAlign: 'center',
+          fontFamily: 'Poppins', fontSize: 11, color: C.n600, textAlign: 'center',
           padding: 16, background: C.n50, borderRadius: 10, border: `1px dashed ${C.n200}`,
         }}>
           📷 {emptyText}
@@ -301,11 +301,11 @@ function PhotoSection({ title, icon, photos = [], emptyText, onPhotoClick }) {
               <div style={{
                 position: 'absolute', inset: 0, display: 'flex',
                 flexDirection: 'column', justifyContent: 'flex-end',
-                background: 'linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.65))',
+                background: 'rgba(0,0,0,0.65)',
                 padding: 4, pointerEvents: 'none',
               }}>
                 <div style={{
-                  fontFamily: 'Poppins', fontSize: 8, fontWeight: 700, color: 'white',
+                  fontFamily: 'Poppins', fontSize: 8, fontWeight: 600, color: 'white',
                   textShadow: '0 1px 2px rgba(0,0,0,0.5)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
@@ -384,14 +384,14 @@ export default function DetailRiwayatProduksiPage({ navigate, goBack, screenPara
 
   if (loading) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8FAFC' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
         <TopBar title="Detail Produksi" onBack={goBack} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
           <div style={{
             width: 36, height: 36, border: `3px solid ${C.n200}`, borderTopColor: C.primary,
             borderRadius: '50%', animation: 'spin 0.8s linear infinite',
           }} />
-          <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat detail…</span>
+          <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Memuat detail…</span>
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
@@ -400,11 +400,11 @@ export default function DetailRiwayatProduksiPage({ navigate, goBack, screenPara
 
   if (error || !data) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8FAFC' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
         <TopBar title="Detail Produksi" onBack={goBack} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 }}>
-          <div style={{ width: 64, height: 64, borderRadius: 32, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>⚠️</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 32, background: C.validationErrorBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>⚠️</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>
             {error || 'Data tidak tersedia'}
           </div>
           <Btn variant="secondary" onClick={goBack}>← Kembali</Btn>
@@ -414,7 +414,7 @@ export default function DetailRiwayatProduksiPage({ navigate, goBack, screenPara
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8FAFC', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Detail Produksi" subtitle={data.id} onBack={goBack} />
 
       <HeroCustomerCard data={data} />
@@ -426,10 +426,10 @@ export default function DetailRiwayatProduksiPage({ navigate, goBack, screenPara
 
         {data.notes && (
           <div style={{
-            background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)',
+            background: C.validationWarningBg,
             borderRadius: 12, padding: '10px 14px', marginBottom: 12,
-            fontFamily: 'Poppins', fontSize: 12, color: '#92400E',
-            border: '1px solid #FBBF24',
+            fontFamily: 'Poppins', fontSize: 12, color: C.validationWarningText,
+            border: `1px solid ${C.warning}40`,
           }}>
             📝 <strong>Catatan:</strong> {data.notes}
           </div>

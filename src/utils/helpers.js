@@ -67,41 +67,41 @@ export const parseRupiah = (value) => {
 
 export const STAGES = ['Diterima', 'Cuci', 'Setrika', 'Packing', 'Selesai'];
 
-// Status colors — kalau update value, sync juga ke src/utils/statusMap.js (TX_STATUS, etc).
+// Status colors — Design System v1.0 (Juni 2026)
 // Single source of truth untuk warna status badge di seluruh app.
 export const STATUS_COLORS = {
   // Transaction status (UI)
-  baru:        { bg: '#DBEAFE', text: '#2563EB' },
-  proses:      { bg: '#E0F2FE', text: '#0EA5E9' },
-  selesai:     { bg: '#DCFCE7', text: '#10B981' },
-  diambil:     { bg: '#EDE9FE', text: '#5B21B6' },
-  dibatalkan:  { bg: '#FEE2E2', text: '#DC2626' },
+  baru:        { bg: '#f5eef7', text: '#6e2e78', border: '#d9b8e0' },
+  proses:      { bg: '#f0ecf2', text: '#5a5a5a', border: '#d4cad8' },
+  selesai:     { bg: '#e1f5ee', text: '#0f6e56', border: '#86efac' },
+  diambil:     { bg: '#e1f5ee', text: '#0f6e56', border: '#86efac' },
+  dibatalkan:  { bg: '#fce8eb', text: '#a32d2d', border: '#fca5a5' },
 
   // Payment status
-  paid:        { bg: '#DCFCE7', text: '#10B981' },
-  partial:     { bg: '#FEF3C7', text: '#F59E0B' },
-  unpaid:      { bg: '#FEE2E2', text: '#DC2626' },
+  paid:        { bg: '#e1f5ee', text: '#0f6e56', border: '#86efac' },
+  partial:     { bg: '#fef3e2', text: '#ba7517', border: '#f5c27a' },
+  unpaid:      { bg: '#fce8eb', text: '#a32d2d', border: '#fca5a5' },
 
   // Membership tier
-  Gold:        { bg: '#FEF9C3', text: '#92400E' },
-  Silver:      { bg: '#F6F1F7', text: '#475569' },
-  Regular:     { bg: '#F3E6F5', text: '#5B005F' },
-  Premium:     { bg: '#FEF3C7', text: '#92400E' },
+  Gold:        { bg: '#fef3e2', text: '#ba7517', border: '#f5c27a' },
+  Silver:      { bg: '#f0ecf2', text: '#5a5a5a', border: '#d4cad8' },
+  Regular:     { bg: '#f7f5f8', text: '#9a9a9a', border: '#e8e2ea' },
+  Premium:     { bg: '#f5eef7', text: '#6e2e78', border: '#d9b8e0' },
 
   // Approval / generic
-  pending:          { bg: '#FEF3C7', text: '#F59E0B' },
-  pending_approval: { bg: '#FEF3C7', text: '#F59E0B' },
-  approved:         { bg: '#DCFCE7', text: '#10B981' },
-  auto_approved:    { bg: '#DCFCE7', text: '#10B981' },
-  revised:          { bg: '#FED7AA', text: '#9A3412' },
-  rejected:         { bg: '#FEE2E2', text: '#DC2626' },
-  fulfilled:        { bg: '#DCFCE7', text: '#15803D' },
-  cancelled:        { bg: '#F3F4F6', text: '#6B7280' },
+  pending:          { bg: '#fef3e2', text: '#ba7517', border: '#f5c27a' },
+  pending_approval:  { bg: '#fef3e2', text: '#ba7517', border: '#f5c27a' },
+  approved:          { bg: '#e1f5ee', text: '#0f6e56', border: '#86efac' },
+  auto_approved:     { bg: '#e1f5ee', text: '#0f6e56', border: '#86efac' },
+  revised:           { bg: '#fef3e2', text: '#ba7517', border: '#f5c27a' },
+  rejected:          { bg: '#fce8eb', text: '#a32d2d', border: '#fca5a5' },
+  fulfilled:         { bg: '#e1f5ee', text: '#0f6e56', border: '#86efac' },
+  cancelled:        { bg: '#f0ecf2', text: '#5a5a5a', border: '#d4cad8' },
 
   // Urgency
-  normal:      { bg: '#DBEAFE', text: '#1E40AF' },
-  urgent:      { bg: '#FEF3C7', text: '#92400E' },
-  critical:    { bg: '#FEE2E2', text: '#991B1B' },
+  normal:    { bg: '#e6f1fb', text: '#185fa5', border: '#93c5fd' },
+  urgent:    { bg: '#fef3e2', text: '#ba7517', border: '#f5c27a' },
+  critical:  { bg: '#fce8eb', text: '#a32d2d', border: '#fca5a5' },
 };
 
 /**
@@ -252,4 +252,192 @@ export function getCartLineSubtotal(item) {
 export function getTransactionItemLineTotal(item) {
   if (item?.subtotal != null && item.subtotal !== '') return Number(item.subtotal);
   return (Number(item?.price) || 0) * (Number(item?.qty) || 1);
+}
+
+/**
+ * Hitung estimasi selesai dari keranjang nota.
+ * Ambil SLA TERBESAR dari semua item (express atau regular).
+ * Return Date object.
+ */
+export function calculateEstimateDone(cartItems = []) {
+  if (!cartItems || cartItems.length === 0) return null;
+
+  const now = new Date();
+  let maxHours = 0;
+
+  for (const item of cartItems) {
+    const isExpress = !!(item.express || item.isExpress);
+    // sla_express_hours jika express, sla_regular_hours jika tidak
+    const slaHours = isExpress
+      ? Number(item.slaExpressHours || item.sla_express_hours)
+      : Number(item.slaRegularHours || item.sla_regular_hours);
+
+    if (slaHours && slaHours > maxHours) {
+      maxHours = slaHours;
+    }
+  }
+
+  if (maxHours <= 0) return null;
+
+  const estimateDate = new Date(now.getTime() + maxHours * 60 * 60 * 1000);
+  return estimateDate;
+}
+
+/**
+ * Format estimasi selesai untuk display.
+ * Return string seperti "15 Jul 2026, 14:00" atau null.
+ */
+export function formatEstimateDone(estimateDate) {
+  if (!estimateDate) return null;
+  const d = estimateDate instanceof Date ? estimateDate : new Date(estimateDate);
+  if (isNaN(d.getTime())) return null;
+
+  return d.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+/**
+ * Get human-readable estimate string.
+ * Return "dalam X jam" atau formatted date.
+ */
+export function getEstimateLabel(estimateDate) {
+  if (!estimateDate) return null;
+  const d = estimateDate instanceof Date ? estimateDate : new Date(estimateDate);
+  if (isNaN(d.getTime())) return null;
+
+  const now = new Date();
+  const diffMs = d - now;
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffHours < 1) {
+    const diffMins = Math.round(diffMs / (1000 * 60));
+    return `${diffMins} menit lagi`;
+  }
+  if (diffHours < 24) {
+    return `${Math.round(diffHours)} jam lagi`;
+  }
+  // Lebih dari 1 hari
+  return formatEstimateDone(d);
+}
+
+// ─── STANDARDIZED DATE FORMATTING ───────────────────────────────────────────────
+// Single source of truth untuk semua formatting date di aplikasi
+
+const WIB = 'Asia/Jakarta';
+
+/**
+ * Format date untuk display umum
+ * @param {string|Date} date - date string atau Date object
+ * @param {object} options - Intl.DateTimeFormat options
+ * @returns {string} formatted date
+ */
+export function formatDate(date, options = {}) {
+  if (!date) return '-';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '-';
+
+  const defaults = {
+    timeZone: WIB,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  };
+
+  return new Intl.DateTimeFormat('id-ID', { ...defaults, ...options }).format(d);
+}
+
+/**
+ * Format date + time untuk display
+ * @param {string|Date} date
+ * @returns {string} "15 Jul 2026, 14:30"
+ */
+export function formatDateTime(date) {
+  if (!date) return '-';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: WIB,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
+}
+
+/**
+ * Format time only
+ * @param {string|Date} date
+ * @returns {string} "14:30"
+ */
+export function formatTime(date) {
+  if (!date) return '-';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '-';
+
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: WIB,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
+}
+
+/**
+ * Format date untuk table column / list
+ * @param {string|Date} date
+ * @returns {string} "15 Jul 2026"
+ */
+export function formatDateList(date) {
+  return formatDate(date, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/**
+ * Format date untuk header/banner
+ * @param {string|Date} date
+ * @returns {string} "Senin, 15 Juli 2026"
+ */
+export function formatDateFull(date) {
+  return formatDate(date, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+/**
+ * Format date untuk input/display biasa
+ * @param {string|Date} date
+ * @returns {string} "15/07/2026"
+ */
+export function formatDateShort(date) {
+  return formatDate(date, { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+/**
+ * Get relative time string
+ * @param {string|Date} date
+ * @returns {string} "2 jam lalu", "Kemarin", "3 hari lalu"
+ */
+export function formatRelative(date) {
+  if (!date) return '-';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '-';
+
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Baru saja';
+  if (diffMins < 60) return `${diffMins} menit lalu`;
+  if (diffHours < 24) return `${diffHours} jam lalu`;
+  if (diffDays === 1) return 'Kemarin';
+  if (diffDays < 7) return `${diffDays} hari lalu`;
+  return formatDateList(d);
 }

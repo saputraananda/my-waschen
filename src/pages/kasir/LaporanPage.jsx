@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Avatar, useAppRefresh } from '../../components/ui';
+import { TopBar, Avatar, Select, useAppRefresh } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
-import PaymentGatewayPanel from '../../components/PaymentGatewayPanel';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -16,22 +15,22 @@ const PERIODS = [
 ];
 
 const PAYMENT_LABELS = {
-  cash:      { label: 'Tunai',     icon: '💵', color: '#16A34A' },
-  transfer:  { label: 'Transfer',  icon: '🏦', color: '#2563EB' },
-  qris:      { label: 'QRIS',      icon: '📱', color: '#7C3AED' },
-  ovo:       { label: 'OVO',       icon: '💜', color: '#7C3AED' },
-  gopay:     { label: 'GoPay',     icon: '💚', color: '#16A34A' },
-  dana:      { label: 'DANA',      icon: '💙', color: '#0EA5E9' },
-  shopeepay: { label: 'ShopeePay', icon: '🧡', color: '#EA580C' },
-  deposit:   { label: 'Deposit',   icon: '💰', color: '#F59E0B' },
-  mixed:     { label: 'Mixed',     icon: '🔀', color: '#64748B' },
-  unknown:   { label: 'Lainnya',   icon: '❓', color: '#94A3B8' },
+  cash:      { label: 'Tunai',     icon: 'cash', color: C.success },
+  transfer:  { label: 'Transfer',  icon: 'transfer', color: C.info },
+  qris:      { label: 'QRIS',      icon: 'qris', color: C.primary },
+  ovo:       { label: 'OVO',       icon: 'ovo', color: C.primary },
+  gopay:     { label: 'GoPay',     icon: 'gopay', color: C.success },
+  dana:      { label: 'DANA',      icon: 'dana', color: C.info },
+  shopeepay: { label: 'ShopeePay', icon: 'shopeepay', color: C.warning },
+  deposit:   { label: 'Deposit',   icon: 'deposit', color: C.warning },
+  mixed:     { label: 'Mixed',     icon: 'mixed', color: C.n600 },
+  unknown:   { label: 'Lainnya',   icon: 'unknown', color: C.n600 },
 };
 
 const formatGrowth = (pct) => {
-  if (pct === 0) return { text: '0%', color: C.n500, icon: '→' };
-  if (pct > 0)  return { text: `+${pct}%`, color: '#16A34A', icon: '▲' };
-  return { text: `${pct}%`, color: '#DC2626', icon: '▼' };
+  if (pct === 0) return { text: '0%', color: C.n600, icon: '-' };
+  if (pct > 0)  return { text: `+${pct}%`, color: C.success, icon: '+' };
+  return { text: `${pct}%`, color: C.danger, icon: '-' };
 };
 
 const formatNumber = (n) => Number(n || 0).toLocaleString('id-ID');
@@ -45,11 +44,11 @@ function HeroRevenueCard({ data }) {
   const g = formatGrowth(data?.growth?.revenue || 0);
   return (
     <div style={{
-      background: 'linear-gradient(135deg, #5B005F 0%, #7C3AED 50%, #2563EB 100%)',
+      background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryTint} 50%, ${C.info} 100%)`,
       borderRadius: 20,
       padding: '20px',
       color: 'white',
-      boxShadow: '0 12px 28px rgba(91,0,95,0.25)',
+      boxShadow: '0 12px 28px rgba(110,46,120,0.25)',
       position: 'relative',
       overflow: 'hidden',
     }}>
@@ -73,7 +72,7 @@ function HeroRevenueCard({ data }) {
             display: 'inline-flex', alignItems: 'center', gap: 4,
             background: 'rgba(255,255,255,0.2)',
             padding: '3px 10px', borderRadius: 999,
-            fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
           }}>
             <span>{g.icon}</span> {g.text}
           </div>
@@ -85,14 +84,14 @@ function HeroRevenueCard({ data }) {
         <div style={{ display: 'flex', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.75 }}>SUDAH DIBAYAR</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, marginTop: 2 }}>
               {rp(data?.summary?.pelunasan || 0)}
             </div>
           </div>
           <div style={{ width: 1, background: 'rgba(255,255,255,0.15)' }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.75 }}>BELUM LUNAS</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, marginTop: 2 }}>
               {rp(data?.summary?.balanceDue || 0)}
             </div>
           </div>
@@ -111,10 +110,10 @@ function TargetCard({ target, achievement }) {
         border: `1px dashed ${C.n300}`,
         textAlign: 'center',
       }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: 'C.n600' }}>
           🎯 Target Belum Diset
         </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 3 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600', marginTop: 3 }}>
           Hubungi admin untuk set target bulanan outlet ini.
         </div>
       </div>
@@ -124,21 +123,21 @@ function TargetCard({ target, achievement }) {
   const isAchieved = achievement?.isAchieved;
   const isSurplus = achievement?.isSurplus;
   const pct = achievement?.pct || 0;
-  const accent = isSurplus ? '#16A34A' : isAchieved ? '#16A34A' : pct >= 70 ? '#F59E0B' : '#DC2626';
+  const accent = isSurplus ? C.success : isAchieved ? C.success : pct >= 70 ? C.warning : C.danger;
 
   return (
     <div style={{
       background: 'white', borderRadius: 16,
       padding: '14px 16px',
-      boxShadow: '0 2px 12px rgba(15,23,42,0.05)',
-      border: `1px solid ${isSurplus ? '#86EFAC' : C.n100}`,
+      boxShadow: SHADOW.md,
+      border: `1px solid ${isSurplus ? 'C.successBg' : C.n100}`,
       position: 'relative',
       overflow: 'hidden',
     }}>
       {isSurplus && (
         <div style={{
           position: 'absolute', top: 8, right: 8,
-          background: 'linear-gradient(135deg, #16A34A, #15803D)',
+          background: 'linear-gradient(135deg, C.success, C.success)',
           color: 'white', padding: '2px 10px', borderRadius: 999,
           fontFamily: 'Poppins', fontSize: 9, fontWeight: 800,
           letterSpacing: 0.4, boxShadow: '0 2px 8px rgba(22,163,74,0.3)',
@@ -149,7 +148,7 @@ function TargetCard({ target, achievement }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ fontSize: 16 }}>🎯</span>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, letterSpacing: 0.4 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'C.n600', letterSpacing: 0.4 }}>
           TARGET BULAN INI
         </div>
       </div>
@@ -158,7 +157,7 @@ function TargetCard({ target, achievement }) {
         <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: accent }}>
           {pct}%
         </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600' }}>
           {rp(achievement?.achieved || 0)} / {rp(target.amount)}
         </div>
       </div>
@@ -176,7 +175,7 @@ function TargetCard({ target, achievement }) {
           <div style={{
             position: 'absolute', top: 0, left: '100%',
             transform: 'translateX(-2px)',
-            height: '100%', width: 3, background: '#15803D',
+            height: '100%', width: 3, background: 'C.success',
           }} />
         )}
       </div>
@@ -185,7 +184,7 @@ function TargetCard({ target, achievement }) {
       <div style={{
         marginTop: 10,
         padding: '8px 10px',
-        background: isSurplus ? '#F0FDF4' : isAchieved ? '#ECFDF5' : pct >= 70 ? '#FFFBEB' : '#FEF2F2',
+        background: isSurplus ? 'C.successBg' : isAchieved ? 'C.successBg' : pct >= 70 ? 'C.warningBg' : 'C.dangerBg',
         borderRadius: 10,
         fontFamily: 'Poppins', fontSize: 11,
         color: accent, fontWeight: 600,
@@ -210,7 +209,7 @@ function StatTile({ icon, label, value, sublabel, color = C.primary, growth }) {
     <div style={{
       background: 'white', borderRadius: 14,
       padding: '12px 14px',
-      boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
+      boxShadow: SHADOW.sm,
       border: `1px solid ${C.n100}`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -222,7 +221,7 @@ function StatTile({ icon, label, value, sublabel, color = C.primary, growth }) {
         }}>
           {icon}
         </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: C.n500, letterSpacing: 0.3 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: 'C.n600', letterSpacing: 0.3 }}>
           {label}
         </div>
       </div>
@@ -230,7 +229,7 @@ function StatTile({ icon, label, value, sublabel, color = C.primary, growth }) {
         {value}
       </div>
       {sublabel && (
-        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 2 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'C.n600', marginTop: 2 }}>
           {sublabel}
         </div>
       )}
@@ -239,7 +238,7 @@ function StatTile({ icon, label, value, sublabel, color = C.primary, growth }) {
           display: 'inline-flex', alignItems: 'center', gap: 3,
           marginTop: 4, padding: '1px 6px', borderRadius: 999,
           background: `${g.color}14`, color: g.color,
-          fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+          fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
         }}>
           {g.icon} {g.text}
         </div>
@@ -258,14 +257,14 @@ function DailyChart({ daily }) {
     <div style={{
       background: 'white', borderRadius: 16,
       padding: '14px 16px',
-      boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
+      boxShadow: SHADOW.sm,
       border: `1px solid ${C.n100}`,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, letterSpacing: 0.4 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'C.n600', letterSpacing: 0.4 }}>
           📈 GRAFIK PENDAPATAN HARIAN
         </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: 'C.n600' }}>
           {showLastN.length} hari terakhir
         </div>
       </div>
@@ -286,7 +285,7 @@ function DailyChart({ daily }) {
                   width: '100%',
                   height: h,
                   background: isToday
-                    ? 'linear-gradient(180deg, #7C3AED, #5B005F)'
+                    ? `linear-gradient(180deg, ${C.primaryTint}, ${C.primary})`
                     : `linear-gradient(180deg, ${C.primary}AA, ${C.primary}55)`,
                   borderRadius: '4px 4px 0 0',
                   transition: 'opacity 0.2s',
@@ -295,7 +294,7 @@ function DailyChart({ daily }) {
               />
               <div style={{
                 fontFamily: 'Poppins', fontSize: 8,
-                color: isToday ? C.primary : C.n500,
+                color: isToday ? C.primary : 'C.n600',
                 fontWeight: isToday ? 700 : 500,
                 position: 'absolute', bottom: -16,
               }}>
@@ -316,10 +315,10 @@ function PaymentMixCard({ paymentMix }) {
     <div style={{
       background: 'white', borderRadius: 16,
       padding: '14px 16px',
-      boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
+      boxShadow: SHADOW.sm,
       border: `1px solid ${C.n100}`,
     }}>
-      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, letterSpacing: 0.4, marginBottom: 12 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'C.n600', letterSpacing: 0.4, marginBottom: 12 }}>
         💳 METODE PEMBAYARAN
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -332,7 +331,7 @@ function PaymentMixCard({ paymentMix }) {
                 <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n800, flex: 1 }}>
                   {meta.label}
                 </div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                   {rp(p.amount)}
                 </div>
               </div>
@@ -344,7 +343,7 @@ function PaymentMixCard({ paymentMix }) {
                 }} />
               </div>
               <div style={{
-                fontFamily: 'Poppins', fontSize: 9, color: C.n500,
+                fontFamily: 'Poppins', fontSize: 9, color: 'C.n600',
                 marginTop: 2, marginLeft: 22,
                 display: 'flex', justifyContent: 'space-between',
               }}>
@@ -367,10 +366,10 @@ function TopServicesCard({ topServices }) {
     <div style={{
       background: 'white', borderRadius: 16,
       padding: '14px 16px',
-      boxShadow: '0 2px 8px rgba(15,23,42,0.04)',
+      boxShadow: SHADOW.sm,
       border: `1px solid ${C.n100}`,
     }}>
-      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, letterSpacing: 0.4, marginBottom: 12 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'C.n600', letterSpacing: 0.4, marginBottom: 12 }}>
         🏆 TOP 5 LAYANAN
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -379,8 +378,8 @@ function TopServicesCard({ topServices }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <div style={{
                 width: 22, height: 22, borderRadius: 6,
-                background: i === 0 ? '#FEF3C7' : i === 1 ? '#E5E7EB' : i === 2 ? '#FED7AA' : C.n50,
-                color: i === 0 ? '#92400E' : i === 1 ? '#374151' : i === 2 ? '#9A3412' : C.n600,
+                background: i === 0 ? 'C.warningBg' : i === 1 ? 'C.n200' : i === 2 ? 'C.warningBg' : C.n50,
+                color: i === 0 ? C.warning : C.n600,
                 fontFamily: 'Poppins', fontSize: 10, fontWeight: 800,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
@@ -392,19 +391,19 @@ function TopServicesCard({ topServices }) {
               }}>
                 {s.name}
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.primary }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                 {rp(s.revenue)}
               </div>
             </div>
             <div style={{ height: 4, background: C.n100, borderRadius: 2, overflow: 'hidden', marginLeft: 30 }}>
               <div style={{
                 height: '100%', width: `${(s.revenue / maxRev) * 100}%`,
-                background: i === 0 ? '#F59E0B' : C.primary,
+                background: i === 0 ? 'C.warning' : C.primary,
                 borderRadius: 2,
                 transition: 'width 0.4s',
               }} />
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2, marginLeft: 30 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: 'C.n600', marginTop: 2, marginLeft: 30 }}>
               {s.orderCount} kali dipesan
             </div>
           </div>
@@ -619,7 +618,7 @@ export default function KasirLaporanPage({ navigate, goBack }) {
   }, [data, period, headerSubtitle, user]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8FAFC', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'C.n50', overflow: 'hidden' }}>
       <TopBar
         title="Laporan Outlet"
         subtitle={data?.outlet?.name || user?.outletName || user?.outlet?.name || 'Memuat...'}
@@ -628,29 +627,15 @@ export default function KasirLaporanPage({ navigate, goBack }) {
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {/* Period selector */}
-        <div style={{ padding: '12px 16px 8px', position: 'sticky', top: 0, background: '#F8FAFC', zIndex: 5 }}>
+        <div style={{ padding: '12px 16px 8px', position: 'sticky', top: 0, background: 'C.n50', zIndex: 5 }}>
           {/* Admin outlet picker — dropdown */}
           {isGlobalRole && outlets.length > 1 && (
             <div style={{ marginBottom: 8 }}>
-              <select
+              <Select
                 value={selectedOutletId}
-                onChange={(e) => setSelectedOutletId(e.target.value)}
-                style={{
-                  width: '100%', height: 40, borderRadius: 10,
-                  border: `1.5px solid ${C.n200}`, background: 'white',
-                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
-                  color: C.n800, paddingLeft: 10, paddingRight: 10,
-                  outline: 'none', cursor: 'pointer',
-                  appearance: 'none',
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 10px center',
-                }}
-              >
-                {outlets.map((o) => (
-                  <option key={o.id} value={o.id}>🏪 {o.name}</option>
-                ))}
-              </select>
+                onChange={setSelectedOutletId}
+                options={outlets.map((o) => ({ value: o.id, label: `🏪 ${o.name}` }))}
+              />
             </div>
           )}
 
@@ -670,8 +655,8 @@ export default function KasirLaporanPage({ navigate, goBack }) {
                     padding: '8px 0',
                     borderRadius: 9,
                     border: 'none',
-                    background: isActive ? `linear-gradient(135deg, ${C.primary}, #7C3AED)` : 'transparent',
-                    color: isActive ? 'white' : C.n600,
+                    background: isActive ? `linear-gradient(135deg, ${C.primaryTint}, ${C.primary})` : 'transparent',
+                    color: isActive ? 'white' : 'C.n600',
                     fontFamily: 'Poppins', fontSize: 12,
                     fontWeight: isActive ? 700 : 500,
                     cursor: 'pointer',
@@ -686,7 +671,7 @@ export default function KasirLaporanPage({ navigate, goBack }) {
           </div>
           {headerSubtitle && (
             <div style={{
-              fontFamily: 'Poppins', fontSize: 10, color: C.n500,
+              fontFamily: 'Poppins', fontSize: 10, color: 'C.n600',
               marginTop: 6, textAlign: 'center',
             }}>
               📅 {headerSubtitle}
@@ -701,15 +686,15 @@ export default function KasirLaporanPage({ navigate, goBack }) {
                 width: 36, height: 36, border: `3.5px solid ${C.n200}`, borderTopColor: C.primary,
                 borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 10px',
               }} />
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat laporan…</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Memuat laporan…</span>
             </div>
           )}
 
           {!loading && error && (
             <div style={{
-              background: '#FEF2F2', border: '1px solid #FCA5A5',
+              background: 'C.dangerBg', border: '1px solid C.danger',
               borderRadius: 12, padding: '14px 16px',
-              fontFamily: 'Poppins', fontSize: 12, color: '#991B1B',
+              fontFamily: 'Poppins', fontSize: 12, color: 'C.danger',
               textAlign: 'center',
             }}>
               ⚠️ {error}
@@ -731,7 +716,7 @@ export default function KasirLaporanPage({ navigate, goBack }) {
                   label="TRANSAKSI"
                   value={formatNumber(data.summary.txCount)}
                   sublabel={`Avg ${rp(data.summary.avgPerTx)} / tx`}
-                  color="#2563EB"
+                  color="C.info"
                   growth={data.growth.txCount}
                 />
                 <StatTile
@@ -739,7 +724,7 @@ export default function KasirLaporanPage({ navigate, goBack }) {
                   label="CUSTOMER"
                   value={formatNumber(data.summary.uniqueCustomers)}
                   sublabel={`${data.summary.newCustomers} baru`}
-                  color="#0EA5E9"
+                  color="C.info"
                 />
                 <StatTile
                   icon="⚡"
@@ -748,14 +733,14 @@ export default function KasirLaporanPage({ navigate, goBack }) {
                   sublabel={data.summary.txCount > 0
                     ? `${Math.round((data.summary.expressCount / data.summary.txCount) * 100)}% dari total`
                     : '—'}
-                  color="#F59E0B"
+                  color="C.warning"
                 />
                 <StatTile
                   icon="📅"
                   label="RATA-RATA HARIAN"
                   value={rp(data.summary.avgPerDay)}
                   sublabel={`${data.period.days} hari`}
-                  color="#10B981"
+                  color="C.success"
                 />
               </div>
 
@@ -764,13 +749,6 @@ export default function KasirLaporanPage({ navigate, goBack }) {
 
               {/* Payment mix */}
               <PaymentMixCard paymentMix={data.paymentMix} />
-
-              {/* Payment Gateway report (Midtrans dst) */}
-              <PaymentGatewayPanel
-                startDate={data.period?.startDate}
-                endDate={data.period?.endDate}
-                outletId={selectedOutletId}
-              />
 
               {/* Top services */}
               <TopServicesCard topServices={data.topServices} />
@@ -783,7 +761,7 @@ export default function KasirLaporanPage({ navigate, goBack }) {
                     height: 44, borderRadius: 12,
                     border: `1.5px solid ${C.danger}`,
                     background: `${C.danger}08`,
-                    fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
+                    fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
                     color: C.danger, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   }}
@@ -797,10 +775,10 @@ export default function KasirLaporanPage({ navigate, goBack }) {
                   }}
                   style={{
                     height: 44, borderRadius: 12,
-                    border: `1.5px solid #10B981`,
-                    background: '#ECFDF5',
-                    fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
-                    color: '#15803D', cursor: 'pointer',
+                    border: `1.5px solid C.success`,
+                    background: 'C.successBg',
+                    fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
+                    color: 'C.success', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   }}
                 >
@@ -811,7 +789,7 @@ export default function KasirLaporanPage({ navigate, goBack }) {
               {/* Footer info */}
               <div style={{
                 textAlign: 'center', fontFamily: 'Poppins', fontSize: 10,
-                color: C.n400, padding: '8px 0',
+                color: 'C.n600', padding: '8px 0',
               }}>
                 Data diperbarui realtime · Tap periode di atas untuk ganti rentang
               </div>

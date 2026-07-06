@@ -44,7 +44,7 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
           border: `${open ? 2 : 1.5}px solid ${open ? C.primary : (value ? C.primary : C.n300)}`,
           borderRadius: open ? (compact ? '8px 8px 0 0' : '10px 10px 0 0') : (compact ? 8 : 10),
           fontFamily: 'Poppins', fontSize: compact ? 11 : 14, fontWeight: compact ? 600 : 500,
-          color: value ? C.primary : (compact ? C.n700 : C.n600),
+          color: value ? C.primary : (compact ? C.n700 : '#3a3a3a'),
           cursor: 'pointer',
           outline: 'none',
           transition: 'border-color 0.2s, border-radius 0.2s, background 0.2s, color 0.2s',
@@ -56,7 +56,7 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
         </span>
         <svg
           width={compact ? 12 : 16} height={compact ? 12 : 16} viewBox="0 0 24 24"
-          fill="none" stroke={open ? C.primary : (value ? C.primary : C.n500)}
+          fill="none" stroke={open ? C.primary : (value ? C.primary : '#3a3a3a')}
           strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
           style={{ flexShrink: 0, transition: 'transform 0.25s ease', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}
         >
@@ -167,7 +167,7 @@ export default function OutletDropdown({ value, onChange, outlets = [], placehol
                 background: isActive ? `${C.primary}18` : C.n50,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: 'Poppins', fontSize: compact ? 8 : 10, fontWeight: 700,
-                color: isActive ? C.primary : C.n600,
+                color: isActive ? C.primary : '#3a3a3a',
                 flexShrink: 0,
               }}>
                 {(o.name || '').split(' ').pop()?.slice(0, 2)?.toUpperCase() || '??'}

@@ -7,24 +7,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Modal, Input, Textarea, Chip, MoneyInput, useAppRefresh, OutletDropdown, SkeletonList, SearchFilterRow, Avatar } from '../../components/ui';
+import { TopBar, Btn, Modal, Input, Textarea, Chip, MoneyInput, useAppRefresh, OutletDropdown, SkeletonList, SearchFilterRow, Avatar, ErrorBoundary } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 const URGENCY_META = {
-  normal:   { label: 'Normal',   color: '#3B82F6', icon: '📋' },
-  urgent:   { label: 'Urgent',   color: '#F59E0B', icon: '⚠️' },
-  critical: { label: 'Kritis',   color: '#DC2626', icon: '🚨' },
+  normal:   { label: 'Normal',   color: C.info, icon: '📋' },
+  urgent:   { label: 'Urgent',   color: C.warning, icon: '⚠️' },
+  critical: { label: 'Kritis',   color: C.danger, icon: '🚨' },
 };
 
 const STATUS_META = {
-  pending:   { label: 'Pending',   bg: '#FEF3C7', fg: '#92400E', icon: '⏳' },
-  revised:   { label: 'Revisi',    bg: '#FED7AA', fg: '#9A3412', icon: '↩️' },
-  approved:  { label: 'Disetujui', bg: '#DBEAFE', fg: '#1E40AF', icon: '✅' },
-  fulfilled: { label: 'Dibeli',    bg: '#DCFCE7', fg: '#15803D', icon: '🎉' },
-  rejected:  { label: 'Ditolak',   bg: '#FEE2E2', fg: '#991B1B', icon: '❌' },
-  cancelled: { label: 'Dibatalkan', bg: '#F3F4F6', fg: '#6B7280', icon: '⊘' },
+  pending:   { label: 'Pending',   bg: C.warningBg, fg: C.warningDark, icon: '⏳' },
+  revised:   { label: 'Revisi',    bg: C.warningBg, fg: C.warningDark, icon: '↩️' },
+  approved:  { label: 'Disetujui', bg: C.infoBg, fg: C.infoDark, icon: '✅' },
+  fulfilled: { label: 'Dibeli',    bg: C.successBg, fg: C.successDark, icon: '🎉' },
+  rejected:  { label: 'Ditolak',   bg: C.dangerBg, fg: C.dangerDark, icon: '❌' },
+  cancelled: { label: 'Dibatalkan', bg: C.n100, fg: C.n500, icon: '⊘' },
 };
 
 const fmtDate = (v) => {
@@ -53,7 +53,7 @@ function periodToRange(days) {
   return { startDate: start, endDate: end };
 }
 
-export default function PurchaseRequestsPage({
+export function PurchaseRequestsPageContent({
   goBack,
   pageTitle = 'Approval Pengadaan Barang',
   filterModalTitle = 'Filter Pengadaan Barang',
@@ -97,9 +97,12 @@ export default function PurchaseRequestsPage({
       try {
         const s = await axios.get('/api/purchase-requests/summary');
         setSummary(s?.data?.data || []);
-      } catch {}
+      } catch (e) {
+        console.warn('[PurchaseRequests] Failed to fetch summary:', e?.message);
+      }
     } catch (err) {
       console.error('[fetchData]', err);
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -284,10 +287,10 @@ export default function PurchaseRequestsPage({
         {/* Stats banner */}
         <div style={{
           background: stats.critical > 0
-            ? 'linear-gradient(135deg, #DC2626, #B91C1C)'
-            : 'linear-gradient(135deg, #F59E0B, #D97706)',
+            ? `linear-gradient(135deg, ${C.danger}, ${C.dangerDark})`
+            : `linear-gradient(135deg, ${C.warning}, ${C.warningDark})`,
           borderRadius: 14, padding: '12px 14px', marginBottom: 12,
-          color: 'white', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6,
+          color: C.white, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6,
         }}>
           {[
             { label: 'Kritis', value: stats.critical, icon: '🚨' },
@@ -297,7 +300,7 @@ export default function PurchaseRequestsPage({
           ].map((s, i) => (
             <div key={i} style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 10, padding: '8px 6px', textAlign: 'center' }}>
               <div style={{ fontSize: 18 }}>{s.icon}</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 800, marginTop: 2 }}>{s.value}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, marginTop: 2 }}>{s.value}</div>
               <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.9 }}>{s.label}</div>
             </div>
           ))}
@@ -344,7 +347,7 @@ export default function PurchaseRequestsPage({
         {loading ? <SkeletonList count={4} height={90} /> : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 50 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Tidak ada pengajuan barang.</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Tidak ada pengajuan barang.</div>
           </div>
         ) : null}
 
@@ -356,10 +359,10 @@ export default function PurchaseRequestsPage({
                 padding: '8px 12px', marginBottom: 8, borderRadius: 10,
                 background: C.white, border: `1px solid ${C.n200}`,
               }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                   🏪 {group.outletName}
                 </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n500 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600 }}>
                   {group.items.length} pengajuan
                 </span>
               </div>
@@ -372,8 +375,8 @@ export default function PurchaseRequestsPage({
           return (
             <div key={it.id} style={{
               background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 10,
-              boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
-              borderLeft: `4px solid ${it.status === 'revised' ? '#F59E0B' : urg.color}`,
+              boxShadow: SHADOW.md,
+              borderLeft: `4px solid ${it.status === 'revised' ? C.warning : urg.color}`,
             }}>
               {/* Outlet identity strip */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -382,10 +385,10 @@ export default function PurchaseRequestsPage({
                   size={36}
                 />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                     🏪 {it.outletName || 'Outlet tidak diketahui'}
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
                     Diajukan oleh {it.requesterName || '-'} · {fmtDate(it.createdAt)}
                     {it.resubmittedAt && <span style={{ color: C.primary }}> · 🔄 Resubmit {fmtDate(it.resubmittedAt)}</span>}
                     {it.resolvedAt && <span> · ✅ Diproses {fmtDate(it.resolvedAt)}</span>}
@@ -394,13 +397,13 @@ export default function PurchaseRequestsPage({
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                   <span style={{
-                    fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+                    fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
                     padding: '2px 8px', borderRadius: 999,
                     background: st.bg, color: st.fg,
                   }}>{st.icon} {st.label}</span>
                   {it.status === 'pending' && (
                     <span style={{
-                      fontFamily: 'Poppins', fontSize: 9, fontWeight: 800,
+                      fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
                       padding: '2px 8px', borderRadius: 999,
                       background: `${urg.color}20`, color: urg.color,
                     }}>{urg.icon} {urg.label}</span>
@@ -411,12 +414,12 @@ export default function PurchaseRequestsPage({
               {/* Item info */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
                     {it.itemName}
                     {it.brand && <span style={{ color: C.n600, fontWeight: 500 }}> · {it.brand}</span>}
                   </div>
                   {it.inventoryCode && (
-                    <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: C.n500, background: C.n100, padding: '1px 6px', borderRadius: 4 }}>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n600, background: C.n100, padding: '1px 6px', borderRadius: 4 }}>
                       📦 {it.inventoryCode}
                     </span>
                   )}
@@ -430,8 +433,8 @@ export default function PurchaseRequestsPage({
                 </div>
                 {outletSum && outletSum.pendingCount > 1 && (
                   <div style={{
-                    background: '#FEF3C7', borderRadius: 6, padding: '4px 8px',
-                    fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: '#92400E',
+                    background: C.warningBg, borderRadius: 6, padding: '4px 8px',
+                    fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.warningDark,
                     textAlign: 'right', flexShrink: 0,
                   }}>
                     +{outletSum.pendingCount - 1} lainnya
@@ -447,13 +450,13 @@ export default function PurchaseRequestsPage({
               {/* Admin note */}
               {it.adminNote && (
                 <div style={{
-                  background: it.status === 'revised' ? '#FEF3C7' : '#EFF6FF',
-                  borderLeft: `3px solid ${it.status === 'revised' ? '#F59E0B' : '#3B82F6'}`,
+                  background: it.status === 'revised' ? C.warningBg : C.infoBg,
+                  borderLeft: `3px solid ${it.status === 'revised' ? C.warning : C.info}`,
                   borderRadius: 6, padding: '6px 10px', marginTop: 8,
-                  fontFamily: 'Poppins', fontSize: 11, color: '#1E293B',
+                  fontFamily: 'Poppins', fontSize: 11, color: C.n800,
                 }}>
                   📝 <strong>Catatan admin:</strong> {it.adminNote}
-                  {it.approverName && <span style={{ color: C.n500 }}> · {it.approverName}</span>}
+                  {it.approverName && <span style={{ color: C.n600 }}> · {it.approverName}</span>}
                 </div>
               )}
 
@@ -467,9 +470,9 @@ export default function PurchaseRequestsPage({
                     size="sm"
                   >Tolak</Btn>
                   <Btn
-                    variant="warning"
+                    variant="secondary"
                     onClick={() => { setReviseModal(it.id); setAdminNote(''); }}
-                    style={{ flex: 1, background: '#F59E0B', color: 'white' }}
+                    style={{ flex: 1, background: C.warning, color: C.white, border: 'none' }}
                     size="sm"
                   >↩️ Revisi</Btn>
                   <Btn
@@ -497,7 +500,7 @@ export default function PurchaseRequestsPage({
                 </Btn>
               )}
               {it.status === 'fulfilled' && it.fulfilledAmount && (
-                <div style={{ background: '#DCFCE7', borderRadius: 6, padding: '6px 10px', marginTop: 8, fontFamily: 'Poppins', fontSize: 11, color: '#15803D', fontWeight: 600 }}>
+                <div style={{ background: C.successBg, borderRadius: 6, padding: '6px 10px', marginTop: 8, fontFamily: 'Poppins', fontSize: 11, color: C.successDark, fontWeight: 600 }}>
                   💸 Sudah dibeli sebesar {rp(it.fulfilledAmount)}
                   {it.fulfillerName && ` oleh ${it.fulfillerName}`}
                 </div>
@@ -513,7 +516,7 @@ export default function PurchaseRequestsPage({
       {showFilterModal && (
         <Modal visible onClose={() => setShowFilterModal(false)} title={filterModalTitle}>
           <div style={{ padding: '8px 18px 18px' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
               🎯 Outlet
             </div>
             <OutletDropdown
@@ -523,7 +526,7 @@ export default function PurchaseRequestsPage({
               placeholder="Semua Outlet"
             />
 
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8, marginTop: 16 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8, marginTop: 16 }}>
               📅 Rentang Tanggal
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -599,13 +602,13 @@ export default function PurchaseRequestsPage({
               />
             </div>
             <div style={{
-              fontFamily: 'Poppins', fontSize: 10, color: C.n500, lineHeight: 1.5,
+              fontFamily: 'Poppins', fontSize: 10, color: C.n600, lineHeight: 1.5,
               background: C.n50, borderRadius: 8, padding: '8px 10px', marginBottom: 12,
             }}>
               Untuk audit riwayat selesai, pilih status <strong>Fulfilled/Approved</strong> + rentang tanggal <strong>diproses</strong>.
             </div>
 
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
               🚨 Tingkat Urgensi
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -624,7 +627,7 @@ export default function PurchaseRequestsPage({
               ))}
             </div>
 
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
               📌 Status
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -689,7 +692,7 @@ export default function PurchaseRequestsPage({
                 inputMode="decimal"
                 placeholder={`Default ${approveModal.qty}`}
               />
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -10, marginBottom: 14 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: -10, marginBottom: 14 }}>
                 Bisa beda dari yang diminta. Stok outlet akan otomatis bertambah jika item dari katalog.
               </div>
               <Textarea
@@ -713,7 +716,7 @@ export default function PurchaseRequestsPage({
       {/* ── Revise modal ── */}
       <Modal visible={!!reviseModal} onClose={() => setReviseModal(null)} title="Minta Revisi">
         <div style={{ padding: '8px 18px 18px' }}>
-          <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 8, padding: 10, marginBottom: 14, fontFamily: 'Poppins', fontSize: 11, color: '#92400E' }}>
+          <div style={{ background: C.warningBg, border: `1px solid ${C.validationWarningBorder}`, borderRadius: 8, padding: 10, marginBottom: 14, fontFamily: 'Poppins', fontSize: 11, color: C.warningDark }}>
             ↩️ Pengajuan akan dikembalikan ke kasir. Mereka bisa edit dan kirim ulang.
           </div>
           <Textarea
@@ -729,7 +732,7 @@ export default function PurchaseRequestsPage({
               onClick={handleRevise}
               disabled={!adminNote.trim()}
               loading={actionLoading === `${reviseModal}_revise`}
-              style={{ flex: 1, background: '#F59E0B', color: 'white' }}
+              style={{ flex: 1, background: C.warning, color: C.white }}
             >
               Kirim Revisi
             </Btn>
@@ -774,5 +777,14 @@ export default function PurchaseRequestsPage({
         </div>
       </Modal>
     </div>
+  );
+}
+
+// ErrorBoundary wrapper
+export default function PurchaseRequestsPage(props) {
+  return (
+    <ErrorBoundary>
+      <PurchaseRequestsPageContent {...props} />
+    </ErrorBoundary>
   );
 }

@@ -6,32 +6,32 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Input, Chip, useAppRefresh, SearchFilterRow, SkeletonList } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 const STOCK_STATUS = {
-  safe:     { label: 'Aman',      color: '#10B981', bg: '#DCFCE7' },
-  low:      { label: 'Rendah',    color: '#F59E0B', bg: '#FEF3C7' },
-  empty:    { label: 'Habis',     color: '#DC2626', bg: '#FEE2E2' },
-  untracked:{ label: 'N/A',       color: '#6B7280', bg: '#F3F4F6' },
+  safe:     { label: 'Aman',      color: C.success, bg: C.successBg },
+  low:      { label: 'Rendah',    color: C.warning, bg: C.validationWarningBg },
+  empty:    { label: 'Habis',     color: C.danger, bg: C.validationErrorBg },
+  untracked:{ label: 'N/A',       color: C.n500, bg: C.n100 },
 };
 
 const URGENCY_META = {
-  normal:   { label: 'Normal',   bg: '#DBEAFE', fg: '#1E40AF', color: '#3B82F6', icon: '📋' },
-  urgent:   { label: 'Urgent',   bg: '#FEF3C7', fg: '#92400E', color: '#F59E0B', icon: '⚠️' },
-  critical: { label: 'Kritis',   bg: '#FEE2E2', fg: '#991B1B', color: '#DC2626', icon: '🚨' },
+  normal:   { label: 'Normal',   bg: C.infoBg, fg: C.infoDark, color: C.info, icon: '📋' },
+  urgent:   { label: 'Urgent',   bg: C.validationWarningBg, fg: C.validationWarningText, color: C.warning, icon: '⚠️' },
+  critical: { label: 'Kritis',   bg: C.validationErrorBg, fg: C.validationErrorText, color: C.danger, icon: '🚨' },
 };
 
 const STATUS_META = {
-  pending:   { label: 'Menunggu Admin', bg: '#FEF3C7', fg: '#92400E', icon: '⏳' },
-  revised:   { label: 'Perlu Diperbaiki', bg: '#FED7AA', fg: '#9A3412', icon: '↩️' },
-  approved:  { label: 'Disetujui', bg: '#DBEAFE', fg: '#1E40AF', icon: '✅' },
-  fulfilled: { label: 'Sudah Dibeli', bg: '#DCFCE7', fg: '#15803D', icon: '🎉' },
-  rejected:  { label: 'Ditolak', bg: '#FEE2E2', fg: '#991B1B', icon: '❌' },
-  cancelled: { label: 'Dibatalkan', bg: '#F3F4F6', fg: '#6B7280', icon: '⊘' },
+  pending:   { label: 'Menunggu Admin', bg: C.validationWarningBg, fg: C.validationWarningText, icon: '⏳' },
+  revised:   { label: 'Perlu Diperbaiki', bg: C.warningBg, fg: C.warningDark, icon: '↩️' },
+  approved:  { label: 'Disetujui', bg: C.infoBg, fg: C.infoDark, icon: '✅' },
+  fulfilled: { label: 'Sudah Dibeli', bg: C.successBg, fg: C.successDark, icon: '🎉' },
+  rejected:  { label: 'Ditolak', bg: C.validationErrorBg, fg: C.validationErrorText, icon: '❌' },
+  cancelled: { label: 'Dibatalkan', bg: C.n100, fg: C.n600, icon: '⊘' },
 };
 
 const STATUS_HELP = {
@@ -299,7 +299,7 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
                 borderBottom: isActive ? `2px solid ${C.n50}` : '1.5px solid transparent',
                 background: isActive ? C.white : 'transparent',
                 fontFamily: 'Poppins', fontSize: 12, fontWeight: isActive ? 700 : 500,
-                color: isActive ? C.primary : C.n600,
+                color: isActive ? C.primary : C.n700,
                 cursor: 'pointer', position: 'relative',
                 marginBottom: -1,
               }}
@@ -327,10 +327,10 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
           <>
             {stats.criticalCount > 0 && (
               <div style={{
-                background: 'linear-gradient(135deg, #DC2626, #991B1B)',
+                background: `linear-gradient(135deg, ${C.danger}, ${C.dangerDark})`,
                 borderRadius: 14, padding: '12px 14px', marginBottom: 10,
                 color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                boxShadow: '0 4px 12px rgba(220,38,38,0.2)',
+                boxShadow: `0 4px 12px ${C.danger}33`,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 22 }}>🚨</span>
@@ -344,7 +344,7 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
                   style={{
                     background: 'rgba(255,255,255,0.2)', border: '1.5px solid rgba(255,255,255,0.5)',
                     borderRadius: 10, padding: '8px 14px',
-                    color: 'white', fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+                    color: 'white', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
                     cursor: 'pointer',
                   }}
                 >
@@ -355,20 +355,20 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
 
             {reqStats.aktif > 0 && (
               <div style={{
-                background: '#EFF6FF', border: '1px solid #BFDBFE',
+                background: C.infoBg, border: `1px solid ${C.info}`,
                 borderRadius: 12, padding: '10px 12px', marginBottom: 10,
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
               }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#1E40AF', lineHeight: 1.4 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.infoDark, lineHeight: 1.4 }}>
                   📋 <strong>{reqStats.aktif} pengajuan sedang berjalan</strong>
-                  {reqStats.action > 0 && <> · <strong style={{ color: '#9A3412' }}>{reqStats.action} perlu diperbaiki</strong></>}
+                  {reqStats.action > 0 && <> · <strong style={{ color: C.warningDark }}>{reqStats.action} perlu diperbaiki</strong></>}
                 </div>
                 <button
                   onClick={() => setPageTab('pengajuan')}
                   style={{
                     flexShrink: 0, padding: '6px 12px', borderRadius: 8,
                     border: 'none', background: C.primary, color: 'white',
-                    fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, cursor: 'pointer',
                   }}
                 >
                   Cek Status →
@@ -422,12 +422,12 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
             {/* Pengajuan summary */}
             <div style={{
               background: reqStats.action > 0
-                ? 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
-                : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+                ? `linear-gradient(135deg, ${C.warning} 0%, ${C.warningDark} 100%)`
+                : `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
               borderRadius: 16, padding: '14px 16px', marginBottom: 12,
-              color: 'white', boxShadow: '0 4px 12px rgba(249,115,22,0.18)',
+              color: 'white', boxShadow: `0 4px 12px ${C.warning}2e`,
             }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, opacity: 0.9 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, opacity: 0.9 }}>
                 📋 STATUS PENGADAAN OUTLET ANDA
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
@@ -443,7 +443,7 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
               style={{
                 width: '100%', padding: '14px', borderRadius: 14,
                 border: 'none', background: C.primary, color: 'white',
-                fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+                fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
                 cursor: 'pointer', marginBottom: 12,
                 boxShadow: '0 4px 12px rgba(91,0,95,0.18)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -508,7 +508,7 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
 
       <Modal visible={!!adjustModal} onClose={() => setAdjustModal(null)} title={adjustModal ? `Stok: ${adjustModal.name}` : ''}>
         <div style={{ padding: '8px 18px 18px' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 12 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#3a3a3a', marginBottom: 12 }}>
             Stok sekarang: <strong>{adjustModal ? Number(adjustModal.stockQty).toLocaleString('id-ID') : ''}</strong> {adjustModal?.unit}.
             Masukkan perubahan (positif = tambah, negatif = kurang).
           </div>
@@ -554,7 +554,7 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
       {showStockFilterModal && (
         <Modal visible onClose={() => setShowStockFilterModal(false)} title="Filter Stok">
           <div style={{ padding: '8px 18px 18px' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
               📦 Level Stok
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -578,7 +578,7 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
       {showReqFilterModal && (
         <Modal visible onClose={() => setShowReqFilterModal(false)} title="Filter Pengajuan">
           <div style={{ padding: '8px 18px 18px' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
               📌 Status Pengajuan
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -592,7 +592,7 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
               ))}
             </div>
 
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
               🚨 Tingkat Urgensi
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -639,10 +639,10 @@ function MiniStat({ value, label, highlight }) {
 
 function ErrorPanel({ message, onRetry }) {
   return (
-    <div style={{ textAlign: 'center', padding: 24, background: '#FEF2F2', borderRadius: 12, border: '1px solid #FECACA' }}>
+    <div style={{ textAlign: 'center', padding: 24, background: C.validationErrorBg, borderRadius: 12, border: `1px solid ${C.dangerBg}` }}>
       <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#991B1B', marginBottom: 12 }}>{message}</div>
-      <button onClick={onRetry} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: C.primary, color: 'white', fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Coba Lagi</button>
+      <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.validationErrorText, marginBottom: 12 }}>{message}</div>
+      <button onClick={onRetry} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: C.primary, color: 'white', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Coba Lagi</button>
     </div>
   );
 }
@@ -651,39 +651,39 @@ function EmptyState({ icon, text }) {
   return (
     <div style={{ textAlign: 'center', padding: 40 }}>
       <div style={{ fontSize: 36, marginBottom: 8 }}>{icon}</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>{text}</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n700 }}>{text}</div>
     </div>
   );
 }
 
 function StockCard({ item: r, activeRequest, onAdjust, onQuickRequest, onViewRequest }) {
   const stockPct = r.minStock > 0 ? Math.min(1, r.stockQty / r.minStock) : 1;
-  const barColor = r.stockQty === 0 ? '#DC2626' : r.stockQty <= r.minStock ? '#F59E0B' : '#10B981';
+  const barColor = r.stockQty === 0 ? C.danger : r.stockQty <= r.minStock ? C.warning : C.success;
   const isLow = r.lowStock;
   const stDef = STOCK_STATUS[r.stockQty === 0 ? 'empty' : isLow ? 'low' : 'safe'];
-  const barBg = r.stockQty === 0 ? '#FEE2E2' : isLow ? '#FEF3C7' : '#DCFCE7';
+  const barBg = r.stockQty === 0 ? C.validationErrorBg : isLow ? C.validationWarningBg : C.successBg;
   const reqSt = activeRequest ? (STATUS_META[activeRequest.status] || STATUS_META.pending) : null;
   const hasPendingRequest = !!activeRequest;
 
   return (
     <div style={{
       background: C.white, borderRadius: 14, padding: '12px 14px', marginBottom: 10,
-      boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+      boxShadow: SHADOW.sm,
       borderLeft: `4px solid ${stDef.color}`,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{r.categoryName}</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700 }}>{r.categoryName}</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {r.name}
           </div>
           {r.itemCode && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n400, marginTop: 1 }}>📦 {r.itemCode}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 1 }}>📦 {r.itemCode}</div>
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0 }}>
           <span style={{
-            fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
             padding: '2px 8px', borderRadius: 999,
             background: stDef.bg, color: stDef.color,
           }}>
@@ -701,10 +701,10 @@ function StockCard({ item: r, activeRequest, onAdjust, onQuickRequest, onViewReq
             background: reqSt.bg, cursor: 'pointer', textAlign: 'left',
           }}
         >
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: reqSt.fg }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: reqSt.fg }}>
             {reqSt.icon} Pengajuan: {reqSt.label}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 2 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 2 }}>
             {activeRequest.qty} {activeRequest.unit} diajukan
             {activeRequest.approvedQty != null && activeRequest.approvedQty !== activeRequest.qty
               ? ` · disetujui ${activeRequest.approvedQty} ${activeRequest.unit}`
@@ -720,9 +720,9 @@ function StockCard({ item: r, activeRequest, onAdjust, onQuickRequest, onViewReq
             <span style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color: barColor }}>
               {Number(r.stockQty).toLocaleString('id-ID')}
             </span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>{r.unit}</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>{r.unit}</span>
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700 }}>
             Min. {Number(r.minStock).toLocaleString('id-ID')} {r.unit}
           </div>
         </div>
@@ -731,7 +731,7 @@ function StockCard({ item: r, activeRequest, onAdjust, onQuickRequest, onViewReq
             size="sm"
             variant={isLow ? 'warning' : 'secondary'}
             onClick={onAdjust}
-            style={isLow ? { background: '#F59E0B', color: 'white' } : {}}
+            style={isLow ? { background: C.warning, color: 'white' } : {}}
           >
             ⚙️ Sesuaikan
           </Btn>
@@ -740,9 +740,9 @@ function StockCard({ item: r, activeRequest, onAdjust, onQuickRequest, onViewReq
               onClick={onQuickRequest}
               style={{
                 padding: '0 12px', height: 36, borderRadius: 10,
-                border: '1.5px solid #F59E0B',
-                background: '#FEF3C7', color: '#92400E',
-                fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+                border: `1.5px solid ${C.warning}`,
+                background: C.validationWarningBg, color: C.validationWarningText,
+                fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
                 cursor: 'pointer', whiteSpace: 'nowrap',
               }}
             >
@@ -756,7 +756,7 @@ function StockCard({ item: r, activeRequest, onAdjust, onQuickRequest, onViewReq
                 padding: '0 12px', height: 36, borderRadius: 10,
                 border: `1.5px solid ${reqSt.fg}`,
                 background: reqSt.bg, color: reqSt.fg,
-                fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+                fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
                 cursor: 'pointer', whiteSpace: 'nowrap',
               }}
             >
@@ -787,17 +787,17 @@ function PengajuanCard({ item: it, highlighted, onEdit }) {
   return (
     <div style={{
       background: 'white', borderRadius: 12, padding: '12px 14px', marginBottom: 10,
-      boxShadow: highlighted ? '0 0 0 2px #F59E0B, 0 4px 12px rgba(245,158,11,0.2)' : '0 1px 4px rgba(15,23,42,0.05)',
-      borderLeft: `4px solid ${it.status === 'revised' ? '#F59E0B' : urg.color}`,
+      boxShadow: highlighted ? `0 0 0 2px ${C.warning}, 0 4px 12px ${C.warning}33` : SHADOW.sm,
+      borderLeft: `4px solid ${it.status === 'revised' ? C.warning : urg.color}`,
       transition: 'box-shadow 0.3s',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
             {it.itemName}
-            {it.brand ? <span style={{ color: C.n600, fontWeight: 500 }}> · {it.brand}</span> : null}
+            {it.brand ? <span style={{ color: C.n700, fontWeight: 500 }}> · {it.brand}</span> : null}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginTop: 2 }}>
             Diminta: <strong>{it.qty} {it.unit}</strong>
             {it.approvedQty != null && it.approvedQty !== it.qty && (
               <span style={{ color: C.primary, fontWeight: 600 }}> · Disetujui: {it.approvedQty} {it.unit}</span>
@@ -807,12 +807,12 @@ function PengajuanCard({ item: it, highlighted, onEdit }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
           <span style={{
-            fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
             padding: '2px 7px', borderRadius: 999,
             background: urg.bg, color: urg.fg,
           }}>{urg.icon} {urg.label}</span>
           <span style={{
-            fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
             padding: '2px 7px', borderRadius: 999,
             background: st.bg, color: st.fg,
           }}>{st.icon} {st.label}</span>
@@ -830,7 +830,7 @@ function PengajuanCard({ item: it, highlighted, onEdit }) {
         💬 {it.reason}
       </div>
 
-      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 6 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 6 }}>
         Diajukan {fmtDate(it.createdAt)}
         {it.resolvedAt && ` · Diproses ${fmtDate(it.resolvedAt)}`}
         {it.fulfilledAt && ` · Dibeli ${fmtDate(it.fulfilledAt)}`}
@@ -839,17 +839,17 @@ function PengajuanCard({ item: it, highlighted, onEdit }) {
 
       {it.adminNote && (
         <div style={{
-          background: it.status === 'revised' ? '#FEF3C7' : it.status === 'rejected' ? '#FEE2E2' : '#EFF6FF',
-          borderLeft: `3px solid ${it.status === 'revised' ? '#F59E0B' : it.status === 'rejected' ? '#DC2626' : '#3B82F6'}`,
+          background: it.status === 'revised' ? C.validationWarningBg : it.status === 'rejected' ? C.validationErrorBg : C.infoBg,
+          borderLeft: `3px solid ${it.status === 'revised' ? C.warning : it.status === 'rejected' ? C.danger : C.info}`,
           borderRadius: 6, padding: '8px 10px', marginTop: 8,
-          fontFamily: 'Poppins', fontSize: 11, color: '#1E293B', lineHeight: 1.5,
+          fontFamily: 'Poppins', fontSize: 11, color: C.n800, lineHeight: 1.5,
         }}>
           📝 <strong>Catatan admin:</strong> {it.adminNote}
         </div>
       )}
 
       {it.status === 'fulfilled' && it.fulfilledAmount && (
-        <div style={{ background: '#DCFCE7', borderRadius: 6, padding: '4px 8px', marginTop: 6, fontFamily: 'Poppins', fontSize: 10, color: '#15803D' }}>
+        <div style={{ background: C.successBg, borderRadius: 6, padding: '4px 8px', marginTop: 6, fontFamily: 'Poppins', fontSize: 10, color: C.successDark }}>
           💸 Dibeli senilai {rp(it.fulfilledAmount)}
         </div>
       )}
@@ -859,9 +859,9 @@ function PengajuanCard({ item: it, highlighted, onEdit }) {
           onClick={onEdit}
           style={{
             width: '100%', marginTop: 10, padding: '10px',
-            background: '#F59E0B', color: 'white',
+            background: C.warning, color: 'white',
             border: 'none', borderRadius: 10,
-            fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
             cursor: 'pointer',
           }}
         >
@@ -915,17 +915,17 @@ function QuickRequestModal({ item, onClose, onSuccess }) {
     <Modal visible onClose={onClose} title="📦 Ajukan Pengadaan">
       <div style={{ padding: '8px 18px 18px' }}>
         <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{item.name}</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{item.name}</div>
           {item.itemCode && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 2 }}>📦 {item.itemCode} · {item.categoryName}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 2 }}>📦 {item.itemCode} · {item.categoryName}</div>
           )}
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginTop: 4 }}>
-            Stok sekarang: <strong style={{ color: '#DC2626' }}>{Number(item.stockQty).toLocaleString('id-ID')} {item.unit}</strong>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700, marginTop: 4 }}>
+            Stok sekarang: <strong style={{ color: C.danger }}>{Number(item.stockQty).toLocaleString('id-ID')} {item.unit}</strong>
             {' '}· Min: {Number(item.minStock).toLocaleString('id-ID')}
           </div>
         </div>
 
-        <div style={{ background: '#FEF3C7', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontFamily: 'Poppins', fontSize: 11, color: '#92400E' }}>
+        <div style={{ background: C.validationWarningBg, borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText }}>
           💡 Rekomendasi: <strong>{suggestedQty} {item.unit}</strong> (2× minimum − stok sekarang)
         </div>
 
@@ -938,7 +938,7 @@ function QuickRequestModal({ item, onClose, onSuccess }) {
         />
 
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>
+          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
             Tingkat Urgensi
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
@@ -952,7 +952,7 @@ function QuickRequestModal({ item, onClose, onSuccess }) {
                     padding: '8px 6px', borderRadius: 10,
                     border: `1.5px solid ${active ? opt.color : C.n200}`,
                     background: active ? opt.bg : 'white',
-                    color: active ? opt.fg : C.n600,
+                    color: active ? opt.fg : C.n700,
                     fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 500,
                     cursor: 'pointer',
                   }}
@@ -973,7 +973,7 @@ function QuickRequestModal({ item, onClose, onSuccess }) {
         />
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>
+          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
             Alasan / Kebutuhan *
           </label>
           <textarea
@@ -1035,22 +1035,22 @@ function ResubmitModal({ request, onClose, onSuccess }) {
       <div style={{ padding: '8px 18px 18px' }}>
         {request.adminNote && (
           <div style={{
-            background: '#FEF3C7', border: '1px solid #FCD34D',
+            background: C.validationWarningBg, border: `1px solid ${C.warningBg}`,
             borderRadius: 10, padding: '10px 12px', marginBottom: 14,
-            fontFamily: 'Poppins', fontSize: 11, color: '#92400E', lineHeight: 1.5,
+            fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText, lineHeight: 1.5,
           }}>
             📝 <strong>Catatan admin:</strong><br />{request.adminNote}
           </div>
         )}
 
         <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700 }}>{request.itemName}</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600 }}>{request.itemName}</div>
         </div>
 
         <Input label="Jumlah *" value={qty} onChange={(v) => setQty(v.replace(/[^\d.]/g, ''))} inputMode="decimal" />
 
         <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>
+          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
             Urgensi
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
@@ -1064,7 +1064,7 @@ function ResubmitModal({ request, onClose, onSuccess }) {
                     padding: '8px 6px', borderRadius: 10,
                     border: `1.5px solid ${active ? opt.color : C.n200}`,
                     background: active ? opt.bg : 'white',
-                    color: active ? opt.fg : C.n600,
+                    color: active ? opt.fg : C.n700,
                     fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 500,
                     cursor: 'pointer',
                   }}
@@ -1084,7 +1084,7 @@ function ResubmitModal({ request, onClose, onSuccess }) {
         />
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>
+          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
             Alasan *
           </label>
           <textarea

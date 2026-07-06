@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Chip } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
@@ -112,24 +112,24 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
   const activeCount = outlets.filter(o => o.isActive).length;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8FAFC', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Manajemen Outlet" subtitle={`${outlets.length} outlet terdaftar`} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
 
         {/* Summary cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
-          <div style={{ background: 'white', borderRadius: 12, padding: '10px 12px', textAlign: 'center', boxShadow: '0 1px 4px rgba(15,23,42,0.05)' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: C.primary }}>{outlets.length}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>TOTAL</div>
+          <div style={{ background: 'white', borderRadius: 12, padding: '10px 12px', textAlign: 'center', boxShadow: SHADOW.sm }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, color: C.primary }}>{outlets.length}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>TOTAL</div>
           </div>
-          <div style={{ background: 'white', borderRadius: 12, padding: '10px 12px', textAlign: 'center', boxShadow: '0 1px 4px rgba(15,23,42,0.05)' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: '#16A34A' }}>{activeCount}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>AKTIF</div>
+          <div style={{ background: 'white', borderRadius: 12, padding: '10px 12px', textAlign: 'center', boxShadow: SHADOW.sm }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, color: C.success }}>{activeCount}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>AKTIF</div>
           </div>
-          <div style={{ background: 'white', borderRadius: 12, padding: '10px 12px', textAlign: 'center', boxShadow: '0 1px 4px rgba(15,23,42,0.05)' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: '#7C3AED' }}>{rp(totalRevenue)}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>OMSET 30H</div>
+          <div style={{ background: 'white', borderRadius: 12, padding: '10px 12px', textAlign: 'center', boxShadow: SHADOW.sm }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.primary }}>{rp(totalRevenue)}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>OMSET 30H</div>
           </div>
         </div>
 
@@ -145,7 +145,7 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
             style={{
               padding: '8px 14px', borderRadius: 10, border: 'none',
               background: C.primary, color: 'white',
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
             }}
           >
@@ -158,7 +158,7 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
         {loading && (
           <div style={{ textAlign: 'center', padding: 32 }}>
             <div style={{ width: 32, height: 32, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat outlet…</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Memuat outlet…</span>
           </div>
         )}
 
@@ -174,15 +174,15 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
           return (
             <div key={o.id} style={{
               background: 'white', borderRadius: 16, padding: '14px 16px',
-              marginBottom: 10, boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
-              border: `1.5px solid ${o.isActive ? C.n100 : '#FCA5A5'}`,
+              marginBottom: 10, boxShadow: SHADOW.md,
+              border: `1.5px solid ${o.isActive ? C.n100 : C.validationErrorBorder}`,
               opacity: o.isActive ? 1 : 0.75,
             }}>
               {/* Header */}
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                 <div style={{
                   width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                  background: o.isActive ? `${C.primary}14` : '#FEE2E2',
+                  background: o.isActive ? `${C.primary}14` : C.dangerBg,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 20,
                 }}>
@@ -190,17 +190,17 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>{o.name}</span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{o.name}</span>
                     <span style={{
-                      fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+                      fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
                       padding: '1px 6px', borderRadius: 999,
-                      background: o.isActive ? '#DCFCE7' : '#FEE2E2',
-                      color: o.isActive ? '#166534' : '#991B1B',
+                      background: o.isActive ? C.successBg : C.dangerBg,
+                      color: o.isActive ? C.successDark : C.validationErrorText,
                     }}>
                       {o.isActive ? '● Aktif' : '● Nonaktif'}
                     </span>
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
                     {o.outletCode} {o.address ? `· ${o.address}` : ''}
                   </div>
                 </div>
@@ -209,20 +209,20 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
               {/* Stats row */}
               <div style={{ display: 'flex', gap: 12, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.n100}` }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>TIM</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n800 }}>{o.teamCount}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>TIM</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>{o.teamCount}</div>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>LAYANAN</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n800 }}>{o.serviceCount}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>LAYANAN</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>{o.serviceCount}</div>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>TX/30H</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n800 }}>{o.monthlyTxCount}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>TX/30H</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>{o.monthlyTxCount}</div>
                 </div>
                 <div style={{ flex: 1.5 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>OMSET/30H</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: '#7C3AED' }}>{rp(o.monthlyRevenue)}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>OMSET/30H</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.primary }}>{rp(o.monthlyRevenue)}</div>
                 </div>
               </div>
 
@@ -230,11 +230,11 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
               {pctTarget !== null && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>Target bulan ini</span>
-                    <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: pctTarget >= 100 ? '#16A34A' : pctTarget >= 70 ? '#F59E0B' : '#DC2626' }}>{pctTarget}%</span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600 }}>Target bulan ini</span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: pctTarget >= 100 ? C.success : pctTarget >= 70 ? C.warning : C.danger }}>{pctTarget}%</span>
                   </div>
                   <div style={{ height: 5, background: C.n100, borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pctTarget}%`, background: pctTarget >= 100 ? '#16A34A' : pctTarget >= 70 ? '#F59E0B' : '#DC2626', borderRadius: 3 }} />
+                    <div style={{ height: '100%', width: `${pctTarget}%`, background: pctTarget >= 100 ? C.success : pctTarget >= 70 ? C.warning : C.danger, borderRadius: 3 }} />
                   </div>
                 </div>
               )}
@@ -255,7 +255,7 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
                 </button>
                 <button
                   onClick={() => handleDelete(o)}
-                  style={{ flex: 1, height: 34, borderRadius: 8, border: '1.5px solid #FCA5A5', background: '#FEF2F2', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#DC2626', cursor: 'pointer' }}
+                  style={{ flex: 1, height: 34, borderRadius: 8, border: `1.5px solid ${C.validationErrorBorder}`, background: C.validationErrorBg, fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.danger, cursor: 'pointer' }}
                 >
                   🗑️ Hapus
                 </button>
@@ -263,9 +263,9 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
                   onClick={() => setConfirmToggle(o)}
                   style={{
                     flex: 1, height: 34, borderRadius: 8, border: 'none',
-                    background: o.isActive ? '#FEE2E2' : '#DCFCE7',
+                    background: o.isActive ? C.dangerBg : C.successBg,
                     fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-                    color: o.isActive ? '#991B1B' : '#166534', cursor: 'pointer',
+                    color: o.isActive ? C.validationErrorText : C.successDark, cursor: 'pointer',
                   }}
                 >
                   {o.isActive ? '⏸ Nonaktif' : '▶ Aktifkan'}
@@ -339,7 +339,7 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              style={{ flex: 2, height: 40, borderRadius: 10, border: 'none', background: C.primary, fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: 'white', cursor: submitting ? 'default' : 'pointer', opacity: submitting ? 0.6 : 1 }}
+              style={{ flex: 2, height: 40, borderRadius: 10, border: 'none', background: C.primary, fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: 'white', cursor: submitting ? 'default' : 'pointer', opacity: submitting ? 0.6 : 1 }}
             >
               {submitting ? 'Menyimpan…' : editingOutlet ? 'Simpan Perubahan' : 'Buat Outlet'}
             </button>
@@ -354,12 +354,12 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
           onClick={() => setConfirmToggle(null)}
         >
           <div
-            style={{ width: '100%', maxWidth: 340, background: 'white', borderRadius: 18, padding: 20, boxShadow: '0 12px 36px rgba(15,23,42,0.18)' }}
+            style={{ width: '100%', maxWidth: 340, background: 'white', borderRadius: 18, padding: 20, boxShadow: SHADOW.lg }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ textAlign: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>{confirmToggle.isActive ? '⏸' : '▶'}</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900 }}>
                 {confirmToggle.isActive ? 'Nonaktifkan' : 'Aktifkan'} Outlet?
               </div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginTop: 4 }}>
@@ -380,8 +380,8 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
                 onClick={() => handleToggle(confirmToggle)}
                 style={{
                   flex: 1, height: 40, borderRadius: 10, border: 'none',
-                  background: confirmToggle.isActive ? '#DC2626' : '#16A34A',
-                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: 'white', cursor: 'pointer',
+                  background: confirmToggle.isActive ? C.danger : C.success,
+                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: 'white', cursor: 'pointer',
                 }}
               >
                 {confirmToggle.isActive ? 'Nonaktifkan' : 'Aktifkan'}

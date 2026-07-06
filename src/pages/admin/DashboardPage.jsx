@@ -1,10 +1,137 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { C, T } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { Avatar, StatCard, Select, useAppRefresh } from '../../components/ui';
+import { Avatar, useAppRefresh } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
-import { alertWarning } from '../../utils/alert';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Bell, ChevronRight, ChevronDown, Home, FileText, DollarSign, AlertCircle,
+  LayoutGrid, Clock, User,
+} from 'lucide-react';
+import { checkLowBalance } from '../../utils/outletCashApi';
+import LowStockAlertWidget from '../../components/LowStockAlertWidget';
+import TransactionMetricsWidget from '../../components/TransactionMetricsWidget';
+import OutletComparisonWidget from '../../components/OutletComparisonWidget';
+import PaymentTrendChart from '../../components/PaymentTrendChart';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, Cell
+} from 'recharts';
+import { SHADOWS, GRADIENTS, RADIUS } from '../../utils/designSystem';
+
+// ─── Premium Animation Assets ───────────────────────────────────────────────
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp'
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp'
+import soapBubble from '../../assets/Decorative icon/soap-bubble.webp'
+
+// ─── Premium Animation Components ──────────────────────────────────────────────
+const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.5 }) => (
+  <motion.div
+    animate={{
+      y: [0, -20, 0],
+      scale: [1, 1.1, 1],
+      opacity: [opacity * 0.6, opacity, opacity * 0.6],
+    }}
+    transition={{ duration, repeat: Infinity, ease: 'easeInOut', delay }}
+    style={{ position: 'absolute', top, left, right, bottom, width: size, height: size, pointerEvents: 'none', zIndex: 0 }}
+  >
+    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.08))' }} loading="lazy" />
+  </motion.div>
+);
+
+const Sparkle = ({ top, left, size = 6, delay = 0 }) => (
+  <motion.div
+    style={{
+      position: 'absolute', top, left, width: size, height: size,
+      background: '#E85D04', borderRadius: '50%',
+      boxShadow: `0 0 ${size}px #E85D04, 0 0 ${size * 2}px #E85D0450`,
+      pointerEvents: 'none', zIndex: 1,
+    }}
+    animate={{ scale: [0, 1, 0], opacity: [0, 1, 0], rotate: [0, 180, 360] }}
+    transition={{ duration: 2.5, delay, repeat: Infinity, ease: 'easeOut' }}
+  />
+);
+
+const GlowOrb = ({ color = 'rgba(91, 0, 95, 0.08)', size = 200, top, left, right, bottom, blur = 40 }) => (
+  <div
+    style={{
+      position: 'absolute', top, left, right, bottom, width: size, height: size,
+      borderRadius: '50%',
+      background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+      filter: `blur(${blur}px)`,
+      pointerEvents: 'none', zIndex: 0,
+    }}
+  />
+);
+
+// ─── Collapsible Section Component ─────────────────────────────────────────────
+function CollapsibleSection({ title, icon, defaultOpen = false, children }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{
+        background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+        borderRadius: 22,
+        marginBottom: 14,
+        overflow: 'hidden',
+        boxShadow: '12px 12px 28px rgba(60, 10, 99, 0.12), -6px -6px 16px rgba(255, 255, 255, 0.95)',
+        border: '1px solid rgba(139, 92, 246, 0.08)',
+      }}
+    >
+      {/* Section Header (clickable) */}
+      <motion.button
+        onClick={() => setIsOpen(!isOpen)}
+        whileHover={{ backgroundColor: 'rgba(139, 92, 246, 0.03)' }}
+        whileTap={{ scale: 0.99 }}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '16px 20px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          outline: 'none',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 18 }}>{icon}</span>
+          <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, color: C.n800 }}>
+            {title}
+          </span>
+        </div>
+        <motion.div
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronDown size={20} color={C.n500} />
+        </motion.div>
+      </motion.button>
+
+      {/* Section Content */}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{ padding: '0 20px 18px' }}>
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
 
 export default function AdminDashboardPage({ user, navigate }) {
   const { adminOutletId, setAdminOutletId } = useApp();
@@ -18,6 +145,17 @@ export default function AdminDashboardPage({ user, navigate }) {
   });
   const [statsError, setStatsError] = useState('');
   const [periodAlerts, setPeriodAlerts] = useState([]);
+  const [lowBalanceAlert, setLowBalanceAlert] = useState(null);
+  const [poolData, setPoolData] = useState(null);
+  const [chartPeriod, setChartPeriod] = useState('7d');
+  const [outletPerformance, setOutletPerformance] = useState([]);
+  const [cashDepositStatus, setCashDepositStatus] = useState([]);
+  const [paymentTrend, setPaymentTrend] = useState([]);
+  const [loadingCharts, setLoadingCharts] = useState(false);
+  // Phase 4: Dashboard Intelligence
+  const [metricsPeriod, setMetricsPeriod] = useState('today');
+  const [targetDaily, setTargetDaily] = useState(null);
+  const [loadingDailyTarget, setLoadingDailyTarget] = useState(false);
 
   useEffect(() => {
     axios.get('/api/master/outlets').then((r) => {
@@ -46,8 +184,54 @@ export default function AdminDashboardPage({ user, navigate }) {
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
-  // Pull-to-refresh
   useAppRefresh(() => fetchStats(), [fetchStats]);
+
+  // Fetch chart data
+  const fetchCharts = useCallback(async () => {
+    setLoadingCharts(true);
+    try {
+      const [perfRes, depositRes, paymentRes] = await Promise.all([
+        axios.get(`/api/admin-dashboard/outlet-performance?period=${chartPeriod}`),
+        axios.get(`/api/admin-dashboard/cash-deposit-status?period=${chartPeriod}`),
+        axios.get('/api/admin-dashboard/payment-trend?days=14')
+      ]);
+      setOutletPerformance(perfRes?.data?.data || []);
+      setCashDepositStatus(depositRes?.data?.data || []);
+      setPaymentTrend(paymentRes?.data?.data || []);
+    } catch (err) {
+      console.error('Failed to fetch charts:', err);
+    } finally {
+      setLoadingCharts(false);
+    }
+  }, [chartPeriod]);
+
+  useEffect(() => {
+    fetchCharts();
+  }, [fetchCharts]);
+
+  // Phase 4: Fetch daily target progress
+  const fetchDailyTarget = useCallback(async () => {
+    setLoadingDailyTarget(true);
+    try {
+      const res = await axios.get('/api/dashboard-intelligence/target-daily');
+      if (res?.data?.data) setTargetDaily(res.data.data);
+    } catch (err) {
+      console.error('Failed to fetch daily target:', err);
+    } finally {
+      setLoadingDailyTarget(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDailyTarget();
+  }, [fetchDailyTarget]);
+
+  // Low balance check for admin
+  useEffect(() => {
+    checkLowBalance().then(d => { if (d?.isLow) setLowBalanceAlert(d); else setLowBalanceAlert(null); }).catch(() => {});
+    // Pool kas tertahan
+    axios.get('/api/cash-deposits/pool-summary').then(r => setPoolData(r?.data?.data || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!outlets.length) return;
@@ -59,7 +243,6 @@ export default function AdminDashboardPage({ user, navigate }) {
     }).catch(() => {});
   }, [outlets, outletId]);
 
-  // Computed
   const omset = period === 'today' ? stats.omset_today : period === 'month' ? stats.omset_month : stats.total_omset;
   const pelunasan = period === 'today' ? stats.pelunasan_today : period === 'month' ? stats.pelunasan_month : stats.total_pelunasan;
   const transaksi = period === 'today' ? stats.transaksi_today : period === 'month' ? stats.transaksi_month : stats.total_transaksi;
@@ -67,184 +250,740 @@ export default function AdminDashboardPage({ user, navigate }) {
   const periodLabel = period === 'today' ? 'Hari Ini' : period === 'month' ? 'Bulan Ini' : 'Akumulasi';
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: C.n50 }}>
-      {/* Header */}
-      <div style={{ background: `linear-gradient(135deg, ${C.primaryDark}, #2D0030)`, padding: '16px 20px 28px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'linear-gradient(180deg, #F8F4FF 0%, #F1F5F9 50%, #E8EEF5 100%)' }}>
+
+      {/* ── HEADER — glassmorphism gradient with animated blobs ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '18px 20px 40px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Animated decorative blobs */}
+        <div style={{
+          position: 'absolute', top: -60, right: -60,
+          width: 200, height: 200, borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.08)',
+          filter: 'blur(40px)',
+          animation: 'floatBlob 8s ease-in-out infinite',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: -40, left: -40,
+          width: 140, height: 140, borderRadius: '50%',
+          background: 'rgba(250, 101, 65, 0.12)',
+          filter: 'blur(30px)',
+          animation: 'floatBlob 6s ease-in-out infinite reverse',
+        }} />
+        <div style={{
+          position: 'absolute', top: 30, left: '30%',
+          width: 60, height: 60, borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.06)',
+          filter: 'blur(20px)',
+          animation: 'floatBlob 5s ease-in-out infinite 0.5s',
+        }} />
+
+        {/* Sparkles */}
+        <div style={{
+          position: 'absolute', top: 25, right: 140,
+          fontSize: 14, animation: 'twinkle 2s ease-in-out infinite',
+        }}>✨</div>
+        <div style={{
+          position: 'absolute', bottom: 50, left: 50,
+          fontSize: 12, animation: 'twinkle 2.5s ease-in-out infinite 0.5s',
+        }}>⭐</div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative', paddingLeft: 16 }}
+        >
           <div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>Selamat datang,</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: 'white' }}>{user.name.split(' ')[0]} 👋</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 }}>Selamat datang,</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: 'white', marginTop: 4, letterSpacing: '-0.3px', textShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+              {user.name.split(' ')[0]} 👋
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
               Admin{outletId && outletId !== '_all' ? ` · ${outlets.find(o => o.id === outletId)?.name || ''}` : ' · Semua outlet'}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => navigate('notifikasi')} style={{ width: 38, height: 38, borderRadius: 19, background: 'rgba(255,255,255,0.12)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-            </button>
-            <Avatar photo={user.photo} initials={user.avatar} size={38} onClick={() => navigate('profil')} />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('notifikasi')}
+              style={{
+                width: 42, height: 42, borderRadius: 21,
+                background: 'rgba(255,255,255,0.2)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                position: 'relative',
+                backdropFilter: 'blur(10px)',
+                boxShadow: '0 4px 16px rgba(91,0,95,0.2)',
+              }}
+            >
+              <Bell size={18} />
+              <div style={{
+                position: 'absolute', top: 8, right: 8,
+                width: 8, height: 8, borderRadius: 4,
+                background: '#F93E11',
+                border: '2px solid white',
+                boxShadow: '0 0 8px rgba(249,62,17,0.6)',
+              }} />
+            </motion.button>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('profil')}
+              style={{
+                width: 42, height: 42, borderRadius: 14,
+                background: 'linear-gradient(145deg, rgba(255,255,255,0.35), rgba(255,255,255,0.15))',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                cursor: 'pointer',
+              }}
+            >
+              <Avatar photo={user.photo} initials={user.avatar} size={34} />
+            </motion.div>
           </div>
-        </div>
+        </motion.div>
+
+        {/* Add CSS animations */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes floatBlob {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(20px, -20px) scale(1.05); }
+            66% { transform: translate(-10px, 15px) scale(0.95); }
+          }
+          @keyframes twinkle {
+            0%, 100% { opacity: 0.4; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.2); }
+          }
+        `}} />
       </div>
 
-      <div style={{ padding: '0 16px', marginTop: -14, paddingBottom: 20 }}>
+      <div style={{ padding: '0 16px', marginTop: -12, paddingBottom: 20, position: 'relative', zIndex: 2 }}>
 
-        {/* Alert tutup buku */}
-        {periodAlerts.length > 0 && (
-          <div style={{ marginBottom: 10 }}>
-            {periodAlerts.map(({ outlet, data }) => (
-              <div key={outlet.id} style={{ background: data.daysLeft <= 1 ? '#FEE2E2' : '#FEF3C7', borderRadius: 12, padding: '10px 12px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, border: `1.5px solid ${data.daysLeft <= 1 ? '#FCA5A5' : '#FDE68A'}` }}>
-                <span style={{ fontSize: 14 }}>{data.daysLeft <= 1 ? '🚨' : '⚠️'}</span>
-                <div style={{ flex: 1, fontFamily: 'Poppins', fontSize: 11, color: data.daysLeft <= 1 ? '#991B1B' : '#92400E' }}>
-                  <strong>{outlet.name}</strong> — tutup buku {data.daysLeft === 0 ? 'hari ini!' : `${data.daysLeft} hari lagi`}
-                </div>
-                <button onClick={() => navigate('admin_period_close')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: data.daysLeft <= 1 ? '#991B1B' : '#92400E', textDecoration: 'underline' }}>Tutup</button>
-              </div>
-            ))}
+        {/* Outlet selector + Period pill — claymorphism card */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          style={{
+            background: 'linear-gradient(145deg, #FFFFFF, #F4EDF4)',
+            borderRadius: 20,
+            padding: '16px 18px',
+            marginBottom: 14,
+            boxShadow: '10px 10px 24px rgba(91, 0, 95, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+            border: '1px solid rgba(91, 0, 95, 0.06)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Gradient overlay */}
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0,
+            height: '30%',
+            background: 'linear-gradient(180deg, rgba(91, 0, 95, 0.04), transparent)',
+            pointerEvents: 'none',
+          }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, position: 'relative' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 12, background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)' }}>
+              <Home size={16} color={C.primaryDark} />
+            </div>
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n800 }}>
+              {outletId && outletId !== '_all' ? outlets.find(o => o.id === outletId)?.name || 'Pilih Outlet' : '📊 Semua Outlet'}
+            </span>
           </div>
-        )}
 
-        {/* Outlet + Period selector */}
-        <div style={{ ...T.card, padding: '12px 14px', marginBottom: 12 }}>
-          <Select
-            label="Outlet"
-            value={outletId}
-            onChange={(val) => setOutletId(val)}
-            options={[
-              { value: '_all', label: '📊 Semua Outlet (Akumulasi)' },
-              ...outlets.map((o) => ({ value: o.id, label: o.name })),
-            ]}
-          />
-          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-            {['today', 'month', 'all'].map((p) => {
+          <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+            {['today', 'month', 'all'].map((p, idx) => {
               const active = period === p;
               const label = p === 'today' ? 'Hari ini' : p === 'month' ? 'Bulan ini' : 'Akumulasi';
               return (
-                <button key={p} onClick={() => setPeriod(p)} style={{
-                  flex: 1, padding: '7px 0', borderRadius: 8, border: 'none',
-                  background: active ? C.primary : C.n100,
-                  color: active ? 'white' : C.n600,
-                  fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 500, cursor: 'pointer',
-                }}>{label}</button>
+                <motion.button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 12,
+                    border: 'none',
+                    background: active
+                      ? 'linear-gradient(145deg, #5B005F, #8C4C8F)'
+                      : 'linear-gradient(145deg, #F4EDF4, #E6D9E7)',
+                    color: active ? C.white : C.primaryDark,
+                    fontFamily: 'Poppins', fontSize: 12, fontWeight: active ? 700 : 600,
+                    cursor: 'pointer',
+                    boxShadow: active
+                      ? '0 4px 14px rgba(110, 46, 120, 0.35), inset 0 1px 0 rgba(255,255,255,0.2)'
+                      : '2px 2px 6px rgba(109, 40, 217, 0.1)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >{label}</motion.button>
               );
             })}
           </div>
-        </div>
+        </motion.div>
 
         {statsError && (
-          <div style={{ background: '#FEF2F2', color: C.danger, padding: 10, borderRadius: 10, fontFamily: 'Poppins', fontSize: 12, marginBottom: 10 }}>{statsError}</div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ background: C.validationErrorBg, color: C.danger, padding: '12px 16px', borderRadius: 14, fontFamily: 'Poppins', fontSize: 12, marginBottom: 12, border: `1.5px solid ${C.validationErrorBorder}`, fontWeight: 600 }}
+          >{statsError}</motion.div>
         )}
 
-        {/* KPI Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-          <StatCard label={`Omset ${periodLabel}`} value={rp(omset)} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} color={C.primary} />
-          <StatCard label="Pelunasan" value={rp(pelunasan)} icon={<span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800 }}>Rp</span>} color={C.success} />
-        </div>
-        {piutang > 0 && (
-          <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 10, padding: '8px 12px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#92400E' }}>⚠️ Piutang</span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: '#92400E' }}>{rp(piutang)}</span>
-          </div>
-        )}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
-          <div style={{ background: 'white', borderRadius: 12, padding: '10px', textAlign: 'center', border: `1px solid ${C.n100}` }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: C.info }}>{transaksi}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>NOTA</div>
-          </div>
-          <div style={{ background: 'white', borderRadius: 12, padding: '10px', textAlign: 'center', border: `1px solid ${C.n100}` }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: C.warning }}>{stats.pending_transactions}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>PROSES</div>
-          </div>
-          <div style={{ background: 'white', borderRadius: 12, padding: '10px', textAlign: 'center', border: `1px solid ${C.n100}` }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: C.success }}>{stats.total_customers}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, fontWeight: 600 }}>CUSTOMER</div>
-          </div>
-        </div>
+        {/* ── HERO STAT CARD — claymorphism floating card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          style={{
+            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+            borderRadius: 22,
+            padding: '20px 18px 16px',
+            boxShadow: '12px 12px 28px rgba(60, 10, 99, 0.12), -6px -6px 16px rgba(255, 255, 255, 0.95)',
+            marginBottom: 14,
+            border: '1px solid rgba(139, 92, 246, 0.08)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Gradient overlay */}
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0,
+            height: '25%',
+            background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.04), transparent)',
+            pointerEvents: 'none',
+          }} />
 
-        {/* Outlet comparison */}
-        {stats.outlet_comparison && stats.outlet_comparison.length > 0 && (
-          <div style={{ background: 'white', borderRadius: 14, padding: '12px 14px', marginBottom: 14, border: `1px solid ${C.n100}` }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8 }}>PERBANDINGAN OUTLET</div>
-            {stats.outlet_comparison.map((o) => (
-              <div key={o.outletId} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${C.n50}`, fontFamily: 'Poppins', fontSize: 11 }}>
-                <span style={{ color: C.n700 }}>{o.outletName}</span>
-                <span style={{ fontWeight: 700, color: C.primary }}>{rp(o.omset)} · {o.transaksi} tx</span>
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: 12, position: 'relative' }}>
+            <div style={{ flex: 1, paddingRight: 14 }}>
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 10, background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)' }}>
+                  <FileText size={14} color={C.primaryDark} strokeWidth={2.5} />
+                </div>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primaryDark }}>Omset {periodLabel}</span>
+              </motion.div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: C.primaryDark, letterSpacing: '-0.5px' }}>{rp(omset)}</div>
+            </div>
+            <div style={{ width: 1.5, background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05))', flexShrink: 0, alignSelf: 'stretch', borderRadius: 1 }} />
+            <div style={{ flex: 1, paddingLeft: 14 }}>
+              <motion.div
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 10, background: 'linear-gradient(145deg, #D1FAE5, #A7F3D0)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '4px 4px 10px rgba(5, 150, 105, 0.15)' }}>
+                  <DollarSign size={14} color={C.success} strokeWidth={2.5} />
+                </div>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.success }}>Pelunasan</span>
+              </motion.div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: C.success, letterSpacing: '-0.5px' }}>{rp(pelunasan)}</div>
+            </div>
+          </div>
+
+          {piutang > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              style={{ background: C.warningBg, borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 8, background: C.warningBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <AlertCircle size={12} color={C.warning} strokeWidth={2.5} />
+                </div>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.warningDark }}>Piutang</span>
               </div>
+              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.warningDark }}>{rp(piutang)}</span>
+            </motion.div>
+          )}
+
+          {/* Stat row */}
+          <div style={{ display: 'flex', gap: 0, borderTop: '1px solid rgba(139, 92, 246, 0.08)', paddingTop: 12 }}>
+            {[
+              { label: 'Nota', val: transaksi, color: C.info, icon: <LayoutGrid size={12} strokeWidth={2.5} /> },
+              { label: 'Proses', val: stats.pending_transactions, color: C.info, icon: <Clock size={12} strokeWidth={2.5} /> },
+              { label: 'Customer', val: stats.total_customers, color: C.success, icon: <User size={12} strokeWidth={2.5} /> },
+            ].map((s, i) => (
+              <motion.div
+                key={s.label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 + i * 0.05 }}
+                style={{
+                  flex: 1, textAlign: 'center',
+                  borderRight: i < 2 ? '1px solid rgba(139, 92, 246, 0.08)' : 'none',
+                  padding: '6px 4px 4px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 4 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 8, background: `${s.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: s.color }}>{s.icon}</span>
+                  </div>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: s.color }}>{s.label}</span>
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n800 }}>{s.val}</div>
+              </motion.div>
             ))}
           </div>
+        </motion.div>
+
+        {/* Phase 4: Dashboard Intelligence Widgets */}
+
+        {/* Transaction Metrics Widget */}
+        <TransactionMetricsWidget
+          period={metricsPeriod}
+          onPeriodChange={setMetricsPeriod}
+        />
+
+        {/* Low Stock Alert Widget */}
+        <LowStockAlertWidget
+          compact={true}
+          maxItems={3}
+          onViewAll={() => navigate('admin_inventory')}
+        />
+
+        {/* Daily Target Progress Widget */}
+        {targetDaily?.targets && targetDaily.targets.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+            style={{
+              background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+              borderRadius: 20,
+              padding: '16px 18px',
+              marginBottom: 14,
+              boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+              border: '1px solid rgba(139, 92, 246, 0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 12,
+                  background: 'linear-gradient(145deg, #FFEDD5, #FED7AA)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '4px 4px 10px rgba(234, 88, 12, 0.15)',
+                  flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: 20 }}>🎯</span>
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n800 }}>📈 Target & Capaian</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>
+                    {targetDaily.monthName} {targetDaily.year}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.primaryDark }}>
+                {targetDaily.summary.avgPercentage}%
+              </div>
+            </div>
+
+            {/* Summary stats */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ flex: 1, background: C.successBg, borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: C.success }}>
+                  {targetDaily.summary.onTrackCount}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>On Track</div>
+              </div>
+              <div style={{ flex: 1, background: C.warningBg, borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: C.warning }}>
+                  {targetDaily.summary.achievedCount}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>Terpenuhi</div>
+              </div>
+              <div style={{ flex: 1, background: C.primaryTint, borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: C.primaryDark }}>
+                  {rp(targetDaily.summary.totalActual)}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>Total Realisasi</div>
+              </div>
+            </div>
+
+            {/* Outlet target list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {targetDaily.targets.slice(0, 4).map((t, idx) => {
+                const statusColor = t.status === 'achieved' ? C.success :
+                  t.status === 'on_track' ? C.success :
+                  t.status === 'behind' ? C.warning : C.danger;
+                return (
+                  <div key={t.outletId} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n800 }}>{t.outletName}</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: statusColor }}>{t.percentage}%</span>
+                      </div>
+                      <div style={{ background: C.n200, borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, t.percentage)}%` }}
+                          transition={{ duration: 0.6, delay: idx * 0.05 }}
+                          style={{ height: '100%', background: statusColor, borderRadius: 4 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <motion.button
+              onClick={() => navigate('admin_target')}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                width: '100%', marginTop: 12, padding: '10px',
+                background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
+                border: '1px solid rgba(139, 92, 246, 0.15)',
+                borderRadius: 12, cursor: 'pointer',
+                fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primaryDark,
+              }}
+            >
+              Kelola Target →
+            </motion.button>
+          </motion.div>
         )}
 
-        {/* ═══ MENU UTAMA — Konsolidasi ═══ */}
-        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', marginBottom: 12, border: `1px solid ${C.n100}` }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 12 }}>Manajemen</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {/* Outlet Comparison Widget — Phase 4 */}
+        <OutletComparisonWidget
+          onSelectOutlet={(outletId) => {
+            setAdminOutletId(outletId);
+            setPeriod('today');
+          }}
+        />
+
+        {/* Chart Period Selector — claymorphism pill */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          style={{
+            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+            borderRadius: 16,
+            padding: '14px 18px',
+            marginBottom: 14,
+            boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.95)',
+            border: '1px solid rgba(139, 92, 246, 0.06)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n800 }}>Periode Grafik</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['7d', '30d', '90d'].map((p) => {
+                const active = chartPeriod === p;
+                const label = p === '7d' ? '7 Hari' : p === '30d' ? '30 Hari' : '90 Hari';
+                return (
+                  <motion.button
+                    key={p}
+                    onClick={() => setChartPeriod(p)}
+                    whileTap={{ scale: 0.95 }}
+                    style={{
+                      padding: '6px 14px', borderRadius: 10, border: 'none',
+                      background: active
+                        ? 'linear-gradient(145deg, #8B5CF6, #6e2e78)'
+                        : 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
+                      color: active ? C.white : C.primaryDark,
+                      fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 600,
+                      cursor: 'pointer',
+                      boxShadow: active
+                        ? '0 4px 12px rgba(110, 46, 120, 0.3)'
+                        : '2px 2px 6px rgba(109, 40, 217, 0.1)',
+                    }}
+                  >{label}</motion.button>
+                );
+              })}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Outlet Performance Chart — claymorphism card */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          style={{
+            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+            borderRadius: 20,
+            padding: '14px 16px',
+            marginBottom: 14,
+            boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+            border: '1px solid rgba(139, 92, 246, 0.08)',
+          }}
+        >
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n800, marginBottom: 12 }}>
+            🏪 Performa Omzet per Outlet
+          </div>
+          {loadingCharts ? (
+            <div style={{ textAlign: 'center', padding: '32px 0' }}>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                style={{
+                  width: 28, height: 28, border: `3px solid ${C.n200}`,
+                  borderTopColor: C.primary,
+                  borderRadius: '50%',
+                  margin: '0 auto 10px',
+                }}
+              />
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat grafik...</span>
+            </div>
+          ) : outletPerformance.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>Belum ada data transaksi</div>
+          ) : (
+            <>
+              {outletPerformance.filter(o => o.isActive).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.success, marginBottom: 6 }}>Aktif</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={outletPerformance.filter(o => o.isActive)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.08)" />
+                      <XAxis dataKey="outletName" tick={{ fontSize: 10, fontFamily: 'Poppins' }} />
+                      <YAxis tick={{ fontSize: 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} />
+                      <Tooltip
+                        formatter={(value) => rp(value)}
+                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)' }}
+                      />
+                      <Bar dataKey="totalRevenue" fill={C.primary} radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {outletPerformance.filter(o => !o.isActive).length > 0 && (
+                <div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, marginBottom: 6 }}>Non Aktif</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={outletPerformance.filter(o => !o.isActive)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.n200} />
+                      <XAxis dataKey="outletName" tick={{ fontSize: 10, fontFamily: 'Poppins' }} />
+                      <YAxis tick={{ fontSize: 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} />
+                      <Tooltip
+                        formatter={(value) => rp(value)}
+                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)' }}
+                      />
+                      <Bar dataKey="totalRevenue" fill={C.n500} radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </>
+          )}
+        </motion.div>
+
+        {/* Cash Deposit Status Chart */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          style={{
+            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+            borderRadius: 20,
+            padding: '14px 16px',
+            marginBottom: 14,
+            boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+            border: '1px solid rgba(139, 92, 246, 0.08)',
+          }}
+        >
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n800, marginBottom: 12 }}>
+            💵 Status Setoran Kas per Outlet
+          </div>
+          {loadingCharts ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>Memuat grafik...</div>
+          ) : cashDepositStatus.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>Belum ada data setoran</div>
+          ) : (
+            <>
+              {cashDepositStatus.filter(o => o.isActive).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.success, marginBottom: 6 }}>Aktif</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={cashDepositStatus.filter(o => o.isActive)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.08)" />
+                      <XAxis dataKey="outletName" tick={{ fontSize: 10, fontFamily: 'Poppins' }} />
+                      <YAxis tick={{ fontSize: 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} />
+                      <Tooltip
+                        formatter={(value) => rp(value)}
+                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)' }}
+                      />
+                      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 10 }} />
+                      <Bar dataKey="approvedAmount" stackId="a" name="Disetujui" fill={C.success} radius={[0, 0, 8, 8]} />
+                      <Bar dataKey="pendingAmount" stackId="a" name="Menunggu" fill={C.warning} />
+                      <Bar dataKey="rejectedAmount" stackId="a" name="Ditolak" fill={C.danger} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {cashDepositStatus.filter(o => !o.isActive).length > 0 && (
+                <div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, marginBottom: 6 }}>Non Aktif</div>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={cashDepositStatus.filter(o => !o.isActive)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={C.n200} />
+                      <XAxis dataKey="outletName" tick={{ fontSize: 10, fontFamily: 'Poppins' }} />
+                      <YAxis tick={{ fontSize: 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} />
+                      <Tooltip
+                        formatter={(value) => rp(value)}
+                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)' }}
+                      />
+                      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 10 }} />
+                      <Bar dataKey="approvedAmount" stackId="a" name="Disetujui" fill={C.successBg} radius={[0, 0, 8, 8]} />
+                      <Bar dataKey="pendingAmount" stackId="a" name="Menunggu" fill={C.warningBg} />
+                      <Bar dataKey="rejectedAmount" stackId="a" name="Ditolak" fill={C.dangerBg} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </>
+          )}
+        </motion.div>
+
+        {/* Payment Trend Chart — Phase 4 */}
+        <PaymentTrendChart days={14} height={200} />
+
+        {/* ═══ MANAJEMEN ═══ — claymorphism cards */}
+        <CollapsibleSection title="Manajemen" icon="⚙️" defaultOpen={true}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {[
               { label: 'User & Pegawai', screen: 'manajemen_user', icon: '👥', color: C.primary },
-              { label: 'Layanan & Harga', screen: 'manajemen_layanan', icon: '🧺', color: '#14B8A6' },
-              { label: 'Outlet', screen: 'manajemen_outlet', icon: '🏪', color: '#0D9488' },
-              { label: 'Target & Capaian', screen: 'admin_target', icon: '🎯', color: '#EA580C' },
-            ].map((item) => (
-              <button key={item.label} onClick={() => navigate(item.screen)} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '12px', borderRadius: 12,
-                background: C.n50, border: `1px solid ${C.n100}`, cursor: 'pointer', textAlign: 'left',
-              }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${item.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{item.icon}</div>
+              { label: 'Layanan & Harga', screen: 'manajemen_layanan', icon: '🧺', color: C.info },
+              { label: 'Outlet', screen: 'manajemen_outlet', icon: '🏪', color: C.info },
+              { label: 'Target & Capaian', screen: 'admin_target', icon: '🎯', color: C.warning },
+              { label: 'Birthday Program', screen: 'birthday', icon: '🎂', color: '#EC4899' },
+              { label: 'Error Dashboard', screen: 'error_dashboard', icon: '🔍', color: C.danger },
+            ].map((item, idx) => (
+              <motion.button
+                key={item.label}
+                onClick={() => navigate(item.screen)}
+                whileHover={{ y: -4, scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 + idx * 0.03 }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '16px 14px', borderRadius: 18,
+                  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+                  border: '1.5px solid rgba(139, 92, 246, 0.08)',
+                  cursor: 'pointer', textAlign: 'left',
+                  boxShadow: '6px 6px 16px rgba(60, 10, 99, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.95)',
+                }}
+              >
+                <div style={{
+                  width: 46, height: 46, borderRadius: 14,
+                  background: `linear-gradient(145deg, ${item.color}18, ${item.color}08)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20, flexShrink: 0,
+                  boxShadow: `6px 6px 14px ${item.color}20, -3px -3px 8px rgba(255, 255, 255, 0.9)`,
+                }}>{item.icon}</div>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n800 }}>{item.label}</span>
-              </button>
+              </motion.button>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
 
-        {/* Laporan & Analitik */}
-        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', marginBottom: 12, border: `1px solid ${C.n100}` }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 12 }}>Laporan & Analitik</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* ═══ LAPORAN & ANALITIK ═══ */}
+        <CollapsibleSection title="Laporan & Analitik" icon="📈" defaultOpen={false}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { label: 'Laporan Outlet', desc: 'Revenue, payment mix, top services per outlet', screen: 'laporan_per_outlet', icon: '📊', color: '#7C3AED' },
+              { label: 'Laporan Outlet', desc: 'Revenue, payment mix, top services per outlet', screen: 'laporan_per_outlet', icon: '📊', color: C.primary },
               { label: 'Laporan Pusat', desc: 'Executive summary semua outlet', screen: 'admin_laporan', icon: '📈', color: C.info },
-              { label: 'Perbandingan Periode', desc: 'Bandingkan 2 periode side-by-side', screen: 'comparison_report', icon: '⚖️', color: '#0891B2' },
-              { label: 'Forecast', desc: 'Prediksi revenue berdasarkan tren', screen: 'forecast', icon: '🔮', color: '#7C3AED' },
-              { label: 'Rekap Pendapatan', desc: 'Detail pemasukan per metode bayar', screen: 'rekap_pendapatan', icon: '💰', color: '#059669' },
-            ].map((item) => (
-              <button key={item.label} onClick={() => navigate(item.screen)} style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12,
-                background: C.n50, border: `1px solid ${C.n100}`, cursor: 'pointer', textAlign: 'left', width: '100%',
-              }}>
-                <div style={{ width: 34, height: 34, borderRadius: 9, background: `${item.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{item.icon}</div>
+              { label: 'Perbandingan Periode', desc: 'Bandingkan 2 periode side-by-side', screen: 'comparison_report', icon: '⚖️', color: C.info },
+              { label: 'Forecast', desc: 'Prediksi revenue berdasarkan tren', screen: 'forecast', icon: '🔮', color: C.primary },
+              { label: 'Rekap Pendapatan', desc: 'Detail pemasukan per metode bayar', screen: 'rekap_pendapatan', icon: '💰', color: C.success },
+            ].map((item, idx) => (
+              <motion.button
+                key={item.label}
+                onClick={() => navigate(item.screen)}
+                whileHover={{ x: 4, scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.6 + idx * 0.03 }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 16,
+                  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+                  border: '1.5px solid rgba(139, 92, 246, 0.08)',
+                  cursor: 'pointer', textAlign: 'left', width: '100%',
+                  boxShadow: '6px 6px 16px rgba(60, 10, 99, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.95)',
+                }}
+              >
+                <div style={{
+                  width: 44, height: 44, borderRadius: 14,
+                  background: `linear-gradient(145deg, ${item.color}18, ${item.color}08)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20, flexShrink: 0,
+                  boxShadow: `6px 6px 14px ${item.color}20, -3px -3px 8px rgba(255, 255, 255, 0.9)`,
+                }}>{item.icon}</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n800 }}>{item.label}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{item.desc}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800 }}>{item.label}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>{item.desc}</div>
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
+                <ChevronRight size={18} color={item.color} strokeWidth={2.5} />
+              </motion.button>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
 
-        {/* Operasional */}
-        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', marginBottom: 12, border: `1px solid ${C.n100}` }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 12 }}>Operasional</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {/* ═══ OPERASIONAL ═══ */}
+        <CollapsibleSection title="Operasional" icon="⚡" defaultOpen={false}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
             {[
-              { label: 'Approval', screen: 'approval', icon: '✅', color: '#8B5CF6' },
-              { label: 'Shift Kasir', screen: 'admin_shift', icon: '🕐', color: '#6366F1' },
-              { label: 'Promo & SLA', screen: 'admin_promo', icon: '🏷️', color: '#F59E0B' },
-              { label: 'Inventaris', screen: 'admin_stok', icon: '📦', color: '#0D9488' },
-              { label: 'Tutup Buku', screen: 'admin_period_close', icon: '📒', color: '#6366F1' },
-              { label: 'Kas Outlet', screen: 'kas_outlet', icon: '💼', color: '#10B981' },
-              { label: 'Approval Kas', screen: 'kas_approval', icon: '🧾', color: '#EF4444' },
-              { label: 'Approval Pengadaan', screen: 'approval_pengadaan_barang', icon: '📦', color: '#F97316' },
-            ].map((item) => (
-              <button key={item.label} onClick={() => navigate(item.screen)} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 6px', borderRadius: 12,
-                background: C.n50, border: `1px solid ${C.n100}`, cursor: 'pointer',
-              }}>
-                <div style={{ width: 34, height: 34, borderRadius: 9, background: `${item.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{item.icon}</div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, textAlign: 'center' }}>{item.label}</span>
-              </button>
+              { label: 'Approval', screen: 'approval', icon: '✅', color: C.primary },
+              { label: 'Approval Setor', screen: 'setor_approval', icon: '💵', color: C.success },
+              { label: 'Inventori', screen: 'admin_inventory', icon: '📦', color: C.info },
+              { label: 'Shift Kasir', screen: 'admin_shift', icon: '🕐', color: C.info },
+              { label: 'Tutup Buku', screen: 'admin_period_close', icon: '📒', color: C.info },
+              { label: 'Kas Outlet', screen: 'kas_outlet', icon: '💼', color: C.success },
+              { label: 'Kas Overview', screen: 'admin_kas_overview', icon: '📊', color: C.success },
+            ].map((item, idx) => (
+              <motion.button
+                key={item.label}
+                onClick={() => navigate(item.screen)}
+                whileHover={{ y: -3, scale: 1.03 }}
+                whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.7 + idx * 0.02 }}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 8px', borderRadius: 16,
+                  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+                  border: '1.5px solid rgba(139, 92, 246, 0.08)',
+                  cursor: 'pointer',
+                  boxShadow: '5px 5px 12px rgba(60, 10, 99, 0.1), -2px -2px 8px rgba(255, 255, 255, 0.95)',
+                }}
+              >
+                <div style={{
+                  width: 44, height: 44, borderRadius: 14,
+                  background: `linear-gradient(145deg, ${item.color}18, ${item.color}08)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20, flexShrink: 0,
+                  boxShadow: `5px 5px 12px ${item.color}18, -2px -2px 6px rgba(255, 255, 255, 0.9)`,
+                }}>{item.icon}</div>
+                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, fontWeight: 600, color: C.n800, textAlign: 'center', lineHeight: 1.3 }}>{item.label}</span>
+              </motion.button>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
 
       </div>
     </div>

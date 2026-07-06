@@ -55,7 +55,7 @@ const CustomTooltip = ({ active, payload, label, currency = false }) => {
       {payload.map((p, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
           <div style={{ width: 8, height: 8, borderRadius: 4, background: p.color }} />
-          <span style={{ color: C.n600 }}>{p.name}:</span>
+          <span style={{ color: '#3a3a3a' }}>{p.name}:</span>
           <span style={{ fontWeight: 600, color: C.n900 }}>
             {currency ? `Rp ${Number(p.value).toLocaleString('id-ID')}` : p.value?.toLocaleString('id-ID')}
           </span>
@@ -84,8 +84,8 @@ export const RevenueAreaChart = ({ data = [], height = 200 }) => (
         </linearGradient>
       </defs>
       <CartesianGrid strokeDasharray="3 3" stroke={C.n100} />
-      <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} />
-      <YAxis tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} width={40} />
+      <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} />
+      <YAxis tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} width={40} />
       <Tooltip content={<CustomTooltip currency />} />
       <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 11 }} />
       <Area type="monotone" dataKey="revenue" name="Omset" stroke={C.primary} strokeWidth={2} fill="url(#gradRevenue)" dot={false} activeDot={{ r: 4 }} />
@@ -103,8 +103,8 @@ export const TxBarChart = ({ data = [], height = 160 }) => (
   <ResponsiveContainer width="100%" height={height}>
     <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barSize={14}>
       <CartesianGrid strokeDasharray="3 3" stroke={C.n100} vertical={false} />
-      <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} />
-      <YAxis tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} width={28} />
+      <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} />
+      <YAxis tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} width={28} />
       <Tooltip content={<CustomTooltip />} />
       <Bar dataKey="txCount" name="Transaksi" fill={C.primary} radius={[4, 4, 0, 0]} />
     </BarChart>
@@ -157,7 +157,7 @@ export const OutletBarChart = ({ data = [], height = 200 }) => (
   <ResponsiveContainer width="100%" height={height}>
     <BarChart data={data} layout="vertical" margin={{ top: 4, right: 40, left: 0, bottom: 0 }} barSize={16}>
       <CartesianGrid strokeDasharray="3 3" stroke={C.n100} horizontal={false} />
-      <XAxis type="number" tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} />
+      <XAxis type="number" tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} />
       <YAxis type="category" dataKey="outletName" tick={{ fontFamily: 'Poppins', fontSize: 10, fill: C.n700 }} axisLine={false} tickLine={false} width={100} />
       <Tooltip content={<CustomTooltip currency />} />
       <Bar dataKey="revenue" name="Omset" radius={[0, 4, 4, 0]}>
@@ -178,12 +178,12 @@ export const ComparisonLineChart = ({ data = [], height = 200, label1 = 'Periode
   <ResponsiveContainer width="100%" height={height}>
     <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
       <CartesianGrid strokeDasharray="3 3" stroke={C.n100} />
-      <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} />
-      <YAxis tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} width={40} />
+      <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} />
+      <YAxis tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} width={40} />
       <Tooltip content={<CustomTooltip currency />} />
       <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 11 }} />
       <Line type="monotone" dataKey="current" name={label1} stroke={C.primary} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
-      <Line type="monotone" dataKey="previous" name={label2} stroke={C.n400} strokeWidth={1.5} strokeDasharray="5 3" dot={false} activeDot={{ r: 3 }} />
+      <Line type="monotone" dataKey="previous" name={label2} stroke="#3a3a3a" strokeWidth={1.5} strokeDasharray="5 3" dot={false} activeDot={{ r: 3 }} />
     </LineChart>
   </ResponsiveContainer>
 );
@@ -198,7 +198,7 @@ export const HourlyHeatBar = ({ data = [], height = 80 }) => {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }} barSize={10}>
-        <XAxis dataKey="hour" tick={{ fontFamily: 'Poppins', fontSize: 8, fill: C.n400 }} axisLine={false} tickLine={false}
+        <XAxis dataKey="hour" tick={{ fontFamily: 'Poppins', fontSize: 8, fill: '#3a3a3a' }} axisLine={false} tickLine={false}
           tickFormatter={(h) => h % 6 === 0 ? `${h}:00` : ''} />
         <Tooltip
           formatter={(val) => [val, 'Transaksi']}
@@ -252,7 +252,7 @@ export const DonutChart = ({ data = [], height = 200, centerLabel = 'Total', cen
         position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
       }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n500, letterSpacing: 0.4 }}>{centerLabel}</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: '#3a3a3a', letterSpacing: 0.4 }}>{centerLabel}</div>
         <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: C.n900, marginTop: 2 }}>{centerValue}</div>
       </div>
     </div>
@@ -268,8 +268,8 @@ export const StackedBarChart = ({ data = [], series = [], height = 220 }) => (
   <ResponsiveContainer width="100%" height={height}>
     <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barSize={28}>
       <CartesianGrid strokeDasharray="3 3" stroke={C.n100} vertical={false} />
-      <XAxis dataKey="name" tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} />
-      <YAxis tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} width={40} />
+      <XAxis dataKey="name" tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} />
+      <YAxis tickFormatter={fmtRp} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: '#3a3a3a' }} axisLine={false} tickLine={false} width={40} />
       <Tooltip content={<CustomTooltip currency />} />
       <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 10 }} />
       {series.map((s) => (

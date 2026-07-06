@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import api, { withFresh } from '../../utils/api';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Input, Select, Textarea, useAppRefresh, SearchFilterRow, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
@@ -24,18 +24,18 @@ async function fetchWithRetry(requestFn, maxRetries = 2) {
 }
 
 const URGENCY_META = {
-  normal:   { label: 'Normal',   bg: '#DBEAFE', fg: '#1E40AF', color: '#3B82F6', icon: '📋' },
-  urgent:   { label: 'Urgent',   bg: '#FEF3C7', fg: '#92400E', color: '#F59E0B', icon: '⚠️' },
-  critical: { label: 'Kritis',   bg: '#FEE2E2', fg: '#991B1B', color: '#DC2626', icon: '🚨' },
+  normal:   { label: 'Normal',   bg: C.infoBg, fg: C.infoDark, color: C.info, icon: '📋' },
+  urgent:   { label: 'Urgent',   bg: C.validationWarningBg, fg: C.validationWarningText, color: C.warning, icon: '⚠️' },
+  critical: { label: 'Kritis',   bg: C.validationErrorBg, fg: C.validationErrorText, color: C.danger, icon: '🚨' },
 };
 
 const STATUS_META = {
-  pending:   { label: 'Menunggu', bg: '#FEF3C7', fg: '#92400E', icon: '⏳' },
-  revised:   { label: 'Perlu Revisi', bg: '#FED7AA', fg: '#9A3412', icon: '↩️' },
-  approved:  { label: 'Disetujui', bg: '#DBEAFE', fg: '#1E40AF', icon: '✅' },
-  fulfilled: { label: 'Sudah Dibeli', bg: '#DCFCE7', fg: '#15803D', icon: '🎉' },
-  rejected:  { label: 'Ditolak', bg: '#FEE2E2', fg: '#991B1B', icon: '❌' },
-  cancelled: { label: 'Dibatalkan', bg: '#F3F4F6', fg: '#6B7280', icon: '⊘' },
+  pending:   { label: 'Menunggu', bg: C.validationWarningBg, fg: C.validationWarningText, icon: '⏳' },
+  revised:   { label: 'Perlu Revisi', bg: C.warningBg, fg: C.warningDark, icon: '↩️' },
+  approved:  { label: 'Disetujui', bg: C.infoBg, fg: C.infoDark, icon: '✅' },
+  fulfilled: { label: 'Sudah Dibeli', bg: C.successBg, fg: C.successDark, icon: '🎉' },
+  rejected:  { label: 'Ditolak', bg: C.validationErrorBg, fg: C.validationErrorText, icon: '❌' },
+  cancelled: { label: 'Dibatalkan', bg: C.n100, fg: C.n600, icon: '⊘' },
 };
 
 const fmtDate = (v) => {
@@ -132,15 +132,15 @@ export default function RequestBarangPage({ goBack, navigate, preselectedItem })
         {/* Hero info banner */}
         <div style={{
           background: stats.critical > 0
-            ? 'linear-gradient(135deg, #DC2626 0%, #991B1B 100%)'
-            : 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
+            ? `linear-gradient(135deg, ${C.danger} 0%, ${C.dangerDark} 100%)`
+            : `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
           borderRadius: 16, padding: '14px 16px', marginBottom: 12,
-          color: 'white', boxShadow: '0 4px 12px rgba(249,115,22,0.18)',
+          color: 'white', boxShadow: `0 4px 12px ${C.primary}2e`,
           position: 'relative', overflow: 'hidden',
         }}>
           <div style={{ position: 'absolute', top: -30, right: -20, width: 120, height: 120, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.18), transparent 70%)' }} />
           <div style={{ position: 'relative' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, letterSpacing: 0.4, opacity: 0.9 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, letterSpacing: 0.4, opacity: 0.9 }}>
               📦 PENGADAAN BARANG
             </div>
             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
@@ -159,7 +159,7 @@ export default function RequestBarangPage({ goBack, navigate, preselectedItem })
           style={{
             width: '100%', padding: '14px', borderRadius: 14,
             border: 'none', background: C.primary, color: 'white',
-            fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
             cursor: 'pointer', marginBottom: 14,
             boxShadow: '0 4px 12px rgba(91,0,95,0.18)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -197,16 +197,16 @@ export default function RequestBarangPage({ goBack, navigate, preselectedItem })
 
         {/* List */}
         {loading && (
-          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat…</div>
+          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>Memuat…</div>
         )}
 
         {!loading && fetchError && (
           <div style={{
             textAlign: 'center', padding: '24px 16px', marginBottom: 12,
-            background: '#FEF2F2', borderRadius: 12, border: '1px solid #FECACA',
+            background: C.validationErrorBg, borderRadius: 12, border: `1px solid ${C.dangerBg}`,
           }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#991B1B', marginBottom: 12 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.validationErrorText, marginBottom: 12 }}>
               {fetchError}
             </div>
             <button
@@ -214,7 +214,7 @@ export default function RequestBarangPage({ goBack, navigate, preselectedItem })
               style={{
                 padding: '8px 16px', borderRadius: 10,
                 border: 'none', background: C.primary, color: 'white',
-                fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, cursor: 'pointer',
               }}
             >
               Coba Lagi
@@ -225,7 +225,7 @@ export default function RequestBarangPage({ goBack, navigate, preselectedItem })
         {!loading && !fetchError && filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: 50 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>📦</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n700 }}>
               {search || activeFilterCount > 0 ? 'Tidak ada hasil sesuai filter.' : 'Belum ada pengajuan barang.'}
             </div>
           </div>
@@ -287,16 +287,16 @@ function RequestCard({ item: it, onEdit }) {
     <div style={{
       background: 'white', borderRadius: 12, padding: '12px 14px', marginBottom: 10,
       boxShadow: it.status === 'revised'
-        ? '0 2px 8px rgba(245,158,11,0.18)'
-        : '0 1px 4px rgba(15,23,42,0.05)',
-      borderLeft: `4px solid ${it.status === 'revised' ? '#F59E0B' : urg.color}`,
+        ? `0 2px 8px ${C.warning}2e`
+        : SHADOW.sm,
+      borderLeft: `4px solid ${it.status === 'revised' ? C.warning : urg.color}`,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
-            {it.itemName} {it.brand ? <span style={{ color: C.n600, fontWeight: 500 }}>· {it.brand}</span> : null}
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
+            {it.itemName} {it.brand ? <span style={{ color: C.n700, fontWeight: 500 }}>· {it.brand}</span> : null}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginTop: 2 }}>
             {it.qty} {it.unit}
             {it.approvedQty != null && it.approvedQty !== it.qty && (
               <span style={{ color: C.primary, fontWeight: 600 }}> · disetujui {it.approvedQty} {it.unit}</span>
@@ -306,12 +306,12 @@ function RequestCard({ item: it, onEdit }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
           <span style={{
-            fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
             padding: '2px 7px', borderRadius: 999,
             background: urg.bg, color: urg.fg,
           }}>{urg.icon} {urg.label}</span>
           <span style={{
-            fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
             padding: '2px 7px', borderRadius: 999,
             background: st.bg, color: st.fg,
           }}>{st.icon} {st.label}</span>
@@ -322,7 +322,7 @@ function RequestCard({ item: it, onEdit }) {
         💬 {it.reason}
       </div>
 
-      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 6 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 6 }}>
         {fmtDate(it.createdAt)} · {it.requesterName}
         {it.approverName && ` · Diproses oleh ${it.approverName}`}
         {it.fulfillerName && ` · Dibeli oleh ${it.fulfillerName}`}
@@ -331,17 +331,17 @@ function RequestCard({ item: it, onEdit }) {
       {/* Banner catatan admin (revisi/tolak/approve) */}
       {it.adminNote && (
         <div style={{
-          background: it.status === 'revised' ? '#FEF3C7' : it.status === 'rejected' ? '#FEE2E2' : '#EFF6FF',
-          borderLeft: `3px solid ${it.status === 'revised' ? '#F59E0B' : it.status === 'rejected' ? '#DC2626' : '#3B82F6'}`,
+          background: it.status === 'revised' ? C.validationWarningBg : it.status === 'rejected' ? C.validationErrorBg : C.infoBg,
+          borderLeft: `3px solid ${it.status === 'revised' ? C.warning : it.status === 'rejected' ? C.danger : C.info}`,
           borderRadius: 6, padding: '8px 10px', marginTop: 8,
-          fontFamily: 'Poppins', fontSize: 11, color: '#1E293B', lineHeight: 1.5,
+          fontFamily: 'Poppins', fontSize: 11, color: C.n800, lineHeight: 1.5,
         }}>
           📝 <strong>Catatan admin:</strong> {it.adminNote}
         </div>
       )}
 
       {it.status === 'fulfilled' && it.fulfilledAmount && (
-        <div style={{ background: '#DCFCE7', borderRadius: 6, padding: '4px 8px', marginTop: 6, fontFamily: 'Poppins', fontSize: 10, color: '#15803D' }}>
+        <div style={{ background: C.successBg, borderRadius: 6, padding: '4px 8px', marginTop: 6, fontFamily: 'Poppins', fontSize: 10, color: C.successDark }}>
           💸 Dibeli {rp(it.fulfilledAmount)}
         </div>
       )}
@@ -352,9 +352,9 @@ function RequestCard({ item: it, onEdit }) {
           onClick={onEdit}
           style={{
             width: '100%', marginTop: 10, padding: '10px',
-            background: '#F59E0B', color: 'white',
+            background: C.warning, color: 'white',
             border: 'none', borderRadius: 10,
-            fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
             cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}
@@ -378,7 +378,7 @@ function FilterModal({ statusFilter, setStatusFilter, urgencyFilter, setUrgencyF
   return (
     <Modal visible onClose={onClose} title="Filter Pengajuan">
       <div style={{ padding: '8px 18px 18px' }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
           🚨 Tingkat Urgensi
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16 }}>
@@ -390,7 +390,7 @@ function FilterModal({ statusFilter, setStatusFilter, urgencyFilter, setUrgencyF
           ))}
         </div>
 
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
           🏷️ Status
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -482,9 +482,9 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
       <div style={{ padding: '8px 18px 18px' }}>
         {isEditing && editing.adminNote && (
           <div style={{
-            background: '#FEF3C7', border: '1px solid #FCD34D',
+            background: C.validationWarningBg, border: `1px solid ${C.warningBg}`,
             borderRadius: 10, padding: '10px 12px', marginBottom: 14,
-            fontFamily: 'Poppins', fontSize: 11, color: '#92400E', lineHeight: 1.5,
+            fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText, lineHeight: 1.5,
           }}>
             📝 <strong>Catatan admin:</strong><br/>
             {editing.adminNote}
@@ -537,7 +537,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
         />
 
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
             Tingkat Urgensi *
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
@@ -551,7 +551,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
                     padding: '8px 6px', borderRadius: 10,
                     border: `1.5px solid ${active ? m.fg : C.n200}`,
                     background: active ? m.bg : 'white',
-                    color: active ? m.fg : C.n600,
+                    color: active ? m.fg : C.n700,
                     fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 500,
                     cursor: 'pointer',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,

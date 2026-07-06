@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
-import { C } from '../utils/theme';
+import { C, SHADOW } from '../utils/theme';
 import { rp } from '../utils/helpers';
 import { TopBar, Btn, Modal, Input, Select, Textarea, useAppRefresh, SearchBar, MoneyInput } from '../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../utils/alert';
@@ -18,7 +18,7 @@ import { useApp } from '../context/AppContext';
 import { useInfiniteList } from '../utils/useInfiniteList';
 import {
   getBalance, getAllBalances, topupCash, submitExpense, reconcileBalance,
-  getCashSummary, getCashConfig,
+  getCashSummary, getCashConfig, cancelExpense,
   exportCashCsv,
   CATEGORY_META, TOPUP_SOURCE_META, STATUS_META,
 } from '../utils/outletCashApi';
@@ -69,6 +69,7 @@ export default function KasOutletPage({ goBack }) {
   const [reportCustomRange, setReportCustomRange] = useState(() => periodToRange(PERIOD_PRESETS[2]));
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [hasPhotoFilter, setHasPhotoFilter] = useState('all'); // all | 1 | 0
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   // Modals
@@ -123,6 +124,7 @@ export default function KasOutletPage({ goBack }) {
       if (selectedOutletId) params.outletId = selectedOutletId;
       if (categoryFilter !== 'all') params.category = categoryFilter;
       if (statusFilter !== 'all') params.status = statusFilter;
+      if (hasPhotoFilter !== 'all') params.hasPhoto = hasPhotoFilter;
       if (search.trim()) params.search = search.trim();
       const res = await axios.get('/api/outlet-cash/expenses', { params, signal });
       return {
@@ -131,7 +133,7 @@ export default function KasOutletPage({ goBack }) {
       };
     }, [selectedOutletId, categoryFilter, statusFilter, search, startDate, endDate]),
     pageSize: 20,
-    deps: [selectedOutletId, categoryFilter, statusFilter, search, startDate, endDate],
+    deps: [selectedOutletId, categoryFilter, statusFilter, hasPhotoFilter, search, startDate, endDate],
     enabled: tab === 'expenses',
   });
 
@@ -190,6 +192,7 @@ export default function KasOutletPage({ goBack }) {
 
   const activeFilterCount = (categoryFilter !== 'all' ? 1 : 0)
     + (statusFilter !== 'all' ? 1 : 0)
+    + (hasPhotoFilter !== 'all' ? 1 : 0)
     + (search.trim() ? 1 : 0);
 
   return (
@@ -245,7 +248,7 @@ export default function KasOutletPage({ goBack }) {
                   fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 500,
                   color: active ? C.primary : C.n600,
                   cursor: 'pointer',
-                  boxShadow: active ? '0 1px 4px rgba(15,23,42,0.06)' : 'none',
+                  boxShadow: active ? SHADOW.sm : 'none',
                   transition: 'all 0.15s',
                 }}
               >
@@ -322,31 +325,31 @@ export default function KasOutletPage({ goBack }) {
 
             {/* List */}
             {expensesList.loading && (
-              <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>
+              <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>
                 Memuat…
               </div>
             )}
             {!expensesList.loading && expensesList.items.length === 0 && (
               <div style={{ textAlign: 'center', padding: 50 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>
                   {activeFilterCount > 0 || search ? 'Tidak ada hasil sesuai filter.' : 'Belum ada pengeluaran.'}
                 </div>
               </div>
             )}
-            {expensesList.items.map(it => <ExpenseCard key={it.id} item={it} />)}
+            {expensesList.items.map(it => <ExpenseCard key={it.id} item={it} userId={user?.userId} isKasir={isKasir} onRefresh={refreshAll} />)}
 
             {expensesList.hasMore && !expensesList.loading && (
               <div ref={expensesList.sentinelRef} style={{ padding: '14px 0', textAlign: 'center' }}>
                 {expensesList.loadingMore ? (
-                  <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Memuat lebih banyak…</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>Memuat lebih banyak…</span>
                 ) : (
-                  <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400 }}>·</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>·</span>
                 )}
               </div>
             )}
             {!expensesList.hasMore && expensesList.items.length > 0 && (
-              <div style={{ textAlign: 'center', padding: '14px 0', fontFamily: 'Poppins', fontSize: 10, color: C.n400 }}>
+              <div style={{ textAlign: 'center', padding: '14px 0', fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
                 ✓ {expensesList.items.length} dari {expensesList.total} data
               </div>
             )}
@@ -377,19 +380,19 @@ export default function KasOutletPage({ goBack }) {
             </div>
 
             {topupsList.loading && (
-              <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat…</div>
+              <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Memuat…</div>
             )}
             {!topupsList.loading && topupsList.items.length === 0 && (
               <div style={{ textAlign: 'center', padding: 50 }}>
                 <div style={{ fontSize: 40, marginBottom: 8 }}>💵</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Belum ada top-up.</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Belum ada top-up.</div>
               </div>
             )}
             {topupsList.items.map(it => <TopupCard key={it.id} item={it} />)}
 
             {topupsList.hasMore && !topupsList.loading && (
               <div ref={topupsList.sentinelRef} style={{ padding: '14px 0', textAlign: 'center' }}>
-                {topupsList.loadingMore && <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Memuat…</span>}
+                {topupsList.loadingMore && <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>Memuat…</span>}
               </div>
             )}
           </>
@@ -415,7 +418,7 @@ export default function KasOutletPage({ goBack }) {
                   width: '100%', padding: '12px',
                   border: `1.5px solid ${C.primary}`, background: 'white',
                   borderRadius: 12, color: C.primary,
-                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
+                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
                   cursor: 'pointer', marginBottom: 12,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
@@ -476,8 +479,10 @@ export default function KasOutletPage({ goBack }) {
           setCategoryFilter={setCategoryFilter}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
+          hasPhotoFilter={hasPhotoFilter}
+          setHasPhotoFilter={setHasPhotoFilter}
           onClose={() => setShowFilterModal(false)}
-          onReset={() => { setCategoryFilter('all'); setStatusFilter('all'); setSearch(''); }}
+          onReset={() => { setCategoryFilter('all'); setStatusFilter('all'); setHasPhotoFilter('all'); setSearch(''); }}
         />
       )}
     </div>
@@ -495,12 +500,12 @@ function BalanceHero({ balance, isAdmin, isKasir, onTopup, onExpense, onReconcil
   return (
     <div style={{
       background: isLow
-        ? 'linear-gradient(135deg, #7C2D12 0%, #B91C1C 100%)'
-        : 'linear-gradient(135deg, #064E3B 0%, #065F46 50%, #0F766E 100%)',
+        ? `linear-gradient(135deg, ${C.dangerDark} 0%, ${C.danger} 100%)`
+        : `linear-gradient(135deg, ${C.successDark} 0%, ${C.success} 50%, ${C.infoDark} 100%)`,
       borderRadius: 18,
       padding: '18px 20px',
       color: 'white',
-      boxShadow: '0 8px 32px rgba(15,23,42,0.18)',
+      boxShadow: SHADOW.lg,
       position: 'relative', overflow: 'hidden',
     }}>
       <div style={{
@@ -511,7 +516,7 @@ function BalanceHero({ balance, isAdmin, isKasir, onTopup, onExpense, onReconcil
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, position: 'relative' }}>
         <div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 700, letterSpacing: 0.5 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 600, letterSpacing: 0.5 }}>
             💼 SALDO KAS OUTLET
           </div>
           <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
@@ -521,7 +526,7 @@ function BalanceHero({ balance, isAdmin, isKasir, onTopup, onExpense, onReconcil
         {isLow && (
           <span style={{
             background: 'rgba(255,255,255,0.2)', color: 'white',
-            fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
             padding: '3px 10px', borderRadius: 999,
           }}>⚠️ Saldo rendah</span>
         )}
@@ -544,7 +549,7 @@ function BalanceHero({ balance, isAdmin, isKasir, onTopup, onExpense, onReconcil
             style={{
               flex: 1, minWidth: 130, padding: '10px 12px', borderRadius: 12,
               background: 'rgba(255,255,255,0.20)', border: '1.5px solid rgba(255,255,255,0.35)',
-              color: 'white', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+              color: 'white', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', backdropFilter: 'blur(10px)',
             }}
           >
@@ -558,7 +563,7 @@ function BalanceHero({ balance, isAdmin, isKasir, onTopup, onExpense, onReconcil
               style={{
                 flex: 1, minWidth: 110, padding: '10px 12px', borderRadius: 12,
                 background: 'rgba(255,255,255,0.20)', border: '1.5px solid rgba(255,255,255,0.35)',
-                color: 'white', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+                color: 'white', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
                 cursor: 'pointer', backdropFilter: 'blur(10px)',
               }}
             >📥 Top-up</button>
@@ -567,7 +572,7 @@ function BalanceHero({ balance, isAdmin, isKasir, onTopup, onExpense, onReconcil
               style={{
                 flex: 1, minWidth: 110, padding: '10px 12px', borderRadius: 12,
                 background: 'rgba(255,255,255,0.10)', border: '1.5px solid rgba(255,255,255,0.25)',
-                color: 'white', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+                color: 'white', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
                 cursor: 'pointer', backdropFilter: 'blur(10px)',
               }}
             >⚖️ Rekonsiliasi</button>
@@ -581,14 +586,34 @@ function BalanceHero({ balance, isAdmin, isKasir, onTopup, onExpense, onReconcil
 // ════════════════════════════════════════════════════════════════════════════
 // Cards
 // ════════════════════════════════════════════════════════════════════════════
-function ExpenseCard({ item }) {
+function ExpenseCard({ item, userId, isKasir, onRefresh }) {
   const cat = CATEGORY_META[item.category] || CATEGORY_META.other;
   const status = STATUS_META[item.status] || STATUS_META.auto_approved;
+  const canCancel = item.status === 'pending_approval' && isKasir && item.requesterName;
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancel = async () => {
+    if (!confirmAction) {
+      if (!window.confirm('Yakin ingin membatalkan pengeluaran ini?')) return;
+    }
+    setCancelling(true);
+    try {
+      await cancelExpense(item.id);
+      alertSuccess('Pengeluaran berhasil dibatalkan.');
+      onRefresh?.();
+    } catch (err) {
+      alertError(err?.response?.data?.message || 'Gagal membatalkan pengeluaran.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   return (
     <div style={{
       background: 'white', borderRadius: 12, padding: '12px 14px', marginBottom: 8,
-      boxShadow: '0 1px 4px rgba(15,23,42,0.05)',
-      borderLeft: `4px solid ${cat.color}`,
+      boxShadow: SHADOW.sm,
+      borderLeft: `4px solid ${item.status === 'cancelled' ? C.n500 : cat.color}`,
+      opacity: item.status === 'cancelled' ? 0.65 : 1,
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{
@@ -598,7 +623,7 @@ function ExpenseCard({ item }) {
         }}>{cat.icon}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
               {cat.label}
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 800, color: C.danger, whiteSpace: 'nowrap' }}>
@@ -610,13 +635,18 @@ function ExpenseCard({ item }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
             <span style={{
-              fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+              fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
               padding: '2px 7px', borderRadius: 999,
               background: status.bg, color: status.fg,
             }}>{status.label}</span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
               {fmtDate(item.createdAt)} · {item.requesterName}
             </span>
+            {item.picName && (
+              <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
+                · 👤 {item.picName}
+              </span>
+            )}
           </div>
           {item.receiptPhotoUrl && (
             <a href={item.receiptPhotoUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6 }}>
@@ -624,9 +654,23 @@ function ExpenseCard({ item }) {
             </a>
           )}
           {item.rejectReason && (
-            <div style={{ background: '#FEE2E2', borderRadius: 6, padding: '4px 8px', marginTop: 6, fontFamily: 'Poppins', fontSize: 10, color: '#991B1B' }}>
+            <div style={{ background: C.validationErrorBg, borderRadius: 6, padding: '4px 8px', marginTop: 6, fontFamily: 'Poppins', fontSize: 10, color: C.validationErrorText }}>
               ❌ {item.rejectReason}
             </div>
+          )}
+          {canCancel && (
+            <button
+              onClick={handleCancel}
+              disabled={cancelling}
+              style={{
+                marginTop: 8, padding: '5px 12px', borderRadius: 8,
+                border: `1.5px solid ${C.danger}`, background: 'white',
+                color: C.danger, fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                cursor: cancelling ? 'wait' : 'pointer', opacity: cancelling ? 0.6 : 1,
+              }}
+            >
+              {cancelling ? 'Membatalkan…' : '✕ Batalkan'}
+            </button>
           )}
         </div>
       </div>
@@ -639,21 +683,21 @@ function TopupCard({ item }) {
   return (
     <div style={{
       background: 'white', borderRadius: 12, padding: '12px 14px', marginBottom: 8,
-      boxShadow: '0 1px 4px rgba(15,23,42,0.05)',
-      borderLeft: '4px solid #10B981',
+      boxShadow: SHADOW.sm,
+      borderLeft: `4px solid ${C.success}`,
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <div style={{
           width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-          background: '#ECFDF5', border: '1px solid #BBF7D0',
+          background: `${C.successBg}`, border: `1px solid ${C.successBg}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
         }}>{src.icon}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
               {src.label}
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 800, color: '#15803D', whiteSpace: 'nowrap' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 800, color: C.success, whiteSpace: 'nowrap' }}>
               +{rp(item.amount)}
             </div>
           </div>
@@ -663,11 +707,11 @@ function TopupCard({ item }) {
             </div>
           )}
           {item.referenceNo && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 2 }}>
               Ref: {item.referenceNo}
             </div>
           )}
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 4 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 4 }}>
             {fmtDate(item.createdAt)} · {item.topupByName}
           </div>
         </div>
@@ -691,13 +735,13 @@ function formatReportRange(start, end) {
 
 function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomRange, onApplyCustomRange, outletName, rangeStart, rangeEnd }) {
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat laporan…</div>;
+    return <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Memuat laporan…</div>;
   }
   if (!data || !data.summary) {
     return (
       <div style={{ textAlign: 'center', padding: 50 }}>
         <div style={{ fontSize: 40, marginBottom: 8 }}>📊</div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Belum ada data laporan.</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Belum ada data laporan.</div>
       </div>
     );
   }
@@ -713,10 +757,10 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
       }}>
         <div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: C.n500, letterSpacing: 0.3 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, letterSpacing: 0.3 }}>
             RENTANG LAPORAN
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900, marginTop: 2 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, marginTop: 2 }}>
             {formatReportRange(rangeStart, rangeEnd)}
           </div>
           {outletName && (
@@ -726,7 +770,7 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
           )}
         </div>
         <div style={{
-          fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
+          fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
           padding: '4px 8px', borderRadius: 999,
           background: `${C.primary}12`, color: C.primary,
         }}>
@@ -800,7 +844,7 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
             flex: 1, padding: '8px 10px', borderRadius: 10,
             border: `1.5px solid ${C.primary}`,
             background: 'white', color: C.primary,
-            fontFamily: 'Poppins', fontSize: 11, fontWeight: 700,
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
             cursor: !customRange?.startDate || !customRange?.endDate ? 'not-allowed' : 'pointer',
             opacity: !customRange?.startDate || !customRange?.endDate ? 0.6 : 1,
           }}
@@ -811,32 +855,32 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
         <SummaryCard
           icon="📤" label="Total Pengeluaran" value={rp(summary.totalExpense)}
-          sub={`${summary.totalCount} transaksi`} color="#DC2626" bg="#FEE2E2"
+          sub={`${summary.totalCount} transaksi`} color={C.danger} bg={C.validationErrorBg}
         />
         <SummaryCard
           icon="📥" label="Total Top-up" value={rp(summary.topupTotal)}
-          sub={`${summary.topupCount} kali`} color="#15803D" bg="#DCFCE7"
+          sub={`${summary.topupCount} kali`} color={C.success} bg={C.successBg}
         />
         <SummaryCard
           icon={summary.netCashFlow >= 0 ? "📈" : "📉"}
           label="Net Cash Flow"
           value={`${summary.netCashFlow >= 0 ? '+' : ''}${rp(summary.netCashFlow)}`}
           sub={summary.netCashFlow >= 0 ? "Surplus" : "Defisit"}
-          color={summary.netCashFlow >= 0 ? '#15803D' : '#DC2626'}
-          bg={summary.netCashFlow >= 0 ? '#DCFCE7' : '#FEE2E2'}
+          color={summary.netCashFlow >= 0 ? C.success : C.danger}
+          bg={summary.netCashFlow >= 0 ? C.successBg : C.validationErrorBg}
         />
         <SummaryCard
           icon="📊" label="Rata-rata"
           value={rp(summary.avgAmount)}
           sub={`Max: ${rp(summary.maxAmount)}`}
-          color="#7C3AED" bg="#EDE9FE"
+          color={C.primary} bg={C.primaryTint}
         />
       </div>
 
       {/* Daily trend chart (sparkline) */}
       {daily.length > 1 && (
-        <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.3, marginBottom: 10 }}>
+        <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 12, boxShadow: SHADOW.sm }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.3, marginBottom: 10 }}>
             📈 TREND PENGELUARAN HARIAN
           </div>
           <DailyBarChart daily={daily} maxDaily={maxDaily} />
@@ -845,8 +889,8 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
 
       {/* Category breakdown */}
       {byCategory.length > 0 && (
-        <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.3, marginBottom: 12 }}>
+        <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 12, boxShadow: SHADOW.sm }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.3, marginBottom: 12 }}>
             🎯 BREAKDOWN PER KATEGORI
           </div>
           <CategoryBreakdown items={byCategory} totalAmount={summary.totalExpense} />
@@ -855,28 +899,28 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
 
       {/* Top spenders */}
       {topSpenders.length > 0 && (
-        <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.3, marginBottom: 10 }}>
+        <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 12, boxShadow: SHADOW.sm }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.3, marginBottom: 10 }}>
             👤 KASIR PALING AKTIF
           </div>
           {topSpenders.map((s, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i < topSpenders.length - 1 ? `1px dashed ${C.n100}` : 'none' }}>
               <div style={{
                 width: 28, height: 28, borderRadius: 8,
-                background: i === 0 ? '#FEF3C7' : C.n100,
+                background: i === 0 ? C.validationWarningBg : C.n100,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: 'Poppins', fontSize: 11, fontWeight: 800,
-                color: i === 0 ? '#92400E' : C.n700,
+                color: i === 0 ? C.validationWarningText : C.n700,
               }}>#{i + 1}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
                   {s.userName}
                 </div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
                   {s.count} pengeluaran
                 </div>
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.danger }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.danger }}>
                 {rp(s.totalAmount)}
               </div>
             </div>
@@ -886,8 +930,8 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
 
       {/* Top expenses */}
       {topExpenses.length > 0 && (
-        <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.3, marginBottom: 10 }}>
+        <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', boxShadow: SHADOW.sm }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.3, marginBottom: 10 }}>
             💸 PENGELUARAN TERBESAR
           </div>
           {topExpenses.slice(0, 5).map((e) => {
@@ -902,11 +946,11 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
                   <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {e.description}
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
                     {fmtDateOnly(e.createdAt)} · {e.requesterName}
                   </div>
                 </div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.danger, whiteSpace: 'nowrap' }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.danger, whiteSpace: 'nowrap' }}>
                   {rp(e.amount)}
                 </div>
               </div>
@@ -922,7 +966,7 @@ function SummaryCard({ icon, label, value, sub, color, bg }) {
   return (
     <div style={{ background: bg, borderRadius: 12, padding: '10px 12px', borderLeft: `4px solid ${color}` }}>
       <div style={{ fontSize: 16, marginBottom: 2 }}>{icon}</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 700, letterSpacing: 0.3 }}>
+      <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600, letterSpacing: 0.3 }}>
         {label.toUpperCase()}
       </div>
       <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color, marginTop: 2 }}>
@@ -950,7 +994,7 @@ function DailyBarChart({ daily, maxDaily }) {
                 style={{
                   width: '100%', maxWidth: 28,
                   height: `${Math.max(heightPct, d.totalAmount > 0 ? 4 : 0)}%`,
-                  background: d.totalAmount > 0 ? 'linear-gradient(180deg, #DC2626, #991B1B)' : C.n100,
+                  background: d.totalAmount > 0 ? `linear-gradient(180deg, ${C.danger}, ${C.dangerDark})` : C.n100,
                   borderRadius: '4px 4px 0 0',
                   transition: 'height 0.3s ease',
                 }}
@@ -961,7 +1005,7 @@ function DailyBarChart({ daily, maxDaily }) {
       </div>
       <div style={{ display: 'flex', gap: 3, marginTop: 6, padding: '0 4px' }}>
         {showLastN.map((d) => (
-          <div key={d.date + 'lbl'} style={{ flex: 1, fontFamily: 'Poppins', fontSize: 8, color: C.n500, textAlign: 'center', overflow: 'hidden' }}>
+          <div key={d.date + 'lbl'} style={{ flex: 1, fontFamily: 'Poppins', fontSize: 8, color: C.n600, textAlign: 'center', overflow: 'hidden' }}>
             {new Date(d.date).getDate()}
           </div>
         ))}
@@ -983,10 +1027,10 @@ function CategoryBreakdown({ items, totalAmount }) {
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n800 }}>{meta.label}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: meta.color }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: meta.color }}>
                   {rp(c.totalAmount)}
                 </span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>
                   ({c.percentage}%)
                 </span>
               </div>
@@ -998,7 +1042,7 @@ function CategoryBreakdown({ items, totalAmount }) {
                 transition: 'width 0.4s ease',
               }} />
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, marginTop: 2 }}>
               {c.count} pengeluaran
             </div>
           </div>
@@ -1011,11 +1055,11 @@ function CategoryBreakdown({ items, totalAmount }) {
 // ════════════════════════════════════════════════════════════════════════════
 // Modals
 // ════════════════════════════════════════════════════════════════════════════
-function FilterModal({ categoryFilter, setCategoryFilter, statusFilter, setStatusFilter, onClose, onReset }) {
+function FilterModal({ categoryFilter, setCategoryFilter, statusFilter, setStatusFilter, hasPhotoFilter, setHasPhotoFilter, onClose, onReset }) {
   return (
     <Modal visible onClose={onClose} title="Filter Lanjutan">
       <div style={{ padding: '8px 18px 18px' }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
           🎯 Kategori
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16 }}>
@@ -1034,21 +1078,39 @@ function FilterModal({ categoryFilter, setCategoryFilter, statusFilter, setStatu
           ))}
         </div>
 
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n700, marginBottom: 8 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
           🏷️ Status
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16 }}>
           {[
             { value: 'all', label: 'Semua' },
             { value: 'auto_approved', label: '✅ Auto OK' },
             { value: 'approved', label: '✅ Disetujui' },
             { value: 'pending_approval', label: '⏳ Pending' },
             { value: 'rejected', label: '❌ Ditolak' },
+            { value: 'cancelled', label: '🚫 Dibatalkan' },
           ].map(s => (
             <button
               key={s.value}
               onClick={() => setStatusFilter(s.value)}
               style={chipStyle(statusFilter === s.value, C.primary)}
+            >{s.label}</button>
+          ))}
+        </div>
+
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
+          📷 Bukti Foto
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 16 }}>
+          {[
+            { value: 'all', label: 'Semua' },
+            { value: '1', label: '✅ Ada Foto' },
+            { value: '0', label: '❌ Tanpa Foto' },
+          ].map(s => (
+            <button
+              key={s.value}
+              onClick={() => setHasPhotoFilter(s.value)}
+              style={chipStyle(hasPhotoFilter === s.value, C.primary)}
             >{s.label}</button>
           ))}
         </div>
@@ -1075,6 +1137,9 @@ function ExpenseModal({ config, balance, onClose, onSuccess }) {
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('gas');
   const [description, setDescription] = useState('');
+  const [picName, setPicName] = useState(''); // PIC / penanggung jawab
+  const [receiptPhoto, setReceiptPhoto] = useState(null); // { dataUrl, filename }
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
   const limit = config?.autoApproveLimit || 500_000;
 
@@ -1082,9 +1147,27 @@ function ExpenseModal({ config, balance, onClose, onSuccess }) {
   const willNeedApproval = numAmount > limit;
   const insufficientBalance = !willNeedApproval && numAmount > balance;
 
+  // ── Upload photo ─────────────────────────────────────────────────────────────
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const { uploadImage } = await import('../utils/imageUpload');
+      const result = await uploadImage(file, 'receipt');
+      setReceiptPhoto({ dataUrl: result.dataUrl, filename: file.name });
+    } catch (err) {
+      alertError('Gagal upload foto bukti.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const submit = async () => {
     if (numAmount <= 0) { alertWarning('Nominal harus > 0'); return; }
     if (!description.trim()) { alertWarning('Deskripsi wajib diisi'); return; }
+    if (!picName.trim()) { alertWarning('Nama PIC / Penanggung Jawab wajib diisi'); return; }
+    if (!receiptPhoto) { alertWarning('Bukti foto pengeluaran wajib diunggah'); return; }
     if (insufficientBalance) {
       alertWarning(`Saldo tidak cukup. Saldo: ${rp(balance)}`);
       return;
@@ -1096,6 +1179,8 @@ function ExpenseModal({ config, balance, onClose, onSuccess }) {
         amount: numAmount,
         category,
         description: description.trim(),
+        receiptPhotoUrl: receiptPhoto?.dataUrl || null,
+        picName: picName.trim() || null,
       });
       if (result.needsApproval) {
         await alertSuccess(`Pengeluaran ${rp(numAmount)} dikirim ke admin untuk persetujuan.`, { title: 'Menunggu Approval' });
@@ -1143,13 +1228,55 @@ function ExpenseModal({ config, balance, onClose, onSuccess }) {
           placeholder="Mis. Beli gas 12 kg untuk setrika uap"
         />
 
+        {/* PIC field */}
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Nama PIC / Penanggung Jawab <span style={{ color: C.danger }}>*</span></div>
+          <input
+            type="text"
+            value={picName}
+            onChange={(e) => setPicName(e.target.value)}
+            placeholder="Contoh: Sari, Andi Kasir"
+            style={{ width: '100%', height: 40, borderRadius: 10, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 12px', boxSizing: 'border-box', outline: 'none' }}
+          />
+        </div>
+
+        {/* Photo upload */}
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 6 }}>📷 Bukti Foto <span style={{ color: C.danger }}>*</span></div>
+          {receiptPhoto ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
+              <img src={receiptPhoto.dataUrl} alt="bukti" style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', border: `1px solid ${C.n200}` }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700, fontWeight: 600 }}>✅ Foto tersimpan</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{receiptPhoto.filename}</div>
+              </div>
+              <button
+                onClick={() => setReceiptPhoto(null)}
+                style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.n200}`, background: 'white', cursor: 'pointer', fontSize: 14, color: C.n600 }}
+              >×</button>
+            </div>
+          ) : (
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 56, borderRadius: 10, border: `1.5px dashed ${C.n300}`, cursor: uploadingPhoto ? 'wait' : 'pointer', background: C.n50, opacity: uploadingPhoto ? 0.6 : 1 }}>
+              {uploadingPhoto ? (
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>⏳ Mengupload…</span>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary }}>Ambil Foto Bukti</span>
+                </>
+              )}
+              <input type="file" accept="image/*" capture="environment" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+            </label>
+          )}
+        </div>
+
         {willNeedApproval && (
-          <div style={{ background: '#FEF3C7', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontFamily: 'Poppins', fontSize: 11, color: '#92400E' }}>
+          <div style={{ background: C.validationWarningBg, borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText }}>
             ⚠️ Nominal di atas Rp {limit.toLocaleString('id-ID')} memerlukan persetujuan admin.
           </div>
         )}
         {insufficientBalance && (
-          <div style={{ background: '#FEE2E2', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontFamily: 'Poppins', fontSize: 11, color: '#991B1B' }}>
+          <div style={{ background: C.validationErrorBg, borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontFamily: 'Poppins', fontSize: 11, color: C.validationErrorText }}>
             ❌ Saldo tidak cukup. Minta admin top-up dulu.
           </div>
         )}
@@ -1160,7 +1287,7 @@ function ExpenseModal({ config, balance, onClose, onSuccess }) {
             variant="primary"
             onClick={submit}
             loading={loading}
-            disabled={numAmount <= 0 || !description.trim() || insufficientBalance}
+            disabled={numAmount <= 0 || !description.trim() || !picName.trim() || !receiptPhoto || insufficientBalance}
             style={{ flex: 1 }}
           >
             {willNeedApproval ? 'Ajukan' : 'Simpan'}
@@ -1176,18 +1303,46 @@ function TopupModal({ outletId, outletName, onClose, onSuccess }) {
   const [source, setSource] = useState('transfer');
   const [referenceNo, setReferenceNo] = useState('');
   const [notes, setNotes] = useState('');
+  const [picName, setPicName] = useState('');
+  const [proofPhotoUrl, setProofPhotoUrl] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const numAmount = Number(String(amount).replace(/\D/g, '')) || 0;
 
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPhoto(true);
+    try {
+      const { uploadImage } = await import('../utils/imageUpload');
+      const result = await uploadImage(file, 'documentation');
+      setProofPhotoUrl(result.dataUrl);
+      alertSuccess('Foto berhasil diunggah');
+    } catch (err) {
+      console.error('[handlePhotoUpload] Error:', err);
+      alertError(err?.message || 'Gagal upload foto');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const submit = async () => {
     if (numAmount <= 0) { alertWarning('Nominal harus > 0'); return; }
+    if (!picName.trim()) { alertWarning('Nama PIC / Penanggung Jawab wajib diisi'); return; }
+    if (!proofPhotoUrl.trim()) { alertWarning('Bukti foto transfer wajib diunggah'); return; }
+
     setLoading(true);
     try {
       const result = await topupCash({
-        outletId, amount: numAmount, source,
+        outletId, 
+        amount: numAmount, 
+        source,
         referenceNo: referenceNo.trim() || undefined,
         notes: notes.trim() || undefined,
+        picName: picName.trim(),
+        proofPhotoUrl: proofPhotoUrl.trim(),
       });
       await alertSuccess(`Top-up ${rp(numAmount)} berhasil. Saldo baru: ${rp(result.balanceAfter)}`);
       onSuccess();
@@ -1201,18 +1356,106 @@ function TopupModal({ outletId, outletName, onClose, onSuccess }) {
   return (
     <Modal visible onClose={onClose} title={`Top-up Kas — ${outletName || 'Outlet'}`}>
       <div style={{ padding: '8px 18px 18px' }}>
-        <MoneyInput label="Nominal (Rp)" value={amount} onChange={setAmount} placeholder="500.000" hint={numAmount > 0 ? rp(numAmount) : undefined} />
+        <MoneyInput 
+          label={<span>Nominal (Rp) <span style={{ color: C.danger }}>*</span></span>} 
+          value={amount} 
+          onChange={setAmount} 
+          placeholder="500.000" 
+          hint={numAmount > 0 ? rp(numAmount) : undefined} 
+        />
+        
+        <Input 
+          label={<span>Nama PIC / Penanggung Jawab <span style={{ color: C.danger }}>*</span></span>}
+          value={picName}
+          onChange={setPicName}
+          placeholder="Nama lengkap PIC"
+        />
+        
         <Select
           label="Sumber dana"
           value={source}
           onChange={setSource}
           options={Object.entries(TOPUP_SOURCE_META).map(([k, m]) => ({ value: k, label: `${m.icon} ${m.label}` }))}
         />
-        <Input label="No. Referensi (opsional)" value={referenceNo} onChange={setReferenceNo} placeholder="No transfer / bukti" />
-        <Textarea label="Catatan (opsional)" value={notes} onChange={setNotes} rows={2} />
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        
+        <Input 
+          label="No. Referensi (opsional)" 
+          value={referenceNo} 
+          onChange={setReferenceNo} 
+          placeholder="No transfer / bukti" 
+        />
+        
+        <Textarea 
+          label="Catatan (opsional)" 
+          value={notes} 
+          onChange={setNotes} 
+          rows={2} 
+        />
+
+        {/* Upload Bukti Foto */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 6 }}>
+            Bukti Foto Transfer <span style={{ color: C.danger }}>*</span>
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoUpload}
+            disabled={uploadingPhoto}
+            style={{ display: 'none' }}
+            id="topup-proof-upload"
+          />
+          <label
+            htmlFor="topup-proof-upload"
+            style={{
+              display: 'block',
+              padding: '12px 16px',
+              background: C.n50,
+              border: `1.5px dashed ${C.n300}`,
+              borderRadius: 12,
+              cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
+              textAlign: 'center',
+              fontFamily: 'Poppins',
+              fontSize: 12,
+              color: C.n600,
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => !uploadingPhoto && (e.currentTarget.style.borderColor = C.primary)}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.n300)}
+          >
+            {uploadingPhoto ? '📤 Mengunggah...' : proofPhotoUrl ? '✅ Foto terupload — Klik untuk ganti' : '📷 Klik untuk upload foto'}
+          </label>
+          
+          {proofPhotoUrl && !uploadingPhoto && (
+            <div style={{ marginTop: 8, textAlign: 'center' }}>
+              <img 
+                src={proofPhotoUrl} 
+                alt="Bukti transfer" 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: 200, 
+                  borderRadius: 8, 
+                  border: `1px solid ${C.n200}`,
+                  objectFit: 'contain'
+                }} 
+              />
+            </div>
+          )}
+          
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 4 }}>
+            Maks. 5MB • Format: JPG, PNG, atau JPEG
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>Batal</Btn>
-          <Btn variant="primary" onClick={submit} loading={loading} disabled={numAmount <= 0} style={{ flex: 1 }}>
+          <Btn 
+            variant="primary" 
+            onClick={submit} 
+            loading={loading} 
+            disabled={numAmount <= 0 || !picName.trim() || !proofPhotoUrl.trim() || uploadingPhoto} 
+            style={{ flex: 1 }}
+          >
             Top-up
           </Btn>
         </div>

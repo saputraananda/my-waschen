@@ -70,12 +70,14 @@ function inflightKey(config) {
 // Setiap axios request otomatis menyertakan token JWT dari localStorage.
 // Sekaligus auto-refresh kalau hampir expired.
 axios.interceptors.request.use(async (config) => {
-  // Skip refresh kalau ini sendiri request /refresh (cegah infinite loop)
-  if (!config.url?.includes('/api/auth/refresh') && !config.url?.includes('/api/auth/login')) {
+  // Skip refresh & authorization header for auth endpoints that don't need it
+  const isAuthPublicEndpoint = config.url?.includes('/api/auth/login') || config.url?.includes('/api/auth/outlets');
+  
+  if (!isAuthPublicEndpoint && !config.url?.includes('/api/auth/refresh')) {
     await maybeRefreshToken();
   }
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (token) {
+  if (token && !isAuthPublicEndpoint) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

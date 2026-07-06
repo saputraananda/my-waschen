@@ -104,7 +104,7 @@ export const CustomerSearchInput = ({ onSelect, onAddNew, placeholder = 'Cari na
       <div style={{ position: 'relative' }}>
         {/* Search icon */}
         <svg style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-          width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round">
+          width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3a3a3a" strokeWidth="2" strokeLinecap="round">
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
 
@@ -144,7 +144,7 @@ export const CustomerSearchInput = ({ onSelect, onAddNew, placeholder = 'Cari na
             style={{
               position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
               width: 24, height: 24, borderRadius: 12, border: 'none',
-              background: C.n100, color: C.n600,
+              background: C.n100, color: '#3a3a3a',
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 12,
             }}
@@ -164,7 +164,7 @@ export const CustomerSearchInput = ({ onSelect, onAddNew, placeholder = 'Cari na
           zIndex: 100,
         }}>
           {results.length === 0 && !loading && (
-            <div style={{ padding: '14px 16px', textAlign: 'center', fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>
+            <div style={{ padding: '14px 16px', textAlign: 'center', fontFamily: 'Poppins', fontSize: 12, color: '#3a3a3a' }}>
               Customer tidak ditemukan
               {onAddNew && (
                 <button
@@ -213,7 +213,7 @@ export const CustomerSearchInput = ({ onSelect, onAddNew, placeholder = 'Cari na
                     {c.isMember && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: '#92400E', background: '#FEF3C7', padding: '1px 6px', borderRadius: 999 }}>★ MEMBER</span>}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-                    <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>📱 {c.phone || '-'}</span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a' }}>📱 {c.phone || '-'}</span>
                     {c.depositBalance > 0 && (
                       <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.success, fontWeight: 600 }}>💰 {rp(c.depositBalance)}</span>
                     )}

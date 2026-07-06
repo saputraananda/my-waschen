@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { C } from '../utils/theme';
+import { C, SHADOW } from '../utils/theme';
 import { TopBar } from '../components/ui';
 
 const F = { fontFamily: 'Poppins' };
@@ -8,7 +8,7 @@ const F = { fontFamily: 'Poppins' };
 const Section = ({ icon, number, title, children, color = C.primary }) => (
   <div style={{
     background: 'white', borderRadius: 16, padding: '16px 18px', marginBottom: 12,
-    boxShadow: '0 2px 12px rgba(15,23,42,0.05)', border: `1px solid ${C.n100}`,
+    boxShadow: SHADOW.sm, border: `1px solid ${C.n100}`,
     transition: 'transform 0.2s, box-shadow 0.2s',
   }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
@@ -22,10 +22,10 @@ const Section = ({ icon, number, title, children, color = C.primary }) => (
         {icon}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ ...F, fontSize: 9, fontWeight: 700, color, letterSpacing: 0.6 }}>
+        <div style={{ ...F, fontSize: 9, fontWeight: 600, color, letterSpacing: 0.6 }}>
           BAGIAN {number}
         </div>
-        <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.n900, marginTop: 1 }}>
+        <div style={{ ...F, fontSize: 14, fontWeight: 600, color: C.n900, marginTop: 1 }}>
           {title}
         </div>
       </div>
@@ -58,13 +58,13 @@ export default function KebijakanPrivasiPage({ goBack }) {
   }, []);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8FAFC', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Kebijakan Privasi" subtitle="Wäschen POS" onBack={goBack} />
 
       <div data-privacy-scroll style={{ flex: 1, overflowY: 'auto' }}>
         {/* Hero header dengan logo */}
         <div style={{
-          background: `linear-gradient(135deg, ${C.primaryDark || '#3B0040'} 0%, ${C.primary} 50%, #7C3AED 100%)`,
+          background: `linear-gradient(135deg, ${C.primaryDark} 0%, ${C.primary} 50%, ${C.primary} 100%)`,
           padding: '24px 20px 48px',
           position: 'relative',
           overflow: 'hidden',
@@ -118,12 +118,12 @@ export default function KebijakanPrivasiPage({ goBack }) {
           {/* Welcome card */}
           <div style={{
             background: 'white', borderRadius: 16, padding: '16px 18px', marginBottom: 14,
-            boxShadow: '0 4px 16px rgba(15,23,42,0.08)',
+            boxShadow: SHADOW.md,
             border: `1.5px solid ${C.primary}20`,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
               <span style={{ fontSize: 22 }}>🛡️</span>
-              <div style={{ ...F, fontSize: 14, fontWeight: 700, color: C.n900 }}>
+              <div style={{ ...F, fontSize: 14, fontWeight: 600, color: C.n900 }}>
                 Privasi Kamu, Prioritas Kami
               </div>
             </div>
@@ -140,7 +140,7 @@ export default function KebijakanPrivasiPage({ goBack }) {
           </Section>
 
           {/* 2. Data yang Kami Kumpulkan */}
-          <Section number={2} icon="📊" title="Data yang Kami Kumpulkan" color="#0EA5E9">
+          <Section number={2} icon="📊" title="Data yang Kami Kumpulkan" color={C.info}>
             <Bullet icon="👤" label="Identitas Profil">
               Nama lengkap, alamat email, dan nomor telepon.
             </Bullet>
@@ -156,7 +156,7 @@ export default function KebijakanPrivasiPage({ goBack }) {
           </Section>
 
           {/* 3. Akses Perangkat & Cookie */}
-          <Section number={3} icon="📷" title="Akses Perangkat & Cookie" color="#EC4899">
+          <Section number={3} icon="📷" title="Akses Perangkat & Cookie" color={C.danger}>
             <Bullet icon="📸" label="Izin Kamera">
               Untuk memindai barcode/QR code nota dan dokumentasi foto cucian (saat diterima dan saat packing).
             </Bullet>
@@ -166,7 +166,7 @@ export default function KebijakanPrivasiPage({ goBack }) {
           </Section>
 
           {/* 4. Tujuan Penggunaan Data */}
-          <Section number={4} icon="🎯" title="Tujuan Penggunaan Data" color="#F59E0B">
+          <Section number={4} icon="🎯" title="Tujuan Penggunaan Data" color={C.warning}>
             <Bullet icon="⚙️">
               Memastikan operasional manajemen laundry berjalan lancar dan efisien.
             </Bullet>
@@ -179,7 +179,7 @@ export default function KebijakanPrivasiPage({ goBack }) {
           </Section>
 
           {/* 5. Keamanan Data */}
-          <Section number={5} icon="🔐" title="Keamanan Data" color="#10B981">
+          <Section number={5} icon="🔐" title="Keamanan Data" color={C.success}>
             <Bullet icon="🔒">
               Penerapan enkripsi data dan koneksi aman menggunakan protokol HTTPS.
             </Bullet>
@@ -192,25 +192,25 @@ export default function KebijakanPrivasiPage({ goBack }) {
           </Section>
 
           {/* 6. Hak-Hak Pengguna */}
-          <Section number={6} icon="⚖️" title="Hak-Hak Pengguna" color="#7C3AED">
+          <Section number={6} icon="⚖️" title="Hak-Hak Pengguna" color={C.primary}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-              <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '10px 12px', border: '1px solid #DDD6FE' }}>
-                <div style={{ ...F, fontSize: 12, fontWeight: 700, color: '#5B21B6', marginBottom: 2 }}>👁️ Hak Akses</div>
+              <div style={{ background: C.primaryTint, borderRadius: 10, padding: '10px 12px', border: `1px solid ${C.primaryTint}` }}>
+                <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.primary, marginBottom: 2 }}>👁️ Hak Akses</div>
                 <div style={{ ...F, fontSize: 11, color: C.n700 }}>Meminta salinan data pribadi yang kami simpan.</div>
               </div>
-              <div style={{ background: '#FEF3C7', borderRadius: 10, padding: '10px 12px', border: '1px solid #FDE68A' }}>
-                <div style={{ ...F, fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>✏️ Hak Koreksi</div>
+              <div style={{ background: C.validationWarningBg, borderRadius: 10, padding: '10px 12px', border: `1px solid ${C.validationWarningBg}` }}>
+                <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.validationWarningText, marginBottom: 2 }}>✏️ Hak Koreksi</div>
                 <div style={{ ...F, fontSize: 11, color: C.n700 }}>Memperbarui data yang salah atau usang.</div>
               </div>
-              <div style={{ background: '#FEE2E2', borderRadius: 10, padding: '10px 12px', border: '1px solid #FCA5A5' }}>
-                <div style={{ ...F, fontSize: 12, fontWeight: 700, color: '#991B1B', marginBottom: 2 }}>🗑️ Hak Penghapusan</div>
+              <div style={{ background: C.validationErrorBg, borderRadius: 10, padding: '10px 12px', border: `1px solid ${C.validationErrorBg}` }}>
+                <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.validationErrorText, marginBottom: 2 }}>🗑️ Hak Penghapusan</div>
                 <div style={{ ...F, fontSize: 11, color: C.n700 }}>Meminta penghapusan akun beserta data terkait.</div>
               </div>
             </div>
           </Section>
 
           {/* 7. Layanan Pihak Ketiga */}
-          <Section number={7} icon="🤝" title="Layanan Pihak Ketiga" color="#06B6D4">
+          <Section number={7} icon="🤝" title="Layanan Pihak Ketiga" color={C.info}>
             <p style={{ margin: '0 0 10px' }}>
               Kami secara transparan menggunakan beberapa layanan luar yang terintegrasi dengan aplikasi:
             </p>
@@ -226,7 +226,7 @@ export default function KebijakanPrivasiPage({ goBack }) {
           </Section>
 
           {/* 8. Masa Penyimpanan Data */}
-          <Section number={8} icon="⏳" title="Masa Penyimpanan Data (Retensi)" color="#F97316">
+          <Section number={8} icon="⏳" title="Masa Penyimpanan Data (Retensi)" color={C.warning}>
             <Bullet icon="✅">
               Data akan disimpan selama akun kamu aktif dan sistem POS digunakan.
             </Bullet>
@@ -239,7 +239,7 @@ export default function KebijakanPrivasiPage({ goBack }) {
           </Section>
 
           {/* 9. Landasan Hukum */}
-          <Section number={9} icon="⚖️" title="Landasan Hukum" color="#1E40AF">
+          <Section number={9} icon="⚖️" title="Landasan Hukum" color={C.info}>
             <p style={{ margin: 0 }}>
               Kebijakan ini tunduk pada:
             </p>
@@ -254,15 +254,15 @@ export default function KebijakanPrivasiPage({ goBack }) {
           {/* 10. Informasi Kontak */}
           <Section number={10} icon="📞" title="Informasi Kontak" color={C.primary}>
             <div style={{
-              background: `linear-gradient(135deg, ${C.primary}08, #7C3AED08)`,
+              background: `linear-gradient(135deg, ${C.primary}08, ${C.primary}08)`,
               borderRadius: 12, padding: '12px 14px',
               border: `1.5px solid ${C.primary}20`,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <span style={{ fontSize: 16 }}>📧</span>
                 <div>
-                  <div style={{ ...F, fontSize: 9, fontWeight: 700, color: C.n500, letterSpacing: 0.4 }}>EMAIL PRIVASI</div>
-                  <a href="mailto:privacy@waschen.id" style={{ ...F, fontSize: 13, fontWeight: 700, color: C.primary, textDecoration: 'none' }}>
+                  <div style={{ ...F, fontSize: 9, fontWeight: 600, color: C.n600, letterSpacing: 0.4 }}>EMAIL PRIVASI</div>
+                  <a href="mailto:privacy@waschen.id" style={{ ...F, fontSize: 13, fontWeight: 600, color: C.primary, textDecoration: 'none' }}>
                     privacy@waschen.id
                   </a>
                 </div>
@@ -270,7 +270,7 @@ export default function KebijakanPrivasiPage({ goBack }) {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                 <span style={{ fontSize: 16 }}>🏢</span>
                 <div>
-                  <div style={{ ...F, fontSize: 9, fontWeight: 700, color: C.n500, letterSpacing: 0.4 }}>KANTOR PUSAT</div>
+                  <div style={{ ...F, fontSize: 9, fontWeight: 600, color: C.n600, letterSpacing: 0.4 }}>KANTOR PUSAT</div>
                   <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n800, marginTop: 1 }}>
                     PT Waschen Alora Indonesia
                   </div>
@@ -292,7 +292,7 @@ export default function KebijakanPrivasiPage({ goBack }) {
             <div style={{ ...F, fontSize: 11, color: C.n600, lineHeight: 1.7 }}>
               Dengan menggunakan aplikasi Wäschen POS, kamu dianggap memahami dan menyetujui Kebijakan Privasi ini.
             </div>
-            <div style={{ ...F, fontSize: 10, color: C.n400, marginTop: 8 }}>
+            <div style={{ ...F, fontSize: 10, color: C.n600, marginTop: 8 }}>
               © 2026 PT Waschen Alora Indonesia · All rights reserved
             </div>
           </div>
@@ -303,8 +303,8 @@ export default function KebijakanPrivasiPage({ goBack }) {
             style={{
               width: '100%', marginTop: 14,
               padding: '12px', borderRadius: 12, border: 'none',
-              background: `linear-gradient(135deg, ${C.primary}, #7C3AED)`,
-              ...F, fontSize: 13, fontWeight: 700, color: 'white',
+              background: `linear-gradient(135deg, ${C.primary}, ${C.primary})`,
+              ...F, fontSize: 13, fontWeight: 600, color: 'white',
               cursor: 'pointer',
               boxShadow: `0 4px 16px ${C.primary}40`,
             }}

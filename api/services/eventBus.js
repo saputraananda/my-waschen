@@ -51,10 +51,16 @@ export const emitPhotoSaved = (outletId, transactionId, unitId, kind) =>
 export const emitProductionUpdate = (outletId, transactionId, unitId, productionStatus) =>
   bus.publish('production:update', { outletId, transactionId, unitId, productionStatus });
 
+export const emitProductionNewItem = (outletId, transactionId, transactionNo, itemName, customerName, isExpress, estimatedDoneAt) =>
+  bus.publish('production:new-item', { outletId, transactionId, transactionNo, itemName, customerName, isExpress, estimatedDoneAt });
+
 export const emitCashLow = (outletId, balance, threshold) =>
   bus.publish('cash:low', { outletId, balance, threshold });
 
 export const emitNotificationNew = (outletId, recipientUserId, notifType) =>
   bus.publish('notification:new', { outletId, recipientUserId, notifType });
+
+export const emitWhatsappSent = ({ outletId, transactionId, customerId, templateCode }) =>
+  bus.publish('whatsapp:sent', { outletId: outletId ?? 0, transactionId, customerId, templateCode });
 
 export default bus;

@@ -2,12 +2,12 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Wäschen POS</title>
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#5B005F" />
+    <meta name="theme-color" content="#6e2e78" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -27,7 +27,7 @@
         margin: 0;
         padding: 0;
         overflow: hidden;
-        background: #F8FAFC;
+        background: #f7f5f8;
       }
       /* Safe area for notch devices */
       body {
@@ -41,28 +41,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      // Register Service Worker — non-blocking, silent fail
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((reg) => {
-              // Auto-update: kalau ada SW baru, langsung activate
-              reg.addEventListener('updatefound', () => {
-                const newWorker = reg.installing;
-                if (newWorker) {
-                  newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
-                      // New version available — bisa show toast kalau mau
-                      console.log('[SW] New version available');
-                    }
-                  });
-                }
-              });
-            })
-            .catch((err) => console.warn('[SW] Registration failed:', err));
-        });
-      }
-    </script>
   </body>
 </html>

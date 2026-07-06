@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Avatar, Divider, Chip, SearchBar } from '../../components/ui';
+import { TopBar, Btn, Avatar, Divider, Chip, SearchBar, Modal } from '../../components/ui';
 import { alertError, alertSuccess, confirmAction } from '../../utils/alert';
 
 const customerInitials = (c) => {
@@ -25,6 +25,12 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
   const [deleting, setDeleting] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
   const [downgrading, setDowngrading] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFrom, setExportFrom] = useState('');
+  const [exportTo, setExportTo] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [membershipData, setMembershipData] = useState(null);
+  const [membershipLoading, setMembershipLoading] = useState(false);
 
   useEffect(() => {
     if (!customerId) {
@@ -116,6 +122,30 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
     fetch();
   }, [customer?.id]);
 
+  // ─── Fetch Membership Data (WPC) ────────────────────────────────────────────
+  useEffect(() => {
+    if (!customerId) {
+      setMembershipData(null);
+      return;
+    }
+    const fetchMembership = async () => {
+      setMembershipLoading(true);
+      try {
+        const res = await axios.get(`/api/membership/status/${customerId}`);
+        if (res?.data?.success && res.data.data?.hasMembership) {
+          setMembershipData(res.data.data);
+        } else {
+          setMembershipData(null);
+        }
+      } catch {
+        setMembershipData(null);
+      } finally {
+        setMembershipLoading(false);
+      }
+    };
+    fetchMembership();
+  }, [customerId]);
+
   // ─── Filter & summary computation ──────────────────────────────────────────
   const filteredTx = useMemo(() => {
     const q = txSearch.trim().toLowerCase();
@@ -176,7 +206,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Detail Customer" onBack={goBack} rightAction={() => navigate('topup_deposit', customer)} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>} />
+      <TopBar title="Detail Customer" onBack={goBack} rightAction={() => setShowExportModal(true)} rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {/* Profile card */}
@@ -185,14 +215,14 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
           <div style={{ textAlign: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n900 }}>{customer.name}</div>
-              {customer.isPremium && <span style={{ background: '#FEF3C7', color: '#B45309', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>PREMIUM</span>}
+              {customer.isPremium && <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>PREMIUM</span>}
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, marginTop: 2 }}>{customer.phone}</div>
             {/* Outlet origin tag */}
             {customer.registeredOutletName && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#EDE9FE', padding: '3px 10px', borderRadius: 999, marginTop: 6 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: C.primaryTint2, padding: '3px 10px', borderRadius: 999, marginTop: 6 }}>
                 <span style={{ fontSize: 12 }}>🏪</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#6D28D9' }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primary }}>
                   Terdaftar di: {customer.registeredOutletName}
                 </span>
               </div>
@@ -232,48 +262,105 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
           </div>
         </div>
 
-        {/* Membership Card — kalau aktif */}
-        {customer.membership && customer.isPremium && !customer.membership.isExpired && (
+        {/* Membership Card — WPC Membership dengan Tier Gold/Diamond */}
+        {membershipData && (
           <div style={{
-            background: 'linear-gradient(135deg, #5B21B6, #7C3AED)',
+            background: membershipData.isActive
+              ? 'linear-gradient(135deg, #5B005F, #4D0051)'
+              : 'linear-gradient(135deg, #DC2626, #991B1B)',
             borderRadius: 16, padding: '14px 16px', marginBottom: 12,
-            boxShadow: '0 4px 16px rgba(124,58,237,0.25)',
+            boxShadow: '0 4px 16px rgba(110,46,120,0.25)',
             color: 'white',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 16 }}>👑</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>MEMBER PREMIUM</span>
+                <span style={{ fontSize: 16 }}>{membershipData.tier === 'diamond' ? '💎' : '🥇'}</span>
+                <span style={{ fontFamily: 'Poppins', size: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+                  WPC {membershipData.tier === 'diamond' ? 'DIAMOND' : 'GOLD'} MEMBER
+                </span>
               </div>
               <span style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.85 }}>
-                {customer.membership.memberNo}
+                {membershipData.memberNo || membershipData.id}
               </span>
             </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginBottom: 2 }}>DISKON</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800 }}>
-                  {Number(customer.membership.discountPct).toFixed(0)}%
+
+            {membershipData.isActive ? (
+              <>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginBottom: 2 }}>DISKON</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800 }}>
+                      {membershipData.discountPct}%
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginBottom: 2 }}>BERLAKU SAMPAI</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700 }}>
+                      {membershipData.expiredAt
+                        ? new Date(membershipData.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : '—'}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginBottom: 2 }}>SISA HARI</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800 }}>
+                      {membershipData.daysUntilExpiry > 0 ? membershipData.daysUntilExpiry : 0}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginBottom: 2 }}>BERLAKU SAMPAI</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700 }}>
-                  {customer.membership.expiredAt
-                    ? new Date(customer.membership.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : '—'}
+
+                {/* Expiry Warning */}
+                {membershipData.isExpiringSoon && (
+                  <div style={{
+                    background: 'rgba(254, 243, 199, 0.2)',
+                    borderRadius: 8, padding: '8px 10px', marginTop: 10,
+                    fontFamily: 'Poppins', fontSize: 10,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    ⚠️ Membership akan expired dalam {membershipData.daysUntilExpiry} hari. Segera renew!
+                  </div>
+                )}
+
+                {/* Benefits */}
+                {membershipData.benefits && membershipData.benefits.length > 0 && (
+                  <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.75, marginTop: 8, lineHeight: 1.4 }}>
+                    ✨ {membershipData.benefits.join(' • ')}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, opacity: 0.9, marginBottom: 8 }}>
+                  {membershipData.status === 'expired'
+                    ? '⚠️ Membership sudah expired'
+                    : '❌ Membership tidak aktif'}
                 </div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginBottom: 2 }}>TOP-UP</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700 }}>
-                  {customer.membership.topupCount}×
-                </div>
-              </div>
-            </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.75, marginTop: 8, lineHeight: 1.4 }}>
-              💡 Setiap top-up Rp 500.000+, masa berlaku otomatis +6 bulan
-            </div>
+                {membershipData.canRenew && (
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    onClick={() => navigate('membership_register', customer)}
+                    style={{ background: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)' }}
+                  >
+                    🔄 Renew Membership
+                  </Btn>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Tombol untuk customer non-member */}
+        {!membershipLoading && !membershipData && (
+          <div style={{ marginBottom: 12 }}>
+            <Btn
+              variant="secondary"
+              onClick={() => navigate('membership_register', customer)}
+              fullWidth
+              style={{ background: C.validationWarningBg, color: C.validationWarningText, border: 'none', fontWeight: 700 }}
+            >
+              🎁 Daftar WPC Membership
+            </Btn>
           </div>
         )}
 
@@ -282,22 +369,6 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
           <Btn variant="primary" onClick={() => navigate('nota_step1', { preCustomer: customer })} style={{ flex: 1 }}>Buat Nota</Btn>
           <Btn variant="secondary" onClick={() => navigate('topup_deposit', customer)} style={{ flex: 1 }}>Top Up Deposit</Btn>
         </div>
-        
-        {!customer.isPremium && (
-          <div style={{ marginBottom: 12 }}>
-            <Btn variant="secondary" onClick={handleUpgrade} loading={upgrading} fullWidth style={{ background: '#FEF3C7', color: '#B45309', border: 'none', fontWeight: 700 }}>
-              ⭐ Upgrade ke Member Premium
-            </Btn>
-          </div>
-        )}
-
-        {customer.isPremium && (
-          <div style={{ marginBottom: 12 }}>
-            <Btn variant="secondary" onClick={handleDowngrade} loading={downgrading} fullWidth style={{ background: '#FEF2F2', color: C.danger, border: 'none', fontWeight: 700 }}>
-              ↩️ Turunkan ke Member Biasa
-            </Btn>
-          </div>
-        )}
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
           <Btn variant="secondary" onClick={() => navigate('tambah_customer', customer)} style={{ flex: 1, border: `1px solid ${C.primary}`, color: C.primary }}>✏️ Edit Customer</Btn>
@@ -316,7 +387,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
             {customerTx.length > 0 && (
               <div style={{
                 fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
-                color: C.n500, background: C.n50,
+                color: C.n600, background: C.n50,
                 padding: '3px 10px', borderRadius: 999,
               }}>
                 {customerTx.length} total
@@ -364,7 +435,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: '#EF4444',
+                    background: C.danger,
                     color: 'white',
                     borderRadius: 999,
                     fontSize: 10,
@@ -380,16 +451,16 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
 
           {/* List */}
           {txLoading ? (
-            <div style={{ textAlign: 'center', padding: 30, color: C.n500, fontFamily: 'Poppins', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', padding: 30, color: C.n600, fontFamily: 'Poppins', fontSize: 13 }}>
               Memuat transaksi...
             </div>
           ) : customerTx.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 30, color: C.n500, fontFamily: 'Poppins', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', padding: 30, color: C.n600, fontFamily: 'Poppins', fontSize: 13 }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>🧾</div>
               Customer ini belum punya transaksi
             </div>
           ) : filteredTx.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 24, color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>
+            <div style={{ textAlign: 'center', padding: 24, color: C.n600, fontFamily: 'Poppins', fontSize: 12 }}>
               Tidak ada transaksi sesuai filter
             </div>
           ) : (
@@ -414,8 +485,8 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
                     </div>
                     <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 1 }}>
                       {tx.date}
-                      {tx.paymentStatus === 'unpaid' && <span style={{ color: '#DC2626', fontWeight: 600 }}> · belum bayar</span>}
-                      {tx.paymentStatus === 'partial' && <span style={{ color: '#F59E0B', fontWeight: 600 }}> · partial</span>}
+                      {tx.paymentStatus === 'unpaid' && <span style={{ color: C.danger, fontWeight: 600 }}> · belum bayar</span>}
+                      {tx.paymentStatus === 'partial' && <span style={{ color: C.warning, fontWeight: 600 }}> · partial</span>}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 8 }}>
@@ -425,14 +496,14 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
                     <span style={{
                       fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
                       padding: '2px 7px', borderRadius: 999,
-                      background: tx.status === 'selesai' ? '#DCFCE7'
-                        : tx.status === 'diambil' ? '#DBEAFE'
-                        : tx.status === 'dibatalkan' ? '#FEE2E2'
-                        : '#FEF3C7',
-                      color: tx.status === 'selesai' ? '#15803D'
-                        : tx.status === 'diambil' ? '#1E40AF'
-                        : tx.status === 'dibatalkan' ? '#991B1B'
-                        : '#92400E',
+                      background: tx.status === 'selesai' ? C.selesaiBg
+                        : tx.status === 'diambil' ? C.infoBg
+                        : tx.status === 'dibatalkan' ? C.batalBg
+                        : C.prosesBg,
+                      color: tx.status === 'selesai' ? C.selesaiText
+                        : tx.status === 'diambil' ? C.infoText
+                        : tx.status === 'dibatalkan' ? C.batalText
+                        : C.prosesText,
                     }}>{tx.status}</span>
                   </div>
                 </div>
@@ -444,7 +515,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
           {!txLoading && customerTx.length > 0 && filteredTx.length > 0 && (
             <div style={{
               marginTop: 12, padding: '12px 14px',
-              background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
+              background: 'linear-gradient(135deg, #4F46E5, #6e2e78)',
               borderRadius: 12, color: 'white',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -480,6 +551,108 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
           )}
         </div>
       </div>
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <Modal visible onClose={() => setShowExportModal(false)} title="Export Riwayat Transaksi">
+          <div style={{ padding: '8px 18px 18px' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginBottom: 12 }}>
+              Export riwayat transaksi {customer?.name} ke format Excel atau PDF.
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>📅 Dari Tanggal (opsional)</div>
+              <input
+                type="date"
+                value={exportFrom}
+                onChange={(e) => setExportFrom(e.target.value)}
+                style={{ width: '100%', height: 40, borderRadius: 10, border: `1.5px solid ${C.n200}`, padding: '0 12px', fontFamily: 'Poppins', fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>📅 Sampai Tanggal (opsional)</div>
+              <input
+                type="date"
+                value={exportTo}
+                onChange={(e) => setExportTo(e.target.value)}
+                style={{ width: '100%', height: 40, borderRadius: 10, border: `1.5px solid ${C.n200}`, padding: '0 12px', fontFamily: 'Poppins', fontSize: 13, boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Btn variant="secondary" onClick={() => setShowExportModal(false)} style={{ flex: 1 }}>Batal</Btn>
+              <Btn
+                variant="primary"
+                onClick={async () => {
+                  if (!customer?.id) return;
+                  setExporting(true);
+                  try {
+                    const params = {};
+                    if (exportFrom) params.from = exportFrom;
+                    if (exportTo) params.to = exportTo;
+                    // Use axios with responseType blob
+                    const res = await axios.get(`/api/customers/${customer.id}/transactions/export?format=xlsx`, { params, responseType: 'blob' });
+                    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `transaksi_${customer.name}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    await alertSuccess('Export Excel berhasil diunduh.');
+                    setShowExportModal(false);
+                  } catch (err) {
+                    alertError(err?.response?.data?.message || 'Gagal export Excel.');
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                loading={exporting}
+                style={{ flex: 1 }}
+                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>}
+              >
+                📊 Excel
+              </Btn>
+              <Btn
+                variant="primary"
+                onClick={async () => {
+                  if (!customer?.id) return;
+                  setExporting(true);
+                  try {
+                    const params = { format: 'pdf' };
+                    if (exportFrom) params.from = exportFrom;
+                    if (exportTo) params.to = exportTo;
+                    const res = await axios.get(`/api/customers/${customer.id}/transactions/export`, { params, responseType: 'blob' });
+                    const blob = new Blob([res.data], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `transaksi_${customer.name}_${new Date().toISOString().slice(0, 10)}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    await alertSuccess('Export PDF berhasil diunduh.');
+                    setShowExportModal(false);
+                  } catch (err) {
+                    alertError(err?.response?.data?.message || 'Gagal export PDF.');
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                loading={exporting}
+                style={{ flex: 1 }}
+                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>}
+              >
+                📄 PDF
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Filter Modal */}
       {showFilterModal && (

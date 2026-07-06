@@ -1,7 +1,23 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
 import { dbToUiTxStatus as _dbToUiTxStatus, uiToDbStatusFilter } from '../utils/statusMap.js';
-import { emitTransactionCheckout, emitProductionUpdate, emitPaymentSettled } from '../services/eventBus.js';
+import { emitTransactionCheckout, emitProductionUpdate, emitPaymentSettled, emitProductionNewItem, emitPhotoSaved } from '../services/eventBus.js';
+import { sendOrderCreatedNotification, sendOrderStatusUpdatedNotification, sendOrderReadyNotification } from '../services/whatsappService.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('Transaction');
+
+// Legacy console alias for debugging only - DO NOT USE in production
+const _debug = (ctx, msg, ...args) => {
+  if (process.env.NODE_ENV !== 'production' || process.env.DEBUG === 'true') {
+    console.log(`[${ctx}]`, msg, ...args);
+  }
+};
+const _warn = (ctx, msg, ...args) => {
+  if (process.env.NODE_ENV !== 'production' || process.env.DEBUG === 'true') {
+    console.warn(`[${ctx}]`, msg, ...args);
+  }
+};
 
 const schemaColumnCache = new Map();
 
@@ -59,11 +75,7 @@ const generateTransactionNo = async (conn, outletId = null) => {
 // ─── Helper: Map frontend payMethod to DB ENUM ─────────────────────────────────
 const mapPayMethod = (method) => {
   const m = String(method || '').toLowerCase();
-  // Frontend bisa kirim 'midtrans' sebagai pseudo-method — map ke 'transfer'
-  // (default fallback). Channel sebenarnya (qris/gopay/dll) akan di-set di
-  // payment_item.channel saat customer pilih di QrPayment screen.
-  if (m === 'midtrans') return 'transfer';
-  const allowed = ['cash', 'transfer', 'deposit', 'qris', 'ovo', 'gopay', 'dana', 'shopeepay'];
+  const allowed = ['cash', 'transfer', 'deposit', 'qris'];
   return allowed.includes(m) ? m : 'cash';
 };
 
@@ -114,7 +126,130 @@ export const checkoutTransaction = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Metode pembayaran wajib diisi' });
     }
 
+    // ── BUG FIX 7: Pickup Schedule Validation (Requirements 2.9, 2.10, 2.11) ───
+    // Validate schedule fields based on order_type
+    const pickupScheduleAt = pickup?.scheduleAt || req.body.pickup_schedule_at;
+    const deliveryScheduleAt = delivery?.scheduleAt || req.body.delivery_schedule_at;
+    const pickupType = req.body.pickupType || (pickup && delivery ? 'both' : pickup ? 'pickup' : delivery ? 'delivery' : 'self');
+
+    // Schedule validation - only enforce for pure pickup or pure delivery
+    // For 'both' (pickup_and_delivery), schedules are optional
+    if (pickupType === 'pickup') {
+      if (!pickupScheduleAt) {
+        conn.release();
+        return res.status(422).json({
+          success: false,
+          message: 'Jadwal pickup wajib diisi untuk order type "pickup".',
+          errors: {
+            pickup_schedule_at: 'Required for order_type: pickup'
+          }
+        });
+      }
+    }
+
+    if (pickupType === 'delivery') {
+      if (!deliveryScheduleAt) {
+        conn.release();
+        return res.status(422).json({
+          success: false,
+          message: 'Jadwal delivery wajib diisi untuk order type "delivery".',
+          errors: {
+            delivery_schedule_at: 'Required for order_type: delivery'
+          }
+        });
+      }
+    }
+
+    // For pickupType === 'both', schedules are optional - no validation needed
+
+    if (pickupType === 'self') {
+      // Strip pickup/delivery schedule for "self" (self-pickup at outlet)
+      // Customer will come directly to outlet without scheduled pickup/delivery
+      if (req.body.pickup_schedule_at || req.body.delivery_schedule_at) {
+        _warn('checkout', 'Ignoring schedule fields for pickupType="self"');
+      }
+    }
+
+    // ── BUG FIX 8.2: DateTime Validation (Requirements Bug #13) ───
+    // Reject past dates for pickup/delivery schedules
+    // Validate against outlet operating hours (08:00 - 21:00)
+    const now = new Date();
+    const outletOpenHour = 8; // 08:00
+    const outletCloseHour = 21; // 21:00
+
+    if (pickupScheduleAt) {
+      const pickupDate = new Date(pickupScheduleAt);
+      
+      // Reject past dates
+      if (pickupDate < now) {
+        conn.release();
+        return res.status(422).json({
+          success: false,
+          message: 'Jadwal pickup tidak boleh di masa lampau.',
+          errors: {
+            pickup_schedule_at: 'Pickup schedule cannot be in the past'
+          }
+        });
+      }
+
+      // Validate operating hours (08:00 - 21:00)
+      const pickupHour = pickupDate.getHours();
+      if (pickupHour < outletOpenHour || pickupHour >= outletCloseHour) {
+        conn.release();
+        return res.status(422).json({
+          success: false,
+          message: `Jadwal pickup harus dalam jam operasional outlet (${outletOpenHour.toString().padStart(2, '0')}:00 - ${outletCloseHour.toString().padStart(2, '0')}:00).`,
+          errors: {
+            pickup_schedule_at: `Pickup schedule must be within operating hours (${outletOpenHour}:00 - ${outletCloseHour}:00)`
+          }
+        });
+      }
+    }
+
+    if (deliveryScheduleAt) {
+      const deliveryDate = new Date(deliveryScheduleAt);
+      
+      // Reject past dates
+      if (deliveryDate < now) {
+        conn.release();
+        return res.status(422).json({
+          success: false,
+          message: 'Jadwal delivery tidak boleh di masa lampau.',
+          errors: {
+            delivery_schedule_at: 'Delivery schedule cannot be in the past'
+          }
+        });
+      }
+
+      // Validate operating hours (08:00 - 21:00)
+      const deliveryHour = deliveryDate.getHours();
+      if (deliveryHour < outletOpenHour || deliveryHour >= outletCloseHour) {
+        conn.release();
+        return res.status(422).json({
+          success: false,
+          message: `Jadwal delivery harus dalam jam operasional outlet (${outletOpenHour.toString().padStart(2, '0')}:00 - ${outletCloseHour.toString().padStart(2, '0')}:00).`,
+          errors: {
+            delivery_schedule_at: `Delivery schedule must be within operating hours (${outletOpenHour}:00 - ${outletCloseHour}:00)`
+          }
+        });
+      }
+    }
+
     await conn.beginTransaction();
+
+    // ── Ambil customer data untuk emit dan notifikasi ─────────────────────────────
+    let customerName = 'Customer';
+    let customer = { name: 'Customer', phone: null, id: customerId };
+    try {
+      const [[cust]] = await conn.execute(
+        `SELECT name, phone FROM mst_customer WHERE id = ? LIMIT 1`,
+        [customerId]
+      );
+      if (cust) {
+        customerName = cust.name;
+        customer = { ...customer, ...cust };
+      }
+    } catch {}
 
     // ── Generate transaction_no: WSC-YYMMDD-XXX ────────────────────────────────
     const transactionNo = await generateTransactionNo(conn);
@@ -125,21 +260,86 @@ export const checkoutTransaction = async (req, res) => {
     if (serviceIds.length > 0) {
       const ph = serviceIds.map(() => '?').join(',');
       const [svcRows] = await conn.execute(
-        `SELECT id, name AS service_name, unit_type AS unit, price, express_multiplier, category_id
+        `SELECT id, name AS service_name, unit_type AS unit, price, express_multiplier, category_id, requires_material
          FROM mst_service WHERE id IN (${ph})`,
         serviceIds
       );
       svcRows.forEach((s) => { serviceMap[s.id] = s; });
     }
 
+    // ── BUG FIX 3 & 4: Material Validation & M² Calculation (Requirements 2.4, 2.5) ───
+    // Validate items before processing
+    const validatedItems = [];
+    for (const item of items) {
+      const serviceId = item.serviceId || item.id;
+      const service = serviceMap[serviceId];
+      
+      if (!service) {
+        await conn.rollback();
+        conn.release();
+        return res.status(404).json({
+          success: false,
+          message: `Service ID ${serviceId} tidak ditemukan.`
+        });
+      }
+      
+      // BUG FIX 3: Material Validation
+      if (service.requires_material === 1 || service.requires_material === true) {
+        if (!item.materialId && !item.material_id) {
+          await conn.rollback();
+          conn.release();
+          return res.status(422).json({
+            success: false,
+            message: `Service "${service.service_name}" memerlukan pilihan material (jenis bahan).`,
+            errors: {
+              material_id: `Required for service: ${service.service_name}`
+            }
+          });
+        }
+      }
+      
+      // BUG FIX 4: M² Calculation Enforcement
+      if (service.unit === 'm2' || service.unit === 'm²') {
+        const length = item.length;
+        const width = item.width;
+        
+        if (!length || !width) {
+          await conn.rollback();
+          conn.release();
+          return res.status(422).json({
+            success: false,
+            message: `Service "${service.service_name}" dengan unit m² memerlukan input panjang (length) dan lebar (width).`,
+            errors: {
+              length: 'Required for m² services',
+              width: 'Required for m² services'
+            }
+          });
+        }
+        
+        // Calculate qty from length × width (ignore any qty sent from client)
+        const calculatedQty = Number(length) * Number(width);
+        
+        if (item.qty && Number(item.qty) !== calculatedQty) {
+          _warn('checkout', 'Client sent qty mismatch for m² service', { clientQty: item.qty, calculated: calculatedQty });
+        }
+        
+        // Override qty with calculated value
+        item.qty = calculatedQty;
+        item.length = Number(length);
+        item.width = Number(width);
+      }
+      
+      validatedItems.push(item);
+    }
+
     // ── Hitung amounts ─────────────────────────────────────────────────────────
-    const isExpress = items.some((i) => i.isExpress || i.express);
+    const isExpress = validatedItems.some((i) => i.isExpress || i.express);
     const pickupFee = pickup ? 10000 : 0;
     const deliveryFee = delivery ? 10000 : 0;
 
     const computedSubtotal = payloadSubtotal != null
       ? Number(payloadSubtotal)
-      : items.reduce((s, i) => s + Number(i.price || 0) * Number(i.qty || 1), 0);
+      : validatedItems.reduce((s, i) => s + Number(i.price || 0) * Number(i.qty || 1), 0);
 
     const manualDiscount = Number(discount || 0);
     let promoDiscount = 0;
@@ -178,32 +378,95 @@ export const checkoutTransaction = async (req, res) => {
       resolvedPromoId = pr.id;
     }
 
-    // ── Member Discount (otomatis jika customer adalah member aktif) ──────────
-    // Default 20% dari subtotal, sesuai S&K. Ambil dari config jika ada.
+    // ── BUG FIX 12: Member Discount Real-time Validation (Requirements 2.17, 2.18) ──
+    // Check real-time membership status, not just is_member flag
     let memberDiscount = 0;
     let activeMembershipId = null;
     try {
+      // Query for active membership with real-time expiry check
       const [[memb]] = await conn.execute(
-        `SELECT m.id, m.discount_pct
+        `SELECT m.id, m.discount_pct, m.status, m.expired_at
          FROM mst_membership m
-         WHERE m.customer_id = ? AND m.status = 'active' AND m.expired_at >= NOW()
+         WHERE m.customer_id = ? 
+           AND m.status = 'active' 
+           AND m.expired_at >= NOW()
+         ORDER BY m.expired_at DESC
          LIMIT 1`,
         [customerId]
       );
+      
       if (memb) {
+        // Membership is active and not expired
         activeMembershipId = memb.id;
         const pct = Number(memb.discount_pct) || 20;
         memberDiscount = Math.round((computedSubtotal * pct) / 100);
         // Cap supaya tidak melebihi subtotal - promo
         memberDiscount = Math.min(memberDiscount, Math.max(0, computedSubtotal - promoDiscount));
+        
+        logger.info('[checkout]', 'Active membership found', { customerId, pct, memberDiscount });
+      } else {
+        // Membership expired or inactive - no discount
+        logger.info('[checkout]', 'Customer has no active membership or expired', { customerId });
       }
     } catch (e) {
-      console.warn('[checkout] member discount calc gagal:', e?.message || e);
+      logger.warn('[checkout] member discount calc gagal:', e?.message || e);
+    }
+
+    // ── Birthday Discount Auto-Apply (Phase 7: Birthday Program) ──────────────
+    // Check if today is within 7 days of customer's birthday
+    let birthdayDiscount = 0;
+    let birthdayPromoId = null;
+    try {
+      // Get customer's birth_date
+      const [[cust]] = await conn.execute(
+        `SELECT birth_month, birth_day, birth_date FROM mst_customer WHERE id = ?`,
+        [customerId]
+      );
+
+      if (cust && (cust.birth_month != null || cust.birth_date != null)) {
+        const birthMonth = cust.birth_month || new Date(cust.birth_date).getMonth() + 1;
+        const birthDay = cust.birth_day || new Date(cust.birth_date).getDate();
+        const today = new Date();
+
+        // Calculate days until/since birthday this year
+        const thisYearBirthday = new Date(today.getFullYear(), birthMonth - 1, birthDay);
+        let daysDiff = Math.floor((thisYearBirthday - today) / (1000 * 60 * 60 * 24));
+
+        // If birthday already passed this year, consider next year
+        if (daysDiff < -7) {
+          // Birthday was more than 7 days ago, skip
+          logger.info('[checkout]', 'Birthday discount skipped', { birthMonth, birthDay, daysDiff });
+        } else if (daysDiff <= 7 && daysDiff >= -7) {
+          // Birthday is within 7 days - apply discount
+          const birthdayDiscountPct = 10; // Default 10%
+          birthdayDiscount = Math.round((computedSubtotal * birthdayDiscountPct) / 100);
+
+          // Cap birthday discount: shouldn't exceed subtotal minus other discounts
+          birthdayDiscount = Math.min(birthdayDiscount, Math.max(0, computedSubtotal - promoDiscount - memberDiscount));
+
+          // Get or create birthday promo
+          const [promoRows] = await conn.execute(
+            `SELECT id FROM mst_promo
+             WHERE promo_type = 'birthday' AND is_active = 1
+               AND (valid_from IS NULL OR valid_from <= CURDATE())
+               AND (valid_until IS NULL OR valid_until >= CURDATE())
+             LIMIT 1`
+          );
+
+          if (promoRows.length > 0) {
+            birthdayPromoId = promoRows[0].id;
+          }
+
+          logger.info('[checkout]', 'Birthday discount applied', { customerId, birthdayDiscountPct, birthdayDiscount });
+        }
+      }
+    } catch (bdayErr) {
+      logger.warn('[checkout] birthday discount check failed:', bdayErr?.message || bdayErr);
     }
 
     const computedTotal = payloadTotal != null
       ? Number(payloadTotal)
-      : computedSubtotal - promoDiscount - memberDiscount - manualDiscount + pickupFee + deliveryFee;
+      : computedSubtotal - promoDiscount - memberDiscount - birthdayDiscount - manualDiscount + pickupFee + deliveryFee;
 
     let paidAmount;
     let changeAmount;
@@ -218,10 +481,10 @@ export const checkoutTransaction = async (req, res) => {
       if (payTiming === 'later') {
         if (payPlan === 'dp' && dpAmount > 0) {
           paidAmount = Math.min(dpAmount, computedTotal);
-          primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : null;
+          primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : 'cash';
         } else {
           paidAmount = 0;
-          primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : null;
+          primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : 'cash';
         }
       } else if (payPlan === 'dp' && dpAmount > 0) {
         paidAmount = Math.min(dpAmount, computedTotal);
@@ -258,10 +521,8 @@ export const checkoutTransaction = async (req, res) => {
       primaryPaymentMethod = mapPayMethod(payment.method);
     }
 
-    let pickupType = 'self';
-    if (pickup) pickupType = 'pickup';
-    if (delivery) pickupType = 'delivery';
-
+    // Note: pickupType already determined in BUG FIX 7 validation section above
+    
     const intentSummary = hasPaymentIntent
       ? `[Bayar:${paymentIntent.payTiming === 'later' ? 'nanti(pickup/selesai)' : 'kasir_sekarang'};${paymentIntent.payPlan === 'dp' ? `DP:${Number(paymentIntent.dpAmount || 0)}` : 'lunas'}]`
       : '';
@@ -309,21 +570,58 @@ export const checkoutTransaction = async (req, res) => {
         // Format YYYY-MM-DD HH:MM:SS
         finalEstimatedDone = eta.toISOString().slice(0, 19).replace('T', ' ');
       } catch (slaErr) {
-        console.warn('[checkout] SLA auto-compute failed:', slaErr.message);
+        logger.warn('[checkout] SLA auto-compute failed:', slaErr.message);
         // Fallback hardcoded: 48 jam dari sekarang
         const eta = new Date(Date.now() + 48 * 3600 * 1000);
         finalEstimatedDone = eta.toISOString().slice(0, 19).replace('T', ' ');
       }
     }
+    // ── CRITICAL: Validate active shift session ─────────────────────────────────
+    // Every transaction MUST be linked to an active shift for accountability
     const [[openSession]] = await conn.execute(
-      `SELECT id
+      `SELECT id, shift, session_date, opened_at
        FROM tr_cashier_session
        WHERE cashier_id = ? AND outlet_id = ? AND status = 'open' AND deleted_at IS NULL
        ORDER BY opened_at DESC
        LIMIT 1`,
       [userId, outletId]
     );
-    const sessionId = openSession?.id || null;
+
+    if (!openSession || !openSession.id) {
+      await conn.rollback();
+      conn.release();
+      return res.status(403).json({
+        success: false,
+        message: 'Tidak dapat membuat transaksi. Kasir belum membuka shift. Silakan buka shift terlebih dahulu.',
+        error: 'NO_ACTIVE_SHIFT',
+        requiresShift: true
+      });
+    }
+
+    const sessionId = openSession.id;
+
+    // ── PHASE 3: Check for active sub-session (Individual Accountability) ────────
+    // If tr_cashier_sub_session table exists, link transaction to sub-session
+    let subSessionId = null;
+    const hasSubSessionTable = await hasColumn('tr_cashier_sub_session', 'id');
+    if (hasSubSessionTable) {
+      const [[activeSubSession]] = await conn.execute(
+        `SELECT ss.id
+         FROM tr_cashier_sub_session ss
+         WHERE ss.cashier_id = ?
+           AND ss.session_id = ?
+           AND ss.status = 'open'
+         LIMIT 1 FOR UPDATE`,
+        [userId, sessionId]
+      );
+
+      if (activeSubSession) {
+        subSessionId = activeSubSession.id;
+        logger.info('[checkout]', 'Transaction linked to sub-session', { subSessionId, cashierId: userId });
+      }
+    }
+
+    logger.info('[checkout]', 'Transaction linked to session', { sessionId, shift: openSession.shift, date: openSession.session_date });
 
     const hasTrxPromo = await hasColumn('tr_transaction', 'promo_id');
 
@@ -332,7 +630,7 @@ export const checkoutTransaction = async (req, res) => {
     if (hasTrxPromo) {
       const [trxInsert] = await conn.execute(
         `INSERT INTO tr_transaction (
-          outlet_id, customer_id, cashier_id, session_id,
+          outlet_id, customer_id, cashier_id, session_id, sub_session_id,
           promo_id, membership_id,
           transaction_no, source_channel, status, payment_status,
           primary_payment_method, is_express, pickup_type,
@@ -340,7 +638,7 @@ export const checkoutTransaction = async (req, res) => {
           paid_amount, change_amount,
           estimated_done_at, notes, created_at, updated_at
         ) VALUES (
-          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
           ?, ?,
           ?, 'kasir', 'pending', ?,
           ?, ?, ?,
@@ -349,10 +647,10 @@ export const checkoutTransaction = async (req, res) => {
           ?, ?, NOW(), NOW()
         )`,
         [
-          outletId, customerId, userId, sessionId,
+          outletId, customerId, userId, sessionId, subSessionId,
           resolvedPromoId, activeMembershipId,
           transactionNo, paymentStatus,
-          primaryPaymentMethod, isExpress, pickupType,
+          primaryPaymentMethod, isExpress ? 1 : 0, pickupType,
           computedSubtotal, memberDiscount, promoDiscount, manualDiscount, pickupFee + deliveryFee, computedTotal,
           paidAmount, changeAmount,
           finalEstimatedDone, combinedNotes,
@@ -362,7 +660,7 @@ export const checkoutTransaction = async (req, res) => {
     } else {
       const [trxInsert] = await conn.execute(
         `INSERT INTO tr_transaction (
-          outlet_id, customer_id, cashier_id, session_id,
+          outlet_id, customer_id, cashier_id, session_id, sub_session_id,
           membership_id,
           transaction_no, source_channel, status, payment_status,
           primary_payment_method, is_express, pickup_type,
@@ -370,7 +668,7 @@ export const checkoutTransaction = async (req, res) => {
           paid_amount, change_amount,
           estimated_done_at, notes, created_at, updated_at
         ) VALUES (
-          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
           ?,
           ?, 'kasir', 'pending', ?,
           ?, ?, ?,
@@ -379,10 +677,10 @@ export const checkoutTransaction = async (req, res) => {
           ?, ?, NOW(), NOW()
         )`,
         [
-          outletId, customerId, userId, sessionId,
+          outletId, customerId, userId, sessionId, subSessionId,
           activeMembershipId,
           transactionNo, paymentStatus,
-          primaryPaymentMethod, isExpress, pickupType,
+          primaryPaymentMethod, isExpress ? 1 : 0, pickupType,
           computedSubtotal, memberDiscount, promoDiscount, manualDiscount, pickupFee + deliveryFee, computedTotal,
           paidAmount, changeAmount,
           finalEstimatedDone, combinedNotes,
@@ -394,8 +692,38 @@ export const checkoutTransaction = async (req, res) => {
     // ── Langkah 2: Bulk insert tr_transaction_item ────────────────────────────
     // Track inventory IDs yang ke-deduct supaya bisa cek reorder threshold setelah commit
     const reorderTargets = new Set();
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
+
+    // Cek apakah kolom material/brand/special_care_alert sudah ada di tr_transaction_item
+    let hasItemExtraCols = false;
+    let hasMaterialIdCol = false;
+    let hasLengthWidthCols = false;
+    
+    try {
+      const [chk] = await conn.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'material'`
+      );
+      hasItemExtraCols = Number(chk[0]?.cnt || 0) > 0;
+    } catch { hasItemExtraCols = false; }
+    
+    try {
+      const [chk] = await conn.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'material_id'`
+      );
+      hasMaterialIdCol = Number(chk[0]?.cnt || 0) > 0;
+    } catch { hasMaterialIdCol = false; }
+    
+    try {
+      const [chk] = await conn.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'length'`
+      );
+      hasLengthWidthCols = Number(chk[0]?.cnt || 0) > 0;
+    } catch { hasLengthWidthCols = false; }
+
+    for (let i = 0; i < validatedItems.length; i++) {
+      const item = validatedItems[i];
       const serviceId = item.serviceId || item.id;
       const svc = serviceMap[serviceId] || {};
 
@@ -413,17 +741,34 @@ export const checkoutTransaction = async (req, res) => {
         multiplier = Number(svc.express_multiplier) || 1.0;
       }
 
-      // Cek apakah kolom material/brand/special_care_alert sudah ada (graceful)
-      let hasItemExtraCols = false;
-      try {
-        const [chk] = await conn.execute(
-          `SELECT COUNT(*) AS cnt FROM information_schema.columns
-            WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'material'`
+      // Build INSERT query based on available columns
+      if (hasItemExtraCols && hasMaterialIdCol && hasLengthWidthCols) {
+        // Full support: material (text), material_id (FK), length, width
+        await conn.execute(
+          `INSERT INTO tr_transaction_item (
+            transaction_id, service_id, item_no,
+            service_name_snapshot, unit_type_snapshot,
+            qty, price, express_multiplier, is_express,
+            subtotal, notes, material, brand, special_care_alert,
+            material_id, length, width,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          [
+            trxId, serviceId, itemNo,
+            item.serviceName || item.name || svc.service_name || 'Layanan',
+            item.unit || svc.unit || 'pcs',
+            itemQty, itemPrice, multiplier, itemIsExpress,
+            itemSubtotal, item.notes || null,
+            item.material ? String(item.material).slice(0, 80) : null,
+            item.brand ? String(item.brand).slice(0, 80) : null,
+            item.specialCareAlert ? String(item.specialCareAlert).slice(0, 255) : null,
+            item.materialId || item.material_id || null,
+            item.length || null,
+            item.width || null,
+          ]
         );
-        hasItemExtraCols = Number(chk[0]?.cnt || 0) > 0;
-      } catch { hasItemExtraCols = false; }
-
-      if (hasItemExtraCols) {
+      } else if (hasItemExtraCols) {
+        // Legacy: only material (text), brand, special_care_alert
         await conn.execute(
           `INSERT INTO tr_transaction_item (
             transaction_id, service_id, item_no,
@@ -444,6 +789,7 @@ export const checkoutTransaction = async (req, res) => {
           ]
         );
       } else {
+        // Minimal: no extra columns
         await conn.execute(
           `INSERT INTO tr_transaction_item (
             transaction_id, service_id, item_no,
@@ -483,6 +829,17 @@ export const checkoutTransaction = async (req, res) => {
           itemQty
         ]
       );
+
+      // ── Emit realtime: item baru masuk ke tim produksi ───────────────────────
+      try {
+        const itemServiceName = item.serviceName || item.name || svc.service_name || 'Layanan';
+        emitProductionNewItem(
+          outletId, trxId, transactionNo,
+          itemServiceName, customerName,
+          itemIsExpress || false,
+          finalEstimatedDone
+        );
+      } catch {}
 
       // ── Pengurangan stok bahan (auto_deduct) per layanan ─────────────────────
       try {
@@ -544,7 +901,7 @@ export const checkoutTransaction = async (req, res) => {
         );
       }
     } catch (favErr) {
-      console.warn('[checkout] auto-increment favorite gagal:', favErr?.message || favErr);
+      logger.warn('[checkout] auto-increment favorite gagal:', favErr?.message || favErr);
     }
 
     // ── Langkah 3: Insert tr_payment_item (amount harus > 0 per skema DB) ─────
@@ -556,6 +913,62 @@ export const checkoutTransaction = async (req, res) => {
         ) VALUES (?, ?, ?, ?, 'paid', NOW(), NOW())`,
         [trxId, primaryPaymentMethod, paidAmount, userId]
       );
+
+      // ── Langkah 3a: Deduct customer deposit wallet if payment method is deposit ─────
+      if (primaryPaymentMethod === 'deposit') {
+        // 1. Get current wallet balance (FOR UPDATE to prevent race conditions)
+        const [[wallet]] = await conn.execute(
+          `SELECT id, balance FROM mst_customer_wallet WHERE customer_id = ? LIMIT 1 FOR UPDATE`,
+          [customerId]
+        );
+
+        // 2. Validate balance
+        if (!wallet || Number(wallet.balance) < paidAmount) {
+          await conn.rollback();
+          conn.release();
+          return res.status(400).json({
+            success: false,
+            message: `Saldo deposit tidak mencukupi. Saldo: ${Number(wallet?.balance || 0).toLocaleString('id-ID')}, dibutuhkan: ${paidAmount.toLocaleString('id-ID')}`
+          });
+        }
+
+        // 3. Deduct balance
+        await conn.execute(
+          `UPDATE mst_customer_wallet SET balance = balance - ?, updated_at = NOW() WHERE id = ?`,
+          [paidAmount, wallet.id]
+        );
+
+        // 4. Insert into tr_wallet_ledger
+        try {
+          await conn.execute(
+            `INSERT INTO tr_wallet_ledger (
+              customer_id, transaction_id, type, amount, created_by, created_at
+            ) VALUES (?, ?, 'payment', ?, ?, NOW())`,
+            [customerId, trxId, -paidAmount, userId]
+          );
+        } catch (ledgerErr) {
+          logger.warn('[checkoutTransaction] Error inserting wallet ledger:', ledgerErr?.message);
+        }
+
+        // 5. Auto-upgrade to premium member if not already!
+        const [[cust]] = await conn.execute('SELECT id, is_member FROM mst_customer WHERE id = ? LIMIT 1', [customerId]);
+        if (cust && !cust.is_member) {
+          try {
+            const memberNo = 'MBR-' + Date.now().toString().slice(-6);
+            await conn.execute(
+              `INSERT INTO mst_membership (
+                customer_id, member_no, status, discount_pct, 
+                topup_count, started_at, expired_at, registered_by, created_at, updated_at
+              ) VALUES (?, ?, 'active', 20.00, 0, NOW(), DATE_ADD(NOW(), INTERVAL 6 MONTH), ?, NOW(), NOW())`,
+              [customerId, memberNo, userId || customerId]
+            );
+            await conn.execute('UPDATE mst_customer SET is_member = 1, updated_at = NOW() WHERE id = ?', [customerId]);
+            logger.info('[checkout]', 'Customer auto-upgraded to premium', { customerId });
+          } catch (mErr) {
+            logger.warn('[checkoutTransaction] gagal auto-upgrade membership:', mErr?.message);
+          }
+        }
+      }
     }
 
     // ── Langkah 3b: QRIS EDC Integration Log ────────────────────────────────
@@ -576,7 +989,8 @@ export const checkoutTransaction = async (req, res) => {
     }
 
     // ── Langkah 4: Insert tr_logistic_order ────────────────────────────────────
-    // ── Langkah 4: Insert tr_logistic_order ────────────────────────────────────
+    // Handle all pickup types: self, pickup, delivery, both (antar-jemput)
+    // For 'both': create 2 records (pickup + delivery)
     const { scheduleAt, areaZoneId: payloadAreaZoneId, courierName: payloadCourier, deliveryNotes: payloadDeliveryNotes } = req.body;
     const logisticSchedule = scheduleAt ? new Date(scheduleAt) : (dueDate ? new Date(dueDate) : new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
 
@@ -588,23 +1002,44 @@ export const checkoutTransaction = async (req, res) => {
       return parts.length > 0 ? parts.join(' | ') : null;
     })();
 
-    if (pickup) {
-      await conn.execute(
-        `INSERT INTO tr_logistic_order (
-          transaction_id, type, area_zone_id, delivery_fee, scheduled_at, status, notes, created_by, created_at, updated_at
-        ) VALUES (?, 'pickup', ?, ?, ?, 'pending', ?, ?, NOW(), NOW())`,
-        [trxId, payloadAreaZoneId || null, pickupFee || 10000, logisticSchedule, null, userId]
-      );
+    // Helper to check if courier_name/logistic_type columns exist
+    const hasCourierName = await hasColumn('tr_logistic_order', 'courier_name');
+    const hasLogisticType = await hasColumn('tr_logistic_order', 'logistic_type');
+
+    const insertLogistic = async (type, fee, notes, courier) => {
+      if (hasCourierName && hasLogisticType) {
+        await conn.execute(
+          `INSERT INTO tr_logistic_order (
+            transaction_id, type, logistic_type, area_zone_id, delivery_fee,
+            scheduled_at, status, notes, courier_name, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, NOW(), NOW())`,
+          [trxId, type, type, payloadAreaZoneId || null, fee, logisticSchedule, notes, courier || null, userId]
+        );
+      } else if (hasCourierName) {
+        await conn.execute(
+          `INSERT INTO tr_logistic_order (
+            transaction_id, type, area_zone_id, delivery_fee, scheduled_at, status, notes, courier_name, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, NOW(), NOW())`,
+          [trxId, type, payloadAreaZoneId || null, fee, logisticSchedule, notes, courier || null, userId]
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO tr_logistic_order (
+            transaction_id, type, area_zone_id, delivery_fee, scheduled_at, status, notes, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, NOW(), NOW())`,
+          [trxId, type, payloadAreaZoneId || null, fee, logisticSchedule, notes, userId]
+        );
+      }
+    };
+
+    if (pickupType === 'pickup' || pickupType === 'both') {
+      await insertLogistic('pickup', pickupFee || 10000, null, null);
     }
 
-    if (delivery) {
-      await conn.execute(
-        `INSERT INTO tr_logistic_order (
-          transaction_id, type, area_zone_id, delivery_fee, scheduled_at, status, notes, created_by, created_at, updated_at
-        ) VALUES (?, 'delivery', ?, ?, ?, 'pending', ?, ?, NOW(), NOW())`,
-        [trxId, payloadAreaZoneId || null, deliveryFee || 10000, logisticSchedule, logisticNotesText, userId]
-      );
+    if (pickupType === 'delivery' || pickupType === 'both') {
+      await insertLogistic('delivery', deliveryFee || 10000, logisticNotesText, payloadCourier || null);
     }
+    // 'self' and any other type: no logistic records created
 
     // ── Commit ────────────────────────────────────────────────────────────────
     await conn.commit();
@@ -624,7 +1059,7 @@ export const checkoutTransaction = async (req, res) => {
             }).catch(() => {});
           }
         } catch (e) {
-          console.warn('[checkout reorder check]', e?.message || e);
+          logger.warn('[checkout] reorder check failed:', e?.message || e);
         }
       })();
     }
@@ -634,9 +1069,27 @@ export const checkoutTransaction = async (req, res) => {
       emitTransactionCheckout(outletId, transactionNo, trxId);
     } catch {}
 
-    // ── Tambahkan loyalty points (Rp 1.000 = 1 point) — di luar transaction ──
+    // ── WhatsApp notification: order created (best-effort, non-blocking) ─────────
+    (async () => {
+      try {
+        // Fetch full transaction data (we can also use trxRow later once we have it)
+        const [[transactionData]] = await poolWaschenPos.execute(
+          `SELECT id, transaction_no, total, status, payment_status FROM tr_transaction WHERE id = ? LIMIT 1`,
+          [trxId]
+        );
+        if (transactionData) {
+          await sendOrderCreatedNotification(customer, transactionData);
+        }
+      } catch (whatsappErr) {
+        logger.warn('[checkoutTransaction] Error sending WhatsApp notification:', whatsappErr?.message || whatsappErr);
+      }
+    })();
+
+    // ── BUG FIX 11: Point Calculation from total_paid (Requirements 2.16) ──────
+    // Points MUST be calculated from total_paid (actual amount paid), 
+    // NOT from subtotal or computedTotal (before discount)
     // Best-effort, tidak boleh gagalkan checkout
-    if (activeMembershipId && computedTotal > 0) {
+    if (activeMembershipId && paidAmount > 0) {
       try {
         // Ambil rate dari config (default 1000)
         let rate = 1000;
@@ -647,7 +1100,11 @@ export const checkoutTransaction = async (req, res) => {
           if (cfg?.config_val) rate = Number(cfg.config_val) || 1000;
         } catch { /* config belum ada, pakai default */ }
 
-        const earnedPoints = Math.floor(computedTotal / rate);
+        // CRITICAL: Calculate from paidAmount (total_paid), NOT from computedTotal or subtotal
+        const earnedPoints = Math.floor(paidAmount / rate);
+        
+        logger.info('[checkout]', 'Point calculation', { paidAmount, rate, earnedPoints, note: 'NOT from subtotal', computedSubtotal });
+        
         if (earnedPoints > 0) {
           // Poin expire 12 bulan dari sekarang (best practice loyalty)
           await poolWaschenPos.execute(
@@ -660,13 +1117,30 @@ export const checkoutTransaction = async (req, res) => {
               trxId,
               earnedPoints,
               earnedPoints,
-              `Earn dari transaksi ${transactionNo} (${rate.toLocaleString('id-ID')} Rupiah = 1 point)`,
+              `Earn dari transaksi ${transactionNo} (${rate.toLocaleString('id-ID')} Rupiah = 1 point, dihitung dari total_paid: ${paidAmount.toLocaleString('id-ID')})`,
               userId,
             ]
           );
         }
       } catch (loyErr) {
-        console.warn('[checkout] gagal catat loyalty points:', loyErr?.message || loyErr);
+        logger.warn('[checkout] gagal catat loyalty points:', loyErr?.message || loyErr);
+      }
+    }
+
+    // ── Update membership last_transaction_at ──────────────────────────────
+    // Reset inactivity counter when member makes a transaction
+    if (activeMembershipId) {
+      try {
+        await poolWaschenPos.execute(`
+          UPDATE mst_membership SET
+            last_transaction_at = NOW(),
+            inactivity_months = 0,
+            updated_at = NOW()
+          WHERE id = ? AND status = 'active'
+        `, [activeMembershipId]);
+        logger.info('[checkout]', 'Membership inactivity reset', { membershipId: activeMembershipId });
+      } catch (mUpdErr) {
+        logger.warn('[checkout] gagal update membership inactivity:', mUpdErr?.message || mUpdErr);
       }
     }
 
@@ -677,12 +1151,14 @@ export const checkoutTransaction = async (req, res) => {
         t.transaction_no AS transactionNo,
         t.total,
         t.subtotal,
-        (t.member_discount + t.promo_discount + t.manual_discount) AS discount,
-        t.paid_amount    AS paidAmount,
-        t.change_amount  AS changeAmount,
-        t.delivery_fee   AS deliveryFee,
-        t.pickup_type    AS pickupType,
-        t.is_express     AS isExpress,
+        t.member_discount  AS memberDiscount,
+        t.promo_discount   AS promoDiscount,
+        t.manual_discount  AS manualDiscount,
+        t.paid_amount      AS paidAmount,
+        t.change_amount    AS changeAmount,
+        t.delivery_fee     AS deliveryFee,
+        t.pickup_type      AS pickupType,
+        t.is_express       AS isExpress,
         t.notes,
         t.estimated_done_at AS estimatedDoneAt,
         t.created_at        AS createdAt,
@@ -695,6 +1171,7 @@ export const checkoutTransaction = async (req, res) => {
     );
 
     const hasItemActiveFlag = await hasColumn('tr_transaction_item', 'is_active');
+    const hasItemMaterial = await hasColumn('tr_transaction_item', 'material');
     const [itemRows] = await poolWaschenPos.execute(
       `SELECT
         service_id          AS serviceId,
@@ -703,6 +1180,7 @@ export const checkoutTransaction = async (req, res) => {
         qty, price,
         is_express          AS isExpress,
         subtotal
+        ${hasItemMaterial ? ', material, brand, special_care_alert AS specialCareAlert' : ''}
       FROM tr_transaction_item
       WHERE transaction_id = ?
       ${hasItemActiveFlag ? 'AND is_active = 1' : ''}`,
@@ -735,17 +1213,33 @@ export const checkoutTransaction = async (req, res) => {
         ...trxRow,
         status: 'baru',
         items: itemRows,
+        subSessionId, // Phase 3: Individual accountability
+        sessionId,
         payment: {
           method: primaryPaymentMethod ?? (payment?.method ? mapPayMethod(payment.method) : null),
           amount: computedTotal,
           paidAmount,
           changeAmount,
         },
+        // Birthday discount info (Phase 7)
+        birthdayDiscount,
+        birthdayPromoId,
+        discountBreakdown: {
+          promoDiscount,
+          memberDiscount,
+          birthdayDiscount,
+          manualDiscount,
+        },
       },
+      // Additional info for frontend notification
+      birthdayApplied: birthdayDiscount > 0,
+      birthdayMessage: birthdayDiscount > 0
+        ? `🎂 Diskon ultah 10% (Rp ${birthdayDiscount.toLocaleString('id-ID')}) diterapkan!`
+        : null,
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[checkoutTransaction] Error:', err);
+    logger.error('[checkoutTransaction]', 'Error:', err);
     return res.status(500).json({
       success: false,
       message: 'Gagal membuat nota. Transaksi dibatalkan.',
@@ -762,7 +1256,7 @@ const mapDbStatusToFrontend = _dbToUiTxStatus;
 // ─── GET /api/transactions ─────────────────────────────────────────────────────
 export const getTransactions = async (req, res) => {
   try {
-    const { status, outletId, customerId, page = 1, limit = 50, search, paymentStatus, isExpress, period, sort } = req.query;
+    const { status, outletId, customerId, page = 1, limit = 50, search, paymentStatus, pickupStatus, isExpress, period, sort } = req.query;
     const userOutletId = req.user?.outletId;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
@@ -856,6 +1350,20 @@ export const getTransactions = async (req, res) => {
       sql += ' AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
     }
 
+    // Pickup status filter — 'belum' = picked_up_at IS NULL, 'sudah' = picked_up_at IS NOT NULL
+    // Digunakan saat filter "Siap Ambil" dengan sub-filter "Belum Diambil"
+    if (pickupStatus === 'belum') {
+      sql += ' AND t.picked_up_at IS NULL';
+    } else if (pickupStatus === 'sudah') {
+      sql += ' AND t.picked_up_at IS NOT NULL';
+    }
+
+    // "Siap Ambil" (status=selesai) harus finished + lunas + belum diambil (picked_up_at IS NULL)
+    // Override payment filter to paid if not explicitly set — this is the business rule
+    if (status === 'selesai' && !paymentStatus) {
+      sql += " AND t.payment_status = 'paid' AND t.picked_up_at IS NULL";
+    }
+
     // Count total for pagination (dedicated count query for reliability)
     let countWhere = 'WHERE t.deleted_at IS NULL';
     const countParams = [];
@@ -914,6 +1422,18 @@ export const getTransactions = async (req, res) => {
       countWhere += ' AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
     } else if (period === '30d') {
       countWhere += ' AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)';
+    }
+
+    // Pickup status filter for count query
+    if (pickupStatus === 'belum') {
+      countWhere += ' AND t.picked_up_at IS NULL';
+    } else if (pickupStatus === 'sudah') {
+      countWhere += ' AND t.picked_up_at IS NOT NULL';
+    }
+
+    // "Siap Ambil" (status=selesai) harus finished + lunas + belum diambil (picked_up_at IS NULL)
+    if (status === 'selesai' && !paymentStatus) {
+      countWhere += " AND t.payment_status = 'paid' AND t.picked_up_at IS NULL";
     }
 
     const countSql = `SELECT COUNT(*) AS total FROM tr_transaction t JOIN mst_customer c ON c.id = t.customer_id ${countWhere}`;
@@ -981,7 +1501,7 @@ export const getTransactions = async (req, res) => {
 
     return res.status(200).json({ success: true, data: transactions, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } });
   } catch (err) {
-    console.error('[getTransactions] Error:', err);
+    logger.error('[getTransactions]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat transaksi.' });
   }
 };
@@ -1011,11 +1531,19 @@ export const getTransactionById = async (req, res) => {
         t.customer_id AS customerId,
         c.name AS customerName,
         c.phone AS customerPhone,
+        c.email AS customerEmail,
+        c.address_housing AS customerAddressHousing,
+        c.address_block AS customerAddressBlock,
+        c.address_no AS customerAddressNo,
+        c.address_detail AS customerAddressDetail,
+        c.is_member AS customerIsMember,
+        az.name AS customerAreaZoneName,
         COALESCE(w.balance, 0) AS customerDeposit,
         u.name AS cashierName,
         o.name AS outletName
       FROM tr_transaction t
       JOIN mst_customer c ON c.id = t.customer_id
+      LEFT JOIN mst_area_zone az ON az.id = c.area_zone_id
       LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
       JOIN mst_user u ON u.id = t.cashier_id
       LEFT JOIN mst_outlet o ON o.id = t.outlet_id
@@ -1032,6 +1560,7 @@ export const getTransactionById = async (req, res) => {
     const hasPackingCols = await hasColumn('tr_transaction_item', 'packing_needed');
     const hasPackingDone = await hasColumn('tr_item_unit', 'packing_done');
     const hasCarpetCols  = await hasColumn('tr_transaction_item', 'carpet_panjang_cm');
+    const hasItemExtraCols = await hasColumn('tr_transaction_item', 'material');
 
     const packingTiSelect = hasPackingCols
       ? ', COALESCE(ti.packing_needed, 1) AS packingNeeded, ti.packing_notes AS packingNotes' : '';
@@ -1041,12 +1570,14 @@ export const getTransactionById = async (req, res) => {
       ? 'LEFT JOIN tr_item_unit iu_p ON iu_p.transaction_item_id = ti.id' : '';
     const carpetSelect = hasCarpetCols
       ? ', ti.carpet_panjang_cm AS carpetPanjangCm, ti.carpet_lebar_cm AS carpetLebarCm' : '';
+    const itemExtraSelect = hasItemExtraCols
+      ? ', ti.material, ti.brand, ti.special_care_alert AS specialCareAlert' : '';
 
     const [items] = await poolWaschenPos.execute(
       `SELECT ti.id, ti.service_id AS serviceId, ti.service_name_snapshot AS name,
               ti.unit_type_snapshot AS unit, ti.qty, ti.price,
               ti.is_express AS express, ti.express_multiplier AS expressMultiplier, ti.subtotal
-              ${packingTiSelect}${packingIuSelect}${carpetSelect}
+              ${packingTiSelect}${packingIuSelect}${carpetSelect}${itemExtraSelect}
        FROM tr_transaction_item ti ${packingJoin}
        WHERE ti.transaction_id = ?
        ${hasItemActiveFlag ? 'AND ti.is_active = 1' : ''}`,
@@ -1092,7 +1623,7 @@ export const getTransactionById = async (req, res) => {
       }));
     } catch (logError) {
       // Jika query gagal (misal: karena tabel/kolom tidak ada), log warning tapi jangan sampai crash.
-      console.warn(`[getTransactionById] Warning: Could not fetch production logs for tx ${t.id}.`, logError.message);
+        logger.warn('[getTransactionById]', 'Could not fetch production logs', { txId: t.id, error: logError.message });
     }
 
     let paymentRows = [];
@@ -1154,7 +1685,7 @@ export const getTransactionById = async (req, res) => {
       const [photoRows] = await poolWaschenPos.execute(photoQuery, photoParams);
       conditionPhotos = photoRows;
     } catch (err) {
-      console.warn('[getTransactionById] photos query error:', err?.message);
+      logger.warn('[getTransactionById]', 'Photos query error:', err?.message);
       conditionPhotos = [];
     }
 
@@ -1164,7 +1695,7 @@ export const getTransactionById = async (req, res) => {
       const metaMap = await getProductionMetaBatch([t.id]);
       productionMeta = metaMap.get(t.id) || null;
     } catch (err) {
-      console.warn('[getTransactionById] production meta error:', err?.message);
+      logger.warn('[getTransactionById]', 'Production meta error:', err?.message);
     }
 
     const transaction = {
@@ -1209,7 +1740,7 @@ export const getTransactionById = async (req, res) => {
 
     return res.status(200).json({ success: true, data: transaction });
   } catch (err) {
-    console.error('[getTransactionById] Error:', err);
+    logger.error('[getTransactionById]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat detail transaksi.' });
   }
 };
@@ -1250,7 +1781,7 @@ export const recordTransactionPayment = async (req, res) => {
     await conn.beginTransaction();
 
     const [[row]] = await conn.execute(
-      `SELECT id, outlet_id, transaction_no, total, paid_amount, change_amount, payment_status, status
+      `SELECT id, outlet_id, customer_id, transaction_no, total, paid_amount, change_amount, payment_status, status
        FROM tr_transaction
        WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?)
        FOR UPDATE`,
@@ -1322,6 +1853,71 @@ export const recordTransactionPayment = async (req, res) => {
     );
     const paymentItemId = pmtInsert.insertId;
 
+    // ── Deduct customer deposit wallet if payment method is deposit ─────
+    if (methodDb === 'deposit') {
+      if (!row.customer_id) {
+        await conn.rollback();
+        conn.release();
+        return res.status(400).json({
+          success: false,
+          message: 'Transaksi tidak memiliki customer, tidak bisa menggunakan deposit.'
+        });
+      }
+
+      // 1. Get current wallet balance (FOR UPDATE to prevent race conditions)
+      const [[wallet]] = await conn.execute(
+        `SELECT id, balance FROM mst_customer_wallet WHERE customer_id = ? LIMIT 1 FOR UPDATE`,
+        [row.customer_id]
+      );
+
+      // 2. Validate balance
+      if (!wallet || Number(wallet.balance) < applyAmount) {
+        await conn.rollback();
+        conn.release();
+        return res.status(400).json({
+          success: false,
+          message: `Saldo deposit tidak mencukupi. Saldo: ${Number(wallet?.balance || 0).toLocaleString('id-ID')}, dibutuhkan: ${applyAmount.toLocaleString('id-ID')}`
+        });
+      }
+
+      // 3. Deduct balance
+      await conn.execute(
+        `UPDATE mst_customer_wallet SET balance = balance - ?, updated_at = NOW() WHERE id = ?`,
+        [applyAmount, wallet.id]
+      );
+
+      // 4. Insert into tr_wallet_ledger
+      try {
+        await conn.execute(
+          `INSERT INTO tr_wallet_ledger (
+            customer_id, transaction_id, type, amount, created_by, created_at
+          ) VALUES (?, ?, 'payment', ?, ?, NOW())`,
+          [row.customer_id, row.id, -applyAmount, userId]
+        );
+      } catch (ledgerErr) {
+        logger.warn('[recordTransactionPayment]', 'Error inserting wallet ledger:', ledgerErr?.message);
+      }
+
+      // 5. Auto-upgrade to premium member if not already!
+      const [[cust]] = await conn.execute('SELECT id, is_member FROM mst_customer WHERE id = ? LIMIT 1', [row.customer_id]);
+      if (cust && !cust.is_member) {
+        try {
+          const memberNo = 'MBR-' + Date.now().toString().slice(-6);
+          await conn.execute(
+            `INSERT INTO mst_membership (
+              customer_id, member_no, status, discount_pct, 
+              topup_count, started_at, expired_at, registered_by, created_at, updated_at
+            ) VALUES (?, ?, 'active', 20.00, 0, NOW(), DATE_ADD(NOW(), INTERVAL 6 MONTH), ?, NOW(), NOW())`,
+            [row.customer_id, memberNo, userId || row.customer_id]
+          );
+          await conn.execute('UPDATE mst_customer SET is_member = 1, updated_at = NOW() WHERE id = ?', [row.customer_id]);
+          logger.info('[recordTransactionPayment]', 'Customer auto-upgraded to premium', { customerId: row.customer_id });
+        } catch (mErr) {
+          logger.warn('[recordTransactionPayment]', 'gagal auto-upgrade membership:', mErr?.message);
+        }
+      }
+    }
+
     const [methRows] = await conn.execute(
       `SELECT DISTINCT method FROM tr_payment_item WHERE transaction_id = ?`,
       [row.id]
@@ -1379,7 +1975,7 @@ export const recordTransactionPayment = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[recordTransactionPayment] Error:', err);
+    logger.error('[recordTransactionPayment]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal mencatat pembayaran.' });
   } finally {
     conn.release();
@@ -1487,7 +2083,7 @@ export const getDashboardStats = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getDashboardStats] Error:', err);
+    logger.error('[getDashboardStats]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat statistik.' });
   }
 };
@@ -1521,8 +2117,8 @@ export const updateTransactionStatus = async (req, res) => {
 
     const [rows] = await poolWaschenPos.execute(
       hasVersion
-        ? `SELECT id, version, status FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`
-        : `SELECT id, status FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
+        ? `SELECT id, version, status, customer_id, transaction_no, total FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`
+        : `SELECT id, status, customer_id, transaction_no, total FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
       [id, id]
     );
 
@@ -1531,7 +2127,8 @@ export const updateTransactionStatus = async (req, res) => {
     }
 
     const txUUID = rows[0].id;
-    const currentVersion = rows[0].version;
+    const transactionData = rows[0];
+    const currentVersion = hasVersion ? rows[0].version : undefined;
 
     // Optimistic locking — kalau client kirim expectedVersion, cek dulu
     if (hasVersion && expectedVersion != null && Number(expectedVersion) !== Number(currentVersion)) {
@@ -1571,13 +2168,40 @@ export const updateTransactionStatus = async (req, res) => {
       });
     }
 
+    // ── WhatsApp notification: status updated (best-effort, non-blocking) ─────────
+    (async () => {
+      try {
+        // Fetch customer data
+        const [[custRow]] = await poolWaschenPos.execute(
+          `SELECT id, name, phone FROM mst_customer WHERE id = ? LIMIT 1`,
+          [transactionData.customer_id]
+        );
+        if (custRow) {
+          const customer = {
+            id: custRow.id,
+            name: custRow.name,
+            phone: custRow.phone,
+          };
+
+          // Check if order is ready for pickup
+          if (status === 'selesai' || dbStatus === 'ready_for_pickup') {
+            await sendOrderReadyNotification(customer, transactionData);
+          } else {
+            await sendOrderStatusUpdatedNotification(customer, transactionData, status);
+          }
+        }
+      } catch (whatsappErr) {
+        logger.warn('[updateTransactionStatus]', 'Error sending WhatsApp notification:', whatsappErr?.message || whatsappErr);
+      }
+    })();
+
     return res.status(200).json({
       success: true,
       message: 'Status transaksi diperbarui.',
       data: hasVersion ? { newVersion: currentVersion + 1 } : undefined,
     });
   } catch (err) {
-    console.error('[updateTransactionStatus] Error:', err);
+    logger.error('[updateTransactionStatus]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memperbarui status transaksi.' });
   }
 };
@@ -1594,6 +2218,13 @@ export const getProductionQueue = async (req, res) => {
     // Cuma nota yang masih punya unit unfinished. Cancelled/completed di-exclude.
     // tx status ready_for_pickup / ready_for_delivery sudah bukan domain produksi —
     // pindah ke Riwayat. Jadi filter status di sini = pending/process/draft only.
+    // Kriteria "siap diambil": production_status='ready' + payment_status='paid' + picked_up_at IS NULL
+    // Check if logistic columns exist (graceful for older DB versions)
+    const hasCourierNameCol = await hasColumn('tr_logistic_order', 'courier_name');
+    const courierSelect = hasCourierNameCol
+      ? `, (SELECT courier_name FROM tr_logistic_order WHERE transaction_id = t.id AND type = 'delivery' LIMIT 1) AS courierName`
+      : '';
+
     const [rows] = await poolWaschenPos.execute(
       `SELECT
         t.id,
@@ -1605,13 +2236,24 @@ export const getProductionQueue = async (req, res) => {
         t.created_at AS createdAt,
         t.estimated_done_at AS estimatedDoneAt,
         t.notes,
-        t.pickup_type AS pickupType,
+        t.pickup_type AS pickupType
+        ${courierSelect},
         c.name AS customerName,
-        c.phone AS customerPhone
+        c.phone AS customerPhone,
+        c.email AS customerEmail,
+        c.address_housing AS customerAddressHousing,
+        c.address_block AS customerAddressBlock,
+        c.address_no AS customerAddressNo,
+        c.address_detail AS customerAddressDetail,
+        c.is_member AS customerIsMember,
+        az.name AS customerAreaZoneName
       FROM tr_transaction t
       JOIN mst_customer c ON c.id = t.customer_id
+      LEFT JOIN mst_area_zone az ON az.id = c.area_zone_id
       WHERE t.deleted_at IS NULL
         AND t.status IN ('draft', 'pending', 'process', 'ready_for_pickup', 'ready_for_delivery')
+        AND t.picked_up_at IS NULL
+        AND t.payment_status = 'paid'
         AND (t.status NOT IN ('ready_for_pickup', 'ready_for_delivery') OR t.created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY))
       ${userOutletId ? 'AND t.outlet_id = ?' : ''}
       ORDER BY t.is_express DESC, t.estimated_done_at ASC, t.created_at ASC
@@ -1629,21 +2271,24 @@ export const getProductionQueue = async (req, res) => {
     const hasItemActiveFlag = await hasColumn('tr_transaction_item', 'is_active');
     const hasPackingCols = await hasColumn('tr_transaction_item', 'packing_needed');
     const hasPackingDone = await hasColumn('tr_item_unit', 'packing_done');
+    const hasItemExtraCols = await hasColumn('tr_transaction_item', 'material');
 
     const packingQueueSelect = hasPackingCols
       ? ', COALESCE(ti.packing_needed, 1) AS packingNeeded, ti.packing_notes AS packingNotes' : '';
     const packingDoneSelect = hasPackingDone
       ? ', COALESCE(MAX(iu_pk.packing_done), 0) AS packingDone' : '';
+    const itemExtraSelect = hasItemExtraCols
+      ? ', ti.material, ti.brand, ti.special_care_alert AS specialCareAlert' : '';
     const packingDoneJoin = hasPackingDone
       ? `LEFT JOIN tr_item_unit iu_pk ON iu_pk.transaction_item_id = ti.id` : '';
     const packingGroupBy = (hasPackingCols || hasPackingDone)
-      ? `GROUP BY ti.id, ti.transaction_id, ti.service_name_snapshot, ti.unit_type_snapshot, ti.qty, ti.is_express${hasPackingCols ? ', ti.packing_needed, ti.packing_notes' : ''}` : '';
+      ? `GROUP BY ti.id, ti.transaction_id, ti.service_name_snapshot, ti.unit_type_snapshot, ti.qty, ti.is_express${hasPackingCols ? ', ti.packing_needed, ti.packing_notes' : ''}${hasItemExtraCols ? ', ti.material, ti.brand, ti.special_care_alert' : ''}` : '';
 
     const [allItems] = await poolWaschenPos.execute(
       `SELECT ti.id AS itemId, ti.transaction_id,
               ti.service_name_snapshot AS name, ti.unit_type_snapshot AS unit,
               ti.qty, ti.is_express AS isExpress
-              ${packingQueueSelect}${packingDoneSelect}
+              ${packingQueueSelect}${packingDoneSelect}${itemExtraSelect}
        FROM tr_transaction_item ti ${packingDoneJoin}
        WHERE ti.transaction_id IN (${placeholders})
        ${hasItemActiveFlag ? 'AND ti.is_active = 1' : ''}
@@ -1707,6 +2352,9 @@ export const getProductionQueue = async (req, res) => {
           packingNeeded,
           packingDone,
           packingNotes: item.packingNotes || null,
+          material: item.material || null,
+          brand: item.brand || null,
+          specialCareAlert: item.specialCareAlert || null,
         };
       });
 
@@ -1728,7 +2376,8 @@ export const getProductionQueue = async (req, res) => {
         transactionUuid: t.id,
         status: mapDbStatusToFrontend(t.dbStatus, t.pickedUpAt),
         date: new Date(t.createdAt).toISOString().slice(0, 10),
-        estimatedDoneAt: t.estimatedDoneAt ? new Date(t.estimatedDoneAt).toISOString() : null,
+        // Return raw MySQL DATETIME directly — avoids timezone conversion issues
+        estimatedDoneAt: t.estimatedDoneAt || null,
         isExpress: t.isExpress === 1 || t.isExpress === true,
         items,
         total: Number(t.total),
@@ -1743,7 +2392,7 @@ export const getProductionQueue = async (req, res) => {
 
     return res.status(200).json({ success: true, data: transactions });
   } catch (err) {
-    console.error('[getProductionQueue] Error:', err);
+    logger.error('[getProductionQueue]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat antrian produksi.' });
   }
 };
@@ -1847,7 +2496,7 @@ export const cancelTransaction = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Pengajuan pembatalan berhasil dikirim. Menunggu persetujuan Owner.' });
   } catch (err) {
-    console.error('[cancelTransaction] Error:', err);
+    logger.error('[cancelTransaction]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal membatalkan transaksi.' });
   }
 };
@@ -1856,9 +2505,10 @@ export const cancelTransaction = async (req, res) => {
 const VALID_STAGES = ['Diterima', 'Cuci', 'Setrika', 'Packing', 'Selesai'];
 
 export const updateProductionStage = async (req, res) => {
+  const connection = await poolWaschenPos.getConnection();
   try {
     const { id } = req.params;
-    const { stage, itemId } = req.body;
+    const { stage, itemId, expectedVersion } = req.body;
 
     if (!VALID_STAGES.includes(stage)) {
       return res.status(400).json({ success: false, message: `Stage tidak valid. Pilih: ${VALID_STAGES.join(', ')}` });
@@ -1873,47 +2523,75 @@ export const updateProductionStage = async (req, res) => {
       'ironing': 'Setrika', 'packing': 'Packing', 'ready': 'Selesai',
     };
     const dbStatus = stageMap[stage] || 'received';
-    const [rows] = await poolWaschenPos.execute(
-      `SELECT id, pickup_type FROM tr_transaction
-       WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
+
+    // Check if version column exists for optimistic locking
+    const hasVersionCol = await hasColumn('tr_transaction', 'version');
+
+    // Start transaction for atomic operations
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute(
+      hasVersionCol
+        ? `SELECT id, pickup_type, version FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`
+        : `SELECT id, pickup_type FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
       [id, id]
     );
     if (rows.length === 0) {
+      await connection.rollback();
       return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
     }
     const txId = rows[0].id;
     const pickupType = rows[0].pickup_type;
+    const currentVersion = hasVersionCol ? rows[0].version : undefined;
+
+    // Optimistic locking — kalau client kirim expectedVersion, cek dulu (hanya jika version column ada)
+    if (hasVersionCol && expectedVersion != null && Number(expectedVersion) !== Number(currentVersion)) {
+      await connection.rollback();
+      return res.status(409).json({
+        success: false,
+        code: 'STALE_DATA',
+        message: 'Data transaksi sudah diperbarui oleh user lain. Mohon refresh dan coba lagi.',
+        currentVersion,
+      });
+    }
 
     if (dbStatus === 'ready') {
-      const [photoCheck] = await poolWaschenPos.execute(
-        `SELECT id FROM tr_transaction_item_photo WHERE transaction_id = ? AND photo_type = 'packing' LIMIT 1`,
+      // Validasi packing photo — wajib sebelum bisa mark Selesai
+      // tr_item_photo tidak punya transaction_id langsung, perlu JOIN tr_item_unit
+      const [photoCheck] = await connection.execute(
+        `SELECT ip.id FROM tr_item_photo ip
+         JOIN tr_item_unit iu ON iu.id = ip.item_unit_id
+         WHERE iu.transaction_id = ? AND ip.photo_type = 'packing' AND ip.deleted_at IS NULL
+         LIMIT 1`,
         [txId]
       );
       if (!photoCheck.length) {
+        await connection.rollback();
         return res.status(400).json({ success: false, code: 'PACKING_PHOTO_REQUIRED', message: 'Wajib foto packing / serah terima sebelum menandai selesai.' });
       }
     }
     // ── Per-item mode (itemId dikirim) ──────────────────────────────────────
     if (itemId) {
-      const [itemCheck] = await poolWaschenPos.execute(
+      const [itemCheck] = await connection.execute(
         `SELECT id FROM tr_transaction_item WHERE id = ? AND transaction_id = ? LIMIT 1`,
         [itemId, txId]
       );
       if (!itemCheck.length) {
+        await connection.rollback();
         return res.status(400).json({ success: false, message: 'Item tidak ditemukan dalam transaksi ini.' });
       }
 
-      await poolWaschenPos.execute(
+      await connection.execute(
         `UPDATE tr_item_unit SET production_status = ?, updated_at = NOW() WHERE transaction_item_id = ?`,
         [dbStatus, itemId]
       );
 
-      const [unitRows] = await poolWaschenPos.execute(
+      const [unitRows] = await connection.execute(
         `SELECT id FROM tr_item_unit WHERE transaction_item_id = ?`,
         [itemId]
       );
       for (const unit of unitRows) {
-        await poolWaschenPos.execute(
+        await connection.execute(
           `INSERT INTO tr_production_log (item_unit_id, pic_id, stage, status, notes, started_at, created_at)
            VALUES (?, ?, ?, 'done', ?, NOW(), NOW())`,
           [unit.id, req.user?.userId, dbStatus, `[Per-item] Stage: ${stage}`]
@@ -1921,7 +2599,7 @@ export const updateProductionStage = async (req, res) => {
       }
 
       // Cek apakah SEMUA unit di transaksi ini sudah ready
-      const [doneCheck] = await poolWaschenPos.execute(
+      const [doneCheck] = await connection.execute(
         `SELECT COUNT(*) AS total,
                 SUM(CASE WHEN production_status = 'ready' THEN 1 ELSE 0 END) AS readyCount
          FROM tr_item_unit WHERE transaction_id = ?`,
@@ -1932,12 +2610,14 @@ export const updateProductionStage = async (req, res) => {
 
       if (allDone) {
         const nextStatus = pickupType === 'delivery' ? 'ready_for_delivery' : 'ready_for_pickup';
-        await poolWaschenPos.execute(
-          `UPDATE tr_transaction SET status = ?, updated_at = NOW() WHERE id = ?`,
+        await connection.execute(
+          hasVersionCol
+            ? `UPDATE tr_transaction SET status = ?, updated_at = NOW(), version = version + 1 WHERE id = ?`
+            : `UPDATE tr_transaction SET status = ?, updated_at = NOW() WHERE id = ?`,
           [nextStatus, txId]
         );
         try {
-          await poolWaschenPos.execute(
+          await connection.execute(
             `INSERT INTO tr_notification (transaction_id, type, recipient_customer_id, wa_number, message_body, status, sent_by, created_at, updated_at)
              SELECT t.id, 'selesai', t.customer_id, COALESCE(c.phone,'-'),
                CONCAT('Cucian Anda (', t.transaction_no, ') sudah selesai dan siap ', IF(t.pickup_type='delivery','diantar.','diambil di outlet.')),
@@ -1947,14 +2627,16 @@ export const updateProductionStage = async (req, res) => {
           );
         } catch (_) { /* notifikasi tidak bloking */ }
       } else {
-        await poolWaschenPos.execute(
-          `UPDATE tr_transaction SET status = 'process', updated_at = NOW() WHERE id = ? AND status IN ('draft','pending')`,
+        await connection.execute(
+          hasVersionCol
+            ? `UPDATE tr_transaction SET status = 'process', updated_at = NOW(), version = version + 1 WHERE id = ? AND status IN ('draft','pending')`
+            : `UPDATE tr_transaction SET status = 'process', updated_at = NOW() WHERE id = ? AND status IN ('draft','pending')`,
           [txId]
         );
       }
 
       // Kembalikan progress item ini (deduplicated)
-      const [logRows] = await poolWaschenPos.execute(
+      const [logRows] = await connection.execute(
         `SELECT pl.stage, pl.started_at AS timestamp
          FROM tr_production_log pl
          JOIN tr_item_unit iu ON iu.id = pl.item_unit_id
@@ -1969,24 +2651,39 @@ export const updateProductionStage = async (req, res) => {
         if (!seen.has(s)) { seen.add(s); progress.push({ stage: s, timestamp: l.timestamp }); }
       }
 
-      return res.status(200).json({
-        success: true,
-        message: `Stage '${stage}' berhasil dicatat untuk layanan ini.`,
-        data: { progress, allDone },
-      });
+      await connection.commit();
+
+    // Emit realtime update untuk production dashboard (per-item mode)
+    try {
+      const [txRow] = await poolWaschenPos.execute(
+        `SELECT outlet_id FROM tr_transaction WHERE id = ? LIMIT 1`,
+        [txId]
+      );
+      if (txRow.length > 0) {
+        emitProductionUpdate(txRow[0].outlet_id, txId, itemId || null, dbStatus);
+      }
+    } catch (e) {
+      logger.warn('[updateProductionStage]', 'EventBus emit failed:', e?.message);
     }
 
+    return res.status(200).json({
+      success: true,
+      message: `Stage '${stage}' berhasil dicatat untuk layanan ini.`,
+      data: { progress, allDone, newVersion: hasVersionCol ? Number(currentVersion || 0) + 1 : undefined },
+    });
+  }
+
     // ── Fallback: update semua item di transaksi (mode lama) ─────────────────
-    await poolWaschenPos.execute(
+    await connection.execute(
       `UPDATE tr_item_unit SET production_status = ?, updated_at = NOW() WHERE transaction_id = ?`,
       [dbStatus, txId]
     );
-    const [unitRows] = await poolWaschenPos.execute(
+    const [unitRows] = await connection.execute(
       `SELECT id FROM tr_item_unit WHERE transaction_id = ?`,
       [txId]
     );
     for (const unit of unitRows) {
-      await poolWaschenPos.execute(
+      await connection.execute(
         `INSERT INTO tr_production_log (item_unit_id, pic_id, stage, status, notes, started_at, created_at)
          VALUES (?, ?, ?, 'done', ?, NOW(), NOW())`,
         [unit.id, req.user?.userId, dbStatus, `Stage diubah menjadi: ${stage}`]
@@ -1994,12 +2691,14 @@ export const updateProductionStage = async (req, res) => {
     }
     if (dbStatus === 'packing' || dbStatus === 'ready') {
       const nextStatus = pickupType === 'delivery' ? 'ready_for_delivery' : 'ready_for_pickup';
-      await poolWaschenPos.execute(
-        `UPDATE tr_transaction SET status = ?, updated_at = NOW() WHERE id = ?`,
+      await connection.execute(
+        hasVersionCol
+          ? `UPDATE tr_transaction SET status = ?, updated_at = NOW(), version = version + 1 WHERE id = ?`
+          : `UPDATE tr_transaction SET status = ?, updated_at = NOW() WHERE id = ?`,
         [nextStatus, txId]
       );
       try {
-        await poolWaschenPos.execute(
+        await connection.execute(
           `INSERT INTO tr_notification (transaction_id, type, recipient_customer_id, wa_number, message_body, status, sent_by, created_at, updated_at)
            SELECT t.id, 'selesai', t.customer_id, COALESCE(c.phone,'-'),
              CONCAT('Cucian Anda dengan nota ', t.transaction_no, ' sudah selesai dan siap ', IF(t.pickup_type='delivery','diantar oleh kurir kami.','diambil di outlet.')),
@@ -2009,13 +2708,15 @@ export const updateProductionStage = async (req, res) => {
         );
       } catch (_) { /* notifikasi tidak bloking */ }
     } else {
-      await poolWaschenPos.execute(
-        `UPDATE tr_transaction SET status = 'process', updated_at = NOW() WHERE id = ? AND status IN ('draft','pending')`,
+      await connection.execute(
+        hasVersionCol
+          ? `UPDATE tr_transaction SET status = 'process', updated_at = NOW(), version = version + 1 WHERE id = ? AND status IN ('draft','pending')`
+          : `UPDATE tr_transaction SET status = 'process', updated_at = NOW() WHERE id = ? AND status IN ('draft','pending')`,
         [txId]
       );
     }
 
-    const [logRows] = await poolWaschenPos.execute(
+    const [logRows] = await connection.execute(
       `SELECT pl.stage, pl.started_at AS timestamp
        FROM tr_production_log pl
        JOIN tr_item_unit iu ON iu.id = pl.item_unit_id
@@ -2025,14 +2726,32 @@ export const updateProductionStage = async (req, res) => {
     );
     const progress = logRows.map((l) => ({ stage: reverseMap[l.stage] || l.stage, timestamp: l.timestamp }));
 
+    await connection.commit();
+
+    // Emit realtime update untuk production dashboard (transaction-level mode)
+    try {
+      const [txRow] = await poolWaschenPos.execute(
+        `SELECT outlet_id FROM tr_transaction WHERE id = ? LIMIT 1`,
+        [txId]
+      );
+      if (txRow.length > 0) {
+        emitProductionUpdate(txRow[0].outlet_id, txId, null, dbStatus);
+      }
+    } catch (e) {
+      logger.warn('[updateProductionStage]', 'EventBus emit failed:', e?.message);
+    }
+
     return res.status(200).json({
       success: true,
       message: `Stage '${stage}' berhasil dicatat.`,
-      data: { progress },
+      data: { progress, newVersion: hasVersionCol ? Number(currentVersion || 0) + 1 : undefined },
     });
   } catch (err) {
-    console.error('[updateProductionStage] Error:', err);
+    await connection.rollback();
+    logger.error('[updateProductionStage]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal mencatat progress produksi.' });
+  } finally {
+    connection.release();
   }
 };
 
@@ -2040,6 +2759,7 @@ export const updateProductionStage = async (req, res) => {
 // Rollback stage terakhir (untuk handle salah pencet)
 // Hanya boleh revert kalau belum sampai 'Selesai' / 'Packing complete'
 export const revertProductionStage = async (req, res) => {
+  const connection = await poolWaschenPos.getConnection();
   try {
     const { id } = req.params;
     const { itemId, reason } = req.body;
@@ -2049,15 +2769,19 @@ export const revertProductionStage = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Alasan revert wajib diisi.' });
     }
 
-    const [rows] = await poolWaschenPos.execute(
-      `SELECT id FROM tr_transaction
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute(
+      `SELECT id, outlet_id FROM tr_transaction
        WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?) LIMIT 1`,
       [id, id]
     );
     if (rows.length === 0) {
+      await connection.rollback();
       return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
     }
     const txId = rows[0].id;
+    const outletId = rows[0].outlet_id;
 
     // Stage hierarchy untuk revert
     const stageOrder = ['received', 'washing', 'drying', 'ironing', 'packing', 'ready', 'done'];
@@ -2072,61 +2796,71 @@ export const revertProductionStage = async (req, res) => {
 
     if (itemId) {
       // Per-item revert
-      const [units] = await poolWaschenPos.execute(
+      const [units] = await connection.execute(
         `SELECT id, production_status FROM tr_item_unit
          WHERE transaction_id = ? AND transaction_item_id = ?`,
         [txId, itemId]
       );
       if (units.length === 0) {
+        await connection.rollback();
         return res.status(404).json({ success: false, message: 'Item tidak ditemukan.' });
       }
       // Tidak boleh revert kalau status = 'done' (sudah diserahkan ke customer)
       if (units.some(u => u.production_status === 'done')) {
+        await connection.rollback();
         return res.status(409).json({ success: false, message: 'Tidak bisa revert: item sudah diserahkan ke customer.' });
       }
 
       for (const u of units) {
         const newStatus = revertMap[u.production_status] || u.production_status;
         if (newStatus !== u.production_status) {
-          await poolWaschenPos.execute(
+          await connection.execute(
             `UPDATE tr_item_unit SET production_status = ?, updated_at = NOW() WHERE id = ?`,
             [newStatus, u.id]
           );
-          // Hapus production_log entry terakhir untuk audit (tapi keep history untuk traceability)
-          await poolWaschenPos.execute(
+          // Log revert untuk audit trail
+          await connection.execute(
             `INSERT INTO tr_production_log (item_unit_id, stage, status, started_at, completed_at, pic_id, notes)
              VALUES (?, ?, 'reverted', NOW(), NOW(), ?, ?)`,
             [u.id, u.production_status, userId, `[REVERT] ${reason.trim()}`]
-          ).catch(() => {});
+          );
+ // Emit realtime update
+          emitProductionUpdate(outletId, txId, u.id, newStatus);
         }
       }
     } else {
       // Tx-level revert: revert semua item
-      const [units] = await poolWaschenPos.execute(
+      const [units] = await connection.execute(
         `SELECT id, production_status FROM tr_item_unit WHERE transaction_id = ?`,
         [txId]
       );
       if (units.some(u => u.production_status === 'done')) {
+        await connection.rollback();
         return res.status(409).json({ success: false, message: 'Tidak bisa revert: order sudah diserahkan ke customer.' });
       }
       for (const u of units) {
         const newStatus = revertMap[u.production_status] || u.production_status;
         if (newStatus !== u.production_status) {
-          await poolWaschenPos.execute(
+          await connection.execute(
             `UPDATE tr_item_unit SET production_status = ?, updated_at = NOW() WHERE id = ?`,
             [newStatus, u.id]
           );
+          emitProductionUpdate(outletId, txId, u.id, newStatus);
         }
       }
     }
 
+    await connection.commit();
     return res.status(200).json({
       success: true,
       message: 'Stage berhasil dikembalikan ke tahap sebelumnya.',
     });
   } catch (err) {
-    console.error('[revertProductionStage] Error:', err);
+    await connection.rollback();
+    logger.error('[revertProductionStage]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal revert stage.' });
+  } finally {
+    connection.release();
   }
 };
 
@@ -2187,7 +2921,7 @@ export const requestApproval = async (req, res) => {
         : 'Pengajuan penghapusan berhasil dikirim. Menunggu persetujuan Admin.',
     });
   } catch (err) {
-    console.error('[requestApproval] Error:', err);
+    logger.error('[requestApproval]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal mengajukan approval.' });
   }
 };
@@ -2198,35 +2932,41 @@ export const requestApproval = async (req, res) => {
 // Body: { photos: [{ url, type }], notes, isDamage, phase, itemId }
 // phase: 'receive' | 'packing' (menentukan default photo_type kalau type tidak diset)
 export const saveItemCondition = async (req, res) => {
+  const connection = await poolWaschenPos.getConnection();
   try {
     const { id } = req.params;
     const { photos, notes, isDamage, phase, itemId } = req.body;
     const userId = req.user?.userId || null;
 
+    await connection.beginTransaction();
+
     // 1. Cari transaksi
-    const [txRow] = await poolWaschenPos.execute(
-      `SELECT id FROM tr_transaction WHERE id = ? OR transaction_no = ? LIMIT 1`,
+    const [txRow] = await connection.execute(
+      `SELECT id, outlet_id FROM tr_transaction WHERE id = ? OR transaction_no = ? LIMIT 1`,
       [id, id]
     );
     if (txRow.length === 0) {
+      await connection.rollback();
       return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
     }
     const txId = txRow[0].id;
+    const outletId = txRow[0].outlet_id;
 
     // 2. Cari item_unit yang akan dilekati foto
     let unitRows;
     if (itemId) {
-      [unitRows] = await poolWaschenPos.execute(
+      [unitRows] = await connection.execute(
         `SELECT id FROM tr_item_unit WHERE transaction_id = ? AND transaction_item_id = ? LIMIT 1`,
         [txId, itemId]
       );
     } else {
-      [unitRows] = await poolWaschenPos.execute(
+      [unitRows] = await connection.execute(
         `SELECT id FROM tr_item_unit WHERE transaction_id = ? LIMIT 1`,
         [txId]
       );
     }
     if (unitRows.length === 0) {
+      await connection.rollback();
       return res.status(400).json({
         success: false,
         message: 'Tidak ada item unit untuk dilekati foto. Pastikan transaksi sudah ada item.',
@@ -2252,12 +2992,13 @@ export const saveItemCondition = async (req, res) => {
       return null; // unknown → use default
     };
 
-    // 4. Insert semua foto
+    // 4. Insert semua foto dengan transaction
     // expires_at format MySQL DATETIME (yyyy-mm-dd HH:MM:SS)
     const expiresDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const expiresAt = expiresDate.toISOString().slice(0, 19).replace('T', ' ');
     const photoArr = Array.isArray(photos) ? photos : [];
     let insertedCount = 0;
+    let lastInsertError = null;
 
     for (const p of photoArr) {
       const url = typeof p === 'string' ? p : (p?.url || p?.photoUrl);
@@ -2266,44 +3007,58 @@ export const saveItemCondition = async (req, res) => {
       const photoType = mapType(p?.type) || defaultPhotoType;
 
       try {
-        await poolWaschenPos.execute(
+        await connection.execute(
           `INSERT INTO tr_item_photo (item_unit_id, photo_url, photo_type, notes, expires_at, uploaded_by, created_at)
            VALUES (?, ?, ?, ?, ?, ?, NOW())`,
           [unitId, url, photoType, notes || null, expiresAt, userId]
         );
         insertedCount++;
       } catch (insertErr) {
-        console.error('[saveItemCondition] insert failed:', insertErr.message, { code: insertErr.code, photoType });
+        logger.error('[saveItemCondition]', 'Insert failed:', { code: insertErr.code, photoType, error: insertErr.message });
+        lastInsertError = insertErr;
+        // Continue to next photo but track failure
       }
     }
 
     // 5. Edge case: tidak ada foto tapi ada notes (pure text laporan)
     if (insertedCount === 0 && notes && notes.trim()) {
       try {
-        await poolWaschenPos.execute(
+        await connection.execute(
           `INSERT INTO tr_item_photo (item_unit_id, photo_url, photo_type, notes, expires_at, uploaded_by, created_at)
            VALUES (?, ?, ?, ?, ?, ?, NOW())`,
           [unitId, 'note_only', defaultPhotoType, notes, expiresAt, userId]
         );
         insertedCount++;
       } catch (e) {
-        console.error('[saveItemCondition] note-only insert failed:', e.message);
+        logger.error('[saveItemCondition]', 'Note-only insert failed:', e.message);
+        lastInsertError = e;
       }
     }
 
     // 6. Tag damage di transaction notes
     if (isDamage) {
-      await poolWaschenPos.execute(
+      await connection.execute(
         `UPDATE tr_transaction SET notes = CONCAT(COALESCE(notes, ''), ' | [AWAS ADA KERUSAKAN AWAL]') WHERE id = ?`,
         [txId]
-      ).catch(() => {});
+      );
     }
 
     if (insertedCount === 0) {
+      await connection.rollback();
       return res.status(400).json({
         success: false,
         message: 'Tidak ada foto/catatan yang berhasil disimpan. Coba ulangi.',
+ error: lastInsertError?.message || 'Unknown error',
       });
+    }
+
+    await connection.commit();
+
+    // Emit realtime update untuk photo refresh
+    try {
+      emitPhotoSaved(outletId, txId, unitId, defaultPhotoType);
+    } catch (e) {
+      logger.warn('[saveItemCondition]', 'EventBus emit failed:', e?.message);
     }
 
     return res.status(200).json({
@@ -2312,8 +3067,11 @@ export const saveItemCondition = async (req, res) => {
       data: { insertedCount, defaultPhotoType },
     });
   } catch (err) {
-    console.error('[saveItemCondition] Error:', err);
+    await connection.rollback();
+    logger.error('[saveItemCondition]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal menyimpan kondisi barang.' });
+  } finally {
+    connection.release();
   }
 };
 
@@ -2346,7 +3104,7 @@ export const deleteItemPhoto = async (req, res) => {
 
     return res.json({ success: true, message: 'Foto berhasil dihapus.' });
   } catch (err) {
-    console.error('[deleteItemPhoto]', err);
+    logger.error('[deleteItemPhoto]', err);
     return res.status(500).json({ success: false, message: 'Gagal menghapus foto.' });
   }
 };
@@ -2396,7 +3154,7 @@ export const updateItemPhoto = async (req, res) => {
 
     return res.json({ success: true, message: 'Foto berhasil diperbarui.' });
   } catch (err) {
-    console.error('[updateItemPhoto]', err);
+    logger.error('[updateItemPhoto]', err);
     return res.status(500).json({ success: false, message: 'Gagal memperbarui foto.' });
   }
 };
@@ -2440,7 +3198,7 @@ export const getTransactionPhotos = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getTransactionPhotos]', err);
+    logger.error('[getTransactionPhotos]', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -2474,7 +3232,7 @@ export const saveReview = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Review berhasil disimpan.' });
   } catch (err) {
-    console.error('[saveReview] Error:', err);
+    logger.error('[saveReview]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal menyimpan review.' });
   }
 };
@@ -2486,7 +3244,7 @@ export const updateDeliveryType = async (req, res) => {
     const { id } = req.params;
     const { pickupType, pickupFee = 10000, deliveryFee = 10000, scheduleAt, areaZoneId, notes } = req.body;
 
-    const VALID_TYPES = ['self', 'pickup', 'delivery'];
+    const VALID_TYPES = ['self', 'pickup', 'delivery', 'both'];
     if (!VALID_TYPES.includes(pickupType)) {
       conn.release();
       return res.status(400).json({ success: false, message: `pickupType harus salah satu dari: ${VALID_TYPES.join(', ')}` });
@@ -2564,7 +3322,7 @@ export const updateDeliveryType = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[updateDeliveryType] Error:', err);
+    logger.error('[updateDeliveryType]', err);
     return res.status(500).json({ success: false, message: 'Gagal mengubah jenis pengantaran.' });
   } finally {
     conn.release();
@@ -2625,7 +3383,7 @@ export const updatePackingInfo = async (req, res) => {
       data: result[0] || { packingNeeded: 1, packingNotes: null, packingDone: 0 },
     });
   } catch (err) {
-    console.error('[updatePackingInfo] Error:', err);
+    logger.error('[updatePackingInfo]', err);
     return res.status(500).json({ success: false, message: 'Gagal memperbarui info packing.' });
   }
 };
@@ -2674,7 +3432,7 @@ const getProductionMetaBatch = async (transactionIds) => {
     );
     photoRows = pr;
   } catch (err) {
-    console.warn('[getProductionMetaBatch] photo query error:', err?.message);
+    logger.warn('[getProductionMetaBatch]', 'Photo query error:', err?.message);
     photoRows = [];
   }
 
@@ -2846,154 +3604,178 @@ export const getProductionHistory = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getProductionHistory] Error:', err);
+    logger.error('[getProductionHistory]', 'Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat riwayat produksi.' });
   }
 };
 
-// ─── GET /api/transactions/production/order/:id — detail riwayat (role produksi) ───
-export const getProductionOrderDetail = async (req, res) => {
+// ─── PATCH /api/transactions/:id/reschedule — ubah estimasi & jadwal pickup/delivery ───
+export const rescheduleTransaction = async (req, res) => {
   try {
     const { id } = req.params;
-    const userOutletId = req.user?.outletId;
+    const { estimated_done_at, pickup_type, pickup_address, pickup_notes, reason } = req.body;
 
-    const [trxRows] = await poolWaschenPos.execute(
-      `SELECT t.id, t.transaction_no AS transactionNo, t.status AS dbStatus,
-              t.picked_up_at AS pickedUpAt, t.is_express AS isExpress,
-              t.notes, t.estimated_done_at AS estimatedDoneAt,
-              t.created_at AS createdAt, t.updated_at AS updatedAt,
-              t.pickup_type AS pickupType,
+    if (!estimated_done_at && !pickup_type) {
+      return res.status(400).json({ success: false, message: 'estimated_done_at atau pickup_type wajib diisi.' });
+    }
+
+    // Verify transaction exists
+    const [[tx]] = await poolWaschenPos.execute(
+      `SELECT id, status, estimated_done_at, pickup_type FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?)`,
+      [id, id]
+    );
+    if (!tx) return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
+
+    // Cannot reschedule completed/cancelled transactions
+    if (['completed', 'cancelled', 'picked_up'].includes(tx.status)) {
+      return res.status(422).json({ success: false, message: `Tidak dapat mengubah jadwal transaksi dengan status '${tx.status}'.` });
+    }
+
+    const updates = [];
+    const params = [];
+    if (estimated_done_at !== undefined) { updates.push('estimated_done_at = ?'); params.push(new Date(estimated_done_at)); }
+    if (pickup_type !== undefined) { updates.push('pickup_type = ?'); params.push(pickup_type); }
+    if (pickup_address !== undefined) { updates.push('pickup_address = ?'); params.push(pickup_address); }
+    if (pickup_notes !== undefined) { updates.push('pickup_notes = ?'); params.push(pickup_notes); }
+
+    params.push(id, id);
+    await poolWaschenPos.execute(
+      `UPDATE tr_transaction SET ${updates.join(', ')}, updated_at = NOW()
+       WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?)`,
+      params
+    );
+
+    writeAudit(poolWaschenPos, {
+      userId: req.user?.userId,
+      entityType: 'transaction',
+      entityId: tx.id,
+      action: 'reschedule_transaction',
+      newData: { estimated_done_at, pickup_type, pickup_address, pickup_notes, reason },
+      req,
+    }).catch(() => {});
+
+    return res.status(200).json({ success: true, message: 'Jadwal berhasil diperbarui.' });
+  } catch (err) {
+    logger.error('[rescheduleTransaction]', err);
+    return res.status(500).json({ success: false, message: 'Gagal memperbarui jadwal.' });
+  }
+};
+
+// ─── POST /api/transactions/:id/cancellation-requests — ajukan pembatalan ───
+export const requestCancellation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, type = 'cancellation' } = req.body;
+
+    if (!reason || reason.trim().length < 5) {
+      return res.status(400).json({ success: false, message: 'Alasan pembatalan minimal 5 karakter.' });
+    }
+
+    const [[tx]] = await poolWaschenPos.execute(
+      `SELECT id, status, customer_id FROM tr_transaction WHERE deleted_at IS NULL AND (id = ? OR transaction_no = ?)`,
+      [id, id]
+    );
+    if (!tx) return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
+
+    if (['completed', 'cancelled', 'picked_up'].includes(tx.status)) {
+      return res.status(422).json({ success: false, message: `Tidak dapat membatalkan transaksi dengan status '${tx.status}'.` });
+    }
+
+    // Check for existing pending request
+    const [[existing]] = await poolWaschenPos.execute(
+      `SELECT id FROM tr_approval WHERE entity_type = 'transaction' AND entity_id = ? AND status = 'pending' LIMIT 1`,
+      [tx.id]
+    );
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'Sudah ada permintaan persetujuan yang masih pending.' });
+    }
+
+    await poolWaschenPos.execute(
+      `INSERT INTO tr_approval (entity_type, entity_id, type, reason, status, requested_by, requested_at)
+       VALUES ('transaction', ?, 'cancellation', ?, 'pending', ?, NOW())`,
+      [tx.id, reason.trim(), req.user?.userId || null]
+    );
+
+    writeAudit(poolWaschenPos, {
+      userId: req.user?.userId,
+      entityType: 'transaction',
+      entityId: tx.id,
+      action: 'request_cancellation',
+      newData: { reason, type },
+      req,
+    }).catch(() => {});
+
+    return res.status(201).json({ success: true, message: 'Permintaan pembatalan berhasil diajukan.' });
+  } catch (err) {
+    logger.error('[requestCancellation]', err);
+    return res.status(500).json({ success: false, message: 'Gagal mengajukan pembatalan.' });
+  }
+};
+
+// ─── GET /api/transactions/:id/labels — data label untuk print nota/item ───
+export const getTransactionLabels = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { item_id } = req.query;
+
+    const [txRows] = await poolWaschenPos.execute(
+      `SELECT t.id, t.transaction_no AS transactionNo, t.created_at AS createdAt,
+              t.estimated_done_at AS estimatedDoneAt, t.is_express AS isExpress,
+              t.pickup_type AS pickupType, t.status AS dbStatus,
               c.name AS customerName, c.phone AS customerPhone,
-              o.name AS outletName
+              o.name AS outletName, o.address AS outletAddress, o.phone AS outletPhone
        FROM tr_transaction t
        JOIN mst_customer c ON c.id = t.customer_id
        LEFT JOIN mst_outlet o ON o.id = t.outlet_id
-       WHERE t.deleted_at IS NULL AND (t.id = ? OR t.transaction_no = ?)
-       ${userOutletId ? 'AND t.outlet_id = ?' : ''}
-       LIMIT 1`,
-      userOutletId ? [id, id, userOutletId] : [id, id]
+       WHERE t.deleted_at IS NULL AND (t.id = ? OR t.transaction_no = ?)`,
+      [id, id]
     );
+    if (!txRows.length) return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
 
-    if (!trxRows.length) {
-      return res.status(404).json({ success: false, message: 'Order tidak ditemukan.' });
-    }
+    const tx = txRows[0];
 
-    const t = trxRows[0];
-    const stageMap = {
-      received: 'Diterima', washing: 'Cuci', drying: 'Cuci',
-      ironing: 'Setrika', qc: 'QC', packing: 'Packing', ready: 'Selesai',
-    };
-    const hasItemActiveFlag = await hasColumn('tr_transaction_item', 'is_active');
-    const [items] = await poolWaschenPos.execute(
-      `SELECT ti.id AS itemId, ti.service_name_snapshot AS name,
-              ti.unit_type_snapshot AS unit, ti.qty, ti.is_express AS isExpress
-       FROM tr_transaction_item ti
-       WHERE ti.transaction_id = ?
-       ${hasItemActiveFlag ? 'AND ti.is_active = 1' : ''}`,
-      [t.id]
-    );
+    let itemSql = `SELECT ti.id AS itemId, ti.service_name_snapshot AS serviceName,
+                          ti.qty, ti.unit_type_snapshot AS unitType,
+                          ti.unit_price_snapshot AS unitPrice, ti.subtotal,
+                          ti.notes AS itemNotes, ti.is_express AS isExpress,
+                          ti.packing_needed AS packingNeeded, ti.packing_done AS packingDone,
+                          p.stage_name AS currentStage, p.updated_at AS stageUpdatedAt
+                   FROM tr_transaction_item ti
+                   LEFT JOIN tr_production p ON p.item_id = ti.id
+                   WHERE ti.transaction_id = ? AND ti.is_active = 1`;
+    const itemParams = [tx.id];
+    if (item_id) { itemSql += ' AND ti.id = ?'; itemParams.push(item_id); }
 
-    const [logRows] = await poolWaschenPos.execute(
-      `SELECT pl.stage, pl.started_at AS startedAt, pl.notes,
-              iu.transaction_item_id AS itemId
-       FROM tr_production_log pl
-       JOIN tr_item_unit iu ON iu.id = pl.item_unit_id
-       WHERE iu.transaction_id = ?
-       ORDER BY pl.started_at ASC`,
-      [t.id]
-    );
+    const [itemRows] = await poolWaschenPos.execute(itemSql, itemParams);
 
-    const timelineMap = new Map();
-    const logsByItem = new Map();
-    for (const log of logRows) {
-      const stageLabel = stageMap[log.stage] || log.stage;
-      const entry = { stage: stageLabel, timestamp: log.startedAt };
-      if (!timelineMap.has(stageLabel)) timelineMap.set(stageLabel, entry);
-      const list = logsByItem.get(log.itemId) || [];
-      if (!list.some((l) => l.stage === stageLabel)) list.push(entry);
-      logsByItem.set(log.itemId, list);
-    }
+    const labels = itemRows.map(item => ({
+      itemId: item.itemId,
+      notaCode: tx.transactionNo,
+      serviceName: item.serviceName,
+      qty: item.qty,
+      unit: item.unitType,
+      unitPrice: item.unitPrice,
+      subtotal: item.subtotal,
+      itemNotes: item.itemNotes,
+      isExpress: !!item.isExpress,
+      packingNeeded: !!item.packingNeeded,
+      packingDone: !!item.packingDone,
+      currentStage: item.currentStage || 'Diterima',
+      estimatedDoneAt: tx.estimatedDoneAt,
+      createdAt: tx.createdAt,
+      customerName: tx.customerName,
+      customerPhone: tx.customerPhone,
+      outletName: tx.outletName,
+      outletAddress: tx.outletAddress,
+      outletPhone: tx.outletPhone,
+      pickupType: tx.pickupType,
+      isExpressNota: !!tx.isExpress,
+      qrData: `WASCHEN:${tx.transactionNo}:${item.itemId}`,
+    }));
 
-    const STAGE_ORDER = ['Diterima', 'Cuci', 'Setrika', 'Packing', 'Selesai', 'QC'];
-    const timeline = STAGE_ORDER
-      .filter((s) => timelineMap.has(s))
-      .map((s) => timelineMap.get(s));
-
-    const findStageTime = (dbStage) => {
-      const row = logRows.find((l) => l.stage === dbStage);
-      return row?.startedAt || null;
-    };
-
-    let conditionPhotos = [];
-    try {
-      const [photoRows] = await poolWaschenPos.execute(
-        `SELECT ip.id, ip.photo_url AS url, ip.photo_type AS type, ip.notes,
-                ip.created_at AS createdAt, u.name AS uploadedByName
-         FROM tr_item_photo ip
-         JOIN tr_item_unit iu ON iu.id = ip.item_unit_id
-         LEFT JOIN mst_user u ON u.id = ip.uploaded_by
-         WHERE iu.transaction_id = ?
-           AND ip.deleted_at IS NULL
-           AND ip.photo_url IS NOT NULL
-           AND ip.photo_url <> 'note_only'
-         ORDER BY ip.created_at ASC`,
-        [t.id]
-      );
-      conditionPhotos = photoRows;
-    } catch (err) {
-      console.warn('[conditionPhotos query]', err?.message);
-      conditionPhotos = [];
-    }
-
-    const receivePhotos = conditionPhotos.filter((p) => RECEIVE_PHOTO_TYPES.has(p.type));
-    const packingPhotos = conditionPhotos.filter((p) => PACKING_PHOTO_TYPES.has(p.type));
-
-    const metaMap = await getProductionMetaBatch([t.id]);
-    const userNotes = (t.notes || '').replace(/\[Bayar:[^\]]*\]/g, '').trim();
-
-    const serviceItems = items.map((item) => {
-      const progress = logsByItem.get(item.itemId) || [];
-      const doneStages = progress.map((p) => p.stage);
-      const currentStage = STAGE_ORDER.find((s) => !doneStages.includes(s)) || 'Selesai';
-      return {
-        itemId: item.itemId,
-        name: item.name,
-        unit: item.unit,
-        qty: Number(item.qty || 1),
-        isExpress: item.isExpress === 1 || item.isExpress === true,
-        progress,
-        currentStage,
-      };
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        id: t.transactionNo || t.id,
-        transactionUuid: t.id,
-        customerName: t.customerName,
-        customerPhone: t.customerPhone,
-        outletName: t.outletName,
-        isExpress: t.isExpress === 1 || t.isExpress === true,
-        pickupType: t.pickupType || 'pickup',
-        status: mapDbStatusToFrontend(t.dbStatus, t.pickedUpAt),
-        receivedAt: findStageTime('received') || t.createdAt,
-        finishedAt: findStageTime('ready') || t.updatedAt,
-        pickedUpAt: t.pickedUpAt,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-        estimatedDoneAt: t.estimatedDoneAt,
-        notes: userNotes || null,
-        timeline,
-        items: serviceItems,
-        conditionPhotos,
-        receivePhotos,
-        packingPhotos,
-        production: metaMap.get(t.id) || null,
-      },
-    });
+    return res.status(200).json({ success: true, data: labels });
   } catch (err) {
-    console.error('[getProductionOrderDetail] Error:', err);
-    return res.status(500).json({ success: false, message: 'Gagal memuat detail produksi.' });
+    logger.error('[getTransactionLabels]', err);
+    return res.status(500).json({ success: false, message: 'Gagal memuat data label.' });
   }
 };

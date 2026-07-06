@@ -20,20 +20,42 @@ export const TX_STATUS_UI_TO_DB = {
 /**
  * Convert UI status (mis. 'selesai') ke array DB status untuk SQL filter.
  * Return { dbStatuses: string[], extraWhere: string|null }
+ *
+ * Aturan bisnis:
+ * - 'selesai' (Siap Ambil) → production ready + lunas + belum diambil
+ *   (extraWhere: picked_up_at IS NULL, payment_status = 'paid')
+ * - 'diambil' → picked_up_at IS NOT NULL
  */
-export function uiToDbStatusFilter(uiStatus) {
+export function uiToDbStatusFilter(uiStatus, pickupStatus) {
   if (!uiStatus || uiStatus === 'semua' || uiStatus === 'all') {
     return { dbStatuses: null, extraWhere: null };
   }
   const dbList = TX_STATUS_UI_TO_DB[uiStatus] || [];
 
-  let extraWhere = null;
-  // 'diambil' butuh extra check picked_up_at NOT NULL
-  if (uiStatus === 'diambil') extraWhere = 't.picked_up_at IS NOT NULL';
-  // 'selesai' tapi BELUM diambil
-  if (uiStatus === 'selesai') extraWhere = 't.picked_up_at IS NULL';
+  const conditions = [];
 
-  return { dbStatuses: dbList, extraWhere };
+  // 'diambil' butuh extra check picked_up_at NOT NULL
+  if (uiStatus === 'diambil') {
+    conditions.push('t.picked_up_at IS NOT NULL');
+  }
+  // 'selesai' (Siap Ambil): BELUM diambil
+  if (uiStatus === 'selesai') {
+    conditions.push('t.picked_up_at IS NULL');
+    // WAJIB lunas — hanya tampilkan yang sudah dibayar penuh
+    conditions.push("t.payment_status = 'paid'");
+  }
+
+  // Pickup sub-filter dari frontend (belum_diambil / sudah_diambil)
+  if (pickupStatus === 'belum') {
+    conditions.push('t.picked_up_at IS NULL');
+  } else if (pickupStatus === 'sudah') {
+    conditions.push('t.picked_up_at IS NOT NULL');
+  }
+
+  return {
+    dbStatuses: dbList,
+    extraWhere: conditions.length > 0 ? conditions.join(' AND ') : null,
+  };
 }
 
 /**

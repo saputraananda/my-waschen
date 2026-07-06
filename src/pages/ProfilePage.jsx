@@ -1,17 +1,802 @@
-import { useState, useRef } from 'react';
+// ─────────────────────────────────────────────────────────────────────────────
+// ProfilePage.jsx — Redesigned with 2-Column Asymmetric Layout
+// Ref: My_Waschen_Redesign_Spec_dan_Prompt.md Section 4.4
+//
+// Layout:
+// - Left column (35%): Sticky - Avatar, Name, Role, Outlet, Actions
+// - Right column (65%): Scrollable - Stats, Shift History, Activity Log
+// - Mobile: Left collapses to header, right becomes full-width
+//
+// Phase 4 Polish: Framer Motion animations, count-up stats, hover effects
+// Phase 7: Responsive QA at 4 breakpoints
+// ─────────────────────────────────────────────────────────────────────────────
+import { useState, useRef, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import Cropper from 'react-easy-crop';
+import { motion } from 'framer-motion';
 import { C, T } from '../utils/theme';
+import { rp } from '../utils/helpers';
 import { compressImage, getCroppedImg } from '../utils/helpers';
 import { TopBar, Btn, Input } from '../components/ui';
 import { alertError, alertInfo, alertSuccess, alertWarning } from '../utils/alert';
 import { useApp } from '../context/AppContext';
 
+// ─── Premium Animation Assets ───────────────────────────────────────────────
+import bubbleIcon from '../assets/Decorative icon/bubble-1.webp'
+import bubble2Icon from '../assets/Decorative icon/bubble-2.webp'
+import soapBubble from '../assets/Decorative icon/soap-bubble.webp'
+
+// ─── Premium Animation Components ──────────────────────────────────────────────
+const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.4 }) => (
+  <motion.div
+    animate={{ y: [0, -15, 0], scale: [1, 1.08, 1], opacity: [opacity * 0.6, opacity, opacity * 0.6] }}
+    transition={{ duration, repeat: Infinity, ease: 'easeInOut', delay }}
+    style={{ position: 'absolute', top, left, right, bottom, width: size, height: size, pointerEvents: 'none', zIndex: 0 }}
+  >
+    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.08))' }} loading="lazy" />
+  </motion.div>
+);
+
+const Sparkle = ({ top, left, size = 5, delay = 0 }) => (
+  <motion.div
+    style={{ position: 'absolute', top, left, width: size, height: size, background: '#E85D04', borderRadius: '50%', boxShadow: `0 0 ${size}px #E85D04`, pointerEvents: 'none', zIndex: 1 }}
+    animate={{ scale: [0, 1, 0], opacity: [0, 1, 0], rotate: [0, 180, 360] }}
+    transition={{ duration: 2, delay, repeat: Infinity, ease: 'easeOut' }}
+  />
+);
+
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Frontline', frontline: 'Frontline', produksi: 'Produksi', finance: 'Finance' };
 
+// ─── Avatar Images ────────────────────────────────────────────────────────────────
+import staffGirl from '../assets/Avatar set/staff-girl.webp'
+import staffBoy from '../assets/Avatar set/staff-boy.webp'
+import adminLaptop from '../assets/Avatar set/admin-laptop.webp'
+
+const getAvatarSource = (user) => {
+  const role = user?.roleCode || user?.originalRoleCode;
+  const gender = user?.gender?.toLowerCase();
+  if (role === 'admin') return adminLaptop;
+  if (role === 'frontline' || role === 'kasir') return gender === 'male' ? staffBoy : staffGirl;
+  return gender === 'male' ? staffBoy : staffGirl;
+};
+
+// ─── Count-up Animation Hook ───────────────────────────────────────────────────
+function useCountUp(target, duration = 700, delay = 0) {
+  const [value, setValue] = useState(0);
+  const hasAnimated = useRef(false);
+
+  useEffect(() => {
+    if (hasAnimated.current) return;
+    const timeout = setTimeout(() => {
+      hasAnimated.current = true;
+      const startTime = performance.now();
+      const animate = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        setValue(Math.round(target * easeOut));
+        if (progress < 1) requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+    }, delay);
+    return () => clearTimeout(timeout);
+  }, [target, duration, delay]);
+
+  return value;
+}
+
+// ─── Animated Number Display ───────────────────────────────────────────────────
+function AnimatedNumber({ value, prefix = '', suffix = '', duration = 700, delay = 0 }) {
+  const animated = useCountUp(typeof value === 'number' ? value : 0, duration, delay);
+  return <span>{prefix}{typeof value === 'number' ? animated.toLocaleString() : value}{suffix}</span>;
+}
+
+// ─── Responsive Hook ────────────────────────────────────────────────────────────
+const useResponsive = () => {
+  const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+
+  useEffect(() => {
+    const handle = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handle);
+    return () => window.removeEventListener('resize', handle);
+  }, []);
+
+  return { isMobile: width < 768, isTablet: width >= 768 && width < 1024, isDesktop: width >= 1024 };
+};
+
+// ─── Left Column - Profile Card (Sticky) ───────────────────────────────────────
+function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
+  const avatarSrc = useMemo(() => getAvatarSource(user), [user]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      whileHover={{ y: -4, boxShadow: '0 16px 48px rgba(91, 0, 95, 0.35)' }}
+      style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        borderRadius: 20,
+        padding: 24,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        textAlign: 'center',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 8px 32px rgba(91, 0, 95, 0.25)',
+        transition: 'box-shadow 0.3s ease',
+      }}
+    >
+      {/* Background decoration */}
+      <div style={{
+        position: 'absolute', top: -50, right: -50,
+        width: 150, height: 150, borderRadius: '50%',
+        background: 'rgba(255,255,255,0.08)',
+        filter: 'blur(40px)',
+      }} />
+
+      {/* Avatar */}
+      <motion.div
+        style={{
+          position: 'relative',
+          marginBottom: 16,
+          cursor: onPhotoClick ? 'pointer' : 'default',
+        }}
+        onClick={onPhotoClick}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <div style={{
+          width: 100,
+          height: 100,
+          borderRadius: 50,
+          border: '4px solid rgba(255,255,255,0.3)',
+          overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+        }}>
+          {photo ? (
+            <img src={photo} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{
+              width: '100%',
+              height: '100%',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 36, fontWeight: 700, color: '#fff' }}>
+                {initials}
+              </span>
+            </div>
+          )}
+        </div>
+        {/* Edit button */}
+        <motion.button
+          onClick={onPhotoChange}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            background: '#F93E11',
+            border: '3px solid white',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+        </motion.button>
+      </motion.div>
+
+      {/* Name */}
+      <h2 style={{
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 18,
+        fontWeight: 700,
+        color: '#fff',
+        margin: '0 0 8px',
+      }}>
+        {user?.name}
+      </h2>
+
+      {/* Role Badge */}
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 12px',
+        borderRadius: 999,
+        background: 'rgba(255,255,255,0.15)',
+        marginBottom: 8,
+      }}>
+        <span style={{
+          fontFamily: "'Poppins', sans-serif",
+          fontSize: 11,
+          fontWeight: 600,
+          color: '#fff',
+        }}>
+          {ROLE_LABEL[user?.roleCode] || user?.roleCode?.toUpperCase()}
+        </span>
+      </div>
+
+      {/* Outlet */}
+      {user?.outlet?.name && (
+        <span style={{
+          fontFamily: "'Poppins', sans-serif",
+          fontSize: 12,
+          color: 'rgba(255,255,255,0.7)',
+        }}>
+          📍 {user.outlet.name}
+        </span>
+      )}
+
+      {/* Action Buttons */}
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        marginTop: 20,
+        width: '100%',
+      }}>
+        <motion.button
+          onClick={() => document.getElementById('edit-profile-btn')?.click()}
+          whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.25)' }}
+          whileTap={{ scale: 0.98 }}
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.2)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            color: '#fff',
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          ✏️ Edit
+        </motion.button>
+        <motion.button
+          onClick={() => document.getElementById('change-password-btn')?.click()}
+          whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.15)' }}
+          whileTap={{ scale: 0.98 }}
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            color: 'rgba(255,255,255,0.8)',
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+          }}
+        >
+          🔒 Password
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Right Column - Stats & Activity ─────────────────────────────────────────────
+function StatsSection({ stats, animationDelay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: animationDelay }}
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 16,
+        boxShadow: '0 2px 8px rgba(91, 0, 95, 0.08)',
+      }}
+    >
+      <h3 style={{
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#1a1a1a',
+        margin: '0 0 16px',
+      }}>
+        📊 Statistik Bulanan
+      </h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {[
+          { label: 'Total Shift', value: stats?.totalShifts || 0, icon: '🕐', color: '#5B005F' },
+          { label: 'Transaksi', value: stats?.totalTransactions || 0, icon: '📋', color: '#059669' },
+          { label: 'Omset', value: stats?.totalRevenue || 0, icon: '💰', color: '#F93E11', isCurrency: true },
+        ].map((item, idx) => (
+          <motion.div
+            key={item.label}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, delay: animationDelay + 0.1 + idx * 0.1 }}
+            whileHover={{ y: -4, boxShadow: '0 8px 24px rgba(91, 0, 95, 0.15)' }}
+            style={{
+              background: `${item.color}10`,
+              borderRadius: 12,
+              padding: 12,
+              textAlign: 'center',
+              cursor: 'default',
+              transition: 'box-shadow 0.2s ease',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>{item.icon}</span>
+            <div style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 18,
+              fontWeight: 800,
+              color: item.color,
+              margin: '4px 0 2px',
+            }}>
+              {item.isCurrency ? (
+                <AnimatedNumber value={item.value} prefix="Rp " duration={700} delay={animationDelay + 300 + idx * 100} />
+              ) : (
+                <AnimatedNumber value={item.value} duration={700} delay={animationDelay + 300 + idx * 100} />
+              )}
+            </div>
+            <div style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 10,
+              color: '#5a5a5a',
+            }}>
+              {item.label}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function ShiftHistorySection({ shifts, animationDelay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: animationDelay }}
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 16,
+        boxShadow: '0 2px 8px rgba(91, 0, 95, 0.08)',
+      }}
+    >
+      <h3 style={{
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#1a1a1a',
+        margin: '0 0 16px',
+      }}>
+        🕐 Riwayat Shift Terakhir
+      </h3>
+      {shifts && shifts.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {shifts.slice(0, 5).map((shift, idx) => (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: animationDelay + 0.1 + idx * 0.08 }}
+              whileHover={{ x: 4, backgroundColor: '#F9F5F9' }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '10px 12px',
+                background: '#F4EDF4',
+                borderRadius: 10,
+                cursor: 'default',
+                transition: 'background-color 0.2s ease',
+              }}
+            >
+              <motion.div
+                animate={shift.status !== 'closed' ? { scale: [1, 1.1, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 2 }}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: shift.status === 'closed' ? '#05966920' : '#F93E1120',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <span style={{ fontSize: 16 }}>
+                  {shift.status === 'closed' ? '✅' : '⏳'}
+                </span>
+              </motion.div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#1a1a1a',
+                }}>
+                  {shift.date || new Date(shift.openedAt).toLocaleDateString('id-ID')}
+                </div>
+                <div style={{
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 10,
+                  color: '#5a5a5a',
+                }}>
+                  {shift.type || 'Regular'} • {shift.startTime || '-'} - {shift.endTime || 'ongoing'}
+                </div>
+              </div>
+              <motion.span
+                animate={shift.status !== 'closed' ? { opacity: [1, 0.6, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+                style={{
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: shift.status === 'closed' ? '#059669' : '#F93E11',
+                }}
+              >
+                {shift.status === 'closed' ? rp(shift.cashTotal || 0) : 'Aktif'}
+              </motion.span>
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: 20, color: '#9a9a9a' }}>
+          Belum ada data shift
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+function ActivityLogSection({ activities, animationDelay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: animationDelay }}
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        padding: 16,
+        boxShadow: '0 2px 8px rgba(91, 0, 95, 0.08)',
+      }}
+    >
+      <h3 style={{
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#1a1a1a',
+        margin: '0 0 16px',
+      }}>
+        📝 Aktivitas Terbaru
+      </h3>
+      {activities && activities.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {activities.slice(0, 8).map((activity, idx) => (
+            <motion.div
+              key={idx}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: animationDelay + 0.1 + idx * 0.06 }}
+              whileHover={{ x: 4, backgroundColor: '#FAF8FA' }}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                padding: '8px 0',
+                borderBottom: idx < activities.length - 1 ? '1px solid #E6D9E7' : 'none',
+                cursor: 'default',
+                transition: 'background-color 0.2s ease',
+              }}
+            >
+              <span style={{ fontSize: 14, marginTop: 2 }}>{activity.icon || '📋'}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: '#1a1a1a',
+                }}>
+                  {activity.description}
+                </div>
+                <div style={{
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 10,
+                  color: '#9a9a9a',
+                  marginTop: 2,
+                }}>
+                  {activity.time || activity.createdAt ? new Date(activity.createdAt || activity.time).toLocaleString('id-ID') : '-'}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: 20, color: '#9a9a9a' }}>
+          Belum ada aktivitas terbaru
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ─── Mobile Profile Header ──────────────────────────────────────────────────────
+function MobileProfileHeader({ user, photo, initials, onPhotoClick }) {
+  const avatarSrc = useMemo(() => getAvatarSource(user), [user]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 16px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        marginBottom: 16,
+        borderRadius: 16,
+      }}
+    >
+      <motion.div
+        style={{
+          position: 'relative',
+          cursor: onPhotoClick ? 'pointer' : 'default',
+        }}
+        onClick={onPhotoClick}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <div style={{
+          width: 64,
+          height: 64,
+          borderRadius: 32,
+          border: '3px solid rgba(255,255,255,0.3)',
+          overflow: 'hidden',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+        }}>
+          {photo ? (
+            <img src={photo} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{
+              width: '100%',
+              height: '100%',
+              background: 'rgba(255,255,255,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 24, fontWeight: 700, color: '#fff' }}>
+                {initials}
+              </span>
+            </div>
+          )}
+        </div>
+      </motion.div>
+      <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.2, duration: 0.4 }}
+        style={{ flex: 1 }}
+      >
+        <h2 style={{
+          fontFamily: "'Poppins', sans-serif",
+          fontSize: 16,
+          fontWeight: 700,
+          color: '#fff',
+          margin: '0 0 4px',
+        }}>
+          {user?.name}
+        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            padding: '2px 8px',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.2)',
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: 10,
+            fontWeight: 600,
+            color: '#fff',
+          }}>
+            {ROLE_LABEL[user?.roleCode] || user?.roleCode?.toUpperCase()}
+          </span>
+          {user?.outlet?.name && (
+            <span style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 10,
+              color: 'rgba(255,255,255,0.7)',
+            }}>
+              📍 {user.outlet.name}
+            </span>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ─── Edit Profile Form ─────────────────────────────────────────────────────────
+function EditProfileForm({ name, phone, email, saving, onSave, isMobile, animationDelay = 0 }) {
+  return (
+    <motion.div
+      id="edit-profile-btn"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: animationDelay }}
+      whileHover={{ y: -2, boxShadow: '0 4px 16px rgba(91, 0, 95, 0.12)' }}
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        padding: isMobile ? 16 : 20,
+        boxShadow: '0 2px 8px rgba(91, 0, 95, 0.08)',
+        transition: 'box-shadow 0.2s ease',
+      }}
+    >
+      <h3 style={{
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#1a1a1a',
+        margin: '0 0 16px',
+      }}>
+        ✏️ Edit Profil
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Input label="Nama Lengkap" value={name} onChange={(v) => {}} placeholder="Masukkan nama lengkap" />
+        <Input label="Nomor HP" value={phone} onChange={(v) => {}} placeholder="08xxxxxxxxxx" />
+        <Input label="Email" value={email} onChange={(v) => {}} placeholder="nama@email.com" />
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <Btn variant="primary" fullWidth loading={saving} onClick={onSave}>Simpan Profil</Btn>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Change Password Form ──────────────────────────────────────────────────────
+function ChangePasswordForm({ oldPw, newPw, confirmPw, pwLoading, onChange, isMobile, animationDelay = 0 }) {
+  return (
+    <motion.div
+      id="change-password-btn"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: animationDelay }}
+      whileHover={{ y: -2, boxShadow: '0 4px 16px rgba(91, 0, 95, 0.12)' }}
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        padding: isMobile ? 16 : 20,
+        boxShadow: '0 2px 8px rgba(91, 0, 95, 0.08)',
+        transition: 'box-shadow 0.2s ease',
+      }}
+    >
+      <h3 style={{
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#1a1a1a',
+        margin: '0 0 16px',
+      }}>
+        🔒 Ubah Password
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Input label="Password Lama" value={oldPw} onChange={(v) => {}} type="password" placeholder="••••••••" />
+        <Input label="Password Baru" value={newPw} onChange={(v) => {}} type="password" placeholder="Min. 6 karakter" />
+        <Input label="Konfirmasi Password Baru" value={confirmPw} onChange={(v) => {}} type="password" placeholder="Ulangi password baru" />
+      </div>
+      <div style={{ marginTop: 16 }}>
+        <Btn variant="secondary" fullWidth loading={pwLoading} onClick={onChange}>Konfirmasi Ubah Password</Btn>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Role Switcher ─────────────────────────────────────────────────────────────
+function RoleSwitcher({ ROLES, user, isAdmin, handleSwitchRole, navigate, isMobile, animationDelay = 0 }) {
+  if (!isAdmin) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: animationDelay }}
+      whileHover={{ y: -2, boxShadow: '0 4px 16px rgba(91, 0, 95, 0.12)' }}
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        padding: isMobile ? 16 : 20,
+        boxShadow: '0 2px 8px rgba(91, 0, 95, 0.08)',
+        transition: 'box-shadow 0.2s ease',
+      }}
+    >
+      <h3 style={{
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 14,
+        fontWeight: 700,
+        color: '#1a1a1a',
+        margin: '0 0 16px',
+      }}>
+        👑 Tampil Sebagai Role
+      </h3>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: isMobile ? 8 : 10
+      }}>
+        {ROLES.map((r) => (
+          <motion.button
+            key={r.id}
+            onClick={() => { handleSwitchRole(r.id); navigate('dashboard'); }}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              padding: isMobile ? '12px 4px' : '14px 8px',
+              borderRadius: 12,
+              border: `1.5px solid ${user?.role === r.id ? '#5B005F' : '#E6D9E7'}`,
+              background: user?.role === r.id ? '#E6D9E7' : '#fff',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: isMobile ? 4 : 6,
+            }}
+          >
+            <span style={{ fontSize: isMobile ? 20 : 24 }}>{r.icon}</span>
+            <span style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: isMobile ? 10 : 11,
+              fontWeight: user?.role === r.id ? 700 : 500,
+              color: user?.role === r.id ? '#5B005F' : '#5a5a5a',
+            }}>
+              {r.label}
+            </span>
+          </motion.button>
+        ))}
+      </div>
+      <p style={{
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 10,
+        color: '#9a9a9a',
+        textAlign: 'center',
+        marginTop: 12,
+      }}>
+        Akun tetap sebagai Admin · hanya tampilan yang berubah
+      </p>
+    </motion.div>
+  );
+}
+
+// ─── Main Profile Page Component ─────────────────────────────────────────────────
 export default function ProfilePage({ navigate, goBack }) {
   const { user, updateUserProfile, handleSwitchRole } = useApp();
   const isAdmin = (user?.originalRoleCode ?? user?.roleCode) === 'admin';
+  const { isMobile, isTablet } = useResponsive();
 
   const ROLES = [
     { id: 'frontline', label: 'Frontline', icon: '🧾' },
@@ -40,13 +825,25 @@ export default function ProfilePage({ navigate, goBack }) {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
+  // Mock data for stats, shifts, activities
+  const [stats] = useState({ totalShifts: 24, totalTransactions: 156, totalRevenue: 28450000 });
+  const [shifts] = useState([
+    { date: '02 Jul 2026', type: 'Pagi', startTime: '07:00', endTime: '15:00', status: 'closed', cashTotal: 4250000 },
+    { date: '01 Jul 2026', type: 'Pagi', startTime: '07:00', endTime: '15:00', status: 'closed', cashTotal: 3890000 },
+    { date: '30 Jun 2026', type: 'Siang', startTime: '15:00', endTime: '22:00', status: 'closed', cashTotal: 3120000 },
+  ]);
+  const [activities] = useState([
+    { icon: '💰', description: 'Melakukan setoran tunai Rp 5.000.000', time: '2 Jul 2026, 14:30' },
+    { icon: '📋', description: 'Membuat transaksi Nota #1247', time: '2 Jul 2026, 13:45' },
+    { icon: '👤', description: 'Menambah customer baru: Budi Santoso', time: '2 Jul 2026, 11:20' },
+    { icon: '🔄', description: 'Oper shift ke Maya', time: '2 Jul 2026, 10:00' },
+  ]);
+
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       alertInfo('Menyiapkan gambar...');
-      // Compress sedikit sebelum masuk ke cropper untuk mencegah lag browser
       const compressedDataUrl = await compressImage(file, 1600, 1600, 0.85);
       setCropImageSrc(compressedDataUrl);
       setCrop({ x: 0, y: 0 });
@@ -55,7 +852,6 @@ export default function ProfilePage({ navigate, goBack }) {
     } catch (error) {
       alertError(error?.response?.data?.message || 'Gagal memproses file gambar ini');
     }
-    
     if (fileRef.current) fileRef.current.value = '';
   };
 
@@ -97,16 +893,122 @@ export default function ProfilePage({ navigate, goBack }) {
     }
   };
 
+  // Calculate animation delays based on device
+  const baseDelay = isMobile ? 0.1 : 0;
+  const statsDelay = baseDelay + 0.1;
+  const shiftDelay = baseDelay + 0.2;
+  const activityDelay = baseDelay + 0.3;
+  const editDelay = baseDelay + (isMobile ? 0.3 : 0.4);
+  const passwordDelay = baseDelay + (isMobile ? 0.4 : 0.5);
+  const roleDelay = baseDelay + (isMobile ? 0.5 : 0.6);
+
+  // ─── Main Render ───────────────────────────────────────────────────────────
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F4EDF4', overflow: 'hidden' }}>
       <TopBar title="Profil Saya" onBack={goBack} />
 
-      {cropModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: C.n900, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '16px', background: C.n800, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <span style={{ color: 'white', fontFamily: 'Poppins', fontWeight: 600 }}>Sesuaikan Foto Profil</span>
+      {/* Hidden file input */}
+      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
+
+      {/* Content - Scrollable */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: isMobile ? 16 : 24,
+        }}
+      >
+        {/* Responsive Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'minmax(240px, 30%) 1fr' : 'minmax(280px, 35%) 1fr',
+          gap: isMobile ? 16 : 24,
+          maxWidth: 1200,
+          margin: '0 auto',
+        }}>
+          {/* Left Column - Sticky (Desktop/Tablet only) */}
+          {!isMobile && (
+            <div style={{
+              position: 'sticky',
+              top: 24,
+              alignSelf: 'start',
+            }}>
+              <ProfileCard
+                user={user}
+                photo={photo}
+                initials={initials}
+                onPhotoChange={() => fileRef.current?.click()}
+                onPhotoClick={() => fileRef.current?.click()}
+              />
+            </div>
+          )}
+
+          {/* Right Column - Scrollable */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Mobile: Avatar Header */}
+            {isMobile && (
+              <MobileProfileHeader
+                user={user}
+                photo={photo}
+                initials={initials}
+                onPhotoClick={() => fileRef.current?.click()}
+              />
+            )}
+
+            {/* Stats Section */}
+            <StatsSection stats={stats} animationDelay={statsDelay} />
+
+            {/* Shift History */}
+            <ShiftHistorySection shifts={shifts} animationDelay={shiftDelay} />
+
+            {/* Activity Log */}
+            <ActivityLogSection activities={activities} animationDelay={activityDelay} />
+
+            {/* Edit Profile Form */}
+            <EditProfileForm
+              name={name}
+              phone={phone}
+              email={email}
+              saving={saving}
+              onSave={handleSaveProfile}
+              isMobile={isMobile}
+              animationDelay={editDelay}
+            />
+
+            {/* Change Password */}
+            <ChangePasswordForm
+              oldPw={oldPw}
+              newPw={newPw}
+              confirmPw={confirmPw}
+              pwLoading={pwLoading}
+              onChange={handleChangePassword}
+              isMobile={isMobile}
+              animationDelay={passwordDelay}
+            />
+
+            {/* Role Switcher */}
+            <RoleSwitcher
+              ROLES={ROLES}
+              user={user}
+              isAdmin={isAdmin}
+              handleSwitchRole={handleSwitchRole}
+              navigate={navigate}
+              isMobile={isMobile}
+              animationDelay={roleDelay}
+            />
           </div>
-          
+        </div>
+      </motion.div>
+
+      {/* Crop Modal */}
+      {cropModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#000', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 16, background: '#111', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <span style={{ color: 'white', fontFamily: "'Poppins', sans-serif", fontWeight: 600 }}>Sesuaikan Foto Profil</span>
+          </div>
           <div style={{ flex: 1, position: 'relative' }}>
             <Cropper
               image={cropImageSrc}
@@ -120,176 +1022,20 @@ export default function ProfilePage({ navigate, goBack }) {
               onZoomChange={setZoom}
             />
           </div>
-          
-            <div style={{ padding: '24px 20px', background: C.n800, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 16 }}>➖</span>
-              <input 
-                type="range" 
-                value={zoom} 
-                min={1} 
-                max={3} 
-                step={0.1} 
-                aria-labelledby="Zoom" 
-                onChange={(e) => setZoom(Number(e.target.value))} 
-                style={{ flex: 1, accentColor: C.primary }} 
-              />
-              <span style={{ fontSize: 16 }}>➕</span>
-            </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <Btn variant="secondary" style={{ flex: 1, background: C.n700, color: 'white', borderColor: C.n600 }} onClick={() => setCropModalOpen(false)}>Batal</Btn>
-              <Btn variant="primary" style={{ flex: 1 }} onClick={async () => {
-                try {
-                  const croppedBase64 = await getCroppedImg(cropImageSrc, croppedAreaPixels, 800, 0.8);
-                  setPhoto(croppedBase64);
-                  setCropModalOpen(false);
-                } catch (err) {
-                  alertError(err?.response?.data?.message || 'Gagal memotong foto');
-                }
-              }}>Terapkan</Btn>
-            </div>
+          <div style={{ padding: 24, background: '#111', display: 'flex', gap: 12 }}>
+            <Btn variant="secondary" style={{ flex: 1, background: '#333', color: 'white' }} onClick={() => setCropModalOpen(false)}>Batal</Btn>
+            <Btn variant="primary" style={{ flex: 1 }} onClick={async () => {
+              try {
+                const croppedBase64 = await getCroppedImg(cropImageSrc, croppedAreaPixels, 800, 0.8);
+                setPhoto(croppedBase64);
+                setCropModalOpen(false);
+              } catch (err) {
+                alertError('Gagal memotong foto');
+              }
+            }}>Terapkan</Btn>
           </div>
         </div>
       )}
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, paddingBottom: 32 }}>
-
-        {/* Foto Profil */}
-        <div style={{ ...T.card, padding: '24px 16px', marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div style={{ position: 'relative' }}>
-            {photo ? (
-              <img
-                src={photo} alt="avatar"
-                style={{ width: 96, height: 96, borderRadius: 48, objectFit: 'cover', border: `3px solid ${C.primary}` }}
-              />
-            ) : (
-              <div style={{ width: 96, height: 96, borderRadius: 48, background: `linear-gradient(135deg, ${C.primaryLight}, ${C.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 32, fontWeight: 700, color: C.primary }}>{initials}</span>
-              </div>
-            )}
-            <button
-              onClick={() => fileRef.current?.click()}
-              style={{ position: 'absolute', bottom: 2, right: 2, width: 30, height: 30, borderRadius: 15, background: C.primary, border: '2.5px solid white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </button>
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoChange} />
-
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 17, fontWeight: 700, color: C.n900 }}>{user?.name}</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
-              <span style={{ background: C.primaryLight, color: C.primary, fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 999 }}>
-                {ROLE_LABEL[user?.roleCode] || user?.roleCode?.toUpperCase()}
-              </span>
-              {user?.outlet?.name && (
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{user.outlet.name}</span>
-              )}
-            </div>
-          </div>
-
-          {photo && (
-            <button
-              onClick={() => setPhoto(null)}
-              style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}
-            >
-              Hapus foto
-            </button>
-          )}
-        </div>
-
-        {/* Informasi Akun */}
-        <div style={{ ...T.card, marginBottom: 12 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 14 }}>INFORMASI AKUN</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Input label="Nama Lengkap" value={name} onChange={setName} placeholder="Masukkan nama lengkap" />
-            <Input label="Nomor HP" value={phone} onChange={setPhone} placeholder="08xxxxxxxxxx" />
-            <Input label="Email" value={email} onChange={setEmail} placeholder="nama@email.com" />
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <Btn variant="primary" fullWidth loading={saving} onClick={handleSaveProfile}>Simpan Profil</Btn>
-          </div>
-        </div>
-
-        {/* Info readonly */}
-        <div style={{ ...T.card, padding: '12px 16px', marginBottom: 12 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 10 }}>INFO TIDAK BISA DIUBAH</div>
-          {[
-            { label: 'Username',  value: user?.username || '-' },
-            { label: 'Role',      value: ROLE_LABEL[user?.roleCode] || user?.roleCode || '-' },
-            { label: 'Outlet',    value: user?.outlet?.name || '-' },
-          ].map((item, i, arr) => (
-            <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 0', borderBottom: i < arr.length - 1 ? `1px solid ${C.n100}` : 'none' }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>{item.label}</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{item.value}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Switch Role — hanya admin */}
-        {isAdmin && (
-          <div style={{ ...T.card, marginBottom: 12 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 14 }}>TAMPIL SEBAGAI ROLE</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {ROLES.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => { handleSwitchRole(r.id); navigate('dashboard'); }}
-                  style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                    padding: '12px 4px', borderRadius: 12, cursor: 'pointer',
-                    border: `1.5px solid ${user?.role === r.id ? C.primary : C.n100}`,
-                    background: user?.role === r.id ? C.primaryLight : C.n50,
-                  }}
-                >
-                  <span style={{ fontSize: 20 }}>{r.icon}</span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: user?.role === r.id ? 700 : 400, color: user?.role === r.id ? C.primary : C.n600 }}>
-                    {r.label}
-                  </span>
-                  {user?.role === r.id && (
-                    <span style={{ width: 6, height: 6, borderRadius: 3, background: C.primary, display: 'block' }} />
-                  )}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 10, textAlign: 'center' }}>
-              Akun tetap sebagai Admin · hanya tampilan yang berubah
-            </div>
-          </div>
-        )}
-
-        {/* Ubah Password */}
-        <div style={{ ...T.card, marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showPw ? 14 : 0 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5 }}>UBAH PASSWORD</div>
-            <button
-              onClick={() => setShowPw((v) => !v)}
-              style={{ fontFamily: 'Poppins', fontSize: 12, color: C.primary, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
-            >
-              {showPw ? 'Tutup' : 'Ubah'}
-            </button>
-          </div>
-
-          {showPw && (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <Input label="Password Lama" value={oldPw} onChange={setOldPw} type="password" placeholder="••••••••" />
-                <Input label="Password Baru" value={newPw} onChange={setNewPw} type="password" placeholder="Min. 6 karakter" />
-                <Input label="Konfirmasi Password Baru" value={confirmPw} onChange={setConfirmPw} type="password" placeholder="Ulangi password baru" />
-              </div>
-              <div style={{ marginTop: 16 }}>
-                <Btn variant="secondary" fullWidth loading={pwLoading} onClick={handleChangePassword}>
-                  Konfirmasi Ubah Password
-                </Btn>
-              </div>
-            </>
-          )}
-        </div>
-
-      </div>
     </div>
   );
 }

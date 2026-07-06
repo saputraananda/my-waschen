@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 import axios from 'axios';
 
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 
 import { rp, txApiId } from '../../utils/helpers';
 
@@ -66,9 +66,9 @@ const SORTS = [
 
 // Badge color helper for payment status
 const payBadgeStyle = (status) => {
-  if (status === 'paid') return { bg: '#DCFCE7', color: '#15803D', label: 'Lunas' };
-  if (status === 'partial') return { bg: '#FEF3C7', color: '#92400E', label: 'DP/Sebagian' };
-  return { bg: '#FEE2E2', color: '#991B1B', label: 'Belum Lunas' };
+  if (status === 'paid') return { bg: C.successBg, color: C.success, label: 'Lunas' };
+  if (status === 'partial') return { bg: C.warningBg, color: C.warning, label: 'DP/Sebagian' };
+  return { bg: C.dangerBg, color: C.danger, label: 'Belum Lunas' };
 };
 
 
@@ -356,7 +356,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#7C3AED',
+                color: C.primary,
                 position: 'relative',
               }}
             >
@@ -376,8 +376,8 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
                 <span style={{
                   position: 'absolute', top: 2, right: 2,
                   width: 16, height: 16, borderRadius: 8,
-                  background: '#7C3AED', color: 'white',
-                  fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+                  background: C.primary, color: 'white',
+                  fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>{activeFilterCount}</span>
               )}
@@ -391,17 +391,17 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
         {!loading && (alerts.prodIncomplete.length > 0 || alerts.siapPrematur.length > 0 || alerts.siapTanpaFoto.length > 0) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
             {alerts.prodIncomplete.length > 0 && (
-              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: '#92400E' }}>
+              <div style={{ background: C.warningBg, border: `1px solid ${C.warning}`, borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: C.warning }}>
                 <strong>⚠️ {alerts.prodIncomplete.length} order</strong> masih diproses di produksi (belum selesai cuci/setrika/packing). Jangan tandai siap diambil sebelum produksi selesai.
               </div>
             )}
             {alerts.siapPrematur.length > 0 && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: '#991B1B' }}>
+              <div style={{ background: C.dangerBg, border: '1px solid C.danger', borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: C.danger }}>
                 <strong>🚨 {alerts.siapPrematur.length} order</strong> berstatus siap diambil tetapi produksi belum rampung. Koordinasikan dengan tim produksi.
               </div>
             )}
             {alerts.siapTanpaFoto.length > 0 && (
-              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: '#1E40AF' }}>
+              <div style={{ background: C.infoBg, border: '1px solid C.info', borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: C.info }}>
                 <strong>📷 {alerts.siapTanpaFoto.length} order</strong> belum ada foto packing di produksi. Wajib dokumentasi sebelum diserahkan ke customer.
               </div>
             )}
@@ -437,8 +437,8 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
                 style={{
                   background: C.white, borderRadius: 14, padding: '12px 14px',
-                  boxShadow: '0 2px 8px rgba(15,23,42,0.05)', cursor: 'pointer',
-                  border: siapMismatch ? '2px solid #FCA5A5' : prodWarn ? '1.5px solid #FDE68A' : '1px solid transparent',
+                  boxShadow: SHADOW.sm, cursor: 'pointer',
+                  border: siapMismatch ? `2px solid ${C.danger}` : prodWarn ? `1.5px solid ${C.warning}` : '1px solid transparent',
                 }}
 
               >
@@ -463,7 +463,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
                       {tx.items?.some((i) => i.express) && (
 
-                        <span style={{ background: '#FEF3C7', color: C.warning, fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>
+                        <span style={{ background: C.warningBg, color: C.warning, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>
 
                       )}
 
@@ -473,7 +473,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
                         color: pay.color,
                         fontFamily: 'Poppins',
                         fontSize: 10,
-                        fontWeight: 700,
+                        fontWeight: 600,
                         padding: '1px 6px',
                         borderRadius: 999,
                       }}>
@@ -483,11 +483,11 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
                       {/* Pickup status badge */}
                       {tx.status === 'selesai' && (
                         <span style={{
-                          background: '#DBEAFE',
-                          color: '#1E40AF',
+                          background: C.infoBg,
+                          color: C.info,
                           fontFamily: 'Poppins',
                           fontSize: 10,
-                          fontWeight: 700,
+                          fontWeight: 600,
                           padding: '1px 6px',
                           borderRadius: 999,
                         }}>
@@ -496,11 +496,11 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
                       )}
                       {tx.status === 'diambil' && (
                         <span style={{
-                          background: '#DCFCE7',
-                          color: '#15803D',
+                          background: C.successBg,
+                          color: C.success,
                           fontFamily: 'Poppins',
                           fontSize: 10,
-                          fontWeight: 700,
+                          fontWeight: 600,
                           padding: '1px 6px',
                           borderRadius: 999,
                         }}>
@@ -511,9 +511,9 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
                       {/* Produksi stage badge — muncul kalau ada data produksi */}
                       {prod && (tx.status === 'baru' || tx.status === 'proses' || siapMismatch) && (
                         <span style={{
-                          fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
-                          color: prodWarn ? '#B45309' : '#0369A1',
-                          background: prodWarn ? '#FEF3C7' : '#E0F2FE',
+                          fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+                          color: prodWarn ? C.warning : C.info,
+                          background: prodWarn ? C.warningBg : C.infoBg,
                           padding: '1px 6px', borderRadius: 999,
                         }}>
                           🧺 {prod.productionStageLabel} ({prod.readyUnits}/{prod.totalUnits})
@@ -524,12 +524,12 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
                     {/* Warning text inline */}
                     {siapMismatch && (
-                      <div style={{ marginTop: 4, fontFamily: 'Poppins', fontSize: 10, color: '#B91C1C', fontWeight: 600 }}>
+                      <div style={{ marginTop: 4, fontFamily: 'Poppins', fontSize: 10, color: C.danger, fontWeight: 600 }}>
                         ⚠️ Belum boleh diambil — produksi masih {prod.productionStageLabel}
                       </div>
                     )}
                     {prod?.allProductionReady && !prod?.hasPackingPhoto && tx.status === 'selesai' && (
-                      <div style={{ marginTop: 4, fontFamily: 'Poppins', fontSize: 10, color: '#1D4ED8' }}>
+                      <div style={{ marginTop: 4, fontFamily: 'Poppins', fontSize: 10, color: C.info }}>
                         📷 Menunggu foto packing dari produksi
                       </div>
                     )}
@@ -544,7 +544,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
                       </div>
 
-                      <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.primary }}>{rp(tx.total)}</span>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{rp(tx.total)}</span>
 
                     </div>
 
@@ -560,8 +560,8 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
                     disabled={isUpdating}
                     style={{
                       flex: 1, height: 34, borderRadius: 8, border: 'none',
-                      background: isUpdating ? C.n200 : '#059669',
-                      fontFamily: 'Poppins', fontSize: 12, fontWeight: 700,
+                      background: isUpdating ? C.n200 : C.success,
+                      fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
                       color: 'white', cursor: isUpdating ? 'default' : 'pointer',
                     }}
                   >
@@ -583,7 +583,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
         {loadingMore && (
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 0', color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '14px 0', color: C.n600, fontFamily: 'Poppins', fontSize: 12 }}>
 
             Memuat data berikutnya...
 
@@ -600,7 +600,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
         <div style={{ padding: '16px 18px' }}>
 
           {/* Tanggal */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8 }}>📅 Periode Waktu</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>📅 Periode Waktu</div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
 
@@ -614,7 +614,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
 
           {/* Pembayaran */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8 }}>💰 Status Pembayaran</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>💰 Status Pembayaran</div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
             {PAYMENT_FILTERS.map((f) => (
@@ -624,7 +624,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
 
           {/* Pengambilan */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8 }}>📦 Status Pengambilan</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>📦 Status Pengambilan</div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
             {PICKUP_FILTERS.map((f) => (
@@ -634,7 +634,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
 
           {/* Layanan */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8 }}>⚡ Layanan</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>⚡ Layanan</div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
 
@@ -645,7 +645,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
 
           {/* Urutkan */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8 }}>🔄 Urutkan</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>🔄 Urutkan</div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
 
@@ -727,7 +727,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
                 fontSize: 12,
 
-                fontWeight: 700,
+                fontWeight: 600,
 
                 color: 'white',
 

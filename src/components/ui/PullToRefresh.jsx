@@ -134,7 +134,7 @@ export const PullToRefresh = ({ children, onRefresh, threshold = 70, disabled = 
               <svg
                 width="18" height="18" viewBox="0 0 24 24"
                 fill="none"
-                stroke={progress >= 1 ? C.primary : C.n400}
+                stroke={progress >= 1 ? C.primary : '#3a3a3a'}
                 strokeWidth="2.5" strokeLinecap="round"
                 style={{ transition: 'stroke 0.15s' }}
               >

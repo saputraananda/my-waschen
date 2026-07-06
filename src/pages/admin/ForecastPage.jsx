@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { C, T } from '../../utils/theme';
+import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Select, SkeletonList } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
@@ -20,12 +20,12 @@ const fmtMonth = (v) => {
 
 const ConfidenceBadge = ({ level }) => {
   const cfg = {
-    tinggi: { bg: '#DCFCE7', color: '#166534', label: '✓ Akurasi Tinggi' },
-    sedang: { bg: '#FEF3C7', color: '#92400E', label: '⚠ Akurasi Sedang' },
-    rendah: { bg: '#FEE2E2', color: '#991B1B', label: '✗ Akurasi Rendah' },
-  }[level] || { bg: C.n100, color: C.n600, label: level };
+    tinggi: { bg: C.successBg, color: C.success, label: '✓ Akurasi Tinggi' },
+    sedang: { bg: C.warningBg, color: C.warning, label: '⚠ Akurasi Sedang' },
+    rendah: { bg: C.dangerBg, color: C.danger, label: '✗ Akurasi Rendah' },
+  }[level] || { bg: C.n100, color: C.n700, label: level };
   return (
-    <span style={{ ...F, fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: cfg.bg, color: cfg.color }}>
+    <span style={{ ...F, fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: cfg.bg, color: cfg.color }}>
       {cfg.label}
     </span>
   );
@@ -89,7 +89,7 @@ export default function ForecastPage({ goBack }) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: SHADOW.md }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             <Select label="Outlet" value={outletId} onChange={setOutletId}
               options={[{ value: '', label: '🏪 Semua' }, ...outlets.map(o => ({ value: o.id, label: o.name }))]} />
@@ -116,11 +116,11 @@ export default function ForecastPage({ goBack }) {
           <>
             {/* Model info */}
             {data.model && (
-              <div style={{ background: C.white, borderRadius: 14, padding: '12px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ background: C.white, borderRadius: 14, padding: '12px 16px', marginBottom: 14, boxShadow: SHADOW.sm, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <div>
-                  <div style={{ ...F, fontSize: 12, fontWeight: 700, color: C.n900 }}>Model Prediksi: Linear Regression</div>
-                  <div style={{ ...F, fontSize: 11, color: C.n500, marginTop: 2 }}>
-                    Tren: <b style={{ color: data.model.trend === 'naik' ? C.success : data.model.trend === 'turun' ? C.danger : C.n600 }}>
+                  <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n900 }}>Model Prediksi: Linear Regression</div>
+                  <div style={{ ...F, fontSize: 11, color: C.n700, marginTop: 2 }}>
+                    Tren: <b style={{ color: data.model.trend === 'naik' ? C.success : data.model.trend === 'turun' ? C.danger : C.n700 }}>
                       {data.model.trend === 'naik' ? '↑' : data.model.trend === 'turun' ? '↓' : '→'} {data.model.trend}
                     </b>
                     {data.model.trendPct !== 0 && ` (${data.model.trendPct > 0 ? '+' : ''}${data.model.trendPct}% selama periode historis)`}
@@ -132,8 +132,8 @@ export default function ForecastPage({ goBack }) {
             )}
 
             {/* Chart */}
-            <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-              <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900, marginBottom: 12 }}>
+            <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.md }}>
+              <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
                 Historis + Prediksi
               </div>
               <ResponsiveContainer width="100%" height={220}>
@@ -144,14 +144,14 @@ export default function ForecastPage({ goBack }) {
                       <stop offset="95%" stopColor={C.primary} stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="gradForecast" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                      <stop offset="5%" stopColor={C.warning} stopOpacity={0.2} />
+                      <stop offset="95%" stopColor={C.warning} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={C.n100} />
-                  <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n700 }} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={v => v >= 1e6 ? `${(v/1e6).toFixed(1)}jt` : v >= 1e3 ? `${(v/1e3).toFixed(0)}rb` : v}
-                    tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n500 }} axisLine={false} tickLine={false} width={40} />
+                    tick={{ fontFamily: 'Poppins', fontSize: 9, fill: C.n700 }} axisLine={false} tickLine={false} width={40} />
                   <Tooltip
                     formatter={(val, name) => val != null ? [`Rp ${Number(val).toLocaleString('id-ID')}`, name] : ['-', name]}
                     labelFormatter={fmtMonth}
@@ -159,28 +159,28 @@ export default function ForecastPage({ goBack }) {
                   />
                   <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 11 }} />
                   {lastHistMonth && (
-                    <ReferenceLine x={lastHistMonth} stroke={C.n400} strokeDasharray="4 2"
-                      label={{ value: 'Sekarang', position: 'top', fontSize: 9, fill: C.n500, fontFamily: 'Poppins' }} />
+                    <ReferenceLine x={lastHistMonth} stroke={C.n700} strokeDasharray="4 2"
+                      label={{ value: 'Sekarang', position: 'top', fontSize: 9, fill: C.n700, fontFamily: 'Poppins' }} />
                   )}
                   <Area type="monotone" dataKey="actual" name="Aktual" stroke={C.primary} strokeWidth={2.5} fill="url(#gradActual)" dot={{ r: 3, fill: C.primary }} connectNulls={false} />
-                  <Area type="monotone" dataKey="trend" name="Prediksi" stroke="#F59E0B" strokeWidth={2} strokeDasharray="6 3" fill="url(#gradForecast)" dot={false} connectNulls />
+                  <Area type="monotone" dataKey="trend" name="Prediksi" stroke={C.warning} strokeWidth={2} strokeDasharray="6 3" fill="url(#gradForecast)" dot={false} connectNulls />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
 
             {/* Forecast table */}
             {data.forecast.length > 0 && (
-              <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-                <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900, marginBottom: 12 }}>Detail Prediksi</div>
+              <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.md }}>
+                <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Detail Prediksi</div>
                 {data.forecast.map((f, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < data.forecast.length - 1 ? `1px solid ${C.n100}` : 'none' }}>
                     <div>
-                      <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900 }}>{fmtMonth(f.month)}</div>
-                      <div style={{ ...F, fontSize: 10, color: C.n500 }}>Range: {rp(f.low)} – {rp(f.high)}</div>
+                      <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>{fmtMonth(f.month)}</div>
+                      <div style={{ ...F, fontSize: 10, color: C.n700 }}>Range: {rp(f.low)} – {rp(f.high)}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ ...F, fontSize: 16, fontWeight: 800, color: '#F59E0B' }}>{rp(f.predicted)}</div>
-                      <div style={{ ...F, fontSize: 9, color: C.n500 }}>prediksi</div>
+                      <div style={{ ...F, fontSize: 16, fontWeight: 600, color: C.warning }}>{rp(f.predicted)}</div>
+                      <div style={{ ...F, fontSize: 9, color: C.n700 }}>prediksi</div>
                     </div>
                   </div>
                 ))}
@@ -188,8 +188,8 @@ export default function ForecastPage({ goBack }) {
             )}
 
             {/* Disclaimer */}
-            <div style={{ background: '#FEF3C7', borderRadius: 12, padding: '10px 14px', border: '1px solid #FDE68A' }}>
-              <div style={{ ...F, fontSize: 11, color: '#92400E', lineHeight: 1.6 }}>
+            <div style={{ background: C.warningBg, borderRadius: 12, padding: '10px 14px', border: `1px solid ${C.warning}` }}>
+              <div style={{ ...F, fontSize: 11, color: C.warning, lineHeight: 1.6 }}>
                 ⚠️ <b>Catatan:</b> Prediksi ini menggunakan linear regression sederhana berdasarkan tren historis.
                 Faktor eksternal (musim, promosi, kompetitor) tidak diperhitungkan.
                 Gunakan sebagai panduan, bukan kepastian.
@@ -199,7 +199,7 @@ export default function ForecastPage({ goBack }) {
         )}
 
         {!loading && data?.message && (
-          <div style={{ textAlign: 'center', padding: 40, ...F, fontSize: 13, color: C.n500 }}>
+          <div style={{ textAlign: 'center', padding: 40, ...F, fontSize: 13, color: C.n700 }}>
             {data.message}
           </div>
         )}

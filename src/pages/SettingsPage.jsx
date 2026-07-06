@@ -1,7 +1,36 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C, T } from '../utils/theme';
 import { Avatar, Btn, Divider } from '../components/ui';
+import {
+  IconChart, IconPackage, IconStar, IconMoney, IconPrint, IconStore,
+  IconBell, IconUsers, IconHelp, IconLock, IconPerson, IconClock
+} from '../components/ui/StatusIcons';
+
+// ─── Premium Animation Assets ───────────────────────────────────────────────
+import bubbleIcon from '../assets/Decorative icon/bubble-1.webp'
+import bubble2Icon from '../assets/Decorative icon/bubble-2.webp'
+import soapBubble from '../assets/Decorative icon/soap-bubble.webp'
+
+// ─── Premium Animation Components ──────────────────────────────────────────────
+const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.35 }) => (
+  <motion.div
+    animate={{ y: [0, -15, 0], scale: [1, 1.08, 1], opacity: [opacity * 0.5, opacity, opacity * 0.5] }}
+    transition={{ duration, repeat: Infinity, ease: 'easeInOut', delay }}
+    style={{ position: 'absolute', top, left, right, bottom, width: size, height: size, pointerEvents: 'none', zIndex: 0 }}
+  >
+    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.08))' }} loading="lazy" />
+  </motion.div>
+);
+
+const Sparkle = ({ top, left, size = 5, delay = 0 }) => (
+  <motion.div
+    style={{ position: 'absolute', top, left, width: size, height: size, background: '#E85D04', borderRadius: '50%', boxShadow: `0 0 ${size}px #E85D04`, pointerEvents: 'none', zIndex: 1 }}
+    animate={{ scale: [0, 1, 0], opacity: [0, 1, 0], rotate: [0, 180, 360] }}
+    transition={{ duration: 2, delay, repeat: Infinity, ease: 'easeOut' }}
+  />
+);
 
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Frontline', frontline: 'Frontline', produksi: 'Produksi', finance: 'Finance' };
 
@@ -18,49 +47,49 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
   const isAdmin = (user?.originalRoleCode ?? user?.roleCode) === 'admin';
 
   const ADMIN_ROLES = [
-    { id: 'frontline', label: 'Frontline', icon: '🧾' },
-    { id: 'produksi', label: 'Produksi', icon: '🧺' },
-    { id: 'admin',    label: 'Admin',    icon: '👑' },
-    { id: 'finance',  label: 'Finance',  icon: '💰' },
+    { id: 'frontline', label: 'Frontline', Icon: IconPackage },
+    { id: 'produksi', label: 'Produksi', Icon: IconChart },
+    { id: 'admin',    label: 'Admin',    Icon: IconStar },
+    { id: 'finance',  label: 'Finance',  Icon: IconMoney },
   ];
 
   const role = user?.role;
-  const outletBadge = outletInfo ? (outletInfo.isActive ? { text: '● Aktif', bg: '#DCFCE7', color: C.success } : { text: '● Nonaktif', bg: '#FEE2E2', color: C.danger }) : null;
+  const outletBadge = outletInfo ? (outletInfo.isActive ? { text: '● Aktif', bg: C.successBg, color: C.success } : { text: '● Nonaktif', bg: C.validationErrorBg, color: C.danger }) : null;
 
   const MENUS = (() => {
     const base = [];
 
     if (role === 'kasir' || role === 'frontline') {
       base.push(
-        { label: 'Pengaturan Printer', icon: '🖨️', screen: 'printer_settings' },
-        { label: 'Info Outlet', icon: '🏪', screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
-        { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
-        { label: 'Daftar Member', icon: '👥', screen: 'daftar_member' },
+        { label: 'Pengaturan Printer', Icon: IconPrint, screen: 'printer_settings' },
+        { label: 'Info Outlet', Icon: IconStore, screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
+        { label: 'Notifikasi', Icon: IconBell, screen: 'notifikasi' },
+        { label: 'Daftar Member', Icon: IconUsers, screen: 'daftar_member' },
       );
     } else if (role === 'produksi') {
       base.push(
-        { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
+        { label: 'Notifikasi', Icon: IconBell, screen: 'notifikasi' },
       );
     } else if (role === 'finance') {
       base.push(
-        { label: 'Laporan Outlet', icon: '📊', screen: 'kasir_laporan' },
-        { label: 'Info Outlet', icon: '🏪', screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
-        { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
-        { label: 'Daftar Member', icon: '👥', screen: 'daftar_member' },
+        { label: 'Laporan Outlet', Icon: IconChart, screen: 'kasir_laporan' },
+        { label: 'Info Outlet', Icon: IconStore, screen: 'info_outlet', params: { outletId: user?.outletId }, badge: outletBadge },
+        { label: 'Notifikasi', Icon: IconBell, screen: 'notifikasi' },
+        { label: 'Daftar Member', Icon: IconUsers, screen: 'daftar_member' },
       );
     } else {
       base.push(
-        { label: 'Pengaturan Printer', icon: '🖨️', screen: 'printer_settings' },
-        { label: 'Manajemen Outlet', icon: '🏪', screen: 'manajemen_outlet' },
-        { label: 'Notifikasi', icon: '🔔', screen: 'notifikasi' },
-        { label: 'Data Pegawai', icon: '👨‍💼', screen: 'manajemen_user' },
-        { label: 'Manajemen Layanan', icon: '🧺', screen: 'manajemen_layanan' },
+        { label: 'Pengaturan Printer', Icon: IconPrint, screen: 'printer_settings' },
+        { label: 'Manajemen Outlet', Icon: IconStore, screen: 'manajemen_outlet' },
+        { label: 'Notifikasi', Icon: IconBell, screen: 'notifikasi' },
+        { label: 'Data Pegawai', Icon: IconPerson, screen: 'manajemen_user' },
+        { label: 'Manajemen Layanan', Icon: IconPackage, screen: 'manajemen_layanan' },
       );
     }
 
     base.push(
-      { label: 'Bantuan', icon: '❓', screen: null },
-      { label: 'Kebijakan Privasi', icon: '🔒', screen: 'kebijakan_privasi' },
+      { label: 'Bantuan', Icon: IconHelp, screen: null },
+      { label: 'Kebijakan Privasi', Icon: IconLock, screen: 'kebijakan_privasi' },
     );
 
     return base;
@@ -106,11 +135,11 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
             )}
             {outletInfo && (
               <span style={{
-                background: outletInfo.isActive ? '#10B981' : '#EF4444',
+                background: outletInfo.isActive ? C.success : C.danger,
                 fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: 'white',
                 padding: '2px 9px', borderRadius: 999,
                 display: 'inline-flex', alignItems: 'center', gap: 4,
-                boxShadow: outletInfo.isActive ? '0 2px 6px rgba(16,185,129,0.4)' : '0 2px 6px rgba(239,68,68,0.4)',
+                boxShadow: outletInfo.isActive ? `0 2px 6px ${C.success}65` : `0 2px 6px ${C.danger}65`,
               }}>
                 <span style={{
                   width: 6, height: 6, borderRadius: 3,
@@ -135,15 +164,15 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
         {/* Switch role — hanya admin */}
         {isAdmin && (
           <div style={{ ...T.card, padding: '14px 16px', marginBottom: 12 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 12 }}>GANTI TAMPILAN ROLE</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.5, marginBottom: 12 }}>GANTI TAMPILAN ROLE</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {ADMIN_ROLES.map((r) => (
                 <button
                   key={r.id}
                   onClick={() => onSwitchRole(r.id)}
-                  style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 4px', borderRadius: 12, border: `1.5px solid ${user?.role === r.id ? C.primary : C.n100}`, background: user?.role === r.id ? C.primaryLight : C.n50, cursor: 'pointer' }}
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 4px', borderRadius: 12, border: `1.5px solid ${user?.role === r.id ? C.primary : C.n100}`, background: user?.role === r.id ? C.primaryTint : C.n50, cursor: 'pointer' }}
                 >
-                  <span style={{ fontSize: 18 }}>{r.icon}</span>
+                  <span style={{ fontSize: 18, width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><r.Icon size={18} color="#6e2e78" /></span>
                   <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: user?.role === r.id ? 700 : 400, color: user?.role === r.id ? C.primary : C.n600 }}>{r.label}</span>
                 </button>
               ))}
@@ -155,7 +184,7 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
         {/* Shift section */}
         {(role === 'kasir' || role === 'frontline') && (
           <div style={{ ...T.card, padding: '14px 16px', marginBottom: 12 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: 0.5, marginBottom: 10 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.5, marginBottom: 10 }}>
               SHIFT KASIR
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -175,8 +204,8 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
                 fontFamily: 'Poppins',
                 fontSize: 10,
                 fontWeight: 700,
-                background: shiftStatus?.isOpen ? '#DCFCE7' : '#FEE2E2',
-                color: shiftStatus?.isOpen ? '#166534' : '#991B1B',
+                background: shiftStatus?.isOpen ? C.successBg : C.validationErrorBg,
+                color: shiftStatus?.isOpen ? C.successDark : C.validationErrorText,
               }}>
                 {shiftStatus?.isOpen ? 'BUKA' : 'TUTUP'}
               </span>
@@ -210,14 +239,14 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
                 onClick={() => m.screen && navigate(m.screen, m.params || undefined)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', background: 'transparent', border: 'none', cursor: m.screen ? 'pointer' : 'default', textAlign: 'left' }}
               >
-                <span style={{ fontSize: 18, width: 28 }}>{m.icon}</span>
+                <span style={{ width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><m.Icon size={18} color="#6e2e78" /></span>
                 <span style={{ flex: 1, fontFamily: 'Poppins', fontSize: 14, color: C.n900 }}>{m.label}</span>
                 {m.badge && (
                   <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: m.badge.bg, color: m.badge.color, marginRight: 4 }}>
                     {m.badge.text}
                   </span>
                 )}
-                {m.screen && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>}
+                {m.screen && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n600} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>}
               </button>
               {i < MENUS.length - 1 && <Divider mx={0} my={0} />}
             </div>
@@ -226,7 +255,7 @@ export default function SettingsPage({ user, navigate, onLogout, onSwitchRole })
 
         {/* App version */}
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Waschen v1.0.0 · PT Waschen Alora Indonesia</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>Waschen v1.0.0 · PT Waschen Alora Indonesia</div>
         </div>
 
         <Btn variant="danger" fullWidth onClick={() => setShowLogoutConfirm(true)}>Keluar</Btn>

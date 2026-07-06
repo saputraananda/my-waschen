@@ -1,25 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp, getCartLineSubtotal, getCartUnitPrice } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Avatar, SearchBar, EmptyState, Select } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError, alertWarning } from '../../utils/alert';
+import KeranjangPanel from '../../components/KeranjangPanel';
 
 // ─── ItemDetailFields ─────────────────────────────────────────────────────
 // Input bahan & merek per item + auto-detect alert khusus
 const SPECIAL_BAHAN = {
-  'sutra':       { color: '#EC4899', alert: '⚠️ Bahan sutra — gunakan deterjen lembut, jangan diperas keras' },
-  'silk':        { color: '#EC4899', alert: '⚠️ Bahan silk — gunakan deterjen lembut, jangan diperas keras' },
-  'wol':         { color: '#92400E', alert: '⚠️ Bahan wol — cuci air dingin, jangan diperas atau ditarik' },
-  'wool':        { color: '#92400E', alert: '⚠️ Bahan wol — cuci air dingin, jangan diperas atau ditarik' },
-  'kulit':       { color: '#7F1D1D', alert: '🚨 Bahan kulit — JANGAN dicuci air, gunakan dry cleaning saja' },
-  'leather':     { color: '#7F1D1D', alert: '🚨 Bahan kulit — JANGAN dicuci air, gunakan dry cleaning saja' },
-  'beludru':     { color: '#581C87', alert: '⚠️ Beludru — hati-hati saat setrika, gunakan kain pelapis' },
-  'velvet':      { color: '#581C87', alert: '⚠️ Velvet — hati-hati saat setrika, gunakan kain pelapis' },
-  'kaos polos':  { color: '#0EA5E9', alert: '💧 Cek warna luntur sebelum pencampuran' },
-  'jeans':       { color: '#1E40AF', alert: '💧 Jeans — kemungkinan luntur, cuci terpisah pertama kali' },
-  'denim':       { color: '#1E40AF', alert: '💧 Denim — kemungkinan luntur, cuci terpisah pertama kali' },
+  'sutra':       { color: C.materialSutra, alert: '⚠️ Bahan sutra — gunakan deterjen lembut, jangan diperas keras' },
+  'silk':        { color: C.materialSutra, alert: '⚠️ Bahan silk — gunakan deterjen lembut, jangan diperas keras' },
+  'wol':         { color: C.materialWol, alert: '⚠️ Bahan wol — cuci air dingin, jangan diperas atau ditarik' },
+  'wool':        { color: C.materialWol, alert: '⚠️ Bahan wol — cuci air dingin, jangan diperas atau ditarik' },
+  'kulit':       { color: C.materialKulit, alert: '🚨 Bahan kulit — JANGAN dicuci air, gunakan dry cleaning saja' },
+  'leather':     { color: C.materialKulit, alert: '🚨 Bahan kulit — JANGAN dicuci air, gunakan dry cleaning saja' },
+  'beludru':     { color: C.materialBeludru, alert: '⚠️ Beludru — hati-hati saat setrika, gunakan kain pelapis' },
+  'velvet':      { color: C.materialBeludru, alert: '⚠️ Velvet — hati-hati saat setrika, gunakan kain pelapis' },
+  'kaos polos':  { color: C.materialJeans, alert: '💧 Cek warna luntur sebelum pencampuran' },
+  'jeans':       { color: C.materialJeans, alert: '💧 Jeans — kemungkinan luntur, cuci terpisah pertama kali' },
+  'denim':       { color: C.materialJeans, alert: '💧 Denim — kemungkinan luntur, cuci terpisah pertama kali' },
 };
 
 const PREMIUM_MEREK = ['gucci', 'louis vuitton', 'lv', 'hermes', 'chanel', 'prada', 'dior', 'versace', 'burberry', 'fendi'];
@@ -34,7 +35,7 @@ function detectAlert(bahan, merek) {
     if (bLower.includes(key)) { alerts.push(meta); break; }
   }
   if (PREMIUM_MEREK.some(brand => mLower.includes(brand))) {
-    alerts.push({ color: '#B45309', alert: '✨ Merek premium — handle ekstra hati-hati, dokumentasi lengkap' });
+    alerts.push({ color: C.materialPremium, alert: '✨ Merek premium — handle ekstra hati-hati, dokumentasi lengkap' });
   }
   return alerts;
 }
@@ -45,7 +46,7 @@ function ItemDetailFields({ item, onChangeBahan, onChangeMerek, onChangeAlert })
     <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, marginBottom: 4 }}>🧵 Bahan (opsional)</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 4 }}>🧵 Bahan (opsional)</div>
           <input
             value={item.material || ''}
             onChange={(e) => onChangeBahan(e.target.value)}
@@ -54,7 +55,7 @@ function ItemDetailFields({ item, onChangeBahan, onChangeMerek, onChangeAlert })
           />
         </div>
         <div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, marginBottom: 4 }}>🏷️ Merek (opsional)</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 4 }}>🏷️ Merek (opsional)</div>
           <input
             value={item.brand || ''}
             onChange={(e) => onChangeMerek(e.target.value)}
@@ -77,7 +78,7 @@ function ItemDetailFields({ item, onChangeBahan, onChangeMerek, onChangeAlert })
 
       {/* Manual special alert input */}
       <div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, marginBottom: 4 }}>⚠️ Catatan khusus (untuk produksi)</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 4 }}>⚠️ Catatan khusus (untuk produksi)</div>
         <input
           value={item.specialCareAlert || ''}
           onChange={(e) => onChangeAlert(e.target.value)}
@@ -97,18 +98,17 @@ export default function NotaStep2Page({ goBack }) {
   const [services, setServices] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(false);
-  // ── Carpet (m2) measurement ───────────────────────────────────────────────
+  const [cartModalOpen, setCartModalOpen] = useState(false);
+  // ─── Carpet (m2) measurement ────────────────────────────────────────────────
   const [measuringId, setMeasuringId] = useState(null);
-  const [carpetInputs, setCarpetInputs] = useState({}); // { [serviceId]: { panjang: '', lebar: '' } }
-  const [carpetUnit, setCarpetUnit] = useState('cm'); // 'cm' or 'm'
-  const canFavorite = !!notaCustomer?.id;
+  const [carpetInputs, setCarpetInputs] = useState({}); // { [serviceId]: { panjang: '', lebar: '' } } - in meters
 
   useEffect(() => {
     const fetchServices = async () => {
       setLoading(true);
       try {
         const [svcRes, matRes] = await Promise.all([
-          axios.get(`/api/services${notaCustomer?.id ? `?customerId=${notaCustomer.id}` : ''}`),
+          axios.get(`/api/services${notaCustomer?.id ? `?customerId=${notaCustomer.id}&sort=popular` : '?sort=popular'}`),
           axios.get('/api/master/materials')
         ]);
         setServices(svcRes?.data?.data || []);
@@ -123,6 +123,7 @@ export default function NotaStep2Page({ goBack }) {
   }, [notaCustomer?.id]);
 
   // ── Cleanox dummy services (Home Cleaning) — placeholder sampai admin set up ──
+// TODO: Hapus CLEANOX_DUMMY setelah API /api/services mengembalikan cleanox services dari backend
   const CLEANOX_DUMMY = useMemo(() => [
     { id: 'cnx-1', name: 'Cuci Sofa 2 Dudukan', category: 'Sofa & Kursi', categoryCode: 'CNX_SOFA', price: 150_000, unit: 'unit', minQty: 1, expressMultiplier: 1.5, expressExtra: 75_000, expressEligible: 1, active: 1, serviceKind: 'cleanox', _dummy: true },
     { id: 'cnx-2', name: 'Cuci Sofa 3 Dudukan', category: 'Sofa & Kursi', categoryCode: 'CNX_SOFA', price: 250_000, unit: 'unit', minQty: 1, expressMultiplier: 1.5, expressExtra: 125_000, expressEligible: 1, active: 1, serviceKind: 'cleanox', _dummy: true },
@@ -169,22 +170,26 @@ export default function NotaStep2Page({ goBack }) {
 
   // ── Ordering yang aman & informatif:
   //    1. PINNED (paling atas — diset admin sebagai promo/priority)
-  //    2. FAVORITE (frekuensi pemakaian customer ini > 0, urut DESC)
+  //    2. POPULAR (top 5 by frekuensi transaksi 30 hari terakhir — auto, tidak perlu diklik manual)
   //    3. NORMAL (sisanya, urut by category + name)
   const orderedList = useMemo(() => {
     const pinned = filtered.filter((s) => s.pin_context);
     const pinnedIds = new Set(pinned.map((s) => s.id));
-    const favorite = filtered
-      .filter((s) => !pinnedIds.has(s.id) && Number(s.usage_count) > 0)
-      .sort((a, b) => Number(b.usage_count) - Number(a.usage_count));
-    const favIds = new Set(favorite.map((s) => s.id));
+
+    // Popular: top 5 by popular_count (auto-calculated from 30-day transaction frequency)
+    const popular = filtered
+      .filter((s) => !pinnedIds.has(s.id) && Number(s.popular_count) > 0)
+      .sort((a, b) => Number(b.popular_count) - Number(a.popular_count))
+      .slice(0, 5); // Top5 only
+    const popularIds = new Set(popular.map((s) => s.id));
+
     const others = filtered
-      .filter((s) => !pinnedIds.has(s.id) && !favIds.has(s.id))
+      .filter((s) => !pinnedIds.has(s.id) && !popularIds.has(s.id))
       .sort((a, b) => {
         const catCmp = (a.category || '').localeCompare(b.category || '', 'id');
         return catCmp !== 0 ? catCmp : (a.name || '').localeCompare(b.name || '', 'id');
       });
-    return { pinned, favorite, others };
+    return { pinned, popular, others };
   }, [filtered]);
 
   const getQty = (id) => notaCart.find((c) => c.id === id)?.qty || 0;
@@ -197,25 +202,21 @@ export default function NotaStep2Page({ goBack }) {
     });
   };
 
-  const addCarpetItem = (service, panjangRaw, lebarRaw) => {
-    const p = Number(panjangRaw);
-    const l = Number(lebarRaw);
+  const addCarpetItem = (service, panjangM, lebarM) => {
+    const p = Number(panjangM);
+    const l = Number(lebarM);
     if (!p || !l || p <= 0 || l <= 0) return;
-    // Konversi ke m² berdasarkan unit yang dipilih
-    let luas;
-    let pCm, lCm;
-    if (carpetUnit === 'm') {
-      luas = Math.round((p * l) * 100) / 100; // sudah dalam meter
-      pCm = Math.round(p * 100);
-      lCm = Math.round(l * 100);
-    } else {
-      luas = Math.round((p * l / 10000) * 100) / 100; // cm → m²
-      pCm = p;
-      lCm = l;
-    }
+    
+    // Calculate area in m²
+    const luas = Math.round((p * l) * 100) / 100;
+    
+    // Convert to cm for storage (backend compatibility)
+    const pCm = Math.round(p * 100);
+    const lCm = Math.round(l * 100);
+    
     setNotaCart((prev) => {
       const existing = prev.find((c) => c.id === service.id);
-      const carpetData = { carpetPanjangCm: pCm, carpetLebarCm: lCm, carpetInputUnit: carpetUnit };
+      const carpetData = { carpetPanjangCm: pCm, carpetLebarCm: lCm, carpetInputUnit: 'm' };
       if (existing) {
         return prev.map((c) => c.id === service.id ? { ...c, qty: luas, ...carpetData } : c);
       }
@@ -254,30 +255,23 @@ export default function NotaStep2Page({ goBack }) {
     setNotaCart((prev) => prev.map((c) => (c.id === id ? { ...c, specialCareAlert: alert } : c)));
   };
 
-  const toggleFavorite = async (service) => {
-    if (!notaCustomer?.id) {
-      alertWarning('Pilih customer terlebih dahulu untuk favorit.');
-      return;
-    }
-    try {
-      const res = await axios.post(`/api/services/${service.id}/favorite`, { customerId: notaCustomer.id });
-      const isFavorite = res?.data?.favorite;
-      setServices((prev) => prev.map((s) => (
-        s.id === service.id
-          ? { ...s, usage_count: isFavorite ? Math.max(1, s.usage_count || 0) : 0 }
-          : s
-      )));
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-      alertError(error?.response?.data?.message || 'Gagal mengubah favorit layanan.');
-    }
+  const total = notaCart.reduce((sum, c) => sum + getCartLineSubtotal(c), 0);
+
+  // ── Validation: Check if all services requiring material have material selected ──
+  const validateMaterialSelection = () => {
+    const itemsMissingMaterial = notaCart.filter(item => {
+      // Check if service requires material (requires_material = 1)
+      return item.requiresMaterial === 1 && !item.materialId;
+    });
+    return itemsMissingMaterial;
   };
 
-  const total = notaCart.reduce((sum, c) => sum + getCartLineSubtotal(c), 0);
+  const missingMaterialItems = validateMaterialSelection();
+  const canProceed = missingMaterialItems.length === 0;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Buat Nota" subtitle="Langkah 2 dari 3 — Pilih Layanan" onBack={goBack} />
+      <TopBar title="Buat Nota" subtitle={`Langkah 2 dari 3 — Pilih Layanan (Cart: ${notaCart.length})`} onBack={goBack} />
 
       <div style={{ padding: '8px 16px' }}>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -305,7 +299,7 @@ export default function NotaStep2Page({ goBack }) {
         }}>
           {[
             { id: 'waschen', label: 'Waschen Laundry', sub: 'Cuci & setrika', icon: '🧺',  color: C.primary },
-            { id: 'cleanox', label: 'Cleanox Cleaning', sub: 'Home cleaning', icon: '🏠',  color: '#0EA5E9' },
+            { id: 'cleanox', label: 'Cleanox Cleaning', sub: 'Home cleaning', icon: '🏠',  color: C.info },
           ].map(opt => {
             const active = serviceKind === opt.id;
             return (
@@ -317,7 +311,7 @@ export default function NotaStep2Page({ goBack }) {
                   padding: '10px 12px', borderRadius: 10,
                   border: 'none',
                   background: active ? 'white' : 'transparent',
-                  boxShadow: active ? '0 2px 8px rgba(15,23,42,0.08)' : 'none',
+                  boxShadow: active ? SHADOW.md : 'none',
                   cursor: 'pointer', textAlign: 'left',
                   transition: 'all 0.15s',
                 }}
@@ -328,10 +322,10 @@ export default function NotaStep2Page({ goBack }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
                 }}>{opt.icon}</div>
                 <div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: active ? opt.color : C.n700 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: active ? opt.color : C.n700 }}>
                     {opt.label}
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 1 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, marginTop: 1 }}>
                     {opt.sub}
                   </div>
                 </div>
@@ -350,7 +344,7 @@ export default function NotaStep2Page({ goBack }) {
       </div>
 
       <div style={{ padding: '8px 16px 0' }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, marginBottom: 6 }}>Genre / kategori</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Genre / kategori</div>
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
           {categoryChips.map((cat) => (
             <Chip key={cat} label={cat} active={activeCategory === cat} onClick={() => setActiveCategory(cat)} />
@@ -362,7 +356,7 @@ export default function NotaStep2Page({ goBack }) {
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
             <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat layanan...</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Memuat layanan...</span>
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
@@ -373,41 +367,46 @@ export default function NotaStep2Page({ goBack }) {
           <>
             {/* SECTION: Pinned (selalu di atas — diset admin) */}
             {orderedList.pinned.length > 0 && (
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: '#7C3AED', display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, marginBottom: 2 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.sectionPinned, display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, marginBottom: 2 }}>
                 <span>📌</span> DI PIN
               </div>
             )}
-            {/* SECTION: Favorite (frekuensi customer ini) */}
-            {orderedList.favorite.length > 0 && (
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4, marginTop: orderedList.pinned.length > 0 ? 8 : 4, marginBottom: 2 }}>
-                <span>⭐</span> SERING DIPAKAI
+            {/* SECTION: Popular (top 5 auto-calculated by 30-day transaction frequency) */}
+            {orderedList.popular.length > 0 && (
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.sectionPopular, display: 'flex', alignItems: 'center', gap: 4, marginTop: orderedList.pinned.length > 0 ? 8 : 4, marginBottom: 2 }}>
+                <span>🔥</span> SERING DIGUNAKAN
               </div>
             )}
-            {/* Render: pinned dulu, lalu favorite, lalu others */}
-            {[...orderedList.pinned, ...orderedList.favorite, ...orderedList.others].map((s, idx) => {
+            {/* Render: pinned → popular → others */}
+            {[...orderedList.pinned, ...orderedList.popular, ...orderedList.others].map((s, idx) => {
               const isM2     = s.unit === 'm2';
               const qty      = getQty(s.id);
               const inCart   = notaCart.find((c) => c.id === s.id);
               const isMeasuring = measuringId === s.id;
               const inp      = carpetInputs[s.id] || { panjang: '', lebar: '' };
-              const isFavorite = Number(s.usage_count) > 0;
               const isPinned = !!s.pin_context;
+              const isPopular = !isPinned && Number(s.popular_count) > 0;
+              // Calculate area in m² (inputs are in meters)
               const luas     = (inp.panjang && inp.lebar)
-                ? carpetUnit === 'm'
-                  ? Math.round((Number(inp.panjang) * Number(inp.lebar)) * 100) / 100
-                  : Math.round((Number(inp.panjang) * Number(inp.lebar) / 10000) * 100) / 100
+                ? Math.round((Number(inp.panjang) * Number(inp.lebar)) * 100) / 100
                 : 0;
 
-              // Inject section divider antara pinned → favorite → others
-              const showOthersHeader =
-                idx === orderedList.pinned.length + orderedList.favorite.length &&
-                (orderedList.pinned.length > 0 || orderedList.favorite.length > 0) &&
-                orderedList.others.length > 0;
+              // Inject section divider between sections
+              const pinnedEnd = orderedList.pinned.length;
+              const popularEnd = pinnedEnd + orderedList.popular.length;
+
+              const showPopularHeader = idx === pinnedEnd && orderedList.popular.length > 0;
+              const showOthersHeader = idx === popularEnd && (orderedList.pinned.length > 0 || orderedList.popular.length > 0) && orderedList.others.length > 0;
 
               return (
                 <React.Fragment key={s.id}>
+                  {showPopularHeader && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.sectionPopular, display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, marginBottom: 2 }}>
+                      <span>🔥</span> SERING DIGUNAKAN
+                    </div>
+                  )}
                   {showOthersHeader && (
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, marginBottom: 2 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.sectionOther, display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, marginBottom: 2 }}>
                       <span>🧺</span> LAINNYA
                     </div>
                   )}
@@ -416,8 +415,8 @@ export default function NotaStep2Page({ goBack }) {
                     background: C.white,
                     borderRadius: 14,
                     padding: '12px 14px',
-                    boxShadow: isPinned ? '0 2px 10px rgba(124,58,237,0.18)' : '0 2px 8px rgba(15,23,42,0.05)',
-                    border: isPinned ? '2px solid #7C3AED' : inCart ? `1.5px solid ${C.primary}30` : '1.5px solid transparent',
+                    boxShadow: isPinned ? SHADOW.pinned : isPopular ? SHADOW.popular : SHADOW.sm,
+                    border: isPinned ? `2px solid ${C.sectionPinned}` : isPopular ? `2px solid ${C.sectionPopular}30` : inCart ? `1.5px solid ${C.primary}30` : '1.5px solid transparent',
                   }}
                 >
                   {/* ── Header row ── */}
@@ -426,50 +425,34 @@ export default function NotaStep2Page({ goBack }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{s.name}</div>
                         {isPinned && (
-                          <span style={{ background: '#EDE9FE', color: '#6D28D9', fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 999 }}>
+                          <span style={{ background: C.primaryTint, color: C.primary, fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 999 }}>
                             📌 PINNED
+                          </span>
+                        )}
+                        {isPopular && !isPinned && (
+                          <span style={{ background: C.infoBg, color: C.infoDark, fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, padding: '2px 6px', borderRadius: 999 }}>
+                            🔥 POPULER
                           </span>
                         )}
                       </div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
                         {isM2 ? 'per m²' : s.unit}
                         {s.category ? <span> · {s.category}</span> : null}
-                        {isM2 && <span style={{ marginLeft: 6, background: '#E0F2FE', color: '#0369A1', borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>📐 Karpet</span>}
+                        {isM2 && <span style={{ marginLeft: 6, background: C.carpetBg, color: C.carpetText, borderRadius: 6, padding: '1px 7px', fontSize: 10, fontWeight: 600 }}>📐 Ukuran m²</span>}
                       </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary, marginTop: 4 }}>
-                        {rp(s.price)}{isM2 ? <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, color: C.n500 }}> / m²</span> : null}
+                      <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginTop: 4 }}>
+                        {rp(s.price)}{isM2 ? <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, color: C.n600 }}> / m²</span> : null}
                       </div>
                     </div>
 
                     {/* ── RIGHT SIDE ── */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <button
-                        onClick={() => toggleFavorite(s)}
-                        disabled={!canFavorite}
-                        title={canFavorite ? (isFavorite ? 'Hapus dari favorit' : 'Tambahkan ke favorit') : 'Pilih customer dulu'}
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 8,
-                          border: `1.5px solid ${isFavorite ? '#F59E0B' : C.n300}`,
-                          background: isFavorite ? '#FFFBEB' : C.white,
-                          cursor: canFavorite ? 'pointer' : 'not-allowed',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: isFavorite ? '#F59E0B' : C.n400,
-                          fontSize: 14,
-                          opacity: canFavorite ? 1 : 0.6,
-                        }}
-                      >
-                        {isFavorite ? '⭐' : '☆'}
-                      </button>
                       {isM2 ? (
                         inCart ? (
                           // In cart: show remove button
                           <button
                             onClick={() => removeItem(s.id)}
-                            style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.danger}40`, background: '#FEF2F2', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.danger, fontSize: 16 }}
+                            style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.danger}40`, background: C.dangerBg, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.danger, fontSize: 16 }}
                           >×</button>
                         ) : isMeasuring ? null : (
                           // Not in cart, not measuring: show Ukur button
@@ -481,16 +464,16 @@ export default function NotaStep2Page({ goBack }) {
                             style={{ display: 'flex', alignItems: 'center', gap: 5, background: C.primary, border: 'none', borderRadius: 10, padding: '6px 12px', cursor: 'pointer', color: 'white' }}
                           >
                             <span style={{ fontSize: 14 }}>📐</span>
-                            <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700 }}>Ukur</span>
+                            <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>Ukur</span>
                           </button>
                         )
                       ) : (
                         // Normal +/- counter
                         <>
                           {qty > 0 && (
-                            <button onClick={() => removeItem(s.id)} style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.n300}`, background: C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600, fontSize: 18 }}>−</button>
+                            <button onClick={() => removeItem(s.id)} style={{ width: 28, height: 28, borderRadius: 8, border: `1.5px solid ${C.n300}`, background: C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n700, fontSize: 18 }}>−</button>
                           )}
-                          {qty > 0 && <span style={{ fontFamily: 'Poppins', fontWeight: 700, fontSize: 15, minWidth: 20, textAlign: 'center', color: C.n900 }}>{qty}</span>}
+                          {qty > 0 && <span style={{ fontFamily: 'Poppins', fontWeight: 600, fontSize: 15, minWidth: 20, textAlign: 'center', color: C.n900 }}>{qty}</span>}
                           <button onClick={() => addItem(s)} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: C.primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18 }}>+</button>
                         </>
                       )}
@@ -499,94 +482,98 @@ export default function NotaStep2Page({ goBack }) {
 
               {/* ── Carpet: in-cart summary ── */}
               {isM2 && inCart && (
-                <div style={{ marginTop: 8, background: '#EFF6FF', borderRadius: 10, padding: '8px 12px' }}>
+                <div style={{ marginTop: 8, background: `linear-gradient(135deg, ${C.carpetBg} 0%, ${C.carpetBgEnd} 100%)`, borderRadius: 10, padding: '10px 14px', boxShadow: SHADOW.carpet }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#1E40AF' }}>
-                      📏 <strong>{inCart.carpetPanjangCm} cm × {inCart.carpetLebarCm} cm</strong>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.carpetText, fontWeight: 600 }}>
+                      📏 <strong>{(inCart.carpetPanjangCm / 100).toFixed(2)} m × {(inCart.carpetLebarCm / 100).toFixed(2)} m</strong>
                       {' = '}<strong>{Number(inCart.qty).toFixed(2)} m²</strong>
                     </div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.primary }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.primary }}>
                       {rp(s.price * Number(inCart.qty))}
                     </div>
                   </div>
                   <button
                     onClick={() => {
                       setMeasuringId(s.id);
+                      // Convert cm back to meters for editing
                       setCarpetInputs((prev) => ({
                         ...prev,
-                        [s.id]: { panjang: String(inCart.carpetPanjangCm || ''), lebar: String(inCart.carpetLebarCm || '') },
+                        [s.id]: { 
+                          panjang: String((inCart.carpetPanjangCm / 100).toFixed(2)), 
+                          lebar: String((inCart.carpetLebarCm / 100).toFixed(2))
+                        },
                       }));
                     }}
-                    style={{ marginTop: 6, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11, color: '#1E40AF', padding: 0, textDecoration: 'underline' }}
+                    style={{ marginTop: 6, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11, color: C.carpetText, padding: 0, textDecoration: 'underline', fontWeight: 600 }}
                   >✏️ Ubah ukuran</button>
                 </div>
               )}
 
               {/* ── Carpet: measurement input ── */}
               {isM2 && isMeasuring && (
-                <div style={{ marginTop: 10, background: C.n50, borderRadius: 12, padding: '12px 14px', border: `1.5px solid ${C.primary}30` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700 }}>📐 Ukur Karpet</div>
-                    {/* Toggle cm / m */}
-                    <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: `1.5px solid ${C.primary}40` }}>
-                      <button
-                        type="button"
-                        onClick={() => setCarpetUnit('cm')}
-                        style={{
-                          padding: '4px 12px', border: 'none', cursor: 'pointer',
-                          fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
-                          background: carpetUnit === 'cm' ? C.primary : 'white',
-                          color: carpetUnit === 'cm' ? 'white' : C.n600,
-                        }}
-                      >cm</button>
-                      <button
-                        type="button"
-                        onClick={() => setCarpetUnit('m')}
-                        style={{
-                          padding: '4px 12px', border: 'none', cursor: 'pointer',
-                          fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
-                          background: carpetUnit === 'm' ? C.primary : 'white',
-                          color: carpetUnit === 'm' ? 'white' : C.n600,
-                        }}
-                      >m</button>
-                    </div>
+                <div style={{ marginTop: 10, background: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(10px)', borderRadius: 12, padding: '12px 14px', border: `1.5px solid ${C.primary}30`, boxShadow: '0 4px 12px rgba(110, 46, 120, 0.1)' }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, marginBottom: 10 }}>
+                    📐 Ukur Karpet (dalam meter)
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                     <div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, marginBottom: 4 }}>Panjang ({carpetUnit})</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Panjang (m)</div>
                       <input
                         type="number"
                         inputMode="decimal"
+                        step="0.1"
                         value={inp.panjang}
                         onChange={(e) => setCarpetInputs((prev) => ({ ...prev, [s.id]: { ...prev[s.id], panjang: e.target.value } }))}
-                        placeholder={carpetUnit === 'cm' ? 'mis. 250' : 'mis. 2.5'}
-                        style={{ width: '100%', height: 40, borderRadius: 8, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 10px', boxSizing: 'border-box', outline: 'none' }}
+                        placeholder="mis. 2.5"
+                        style={{
+                          width: '100%',
+                          height: 48,
+                          borderRadius: 10,
+                          border: `1.5px solid ${C.n300}`,
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          padding: '0 12px',
+                          boxSizing: 'border-box',
+                          outline: 'none',
+                          transition: 'border 0.2s',
+                        }}
+                        onFocus={(e) => e.target.style.border = `2px solid ${C.primary}`}
+                        onBlur={(e) => e.target.style.border = `1.5px solid ${C.n300}`}
                       />
                     </div>
                     <div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, marginBottom: 4 }}>Lebar ({carpetUnit})</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Lebar (m)</div>
                       <input
                         type="number"
                         inputMode="decimal"
+                        step="0.1"
                         value={inp.lebar}
                         onChange={(e) => setCarpetInputs((prev) => ({ ...prev, [s.id]: { ...prev[s.id], lebar: e.target.value } }))}
-                        placeholder={carpetUnit === 'cm' ? 'mis. 150' : 'mis. 1.5'}
-                        style={{ width: '100%', height: 40, borderRadius: 8, border: `1.5px solid ${C.n300}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 10px', boxSizing: 'border-box', outline: 'none' }}
+                        placeholder="mis. 1.5"
+                        style={{
+                          width: '100%',
+                          height: 48,
+                          borderRadius: 10,
+                          border: `1.5px solid ${C.n300}`,
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          padding: '0 12px',
+                          boxSizing: 'border-box',
+                          outline: 'none',
+                          transition: 'border 0.2s',
+                        }}
+                        onFocus={(e) => e.target.style.border = `2px solid ${C.primary}`}
+                        onBlur={(e) => e.target.style.border = `1.5px solid ${C.n300}`}
                       />
                     </div>
                   </div>
                   {luas > 0 && (
-                    <div style={{ background: '#DBEAFE', borderRadius: 8, padding: '7px 12px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 12, color: '#1E40AF' }}>
-                        Luas: <strong>{luas.toFixed(2)} m²</strong>
-                        {carpetUnit === 'cm' && inp.panjang && inp.lebar && (
-                          <span style={{ fontSize: 10, opacity: 0.8 }}> ({inp.panjang}×{inp.lebar} cm)</span>
-                        )}
-                        {carpetUnit === 'm' && inp.panjang && inp.lebar && (
-                          <span style={{ fontSize: 10, opacity: 0.8 }}> ({inp.panjang}×{inp.lebar} m)</span>
-                        )}
+                    <div style={{ background: `linear-gradient(135deg, ${C.carpetBgEnd} 0%, ${C.infoBg} 100%)`, borderRadius: 10, padding: '10px 14px', marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(14, 165, 233, 0.15)' }}>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.carpetText, fontWeight: 600 }}>
+                        📏 Luas: <strong>{luas.toFixed(2)} m²</strong>
+                        <span style={{ fontSize: 11, opacity: 0.8, marginLeft: 4 }}>({inp.panjang} × {inp.lebar} m)</span>
                       </span>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.primary }}>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary }}>
                         {rp(s.price * luas)}
                       </span>
                     </div>
@@ -594,12 +581,12 @@ export default function NotaStep2Page({ goBack }) {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => { setMeasuringId(null); setCarpetInputs((prev) => ({ ...prev, [s.id]: { panjang: '', lebar: '' } })); }}
-                      style={{ flex: 1, height: 36, borderRadius: 8, border: `1.5px solid ${C.n300}`, background: C.white, fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: C.n600 }}
+                      style={{ flex: 1, height: 48, borderRadius: 10, border: `1.5px solid ${C.n300}`, background: C.white, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: C.n700 }}
                     >Batal</button>
                     <button
                       onClick={() => addCarpetItem(s, inp.panjang, inp.lebar)}
                       disabled={!luas}
-                      style={{ flex: 2, height: 36, borderRadius: 8, border: 'none', background: luas ? C.primary : C.n300, fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, cursor: luas ? 'pointer' : 'not-allowed', color: 'white' }}
+                      style={{ flex: 2, height: 48, borderRadius: 10, border: 'none', background: luas ? C.primary : C.n300, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, cursor: luas ? 'pointer' : 'not-allowed', color: 'white', boxShadow: luas ? SHADOW.carpetButton : 'none' }}
                     >
                       {inCart ? '✓ Perbarui' : '+ Tambah'} {luas ? `${luas.toFixed(2)} m²` : ''}
                     </button>
@@ -614,7 +601,7 @@ export default function NotaStep2Page({ goBack }) {
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                       <button
                         onClick={() => toggleExpress(s.id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: inCart?.express ? '#FEF3C7' : C.n50, border: `1.5px solid ${inCart?.express ? C.warning : C.n300}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: inCart?.express ? C.warning : C.n600 }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, background: inCart?.express ? C.validationWarningBg : C.n50, border: `1.5px solid ${inCart?.express ? C.warning : C.n300}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: inCart?.express ? C.warning : C.n700 }}
                       >
                         <span style={{ fontSize: 14 }}>⚡</span>
                         <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>
@@ -623,13 +610,33 @@ export default function NotaStep2Page({ goBack }) {
                       </button>
                     </div>
                   )}
-                  {((s.category || '').toLowerCase().includes('satuan')) && (
+                  {/* Show material dropdown only for services with requires_material = 1 */}
+                  {s.requiresMaterial === 1 && (
                     <div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 4 }}>
+                        Jenis Bahan <span style={{ color: C.danger }}>*</span>
+                      </div>
                       <Select 
                         value={inCart?.materialId || ''} 
                         onChange={(val) => updateMaterial(s.id, val)} 
                         options={[{ value: '', label: 'Pilih Jenis Bahan...' }, ...materials.map(m => ({ value: m.id, label: m.name }))]}
                       />
+                      {/* Inline error message if material not selected */}
+                      {inCart && !inCart.materialId && (
+                        <div style={{
+                          marginTop: 4,
+                          padding: '6px 10px',
+                          background: C.validationErrorBg,
+                          border: `1.5px solid ${C.validationErrorBorder}`,
+                          borderRadius: 8,
+                          fontFamily: 'Poppins',
+                          fontSize: 11,
+                          color: C.validationErrorText,
+                          fontWeight: 600
+                        }}>
+                          ⚠️ Pilih jenis bahan untuk layanan ini
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -650,7 +657,7 @@ export default function NotaStep2Page({ goBack }) {
                 <div style={{ marginTop: 8 }}>
                   <button
                     onClick={() => toggleExpress(s.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: inCart?.express ? '#FEF3C7' : C.n50, border: `1.5px solid ${inCart?.express ? C.warning : C.n300}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: inCart?.express ? C.warning : C.n600 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, background: inCart?.express ? C.validationWarningBg : C.n50, border: `1.5px solid ${inCart?.express ? C.warning : C.n300}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer', color: inCart?.express ? C.warning : C.n700 }}
                   >
                     <span style={{ fontSize: 14 }}>⚡</span>
                     <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600 }}>
@@ -668,44 +675,419 @@ export default function NotaStep2Page({ goBack }) {
       </div>
 
       {notaCart.length > 0 && (
-        <div style={{
-          padding: '14px 16px 16px',
-          background: '#0F172A',
-          color: 'white',
-          borderTop: `3px solid ${C.primary}`,
-          boxShadow: '0 -4px 16px rgba(15,23,42,0.15)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'rgba(255,255,255,0.6)', letterSpacing: 0.5, fontWeight: 600 }}>
-                {notaCart.reduce((s, c) => s + c.qty, 0)} item · {serviceKind === 'cleanox' ? 'Cleanox 🏠' : 'Waschen 🧺'}
+        <>
+          {/* Cart Trigger Button */}
+          <div 
+            onClick={() => setCartModalOpen(true)}
+            style={{
+              background: C.white,
+              borderTop: `1px solid ${C.n200}`,
+              padding: '12px 16px',
+              boxShadow: SHADOW.sm,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, display: 'flex', alignItems: 'center', gap: 6 }}>
+                🛒 Keranjang ({notaCart.length} item)
                 {notaCart.some(c => c.express) && (
-                  <span style={{ marginLeft: 8, color: '#FBBF24', fontWeight: 700 }}>⚡ Express</span>
+                  <span style={{
+                    fontSize: 10, padding: '1px 6px', borderRadius: 999,
+                    background: C.validationWarningBg, color: C.validationWarningText, fontWeight: 700,
+                  }}>⚡ Express</span>
                 )}
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 24, fontWeight: 800, color: 'white', lineHeight: 1.15, marginTop: 2 }}>
-                {rp(total)}
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>
+                Total: {rp(total)}
               </div>
             </div>
-            <button
-              onClick={() => { if (!notaCustomer?.id) { alertWarning('Customer belum dipilih. Kembali ke langkah 1.'); navigate('nota_step1'); return; } navigate('nota_step3'); }}
-              style={{
-                background: C.primary, color: 'white',
-                border: 'none', borderRadius: 12,
-                padding: '12px 18px',
-                fontFamily: 'Poppins', fontSize: 14, fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6,
-                boxShadow: `0 4px 12px ${C.primary}55`,
-              }}
-            >
-              Lanjut
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
+            <div style={{ 
+              background: C.primary, 
+              color: 'white', 
+              borderRadius: '50%', 
+              width: 32, 
+              height: 32, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              fontSize: 18,
+            }}>
+              ›
+            </div>
           </div>
-        </div>
+
+          {/* Bottom Total & Continue Bar */}
+          <div style={{
+            padding: '14px 16px 16px',
+            background: C.n900,
+            color: 'white',
+            borderTop: `3px solid ${C.primary}`,
+            boxShadow: SHADOW.lg,
+          }}>
+            {/* Validation Error Message */}
+            {!canProceed && (
+              <div style={{
+                marginBottom: 10,
+                padding: '8px 12px',
+                background: C.validationErrorBg,
+                border: `1.5px solid ${C.validationErrorBorder}`,
+                borderRadius: 10,
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                color: C.validationErrorText,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}>
+                ⚠️ {missingMaterialItems.length} layanan belum memilih jenis bahan
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'rgba(255,255,255,0.6)', letterSpacing: 0.5, fontWeight: 600 }}>
+                  {serviceKind === 'cleanox' ? 'Cleanox 🏠' : 'Waschen 🧺'}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 24, fontWeight: 800, color: 'white', lineHeight: 1.15, marginTop: 2 }}>
+                  {rp(total)}
+                </div>
+              </div>
+              <button
+                onClick={() => { 
+                  if (!canProceed) {
+                    alertError('Mohon pilih jenis bahan untuk semua layanan yang memerlukan');
+                    return;
+                  }
+                  if (!notaCustomer?.id) { 
+                    alertWarning('Customer belum dipilih. Kembali ke langkah 1.'); 
+                    navigate('nota_step1'); 
+                    return; 
+                  } 
+                  navigate('nota_step3'); 
+                }}
+                disabled={!canProceed}
+                style={{
+                  background: canProceed ? C.primary : C.n400, 
+                  color: 'white',
+                  border: 'none', 
+                  borderRadius: 12,
+                  padding: '12px 18px',
+                  fontFamily: 'Poppins', 
+                  fontSize: 14, 
+                  fontWeight: 800,
+                  cursor: canProceed ? 'pointer' : 'not-allowed',
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 6,
+                  boxShadow: canProceed ? `0 4px 12px ${C.primary}55` : 'none',
+                  opacity: canProceed ? 1 : 0.6,
+                }}
+              >
+                Lanjut
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Cart Modal */}
+          {cartModalOpen && (
+            <div style={{
+              position: 'fixed',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              zIndex: 1000,
+            }}>
+              {/* Modal Header */}
+              <div style={{
+                background: C.white,
+                padding: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: `1px solid ${C.n200}`,
+              }}>
+                <div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n900 }}>
+                    🛒 Keranjang Belanja
+                  </div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>
+                    {notaCart.length} layanan · Total: {rp(total)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCartModalOpen(false)}
+                  style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: C.n50, border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, color: C.n700,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '16px',
+                background: C.n50,
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {notaCart.map((item, idx) => {
+                    const isM2 = item.unit === 'm2';
+                    return (
+                      <div key={idx} style={{
+                        background: C.white,
+                        borderRadius: 14,
+                        padding: '14px 16px',
+                        boxShadow: SHADOW.sm,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>{item.name}</div>
+                              {item.express && (
+                                <span style={{
+                                  fontSize: 10, padding: '2px 8px', borderRadius: 999,
+                                  background: C.validationWarningBg, color: C.validationWarningText, fontWeight: 700,
+                                }}>⚡ Express</span>
+                              )}
+                            </div>
+                            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 4 }}>
+                              {isM2 
+                                ? `${Number(item.qty).toFixed(2)} m²`
+                                : `${item.qty} ${item.unit || 'item'}`}
+                            </div>
+                            <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.primary, marginTop: 4 }}>
+                              {rp(getCartLineSubtotal(item))}
+                            </div>
+                          </div>
+
+                          {/* Remove Button */}
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            style={{
+                              width: 32, height: 32, borderRadius: 10,
+                              border: 'none', background: C.validationErrorBg, color: C.danger,
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 18, fontWeight: 700,
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+
+                        {/* Quick Controls Row */}
+                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {!isM2 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {/* Quantity Controls */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.n50, padding: 4, borderRadius: 10 }}>
+                                <button
+                                  onClick={() => removeItem(item.id)}
+                                  style={{ width: 36, height: 36, borderRadius: 8, border: `1.5px solid ${C.n300}`, background: C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n700, fontSize: 20 }}
+                                >−</button>
+                                <span style={{ fontFamily: 'Poppins', fontWeight: 600, fontSize: 16, minWidth: 28, textAlign: 'center', color: C.n900 }}>{item.qty}</span>
+                                <button
+                                  onClick={() => addItem(item)}
+                                  style={{ width: 36, height: 36, borderRadius: 8, border: 'none', background: C.primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 20 }}
+                                >+</button>
+                              </div>
+                              {/* Quick Presets */}
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                {[2, 3, 5, 10].map(presetQty => (
+                                  <button
+                                    key={presetQty}
+                                    onClick={() => setNotaCart(prev => prev.map(c => c.id === item.id ? { ...c, qty: presetQty } : c))}
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 8,
+                                      border: `1.5px solid ${C.n200}`,
+                                      background: C.white,
+                                      cursor: 'pointer',
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      color: C.n700,
+                                      fontFamily: 'Poppins',
+                                    }}
+                                  >
+                                    {presetQty}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Express Toggle (if available) */}
+                          {Number(item.expressMultiplier || 0) > 1 && (
+                            <button
+                              onClick={() => toggleExpress(item.id)}
+                              style={{
+                                width: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                background: item.express ? C.validationWarningBg : C.n50,
+                                border: `1.5px solid ${item.express ? C.warning : C.n300}`,
+                                borderRadius: 10,
+                                padding: '8px 12px',
+                                cursor: 'pointer',
+                                color: item.express ? C.warning : C.n700,
+                                justifyContent: 'center',
+                              }}
+                            >
+                              <span style={{ fontSize: 16 }}>⚡</span>
+                              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600 }}>
+                                {item.express ? 'Express Aktif' : 'Aktifkan Express'}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Expandable Details */}
+                        {!isM2 && (
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.n100}` }}>
+                            {/* Show material dropdown only for services with requires_material = 1 */}
+                            {item.requiresMaterial === 1 && (
+                              <div style={{ marginBottom: 8 }}>
+                                <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 4 }}>
+                                  Jenis Bahan <span style={{ color: C.danger }}>*</span>
+                                </div>
+                                <Select 
+                                  value={item.materialId || ''} 
+                                  onChange={(val) => updateMaterial(item.id, val)} 
+                                  options={[{ value: '', label: 'Pilih Jenis Bahan...' }, ...materials.map(m => ({ value: m.id, label: m.name }))]}
+                                />
+                                {/* Inline error message if material not selected */}
+                                {!item.materialId && (
+                                  <div style={{
+                                    marginTop: 4,
+                                    padding: '6px 10px',
+                                    background: C.validationErrorBg,
+                                    border: `1.5px solid ${C.validationErrorBorder}`,
+                                    borderRadius: 8,
+                                    fontFamily: 'Poppins',
+                                    fontSize: 11,
+                                    color: C.validationErrorText,
+                                    fontWeight: 600
+                                  }}>
+                                    ⚠️ Pilih jenis bahan untuk layanan ini
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <ItemDetailFields
+                              item={item}
+                              onChangeBahan={(v) => updateBahan(item.id, v)}
+                              onChangeMerek={(v) => updateMerek(item.id, v)}
+                              onChangeAlert={(v) => updateSpecialAlert(item.id, v)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{
+                background: C.white,
+                padding: '14px 16px',
+                borderTop: `1px solid ${C.n200}`,
+                boxShadow: SHADOW.md,
+              }}>
+                {/* Validation Error Message */}
+                {!canProceed && (
+                  <div style={{
+                    marginBottom: 10,
+                    padding: '8px 12px',
+                    background: C.validationErrorBg,
+                    border: `1.5px solid ${C.validationErrorBorder}`,
+                    borderRadius: 10,
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    color: C.validationErrorText,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    ⚠️ {missingMaterialItems.length} layanan belum memilih jenis bahan
+                  </div>
+                )}
+                <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700 }}>Total Keranjang</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color: C.n900 }}>{rp(total)}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setCartModalOpen(false)}
+                    style={{
+                      flex: 1,
+                      background: C.n50,
+                      color: C.n700,
+                      border: `1.5px solid ${C.n200}`,
+                      borderRadius: 12,
+                      padding: '12px 16px',
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Tutup
+                  </button>
+                  <button
+                    onClick={() => { 
+                      if (!canProceed) {
+                        alertError('Mohon pilih jenis bahan untuk semua layanan yang memerlukan');
+                        return;
+                      }
+                      setCartModalOpen(false); 
+                      if (!notaCustomer?.id) { 
+                        alertWarning('Customer belum dipilih. Kembali ke langkah 1.'); 
+                        navigate('nota_step1'); 
+                        return; 
+                      } 
+                      navigate('nota_step3'); 
+                    }}
+                    disabled={!canProceed}
+                    style={{
+                      flex: 2,
+                      background: canProceed ? C.primary : C.n400,
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 12,
+                      padding: '12px 16px',
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: canProceed ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      opacity: canProceed ? 1 : 0.6,
+                    }}
+                  >
+                    Lanjut ke Pembayaran
+                    ›
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

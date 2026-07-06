@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { C, T } from '../../utils/theme';
+import { C, T, SHADOW } from '../../utils/theme';
 import { TopBar, Btn } from '../../components/ui';
 import { alertSuccess, confirmAction } from '../../utils/alert';
 
@@ -107,8 +107,8 @@ function Toggle({ value, onChange }) {
 
 function Section({ title, children }) {
   return (
-    <div style={{ background: 'white', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-      {title && <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, letterSpacing: 0.5, marginBottom: 12, textTransform: 'uppercase' }}>{title}</div>}
+    <div style={{ background: 'white', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: SHADOW.sm }}>
+      {title && <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, letterSpacing: 0.5, marginBottom: 12, textTransform: 'uppercase' }}>{title}</div>}
       {children}
     </div>
   );
@@ -269,7 +269,7 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
             onClick={() => setActiveTab(i)}
             style={{
               flex: 1, minWidth: 80, padding: '12px 8px', fontFamily: 'Poppins', fontSize: 12, fontWeight: activeTab === i ? 700 : 500,
-              color: activeTab === i ? C.primary : C.n600,
+              color: activeTab === i ? C.primary : '#3a3a3a',
               background: 'none', border: 'none', cursor: 'pointer',
               borderBottom: `2.5px solid ${activeTab === i ? C.primary : 'transparent'}`,
               transition: 'all 0.15s', whiteSpace: 'nowrap',
@@ -298,8 +298,8 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
                     }}
                   >
                     <div style={{ fontSize: 20, marginBottom: 4 }}>{p.icon}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: cfg.printerType === p.value ? C.primary : C.n900 }}>{p.label}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{p.sub}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: cfg.printerType === p.value ? C.primary : C.n900 }}>{p.label}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700 }}>{p.sub}</div>
                   </button>
                 ))}
               </div>
@@ -317,7 +317,7 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
                   onChange={e => set('charPerLine', Number(e.target.value))}
                   style={{ width: '100%', accentColor: C.primary }}
                 />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 2 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 2 }}>
                   <span>24 (sempit)</span><span>80 (lebar)</span>
                 </div>
               </Field>
@@ -343,13 +343,13 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
                     }} />
                     <div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{c.label}</div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>{c.sub}</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>{c.sub}</div>
                     </div>
                   </button>
                 ))}
               </div>
               {cfg.connectionType === 'browser_print' && (
-                <div style={{ marginTop: 10, padding: 10, background: '#EFF6FF', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#1D4ED8', lineHeight: 1.6 }}>
+                <div style={{ marginTop: 10, padding: 10, background: C.infoBg, borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: C.infoDark, lineHeight: 1.6 }}>
                   💡 Mode Browser Print menggunakan <code>window.print()</code>. Atur ukuran kertas di dialog print browser sesuai printer fisik.
                 </div>
               )}
@@ -358,15 +358,15 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
             <Section title="Opsi Cetak">
               <Field label="Jumlah Salinan">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <button onClick={() => set('copies', Math.max(1, cfg.copies - 1))} style={{ width: 36, height: 36, borderRadius: 10, border: `1.5px solid ${C.n200}`, background: 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 18, fontWeight: 700 }}>−</button>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, minWidth: 32, textAlign: 'center' }}>{cfg.copies}</span>
-                  <button onClick={() => set('copies', Math.min(5, cfg.copies + 1))} style={{ width: 36, height: 36, borderRadius: 10, border: `1.5px solid ${C.n200}`, background: 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 18, fontWeight: 700 }}>+</button>
+                  <button onClick={() => set('copies', Math.max(1, cfg.copies - 1))} style={{ width: 36, height: 36, borderRadius: 10, border: `1.5px solid ${C.n200}`, background: 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 18, fontWeight: 600 }}>−</button>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, minWidth: 32, textAlign: 'center' }}>{cfg.copies}</span>
+                  <button onClick={() => set('copies', Math.min(5, cfg.copies + 1))} style={{ width: 36, height: 36, borderRadius: 10, border: `1.5px solid ${C.n200}`, background: 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 18, fontWeight: 600 }}>+</button>
                 </div>
               </Field>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: `1px solid ${C.n100}` }}>
                 <div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Cetak Label Produksi</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Halaman 2: label per unit cucian</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>Halaman 2: label per unit cucian</div>
                 </div>
                 <Toggle value={cfg.printLabel} onChange={v => set('printLabel', v)} />
               </div>
@@ -376,7 +376,7 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: cfg.barcodeEnabled ? 12 : 0 }}>
                 <div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>Tampilkan Barcode / QR</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Dicetak di bawah nota untuk scan cepat</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>Dicetak di bawah nota untuk scan cepat</div>
                 </div>
                 <Toggle value={cfg.barcodeEnabled} onChange={v => set('barcodeEnabled', v)} />
               </div>
@@ -462,7 +462,7 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
         {/* ── TAB 3: PREVIEW ── */}
         {activeTab === 3 && (
           <>
-            <div style={{ textAlign: 'center', fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginBottom: 8 }}>
+            <div style={{ textAlign: 'center', fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginBottom: 8 }}>
               Preview dengan data contoh · Lebar: {
                 cfg.printerType === 'thermal_58' ? '58mm'
                 : cfg.printerType === 'thermal_80' ? '80mm'
@@ -482,13 +482,13 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <button
               onClick={handleReset}
-              style={{ flex: 0, padding: '10px 16px', borderRadius: 12, border: `1.5px solid ${C.n200}`, background: 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600 }}
+              style={{ flex: 0, padding: '10px 16px', borderRadius: 12, border: `1.5px solid ${C.n200}`, background: 'white', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700 }}
             >
               Reset
             </button>
             <button
               onClick={handleSave}
-              style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: saved ? '#16A34A' : C.primary, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: 'white', transition: 'background 0.2s' }}
+              style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: saved ? C.success : C.primary, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: 'white', transition: 'background 0.2s' }}
             >
               {saved ? '✓ Tersimpan!' : 'Simpan Pengaturan'}
             </button>

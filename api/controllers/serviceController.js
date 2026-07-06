@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import { notDeleted, softDeleteRecord } from '../utils/softDelete.js';
 
 // Helper: Get default outlet
 const getDefaultOutlet = async () => {
@@ -71,6 +72,7 @@ export const getServices = async (req, res) => {
     const queryOutletId = req.query?.outletId;
     const customerId = req.query?.customerId;
     const userRole = req.user?.roleCode;
+    const sort = req.query?.sort; // 'popular' | 'alphabetical' (default)
 
     // Admin, finance, owner bisa lihat semua outlet (atau filter via query)
     const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
@@ -188,8 +190,27 @@ export const getServices = async (req, res) => {
       : '';
     const pinSelect = hasPinTable ? 'sp.pin_context,' : 'NULL AS pin_context,';
 
+    // ── Calculate popular services (frequency in last 30 days per outlet) ───────
+    // Populated only when sort='popular' or for display purposes
+    let popularSelect = '0 AS popular_count';
+    let popularJoin = '';
+    if (targetOutletId) {
+      popularSelect = 'COALESCE(pop.popular_count, 0) AS popular_count';
+      popularJoin = `
+ LEFT JOIN (
+          SELECT ti.service_id, COUNT(*) AS popular_count
+          FROM tr_transaction_item ti
+          JOIN tr_transaction t ON t.id = ti.transaction_id
+          WHERE t.outlet_id = ?
+            AND t.deleted_at IS NULL
+            AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+          GROUP BY ti.service_id
+        ) pop ON pop.service_id = s.id
+      `;
+    }
+
     const [rows] = await poolWaschenPos.execute(
-      `SELECT 
+      `SELECT
         s.id,
         s.name,
         c.name AS category,
@@ -203,21 +224,53 @@ export const getServices = async (req, res) => {
         s.is_express_eligible AS expressEligible,
         s.is_active AS active,
         s.outlet_id AS outletId,
+        s.requires_material AS requiresMaterial,
         ${slaSelect}
         ${kindSelect}
         ${pinSelect}
         ${favSelect},
+        ${popularSelect},
         s.created_at AS createdAt,
         s.updated_at AS updatedAt
       FROM mst_service s
       JOIN mst_service_category c ON c.id = s.category_id
       ${pinJoin}
+      ${popularJoin}
       ${favJoin}
       WHERE s.is_active = 1 AND s.deleted_at IS NULL ${outletFilter}
       ORDER BY c.sort_order, c.name, s.name`,
-      finalParams
+      targetOutletId ? [targetOutletId, ...finalParams] : finalParams
     );
-    return res.status(200).json({ success: true, data: rows });
+
+    // ── Apply sorting based on sort parameter ─────────────────────────────────
+    // Default: alphabetical (c.sort_order, c.name, s.name)
+    // Popular: popular_count DESC, then pinned, then favorites, then alphabetical
+    let sortedRows = rows;
+    if (sort === 'popular') {
+      const pinned = rows.filter((s) => s.pin_context);
+      const pinnedIds = new Set(pinned.map((s) => s.id));
+
+      const popular = rows
+        .filter((s) => !pinnedIds.has(s.id) && Number(s.popular_count) > 0)
+        .sort((a, b) => Number(b.popular_count) - Number(a.popular_count));
+      const popularIds = new Set(popular.map((s) => s.id));
+
+      const favorites = rows
+        .filter((s) => !pinnedIds.has(s.id) && !popularIds.has(s.id) && Number(s.usage_count) > 0)
+        .sort((a, b) => Number(b.usage_count) - Number(a.usage_count));
+      const favIds = new Set(favorites.map((s) => s.id));
+
+      const others = rows
+        .filter((s) => !pinnedIds.has(s.id) && !popularIds.has(s.id) && !favIds.has(s.id))
+        .sort((a, b) => {
+          const catCmp = (a.category || '').localeCompare(b.category || '', 'id');
+          return catCmp !== 0 ? catCmp : (a.name || '').localeCompare(b.name || '', 'id');
+        });
+
+      sortedRows = [...pinned, ...popular, ...favorites, ...others];
+    }
+
+    return res.status(200).json({ success: true, data: sortedRows });
   } catch (err) {
     console.error('[getServices] Error:', err);
     return res.status(500).json({ success: false, message: 'Gagal memuat data layanan.' });

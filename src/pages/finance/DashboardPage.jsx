@@ -1,9 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { Avatar, Badge, StatCard, Btn, SectionHeader } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
+
+// ─── Premium Animation Assets ───────────────────────────────────────────────
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp'
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp'
+import soapBubble from '../../assets/Decorative icon/soap-bubble.webp'
+
+// ─── Premium Animation Components ──────────────────────────────────────────────
+const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.35 }) => (
+  <motion.div
+    animate={{ y: [0, -12, 0], scale: [1, 1.06, 1], opacity: [opacity * 0.5, opacity, opacity * 0.5] }}
+    transition={{ duration, repeat: Infinity, ease: 'easeInOut', delay }}
+    style={{ position: 'absolute', top, left, right, bottom, width: size, height: size, pointerEvents: 'none', zIndex: 0 }}
+  >
+    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.08))' }} loading="lazy" />
+  </motion.div>
+);
 
 // ── Mini Bar Chart Component (pure CSS, no libraries) ────────────────────────
 const RevenueChart = ({ data }) => {
@@ -34,7 +51,7 @@ const RevenueChart = ({ data }) => {
                 boxShadow: isToday ? `0 2px 8px ${C.primary}33` : 'none',
               }}
             />
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: isToday ? C.primary : C.n500, fontWeight: isToday ? 700 : 400 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: isToday ? C.primary : C.n600, fontWeight: isToday ? 700 : 400 }}>
               {new Date(d.date).toLocaleDateString('id-ID', { weekday: 'narrow' })}
             </div>
           </div>
@@ -53,7 +70,7 @@ const TrendBadge = ({ current, previous, label }) => {
     <span style={{
       fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
       color: isUp ? C.success : C.danger,
-      background: isUp ? '#DCFCE744' : '#FEE2E244',
+      background: isUp ? C.successBg : C.dangerBg,
       padding: '2px 8px', borderRadius: 999,
       display: 'inline-flex', alignItems: 'center', gap: 3,
     }}>
@@ -125,7 +142,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
             <button onClick={() => navigate('notifikasi')} style={{ width: 40, height: 40, borderRadius: 20, background: 'rgba(255,255,255,0.15)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', position: 'relative' }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
               {stats?.pending?.count > 0 && (
-                <div style={{ position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRadius: 5, background: '#EF4444', border: '2px solid #1E3A5F' }} />
+                <div style={{ position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRadius: 5, background: C.danger, border: `2px solid ${C.n800}` }} />
               )}
             </button>
             <Avatar photo={user.photo} initials={user.avatar} size={40} onClick={() => navigate('profil')} />
@@ -161,10 +178,10 @@ export default function FinanceDashboardPage({ user, navigate }) {
         )}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat data...</div>
+          <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Memuat data...</div>
         ) : error ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: 12, textAlign: 'center' }}>
-            <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 28, background: C.validationErrorBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: 24 }}>⚠️</span>
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Gagal Memuat Data</div>
@@ -192,7 +209,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
               <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>📊 Trend Revenue 7 Hari</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>
                     Total: {rp(chartData.reduce((s, d) => s + d.revenue, 0))}
                   </div>
                 </div>
@@ -205,23 +222,23 @@ export default function FinanceDashboardPage({ user, navigate }) {
               <div
                 onClick={() => navigate('verifikasi_payment')}
                 style={{
-                  background: 'linear-gradient(135deg, #FEF3C7, #FDE68A44)',
+                  background: C.validationWarningBg,
                   borderRadius: 14, padding: '14px 16px', marginBottom: 16, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 12,
-                  border: '1px solid #F59E0B22',
+                  border: `1px solid ${C.validationWarningBorder}`,
                   transition: 'transform 0.2s',
                 }}
               >
-                <div style={{ width: 46, height: 46, borderRadius: 12, background: '#FBBF2422', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>💳</div>
+                <div style={{ width: 46, height: 46, borderRadius: 12, background: C.warningBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>💳</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#92400E' }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.validationWarningText }}>
                     {stats.pending.count} pembayaran menunggu verifikasi
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#B45309', marginTop: 2 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText, marginTop: 2 }}>
                     Total: {rp(stats.pending.amount)}
                   </div>
                 </div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.validationWarningText} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
               </div>
             )}
 
@@ -267,7 +284,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
                       <span style={{ fontSize: 16 }}>{item.icon}</span>
                       <div>
                         <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600 }}>{item.label}</div>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{item.count}</div>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{item.count}</div>
                       </div>
                     </div>
                     <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: item.color }}>{item.value}</div>

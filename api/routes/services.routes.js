@@ -3,6 +3,7 @@ import { authenticate, canManageMasterData } from '../middleware/auth.js';
 import { getServices, createService, toggleService, updateService, deleteService, togglePinService, toggleFavoriteService } from '../controllers/serviceController.js';
 import { cacheResponse, invalidatePattern } from '../middleware/cacheResponse.js';
 import { readLimiter } from '../middleware/rateLimit.js';
+import { validateServiceCreate } from '../schemas/validationSchemas.js';
 
 const router = Router();
 
@@ -22,7 +23,8 @@ router.get('/', authenticate, cacheResponse({ ttl: 120_000 }), readLimiter, getS
 
 // Mutasi master layanan (harga, satuan, dll.) — HANYA admin/superadmin/owner
 // Kasir/frontline tidak boleh memodifikasi master data layanan (risiko fraud: ubah harga sebelum checkout)
-router.post('/', authenticate, canManageMasterData, invalidateServices, createService);
+// Validation: Zod schema validates name, category_id, price, unit, SLA hours
+router.post('/', authenticate, canManageMasterData, invalidateServices, validateServiceCreate, createService);
 router.put('/:id', authenticate, canManageMasterData, invalidateServices, updateService);
 router.delete('/:id', authenticate, canManageMasterData, invalidateServices, deleteService);
 

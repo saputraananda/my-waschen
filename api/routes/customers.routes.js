@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireActiveShift } from '../middleware/auth.js';
 import { writeLimiter, readLimiter, searchLimiter } from '../middleware/rateLimit.js';
 import { cacheResponse, invalidatePattern } from '../middleware/cacheResponse.js';
-import { getCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer, topupDeposit, upgradeToPremium, downgradeFromPremium, lookupCustomers } from '../controllers/customerController.js';
+import { validateCustomerCreate, validateCustomerUpdate } from '../schemas/validationSchemas.js';
+import { getCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer, topupDeposit, upgradeToPremium, downgradeFromPremium, lookupCustomers, exportCustomerTransactions, getCustomerFavoriteServices, updateCustomerFavoriteService, removeCustomerFavoriteService } from '../controllers/customerController.js';
 
 const router = Router();
 
@@ -23,13 +24,26 @@ router.get('/', authenticate, cacheResponse({ ttl: 30_000 }), readLimiter, getCu
 router.get('/lookup', authenticate, cacheResponse({ ttl: 60_000 }), searchLimiter, lookupCustomers);
 
 // POST /api/customers - Tambah pelanggan baru
-router.post('/', authenticate, writeLimiter, invalidateCustomers, createCustomer);
+// Validation: Zod schema validates name, phone, email, gender, address fields
+router.post('/', authenticate, writeLimiter, invalidateCustomers, validateCustomerCreate, createCustomer);
 
 // GET /api/customers/:id — detail satu pelanggan, cache 30 detik
 router.get('/:id', authenticate, cacheResponse({ ttl: 30_000 }), readLimiter, getCustomerById);
 
+// GET /api/customers/:id/transactions/export — export transaksi customer (Excel/PDF)
+router.get('/:id/transactions/export', authenticate, readLimiter, exportCustomerTransactions);
+
+// GET /api/customers/:id/favorite-services — layanan favorit customer
+router.get('/:id/favorite-services', authenticate, readLimiter, getCustomerFavoriteServices);
+
+// PUT /api/customers/:id/favorite-services — update pin layanan favorit
+router.put('/:id/favorite-services', authenticate, writeLimiter, updateCustomerFavoriteService);
+
+// DELETE /api/customers/:id/favorite-services/:serviceId — hapus dari favorit
+router.delete('/:id/favorite-services/:serviceId', authenticate, writeLimiter, removeCustomerFavoriteService);
+
 // POST /api/customers/:id/topup — top up saldo deposit customer (audit-sensitive)
-router.post('/:id/topup', authenticate, writeLimiter, invalidateCustomers, topupDeposit);
+router.post('/:id/topup', authenticate, requireActiveShift, writeLimiter, invalidateCustomers, topupDeposit);
 
 // POST /api/customers/:id/upgrade — upgrade customer ke member premium
 router.post('/:id/upgrade', authenticate, writeLimiter, invalidateCustomers, upgradeToPremium);
@@ -38,7 +52,8 @@ router.post('/:id/upgrade', authenticate, writeLimiter, invalidateCustomers, upg
 router.post('/:id/downgrade', authenticate, writeLimiter, invalidateCustomers, downgradeFromPremium);
 
 // PUT /api/customers/:id - Update pelanggan
-router.put('/:id', authenticate, writeLimiter, invalidateCustomers, updateCustomer);
+// Validation: Zod schema validates all optional update fields
+router.put('/:id', authenticate, writeLimiter, invalidateCustomers, validateCustomerUpdate, updateCustomer);
 
 // DELETE /api/customers/:id - Delete (Soft) pelanggan
 router.delete('/:id', authenticate, writeLimiter, invalidateCustomers, deleteCustomer);

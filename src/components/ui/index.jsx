@@ -1,9 +1,19 @@
 import { useState, useRef, useEffect, Component, forwardRef } from 'react';
 import ReactDOM from 'react-dom';
-import { C, T } from '../../utils/theme';
+import { C, T, SHADOW } from '../../utils/theme';
 import { STATUS_COLORS, STAGES, rp } from '../../utils/helpers';
+import { SHADOWS, GRADIENTS, RADIUS } from '../../utils/designSystem';
+import { motion, AnimatePresence } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import {
+  ArrowLeft, Home, FileText, Users, User, List, CheckSquare,
+  Monitor, RotateCcw, Plus, ChevronRight, ChevronLeft, ChevronDown,
+  Search, Filter, X, Clock, AlertCircle, CheckCircle2, XCircle,
+  Bell, Settings, LogOut, ShoppingCart, Package, TrendingUp,
+  RefreshCw, Edit, Trash2, Eye, Download, Upload, Calendar,
+  MoreVertical, Info, MapPin, Phone, Mail, Truck, Map,
+} from 'lucide-react';
 
 // ── useToast ─────────────────────────────────────────────
 export const useToast = () => {
@@ -20,15 +30,15 @@ export const TopBar = ({ title, onBack, rightAction, rightIcon, subtitle }) => (
   <div role="banner" style={{ height: 56, background: C.white, display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, borderBottom: `1px solid ${C.n100}`, flexShrink: 0, position: 'relative', zIndex: 10 }}>
     {onBack && (
       <button onClick={onBack} aria-label="Kembali" style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n900 }}>
-        <svg style={{ pointerEvents: 'none' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+        <ArrowLeft size={20} strokeWidth={2.5} />
       </button>
     )}
     <div style={{ flex: 1 }}>
       <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, lineHeight: 1.2 }}>{title}</div>
-      {subtitle && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 1 }}>{subtitle}</div>}
+      {subtitle && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', marginTop: 1 }}>{subtitle}</div>}
     </div>
     {rightAction && (
-      <button onClick={rightAction} aria-label="Aksi" style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n600 }}>
+      <button onClick={rightAction} aria-label="Aksi" style={{ width: 40, height: 40, border: 'none', background: 'transparent', cursor: 'pointer', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3a3a3a' }}>
         <div style={{ pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {rightIcon}
         </div>
@@ -39,18 +49,28 @@ export const TopBar = ({ title, onBack, rightAction, rightIcon, subtitle }) => (
 
 // ── NAV_ICONS ─────────────────────────────────────────────
 const NAV_ICONS = {
-  home: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>,
-  tx: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>,
-  customer: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>,
-  profile: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>,
-  queue: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>,
-  approval: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>,
-  monitor: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>,
-  history: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-3.5" /></svg>,
+  home: <Home size={22} />,
+  tx: <FileText size={22} />,
+  customer: <Users size={22} />,
+  profile: <User size={22} />,
+  queue: <List size={22} />,
+  approval: <CheckSquare size={22} />,
+  monitor: <Monitor size={22} />,
+  history: <RotateCcw size={22} />,
+  delivery_tasks: <Truck size={22} />,
+  delivery_history: <Map size={22} />,
 };
 
 // ── BottomNav ─────────────────────────────────────────────
-export const BottomNav = ({ role, active, navigate }) => {
+export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCount = 0 }) => {
+  const [overdueCount, setOverdueCount] = useState(propOverdueCount);
+
+  // Listen to production dashboard broadcast
+  useEffect(() => {
+    const handler = (e) => setOverdueCount(e.detail.count);
+    window.addEventListener('produksi:overdue-count', handler);
+    return () => window.removeEventListener('produksi:overdue-count', handler);
+  }, []);
   // 'frontline' adalah sinonim 'kasir' — perlakukan sama
   const isKasir = role === 'kasir' || role === 'frontline';
   const tabs =
@@ -78,6 +98,14 @@ export const BottomNav = ({ role, active, navigate }) => {
           { id: 'laporan_keuangan', label: 'Laporan', icon: NAV_ICONS.monitor },
           { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
         ]
+      : role === 'delivery'
+      ? [
+          { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
+          { id: 'delivery_tasks', label: 'Tugas', icon: NAV_ICONS.tx },
+          { id: '_fab', label: '', icon: null },
+          { id: 'delivery_history', label: 'Riwayat', icon: NAV_ICONS.history },
+          { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
+        ]
       : [
           { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
           { id: 'approval', label: 'Approval', icon: NAV_ICONS.approval },
@@ -93,39 +121,166 @@ export const BottomNav = ({ role, active, navigate }) => {
       ? () => navigate('produksi_qr_scan')
       : role === 'finance'
       ? () => navigate('verifikasi_payment')
+      : role === 'delivery'
+      ? () => navigate('delivery_tasks')
       : () => navigate('approval');
 
   return (
-    <div style={{ height: 72, background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', alignItems: 'center', paddingBottom: 4, flexShrink: 0, position: 'relative', zIndex: 20 }}>
+    <div style={{
+      height: 76,
+      background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.65))',
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
+      borderTop: '1px solid rgba(255, 255, 255, 0.4)',
+      boxShadow: '0 -4px 30px rgba(110, 46, 120, 0.08), 0 -1px 0px rgba(0, 0, 0, 0.05)',
+      display: 'flex',
+      alignItems: 'center',
+      paddingBottom: 8,
+      flexShrink: 0,
+      position: 'relative',
+      zIndex: 20,
+    }}>
+      {/* Glass effect overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '50%',
+        background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent)',
+        pointerEvents: 'none',
+      }} />
+
       {tabs.map((tab) => {
         if (tab.id === '_fab')
           return (
             <div key="_fab" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <button
+              <motion.button
+                whileTap={{ scale: 0.92 }}
                 onClick={fabAction}
-                style={{ width: 52, height: 52, borderRadius: 26, background: `linear-gradient(135deg, ${C.primarySoft}, ${C.primary})`, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 16px ${C.primary}55`, color: C.white, marginBottom: 8 }}
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  background: 'linear-gradient(145deg, #8B5CF6, #6e2e78)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 6px 20px rgba(110, 46, 120, 0.45), 0 2px 8px rgba(110, 46, 120, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+                  color: '#fff',
+                  marginBottom: 4,
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
               >
+                {/* Inner glow */}
+                <div style={{
+                  position: 'absolute',
+                  top: '15%',
+                  left: '15%',
+                  width: '35%',
+                  height: '35%',
+                  background: 'rgba(255, 255, 255, 0.3)',
+                  borderRadius: '50%',
+                  filter: 'blur(4px)',
+                }} />
                 {role === 'produksi' ? (
-                  <svg style={{ pointerEvents: 'none' }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  <svg style={{ pointerEvents: 'none', position: 'relative', zIndex: 1 }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
                 ) : (
-                  <svg style={{ pointerEvents: 'none' }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                  <svg style={{ pointerEvents: 'none', position: 'relative', zIndex: 1 }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                 )}
-              </button>
+              </motion.button>
             </div>
           );
         const isActive = active === tab.id;
         return (
-          <button
+          <motion.button
             key={tab.id}
             onClick={() => navigate(tab.id)}
-            style={{ flex: 1, height: '100%', border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: isActive ? C.primary : C.n600 }}
+            whileTap={{ scale: 0.92 }}
+            style={{
+              flex: 1,
+              height: '100%',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 3,
+              color: isActive ? C.primary : '#9ca3af',
+              position: 'relative',
+            }}
           >
             <div style={{ position: 'relative', pointerEvents: 'none' }}>
+              {/* Active indicator */}
+              {isActive && (
+                <motion.div
+                  layoutId="bottomNavIndicator"
+                  style={{
+                    position: 'absolute',
+                    top: -6,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 20,
+                    height: 4,
+                    borderRadius: 2,
+                    background: `linear-gradient(135deg, ${C.primary}, #8B5CF6)`,
+                    boxShadow: `0 2px 8px ${C.primary}40`,
+                  }}
+                />
+              )}
               {tab.icon}
-              {isActive && <div style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 4, height: 4, borderRadius: 2, background: C.primary }} />}
+              {tab.id === 'antrian' && overdueCount > 0 && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: 4,
+                    minWidth: 16,
+                    height: 16,
+                    padding: '0 4px',
+                    borderRadius: 8,
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    fontFamily: 'Poppins',
+                    fontSize: 8,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {overdueCount}
+                </motion.span>
+              )}
+              {/* Active dot below icon */}
+              {isActive && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: -6,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 4,
+                  height: 4,
+                  borderRadius: 2,
+                  background: C.primary,
+                }} />
+              )}
             </div>
-            <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: isActive ? 600 : 400, pointerEvents: 'none' }}>{tab.label}</span>
-          </button>
+            <span style={{
+              fontFamily: 'Poppins',
+              fontSize: 10,
+              fontWeight: isActive ? 600 : 400,
+              pointerEvents: 'none',
+              color: isActive ? C.primary : '#9ca3af',
+            }}>{tab.label}</span>
+          </motion.button>
         );
       })}
     </div>
@@ -137,13 +292,13 @@ export const Btn = ({ variant = 'primary', children, onClick, disabled, loading,
   const [pressed, setPressed] = useState(false);
   const h = size === 'sm' ? 36 : size === 'lg' ? 52 : 48;
   const fs = size === 'sm' ? 13 : size === 'lg' ? 16 : 14;
-  const base = { height: h, borderRadius: 12, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'Poppins', fontSize: fs, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: fullWidth ? '100%' : 'auto', padding: '0 20px', transition: 'all 0.2s ease', opacity: disabled ? 0.5 : 1, transform: pressed ? 'scale(0.98)' : 'scale(1)', ...extraStyle };
+  const base = { height: h, borderRadius: 12, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'Poppins', fontSize: fs, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: fullWidth ? '100%' : 'auto', padding: '0 20px', transition: 'all 0.2s ease', opacity: disabled ? 0.5 : 1, transform: pressed ? 'scale(0.97)' : 'scale(1)', ...extraStyle };
   const styles = {
-    primary: { ...base, background: pressed ? C.primaryDark : `linear-gradient(135deg, ${C.primarySoft}, ${C.primary})`, color: C.white, boxShadow: disabled ? 'none' : `0 2px 8px ${C.primary}44` },
+    primary:   { ...base, background: pressed ? C.primaryDark : `linear-gradient(135deg, ${C.primaryHover}, ${C.primary})`, color: C.white, boxShadow: disabled ? 'none' : `0 4px 12px rgba(110,46,120,0.35)` },
     secondary: { ...base, background: C.white, color: C.primary, border: `1.5px solid ${C.primary}` },
-    danger: { ...base, background: C.danger, color: C.white },
-    ghost: { ...base, background: 'transparent', color: C.primary, height: 'auto', padding: '6px 12px' },
-    success: { ...base, background: C.success, color: C.white },
+    danger:    { ...base, background: C.danger, color: C.white, boxShadow: `0 4px 12px rgba(225,29,72,0.30)` },
+    ghost:     { ...base, background: 'transparent', color: C.primary, height: 'auto', padding: '6px 12px' },
+    success:   { ...base, background: C.success, color: C.white, boxShadow: `0 4px 12px rgba(5,150,105,0.30)` },
   };
   return (
     <button
@@ -164,23 +319,38 @@ export const Btn = ({ variant = 'primary', children, onClick, disabled, loading,
 };
 
 // ── Input ─────────────────────────────────────────────────
-export const Input = ({ label, value, onChange, type = 'text', error, placeholder, rightIcon, autoFocus, inputMode, id, name }) => {
+export const Input = ({ label, value, onChange, type = 'text', error, placeholder, rightIcon, autoFocus, inputMode, id, name, style }) => {
   const [focused, setFocused] = useState(false);
   // Auto-derive name dari label kalau ga di-pass
   const fieldName = name || (label ? label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') : undefined);
   const fieldId = id || fieldName;
   return (
     <div style={{ marginBottom: 16 }}>
-      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</label>}
+      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>{label}</label>}
       <div style={{ position: 'relative' }}>
         <input
           id={fieldId} name={fieldName}
           type={type} value={value} onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder} inputMode={inputMode} autoFocus={autoFocus}
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-          style={{ width: '100%', height: 48, borderRadius: 10, padding: rightIcon ? '0 44px 0 14px' : '0 14px', border: `${focused ? 2 : 1.5}px solid ${error ? C.danger : focused ? C.primary : C.n300}`, fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: C.white, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+          style={{
+            width: '100%',
+            height: style?.height || 46,
+            borderRadius: style?.borderRadius || 10,
+            padding: rightIcon ? '0 44px 0 14px' : '0 14px',
+            border: `${focused ? 2 : 1.5}px solid ${error ? C.danger : focused ? '#6e2e78' : C.n300}`,
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            color: C.n900,
+            background: C.white,
+            outline: 'none',
+            boxSizing: 'border-box',
+            transition: 'border-color 0.2s, box-shadow 0.2s',
+            boxShadow: focused ? '0 0 0 3px rgba(110,46,120,0.15)' : 'none',
+            ...style,
+          }}
         />
-        {rightIcon && <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: C.n600 }}>{rightIcon}</div>}
+        {rightIcon && <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#3a3a3a' }}>{rightIcon}</div>}
       </div>
       {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
     </div>
@@ -204,7 +374,7 @@ const _dateInputStyles = `
 .wdp .react-datepicker__month-container{background:#F8FAFC;width:252px}
 
 /* Header */
-.wdp-hdr{display:flex;align-items:center;justify-content:space-between;gap:6px;background:linear-gradient(135deg,${C.primary},${C.primaryDark||C.primary});color:#fff;padding:8px 10px}
+.wdp-hdr{display:flex;align-items:center;justify-content:space-between;gap:6px;background:linear-gradient(135deg,#8B5CF6,#6e2e78);color:#fff;padding:8px 10px}
 .wdp-ml{font-size:11px;font-weight:700;text-transform:capitalize}
 .wdp-nav{width:24px;height:24px;border:none;border-radius:999px;background:rgba(255,255,255,0.2);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
 .wdp-nav:hover{background:rgba(255,255,255,0.3)}
@@ -230,7 +400,7 @@ const _dateInputStyles = `
 .wdp .react-datepicker__day.wdp-wknd:not(.react-datepicker__day--selected):not(.react-datepicker__day--keyboard-selected){color:#5B21B6;background:#EDE9FE}
 .wdp .react-datepicker__day--outside-month{opacity:0.3}
 .wdp .react-datepicker__day--disabled{opacity:0.25!important;cursor:not-allowed!important;text-decoration:line-through;background:transparent!important}
-.wdp .react-datepicker__day--selected,.wdp .react-datepicker__day--keyboard-selected{background:${C.primary};color:#fff;font-weight:700}
+.wdp .react-datepicker__day--selected,.wdp .react-datepicker__day--keyboard-selected{background:#6e2e78;color:#fff;font-weight:700}
 
 /* Day content — simple, no badge */
 .wdp-dw{display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -265,7 +435,7 @@ function _isWeekend(d) {
   return dow === 'Sat' || dow === 'Sun';
 }
 
-const CALENDAR_ICON = ({ color = C.n500, size = 18 }) => (
+const CALENDAR_ICON = ({ color = '#3a3a3a', size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
     <line x1="16" y1="2" x2="16" y2="6" />
@@ -288,16 +458,16 @@ const DateInputCustom = forwardRef(({ value, onClick, placeholder, focused, icon
         aria-label="Pilih tanggal"
         style={{
           width: '100%', height: h, borderRadius: 10,
-          border: `${focused ? 2 : 1.5}px solid ${focused ? C.primary : C.n300}`,
+          border: `${focused ? 2 : 1.5}px solid ${focused ? '#6e2e78' : C.n300}`,
           background: focused ? `${C.primary}08` : C.white,
           outline: 'none', boxSizing: 'border-box',
           transition: 'border-color 0.2s, background 0.2s',
           cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: focused ? C.primary : C.n500,
+          color: focused ? C.primary : '#3a3a3a',
         }}
       >
-        <CALENDAR_ICON color={focused ? C.primary : C.n500} />
+        <CALENDAR_ICON color={focused ? C.primary : '#3a3a3a'} />
       </div>
     );
   }
@@ -306,9 +476,9 @@ const DateInputCustom = forwardRef(({ value, onClick, placeholder, focused, icon
     <div onClick={onClick} ref={ref} style={{
       width: '100%', height: h, borderRadius: 10,
       padding: '0 12px',
-      border: `${focused ? 2 : 1.5}px solid ${focused ? C.primary : C.n300}`,
+      border: `${focused ? 2 : 1.5}px solid ${focused ? '#6e2e78' : C.n300}`,
       fontFamily: 'Poppins', fontSize: compact ? 13 : 14,
-      color: value ? C.n900 : C.n500,
+      color: value ? C.n900 : '#3a3a3a',
       background: C.white, outline: 'none', boxSizing: 'border-box',
       transition: 'border-color 0.2s', cursor: 'pointer',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
@@ -316,7 +486,7 @@ const DateInputCustom = forwardRef(({ value, onClick, placeholder, focused, icon
       <span style={{ fontWeight: value ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {value || (iconOnlyEmpty ? '' : (placeholder || 'Pilih tanggal'))}
       </span>
-      <CALENDAR_ICON color={focused ? C.primary : C.n500} size={16} />
+      <CALENDAR_ICON color={focused ? C.primary : '#3a3a3a'} size={16} />
     </div>
   );
 });
@@ -359,7 +529,7 @@ export const DateInput = ({ label, value, onChange, placeholder, minDate, maxDat
 
   return (
     <div style={{ marginBottom: compact ? 0 : 16 }}>
-      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
+      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>{label}</div>}
       <DatePicker
         selected={selected}
         onChange={handleChange}
@@ -391,11 +561,11 @@ export const Textarea = ({ label, value, onChange, placeholder, rows = 3 }) => {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ marginBottom: 16 }}>
-      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
+      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>{label}</div>}
       <textarea
         value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        style={{ width: '100%', borderRadius: 10, padding: '12px 14px', border: `${focused ? 2 : 1.5}px solid ${focused ? C.primary : C.n300}`, fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: C.white, outline: 'none', resize: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+        style={{ width: '100%', borderRadius: 10, padding: '12px 14px', border: `${focused ? 2 : 1.5}px solid ${focused ? '#6e2e78' : C.n300}`, fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: C.white, outline: 'none', resize: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
       />
     </div>
   );
@@ -414,12 +584,12 @@ export const MoneyInput = ({ label, value, onChange, error, placeholder, autoFoc
 
   return (
     <div style={{ marginBottom: 16 }}>
-      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</label>}
+      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>{label}</label>}
       <div style={{ position: 'relative' }}>
         {prefix && (
           <span style={{
             position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-            fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n500,
+            fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: '#3a3a3a',
             pointerEvents: 'none',
           }}>{prefix}</span>
         )}
@@ -443,7 +613,7 @@ export const MoneyInput = ({ label, value, onChange, error, placeholder, autoFoc
           }}
         />
       </div>
-      {hint && !error && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>{hint}</div>}
+      {hint && !error && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', marginTop: 4 }}>{hint}</div>}
       {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
     </div>
   );
@@ -451,24 +621,27 @@ export const MoneyInput = ({ label, value, onChange, error, placeholder, autoFoc
 
 // ── TimeInput ─────────────────────────────────────────────
 // Input jam (HH:mm) — pakai native time input dengan styling konsisten + label.
+// BUG FIX #8: Added readOnly to prevent manual typing - user must use picker only.
 export const TimeInput = ({ label, value, onChange, error, placeholder, name, id }) => {
   const [focused, setFocused] = useState(false);
   const fieldName = name || (label ? label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') : 'time');
   const fieldId = id || fieldName;
   return (
     <div style={{ marginBottom: 16 }}>
-      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</label>}
+      {label && <label htmlFor={fieldId} style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>{label}</label>}
       <input
         id={fieldId} name={fieldName} type="time"
         value={value || ''} onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         placeholder={placeholder || '--:--'}
+        readOnly // BUG FIX #8: Prevent manual input - user must use picker
         style={{
           width: '100%', height: 48, borderRadius: 10, padding: '0 14px',
           border: `${focused ? 2 : 1.5}px solid ${error ? C.danger : focused ? C.primary : C.n300}`,
           fontFamily: 'Poppins', fontSize: 14, color: C.n900,
           background: C.white, outline: 'none', boxSizing: 'border-box',
           transition: 'border-color 0.2s',
+          cursor: 'pointer', // Show pointer to indicate it's a picker, not editable
         }}
       />
       {error && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginTop: 4 }}>{error}</div>}
@@ -521,7 +694,7 @@ export const DateTimeInput = ({ label, value, onChange, error, minDate, maxDate,
 
   return (
     <div style={{ marginBottom: 16 }}>
-      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>{label}</div>}
+      {label && <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>{label}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
         <div style={{ flex: 2 }}>
           <DateInput
@@ -629,7 +802,7 @@ export const Select = ({ label, value, onChange, options, error, placeholder, co
             maxHeight: 220,
             overflowY: 'auto',
             zIndex: 99999,
-            boxShadow: '0 8px 32px rgba(15,23,42,0.18)',
+            boxShadow: SHADOW.lg,
           }}
         >
           {options.map((o, i) => {
@@ -677,7 +850,7 @@ export const Select = ({ label, value, onChange, options, error, placeholder, co
   return (
     <div style={{ marginBottom: compact ? 0 : 16, position: 'relative' }}>
       {label && (
-        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n600, marginBottom: 6 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
           {label}
         </div>
       )}
@@ -695,7 +868,7 @@ export const Select = ({ label, value, onChange, options, error, placeholder, co
           border: `${open ? 2 : 1.5}px solid ${error ? C.danger : open ? C.primary : C.n300}`,
           borderRadius: 10,
           fontFamily: 'Poppins', fontSize: 14,
-          color: selectedOption ? C.n900 : C.n500,
+          color: selectedOption ? C.n900 : '#3a3a3a',
           cursor: 'pointer', outline: 'none',
           boxSizing: 'border-box',
           transition: 'border-color 0.15s',
@@ -707,7 +880,7 @@ export const Select = ({ label, value, onChange, options, error, placeholder, co
         </span>
         <svg
           width="16" height="16" viewBox="0 0 24 24"
-          fill="none" stroke={open ? C.primary : C.n500}
+          fill="none" stroke={open ? C.primary : '#3a3a3a'}
           strokeWidth="2.5" strokeLinecap="round"
           style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', pointerEvents: 'none' }}
         >
@@ -730,10 +903,10 @@ export const Select = ({ label, value, onChange, options, error, placeholder, co
 
 // ── Badge ─────────────────────────────────────────────────
 export const Badge = ({ status, label, small }) => {
-  const s = STATUS_COLORS[status] || { bg: C.n100, text: C.n600 };
+  const s = STATUS_COLORS[status] || { bg: C.n100, text: '#3a3a3a' };
   return (
-    <span style={{ background: s.bg, color: s.text, fontFamily: 'Poppins', fontSize: small ? 10 : 11, fontWeight: 600, padding: small ? '2px 8px' : '3px 10px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-      {status === 'proses' && <div style={{ width: 5, height: 5, borderRadius: '50%', background: C.warning }} />}
+    <span style={{ background: s.bg, color: s.text, fontFamily: 'Poppins', fontSize: small ? 10 : 11, fontWeight: 600, padding: small ? '2px 8px' : '3px 10px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', border: `1px solid ${s.border || s.bg}` }}>
+      {status === 'proses' && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#3a3a3a' }} />}
       {label || status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
@@ -743,18 +916,18 @@ export const Badge = ({ status, label, small }) => {
 export const Avatar = ({ initials, size = 40, photo, onClick }) => (
   <div
     onClick={onClick}
-    style={{ width: size, height: size, borderRadius: size / 2, background: `linear-gradient(135deg, ${C.primaryLight}, ${C.secondary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default', position: 'relative' }}
+    style={{ width: size, height: size, borderRadius: size / 2, background: `linear-gradient(135deg, ${C.primaryHover}, ${C.primary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default', position: 'relative', boxShadow: `0 2px 8px rgba(110,46,120,0.25)` }}
   >
     {photo
       ? <img src={photo} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: size / 2 }} />
-      : <span style={{ fontFamily: 'Poppins', fontSize: size * 0.35, fontWeight: 700, color: C.primary }}>{initials}</span>
+      : <span style={{ fontFamily: 'Poppins', fontSize: size * 0.35, fontWeight: 700, color: C.white }}>{initials}</span>
     }
   </div>
 );
 
 // ── Toast ─────────────────────────────────────────────────
 export const Toast = ({ message, type = 'success', visible }) => (
-  <div style={{ position: 'absolute', bottom: 90, left: 16, right: 16, zIndex: 9999, pointerEvents: visible ? 'auto' : 'none', background: type === 'success' ? C.success : type === 'error' ? C.danger : C.n900, color: C.white, borderRadius: 12, padding: '12px 16px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', transform: visible ? 'translateY(0)' : 'translateY(80px)', opacity: visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', display: 'flex', alignItems: 'center', gap: 10 }}>
+  <div style={{ position: 'absolute', bottom: 90, left: 16, right: 16, zIndex: 9999, pointerEvents: visible ? 'auto' : 'none', background: type === 'success' ? C.success : type === 'error' ? C.danger : C.n900, color: C.white, borderRadius: 12, padding: '12px 16px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,0.28)', transform: visible ? 'translateY(0)' : 'translateY(80px)', opacity: visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', display: 'flex', alignItems: 'center', gap: 10 }}>
     {type === 'success' && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>}
     {message}
   </div>
@@ -763,8 +936,8 @@ export const Toast = ({ message, type = 'success', visible }) => (
 // ── BottomSheet ───────────────────────────────────────────
 export const BottomSheet = ({ visible, onClose, title, children }) => (
   <>
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 100, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.25s' }} />
-    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: C.white, borderRadius: '20px 20px 0 0', zIndex: 101, padding: '0 0 32px', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)', maxHeight: '85%', overflowY: 'auto' }}>
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 100, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.25s' }} />
+    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: C.white, borderRadius: '20px 20px 0 0', zIndex: 101, padding: '0 0 32px', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)', maxHeight: '85%', overflowY: 'auto', boxShadow: SHADOW.xl }}>
       <div style={{ width: 36, height: 4, borderRadius: 2, background: C.n300, margin: '12px auto 4px' }} />
       {title && <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, padding: '12px 20px 8px' }}>{title}</div>}
       {children}
@@ -775,8 +948,8 @@ export const BottomSheet = ({ visible, onClose, title, children }) => (
 // ── Modal ─────────────────────────────────────────────────
 export const Modal = ({ visible, onClose, title, children }) => (
   <>
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.2s' }} />
-    <div style={{ position: 'absolute', top: '50%', left: 20, right: 20, background: C.white, borderRadius: 20, zIndex: 201, padding: 24, transform: visible ? 'translate(0, -50%) scale(1)' : 'translate(0, -50%) scale(0.9)', opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)', overflow: 'visible', maxHeight: '85vh', overflowY: 'auto' }}>
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 200, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.2s' }} />
+    <div style={{ position: 'absolute', top: '50%', left: 20, right: 20, background: C.white, borderRadius: 20, zIndex: 201, padding: 24, transform: visible ? 'translate(0, -50%) scale(1)' : 'translate(0, -50%) scale(0.9)', opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)', overflow: 'visible', maxHeight: '85vh', overflowY: 'auto', boxShadow: SHADOW.xl }}>
       {title && <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, marginBottom: 16 }}>{title}</div>}
       {children}
     </div>
@@ -785,13 +958,27 @@ export const Modal = ({ visible, onClose, title, children }) => (
 
 // ── StatCard ──────────────────────────────────────────────
 export const StatCard = ({ label, value, sub, icon, color = C.primary, onClick }) => (
-  <div onClick={onClick} style={{ background: C.white, borderRadius: 14, padding: '9px 11px', boxShadow: '0 2px 8px rgba(15,23,42,0.06)', cursor: onClick ? 'pointer' : 'default', width: '100%', boxSizing: 'border-box' }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
-      <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color }}>{icon}</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, lineHeight: 1.3 }}>{label}</div>
+  <div
+    onClick={onClick}
+    style={{
+      background: C.white,
+      borderRadius: 14,
+      padding: '12px 14px',
+      boxShadow: SHADOW.sm,
+      cursor: onClick ? 'pointer' : 'default',
+      width: '100%',
+      boxSizing: 'border-box',
+      transition: 'box-shadow 0.22s ease, transform 0.22s ease',
+    }}
+    onMouseEnter={(e) => { if (onClick) { e.currentTarget.style.boxShadow = SHADOW.md; e.currentTarget.style.transform = 'translateY(-2px)'; } }}
+    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = SHADOW.sm; e.currentTarget.style.transform = 'translateY(0)'; }}
+  >
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      <div style={{ width: 30, height: 30, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color }}>{icon}</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', lineHeight: 1.3 }}>{label}</div>
     </div>
-    <div style={{ fontFamily: 'Poppins', fontSize: 17, fontWeight: 700, color: C.n900, lineHeight: 1 }}>{value}</div>
-    {sub && <div style={{ fontFamily: 'Poppins', fontSize: 10, color, marginTop: 3, fontWeight: 500 }}>{sub}</div>}
+    <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n900, lineHeight: 1 }}>{value}</div>
+    {sub && <div style={{ fontFamily: 'Poppins', fontSize: 10, color, marginTop: 4, fontWeight: 500 }}>{sub}</div>}
   </div>
 );
 
@@ -799,7 +986,7 @@ export const StatCard = ({ label, value, sub, icon, color = C.primary, onClick }
 export const Chip = ({ label, active, onClick, color = C.primary }) => (
   <button
     onClick={onClick}
-    style={{ padding: '6px 14px', borderRadius: 999, border: `1.5px solid ${active ? color : C.n300}`, background: active ? C.primaryLight : C.white, color: active ? color : C.n600, fontFamily: 'Poppins', fontSize: 12, fontWeight: active ? 600 : 400, cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+    style={{ padding: '6px 14px', borderRadius: 999, border: `1.5px solid ${active ? color : C.n300}`, background: active ? `${color}12` : C.white, color: active ? color : '#3a3a3a', fontFamily: 'Poppins', fontSize: 12, fontWeight: active ? 600 : 400, cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0, boxShadow: active ? `0 2px 8px ${color}20` : 'none' }}
   >
     {label}
   </button>
@@ -817,7 +1004,7 @@ export const SearchBar = ({ value, onChange, placeholder = 'Cari...', name = 'se
     marginBottom: compact ? 0 : 12,
     height: compact ? SEARCH_INPUT_H : undefined,
   }}>
-    <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.n600, pointerEvents: 'none', display: 'flex' }}>
+    <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#3a3a3a', pointerEvents: 'none', display: 'flex' }}>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
     </div>
     <input
@@ -834,7 +1021,7 @@ export const SearchBar = ({ value, onChange, placeholder = 'Cari...', name = 'se
       }}
     />
     {value && (
-      <button type="button" onClick={() => onChange('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: C.n600, display: 'flex', padding: 4, margin: 0, minHeight: 'unset', height: 'auto' }}>
+      <button type="button" onClick={() => onChange('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', cursor: 'pointer', color: '#3a3a3a', display: 'flex', padding: 4, margin: 0, minHeight: 'unset', height: 'auto' }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
     )}
@@ -946,7 +1133,7 @@ export const EmptyState = ({ title, subtitle, action, actionLabel, icon, seconda
       {icon || <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.primarySoft} strokeWidth="1.5" strokeLinecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>}
     </div>
     <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900 }}>{title}</div>
-    {subtitle && <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, maxWidth: 280, lineHeight: 1.6 }}>{subtitle}</div>}
+    {subtitle && <div style={{ fontFamily: 'Poppins', fontSize: 13, color: '#3a3a3a', maxWidth: 280, lineHeight: 1.6 }}>{subtitle}</div>}
     <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
       {action && <Btn variant="secondary" onClick={action} size="sm">{actionLabel || 'Tambah'}</Btn>}
       {secondaryAction && <Btn variant="ghost" onClick={secondaryAction} size="sm">{secondaryLabel || 'Lihat Semua'}</Btn>}
@@ -956,7 +1143,7 @@ export const EmptyState = ({ title, subtitle, action, actionLabel, icon, seconda
 
 // ── FAB ───────────────────────────────────────────────────
 export const FAB = ({ onClick, icon }) => (
-  <button onClick={onClick} style={{ position: 'absolute', bottom: 88, right: 20, width: 52, height: 52, borderRadius: 26, background: `linear-gradient(135deg, ${C.primarySoft}, ${C.primary})`, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 6px 20px ${C.primary}55`, color: C.white, zIndex: 50 }}>
+  <button onClick={onClick} style={{ position: 'absolute', bottom: 88, right: 20, width: 52, height: 52, borderRadius: 26, background: `linear-gradient(135deg, ${C.primaryHover}, ${C.primary})`, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 24px rgba(110,46,120,0.50)`, color: C.white, zIndex: 50 }}>
     {icon || <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>}
   </button>
 );
@@ -986,8 +1173,8 @@ export const ProgressTimeline = ({ progress }) => {
               {i < STAGES.length - 1 && <div style={{ width: 2, height: 24, background: done ? C.primaryLight : C.n100, marginTop: 2, marginBottom: 2 }} />}
             </div>
             <div style={{ flex: 1, paddingBottom: i < STAGES.length - 1 ? 12 : 0 }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: done ? 600 : 400, color: done ? C.n900 : C.n600 }}>{stage}</div>
-              {info && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{info.pic || '-'} · {info.time ? info.time.split(' ')[1] || info.time : '-'}</div>}
+              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: done ? 600 : 400, color: done ? C.n900 : '#3a3a3a' }}>{stage}</div>
+              {info && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', marginTop: 2 }}>{info.pic || '-'} · {info.time ? info.time.split(' ')[1] || info.time : '-'}</div>}
             </div>
           </div>
         );
@@ -1000,15 +1187,15 @@ export const ProgressTimeline = ({ progress }) => {
 export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Ya', cancelLabel = 'Batal', onConfirm, onCancel, danger = false }) => {
   if (!open) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }}>
-      <div style={{ background: C.white, borderRadius: 20, padding: '28px 22px 20px', maxWidth: 320, width: '88%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.50)' }}>
+      <div style={{ background: C.white, borderRadius: 20, padding: '28px 22px 20px', maxWidth: 320, width: '88%', textAlign: 'center', boxShadow: SHADOW.xl }}>
         <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, marginBottom: 8 }}>{title || 'Konfirmasi'}</div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, lineHeight: 1.6, marginBottom: 24 }}>{message}</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: '#3a3a3a', lineHeight: 1.6, marginBottom: 24 }}>{message}</div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onCancel} style={{ flex: 1, padding: '11px 0', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n700, background: C.n100, border: 'none', borderRadius: 10, cursor: 'pointer' }}>
             {cancelLabel}
           </button>
-          <button onClick={onConfirm} style={{ flex: 1, padding: '11px 0', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.white, background: danger ? C.danger : C.primary, border: 'none', borderRadius: 10, cursor: 'pointer' }}>
+          <button onClick={onConfirm} style={{ flex: 1, padding: '11px 0', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.white, background: danger ? C.danger : C.primary, border: 'none', borderRadius: 10, cursor: 'pointer', boxShadow: danger ? `0 4px 12px rgba(225,29,72,0.30)` : `0 4px 12px rgba(110,46,120,0.35)` }}>
             {confirmLabel}
           </button>
         </div>
@@ -1052,7 +1239,7 @@ export class ErrorBoundary extends Component {
             <span style={{ fontSize: 28 }}>⚠️</span>
           </div>
           <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900 }}>Terjadi Kesalahan</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, maxWidth: 320, lineHeight: 1.6 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#3a3a3a', maxWidth: 320, lineHeight: 1.6 }}>
             Halaman ini mengalami error. Coba muat ulang bagian ini, atau kembali ke halaman sebelumnya.
           </div>
           {isDev && this.state.error && (
@@ -1096,11 +1283,11 @@ export const OfflineIndicator = ({ online }) => {
   return (
     <div style={{
       position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
-      background: '#1F2937', color: 'white',
+      background: '#1E293B', color: 'white',
       padding: '10px 18px', borderRadius: 999, zIndex: 9999,
       display: 'flex', alignItems: 'center', gap: 8,
       fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
-      boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+      boxShadow: '0 8px 24px rgba(15,23,42,0.30)',
     }}>
       <span style={{ width: 8, height: 8, borderRadius: 4, background: '#EF4444', animation: 'pulse 1.5s infinite' }} />
       Anda offline — beberapa fitur tidak tersedia
@@ -1320,3 +1507,37 @@ export const PhotoLightbox = ({ visible, photos = [], index = 0, onClose, onInde
 export { GlobalErrorBoundary } from './GlobalErrorBoundary';
 export { GlobalLoading } from './GlobalLoading';
 export { default as OutletDropdown } from './OutletDropdown';
+export { AnimatedNumber, useAnimatedNumber, ProgressRing, PulseDot } from './AnimatedNumber';
+export { SubSessionBadge } from './SubSessionBadge';
+
+// ── Phase 4: Dashboard Intelligence Widgets ─────────────────────────────────
+export { default as LowStockAlertWidget } from '../LowStockAlertWidget';
+export { default as TransactionMetricsWidget } from '../TransactionMetricsWidget';
+export { default as OutletComparisonWidget } from '../OutletComparisonWidget';
+export { default as PaymentTrendChart } from '../PaymentTrendChart';
+export { default as KasOutletBalanceWidget } from './KasOutletBalanceWidget';
+export { default as PaymentBreakdownCard, InlinePaymentSummary } from './PaymentBreakdownCard';
+
+// ── Premium Animations Components ────────────────────────────────────────────
+export {
+  FloatingBubble,
+  Sparkle,
+  SparkleIcon,
+  GlowOrb,
+  Confetti,
+  FloatingElement,
+  PremiumCard,
+  PremiumButton,
+  PremiumInput,
+  PremiumBadge,
+  ShimmerSweep,
+  PremiumBackground,
+  AnimatedGradientText,
+} from './PremiumAnimations';
+
+// ── Status Icons & Payment Status ─────────────────────────────────────────────
+export * from './StatusIcons';
+export { PaymentStatusBadge, PaymentStatusBadgeSimple, getPaymentStatus } from './PaymentStatusBadge';
+
+// ── Unified Filter Components ──────────────────────────────────────────────
+export { default as FilterModal, FilterSection, FilterChipGroup, DatePresets, StatusChips, SearchFilterHeader, QuickFilterChips, CheckboxList } from './FilterModal';

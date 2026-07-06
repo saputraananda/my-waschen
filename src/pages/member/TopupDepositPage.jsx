@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, MoneyInput } from '../../components/ui';
-import { alertError, alertSuccess, alertWarning, alertInfo } from '../../utils/alert';
-import { createTopupSnap, openSnapPopup, getPaymentStatus } from '../../utils/paymentApi';
+import { TopBar, Btn, MoneyInput, Modal } from '../../components/ui';
+import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 const PRESETS = ['50000', '100000', '200000', '500000'];
 
@@ -12,85 +11,85 @@ const PAY_METHODS = [
   { key: 'cash',     label: '💵 Tunai',          desc: 'Customer bayar di kasir' },
   { key: 'transfer', label: '🏦 Transfer Manual', desc: 'Verifikasi manual oleh finance' },
   { key: 'qris',     label: '📱 QRIS Statis',     desc: 'QR cetak / EDC manual' },
-  { key: 'midtrans', label: '⚡ Online (Midtrans)', desc: 'Snap link untuk QRIS, e-wallet, VA — share via WA' },
 ];
+
+// Membership tier configurations for opt-in
+const TIERS = {
+  gold: {
+    id: 'gold',
+    name: 'Gold',
+    icon: '🥇',
+    color: '#F59E0B',
+    bgColor: '#FEF3C7',
+    minTopup: 500000,
+    duration: '6 bulan',
+    discount: '20%',
+    benefits: ['Diskon 20%', 'Prioritas antrian'],
+  },
+  diamond: {
+    id: 'diamond',
+    name: 'Diamond',
+    icon: '💎',
+    color: '#8B5CF6',
+    bgColor: '#EDE9FE',
+    minTopup: 1000000,
+    duration: '12 bulan',
+    discount: '25%',
+    benefits: ['Diskon 25%', 'Priority support', 'Free pickup'],
+  },
+};
 
 export default function TopupDepositPage({ navigate, goBack, screenParams }) {
   const customer = screenParams;
   const [amount, setAmount] = useState('');
   const [payMethod, setPayMethod] = useState('cash');
   const [loading, setLoading] = useState(false);
-  const [snapResult, setSnapResult] = useState(null); // { snapUrl, orderId }
 
-  if (!customer) return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Btn onClick={() => navigate('customer')}>Kembali</Btn></div>;
+  // Membership opt-in state
+  const [showMembershipModal, setShowMembershipModal] = useState(false);
+  const [membershipStatus, setMembershipStatus] = useState(null);
+  const [membershipLoading, setMembershipLoading] = useState(false);
+  const [selectedTier, setSelectedTier] = useState('gold');
+  const [registeringMembership, setRegisteringMembership] = useState(false);
+
+  // Fetch membership status on mount
+  useEffect(() => {
+    if (!customer?.id) return;
+    const fetchStatus = async () => {
+      try {
+        const res = await axios.get(`/api/membership/status/${customer.id}`);
+        if (res?.data?.success) {
+          setMembershipStatus(res.data.data);
+        }
+      } catch {
+        // Silent fail
+      }
+    };
+    fetchStatus();
+  }, [customer?.id]);
+
+  if (!customer) return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Btn onClick={() => navigate('customer')}>Kembali</Btn>
+    </div>
+  );
+
+  const enteredAmount = Number(amount) || 0;
 
   const handleTopUp = async () => {
-    if (!amount || Number(amount) < 1000) {
+    if (enteredAmount < 1000) {
       alertWarning('Nominal top up minimal Rp 1.000.');
       return;
     }
 
-    // ── Branch: Midtrans Snap
-    if (payMethod === 'midtrans') {
-      setLoading(true);
-      try {
-        const result = await createTopupSnap({
-          customerId: customer.id,
-          faceValue: Number(amount),
-          sellPrice: Number(amount),
-        });
-
-        // Simpan snap URL untuk share alternative
-        setSnapResult({
-          snapUrl: result.snapUrl,
-          orderId: result.orderId,
-          topupNo: result.topupNo,
-        });
-
-        // Buka Snap popup
-        const popupResult = await openSnapPopup(result.snapToken);
-
-        // Force sync dari Midtrans (bypass webhook kalau dev tanpa ngrok)
-        // Kasih delay 1 detik dulu biar Midtrans selesai update internal
-        await new Promise((r) => setTimeout(r, 1000));
-        const status = await getPaymentStatus(result.orderId, true).catch(() => null);
-
-        if (status?.status === 'settlement') {
-          await alertSuccess(`Top up ${rp(Number(amount))} berhasil! Saldo customer telah diperbarui.`);
-          navigate('detail_customer', { ...customer, deposit: (customer.deposit || 0) + Number(amount) });
-        } else if (status?.status === 'pending' || popupResult.status === 'pending') {
-          alertInfo(
-            `Pembayaran sedang diproses. Saldo akan otomatis bertambah saat pembayaran tervalidasi. Order ID: ${result.orderId}`,
-            { title: 'Pembayaran Pending' }
-          );
-        } else if (popupResult.status === 'close') {
-          alertInfo(
-            `Popup ditutup. Link pembayaran tetap aktif. Order ID: ${result.orderId}`,
-            { title: 'Pembayaran Belum Selesai' }
-          );
-        } else if (popupResult.status === 'error') {
-          alertError('Pembayaran gagal. Silakan coba lagi.');
-        } else if (status?.status === 'failed') {
-          alertError('Pembayaran ditolak/expired. Silakan coba lagi.');
-        }
-      } catch (err) {
-        console.error('[topup snap] error:', err);
-        alertError(err?.response?.data?.message || 'Gagal membuat link topup.');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    // ── Branch: Manual (cash / transfer / qris EDC)
     setLoading(true);
     try {
       const res = await axios.post(`/api/customers/${customer.id}/topup`, {
-        amount: Number(amount),
+        amount: enteredAmount,
         payMethod,
       });
-      const newBalance = res?.data?.data?.newBalance ?? (customer.deposit || 0) + Number(amount);
-      await alertSuccess(`Top up ${rp(Number(amount))} berhasil!`);
+      const newBalance = res?.data?.data?.newBalance ?? (customer.deposit || 0) + enteredAmount;
+      await alertSuccess(`Top up ${rp(enteredAmount)} berhasil!`);
       navigate('detail_customer', { ...customer, deposit: newBalance });
     } catch (err) {
       const msg = err?.response?.data?.message || 'Gagal melakukan top up.';
@@ -100,30 +99,158 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
     }
   };
 
-  // Share link via WhatsApp ke customer
-  const shareViaWA = () => {
-    if (!snapResult?.snapUrl) return;
-    const phone = (customer.phone || '').replace(/\D/g, '').replace(/^0/, '62');
-    const text = encodeURIComponent(`Halo ${customer.name}, silakan lakukan pembayaran top up deposit Rp ${Number(amount).toLocaleString('id-ID')} via link berikut:\n\n${snapResult.snapUrl}\n\n— Wäschen Laundry`);
-    const waUrl = phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
-    window.open(waUrl, '_blank');
+  const handleRegisterMembership = async () => {
+    const tier = TIERS[selectedTier];
+    if (enteredAmount < tier.minTopup) {
+      alertWarning(`Minimal top-up untuk ${tier.name} Membership adalah ${rp(tier.minTopup)}.`);
+      return;
+    }
+
+    setRegisteringMembership(true);
+    try {
+      // Register membership with this top-up
+      const res = await axios.post('/api/membership/register', {
+        customerId: customer.id,
+        tier: selectedTier,
+        topupAmount: enteredAmount,
+      });
+
+      if (res?.data?.success) {
+        await alertSuccess(`Membership ${tier.name} berhasil dibuat!`);
+        setShowMembershipModal(false);
+        navigate('detail_customer', {
+          ...customer,
+          isMember: true,
+          memberNo: res.data.data.memberNo,
+          membershipTier: res.data.data.tier,
+        });
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Gagal membuat membership.';
+      alertError(msg);
+    } finally {
+      setRegisteringMembership(false);
+    }
   };
+
+  const handleRenewMembership = async () => {
+    if (enteredAmount < 100000) {
+      alertWarning('Minimal top-up untuk renew adalah Rp 100.000.');
+      return;
+    }
+
+    if (!membershipStatus?.id) {
+      alertError('Membership tidak ditemukan.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await axios.post(`/api/membership/${membershipStatus.id}/renew`, {
+        topupAmount: enteredAmount,
+      });
+
+      if (res?.data?.success) {
+        await alertSuccess(`Membership berhasil direnew!`);
+        navigate('detail_customer', { ...customer });
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Gagal merenew membership.';
+      alertError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Determine if customer can register membership
+  const canRegisterMembership = !membershipStatus?.hasMembership;
+  const canRenewMembership = membershipStatus?.hasMembership && !membershipStatus?.isActive && membershipStatus?.canRenew;
+  const tier = TIERS[selectedTier];
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Top Up Deposit" subtitle={customer.name} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+        {/* Current Balance */}
         <div style={{ background: C.white, borderRadius: 16, padding: '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 4 }}>Saldo Deposit Saat Ini</div>
           <div style={{ fontFamily: 'Poppins', fontSize: 24, fontWeight: 700, color: C.success }}>{rp(customer.deposit || 0)}</div>
         </div>
 
+        {/* Membership Status Banner */}
+        {membershipStatus?.hasMembership && (
+          <div style={{
+            background: membershipStatus.isActive
+              ? 'linear-gradient(135deg, #5B005F, #4D0051)'
+              : 'linear-gradient(135deg, #DC2626, #991B1B)',
+            borderRadius: 12, padding: '12px 16px', marginBottom: 16, color: 'white',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 28 }}>{membershipStatus.tier === 'diamond' ? '💎' : '🥇'}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700 }}>
+                  WPC {membershipStatus.tier === 'diamond' ? 'Diamond' : 'Gold'} Member
+                </div>
+                {membershipStatus.isActive ? (
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, opacity: 0.9 }}>
+                    {membershipStatus.discountPct}% Diskon • Expires: {membershipStatus.expiredAt
+                      ? new Date(membershipStatus.expiredAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+                      : '-'}
+                  </div>
+                ) : (
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, opacity: 0.9 }}>
+                    ⚠️ Membership expired. Renew sekarang!
+                  </div>
+                )}
+              </div>
+              {membershipStatus.isExpiringSoon && membershipStatus.isActive && (
+                <div style={{ background: 'rgba(254,243,199,0.3)', borderRadius: 8, padding: '6px 10px' }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700 }}>{membershipStatus.daysUntilExpiry}</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 9 }}>hari lagi</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Membership Registration Banner (for non-members) */}
+        {canRegisterMembership && (
+          <div style={{
+            background: C.validationWarningBg, borderRadius: 12, padding: '14px 16px', marginBottom: 16,
+            border: `1px solid ${C.validationWarningBorder}`, cursor: 'pointer',
+          }} onClick={() => setShowMembershipModal(true)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 28 }}>🎁</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.validationWarningText }}>
+                  Daftar WPC Membership
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText }}>
+                  Nikmati diskon 20-25% + benefit eksklusif
+                </div>
+              </div>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.validationWarningText} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+            </div>
+          </div>
+        )}
+
+        {/* Amount Selection */}
         <div style={{ background: C.white, borderRadius: 16, padding: '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Nominal Top Up</div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             {PRESETS.map((p) => (
-              <button key={p} onClick={() => setAmount(p)} style={{ padding: '8px 14px', borderRadius: 10, border: `1.5px solid ${amount === p ? C.primary : C.n300}`, background: amount === p ? C.primaryLight : C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: amount === p ? C.primary : C.n600 }}>
+              <button
+                key={p}
+                onClick={() => setAmount(p)}
+                style={{
+                  padding: '8px 14px', borderRadius: 10,
+                  border: `1.5px solid ${amount === p ? C.primary : C.n300}`,
+                  background: amount === p ? C.primaryLight : C.white,
+                  cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
+                  color: amount === p ? C.primary : C.n600,
+                }}
+              >
                 {rp(Number(p))}
               </button>
             ))}
@@ -136,6 +263,7 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
           />
         </div>
 
+        {/* Payment Method */}
         <div style={{ background: C.white, borderRadius: 16, padding: '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Metode Pembayaran</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -173,45 +301,127 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
           </div>
         </div>
 
-        {/* Snap result panel — kalau popup ditutup, kasir bisa share link */}
-        {snapResult && (
-          <div style={{ background: '#F0FDF4', borderRadius: 16, padding: '16px 20px', marginBottom: 16, border: '1.5px solid #86EFAC' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: '#15803D', marginBottom: 8 }}>
-              ⚡ Link Pembayaran Aktif
-            </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#166534', marginBottom: 10 }}>
-              Order ID: <strong>{snapResult.orderId}</strong><br />
-              Topup No: <strong>{snapResult.topupNo}</strong>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => { navigator.clipboard?.writeText(snapResult.snapUrl); alertSuccess('Link disalin'); }}
-                style={{
-                  flex: 1, padding: '8px 10px', borderRadius: 8,
-                  border: `1.5px solid #86EFAC`, background: 'white',
-                  fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: '#15803D',
-                  cursor: 'pointer',
-                }}
-              >📋 Salin Link</button>
-              <button
-                onClick={shareViaWA}
-                style={{
-                  flex: 1, padding: '8px 10px', borderRadius: 8,
-                  border: 'none', background: '#25D366',
-                  fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: 'white',
-                  cursor: 'pointer',
-                }}
-              >📱 Share WA</button>
+        {/* Action Buttons based on membership status */}
+        {canRenewMembership ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Btn
+              variant="primary"
+              fullWidth
+              size="lg"
+              loading={loading}
+              onClick={handleRenewMembership}
+              disabled={!amount || enteredAmount < 100000}
+            >
+              🔄 Renew Membership + Top Up
+            </Btn>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, textAlign: 'center' }}>
+              Minimal renew: Rp 100.000
             </div>
           </div>
+        ) : (
+          <Btn variant="primary" fullWidth size="lg" loading={loading} onClick={handleTopUp} disabled={!amount || enteredAmount < 1000}>
+            Top Up {amount ? rp(enteredAmount) : ''}
+          </Btn>
         )}
       </div>
 
-      <div style={{ padding: '12px 20px', background: C.white, borderTop: `1px solid ${C.n100}` }}>
-        <Btn variant="primary" fullWidth size="lg" loading={loading} onClick={handleTopUp} disabled={!amount || Number(amount) < 1000}>
-          {payMethod === 'midtrans' ? 'Buat Link Bayar' : 'Top Up'} {amount ? rp(Number(amount)) : ''}
-        </Btn>
-      </div>
+      {/* Membership Registration Modal */}
+      {showMembershipModal && (
+        <Modal visible onClose={() => setShowMembershipModal(false)} title="Daftar WPC Membership">
+          <div style={{ padding: '8px 0 0' }}>
+            {/* Info Banner */}
+            <div style={{
+              background: C.primaryTint2, borderRadius: 10, padding: '12px 14px', marginBottom: 16,
+              fontFamily: 'Poppins', fontSize: 11, color: C.primary,
+            }}>
+              🎁 Top-up pertama sekaligus jadi deposit membership. Saldo tetap bisa dipakai untuk pembayaran!
+            </div>
+
+            {/* Tier Selection */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>
+                Pilih Tier Membership
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {Object.values(TIERS).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTier(t.id)}
+                    style={{
+                      padding: 14, borderRadius: 12,
+                      border: `2px solid ${selectedTier === t.id ? t.color : C.n200}`,
+                      background: selectedTier === t.id ? t.bgColor : C.white,
+                      cursor: 'pointer', textAlign: 'center',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{ fontSize: 28, marginBottom: 4 }}>{t.icon}</div>
+                    <div style={{
+                      fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+                      color: selectedTier === t.id ? t.color : C.n900,
+                    }}>
+                      {t.name}
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: selectedTier === t.id ? t.color : C.n600 }}>
+                      {t.discount} Diskon
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, marginTop: 2 }}>
+                      {t.duration}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Benefits */}
+            <div style={{
+              background: C.n50, borderRadius: 10, padding: '12px 14px', marginBottom: 16,
+            }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>
+                ✨ Benefit {tier.name}
+              </div>
+              {tier.benefits.map((b, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tier.color} strokeWidth="3" strokeLinecap="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n900 }}>{b}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Amount Check */}
+            <div style={{
+              background: enteredAmount >= tier.minTopup ? C.successBg : C.validationErrorBg,
+              borderRadius: 10, padding: '12px 14px', marginBottom: 16,
+              fontFamily: 'Poppins', fontSize: 11,
+              color: enteredAmount >= tier.minTopup ? C.successDark : C.validationErrorText,
+            }}>
+              {enteredAmount >= tier.minTopup ? (
+                <>✅ Nominal {rp(enteredAmount)} memenuhi minimum untuk {tier.name}</>
+              ) : (
+                <>⚠️ Minimum untuk {tier.name} adalah {rp(tier.minTopup)}</>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Btn variant="secondary" onClick={() => setShowMembershipModal(false)} style={{ flex: 1 }}>
+                Batal
+              </Btn>
+              <Btn
+                variant="primary"
+                onClick={handleRegisterMembership}
+                loading={registeringMembership}
+                disabled={enteredAmount < tier.minTopup}
+                style={{ flex: 1, ...(enteredAmount >= tier.minTopup && { background: tier.color }) }}
+              >
+                Daftar {tier.name}
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

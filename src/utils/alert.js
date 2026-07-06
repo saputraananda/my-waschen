@@ -1,6 +1,14 @@
 import Swal from 'sweetalert2';
+import { toast } from 'sonner';
 import { C } from './theme';
 
+// ─── Sonner: lightweight toasts for simple feedback ───────────────
+export const alertSuccess = (text) => toast.success(text, { duration: 2500 });
+export const alertError = (text) => toast.error(text, { duration: 3500 });
+export const alertInfo = (text) => toast(text, { duration: 2500 });
+export const alertWarning = (text) => toast.warning(text, { duration: 3000 });
+
+// ─── SweetAlert2: kept ONLY for confirmations (needs user action) ──
 const swalBase = Swal.mixin({
   customClass: {
     popup: 'waschen-swal',
@@ -16,42 +24,8 @@ const swalBase = Swal.mixin({
 });
 
 const fire = (opts) => swalBase.fire({
-  title: 'Informasi',
+  title: 'Konfirmasi',
   confirmButtonText: 'OK',
-  ...opts,
-});
-
-export const alertInfo = (text, opts = {}) => fire({
-  icon: 'info',
-  iconColor: C.primary,
-  text,
-  timer: 1800,
-  timerProgressBar: true,
-  showConfirmButton: false,
-  ...opts,
-});
-
-export const alertSuccess = (text, opts = {}) => fire({
-  icon: 'success',
-  iconColor: C.success,
-  text,
-  timer: 1600,
-  timerProgressBar: true,
-  showConfirmButton: false,
-  ...opts,
-});
-
-export const alertWarning = (text, opts = {}) => fire({
-  icon: 'warning',
-  iconColor: C.warning,
-  text,
-  ...opts,
-});
-
-export const alertError = (text, opts = {}) => fire({
-  icon: 'error',
-  iconColor: C.danger,
-  text,
   ...opts,
 });
 

@@ -1,16 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { C, T } from '../../utils/theme';
+import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Select, DateTimeInput } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 
 const METHOD_LABEL = { cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit', ovo: 'OVO', gopay: 'GoPay', dana: 'DANA', shopeepay: 'ShopeePay' };
 const METHOD_ICON = { cash: '💵', transfer: '🏦', qris: '📱', deposit: '💰', ovo: '🟣', gopay: '🟢', dana: '🔵', shopeepay: '🟠' };
-const METHOD_COLOR = { cash: '#10B981', transfer: '#0EA5E9', qris: '#8B5CF6', deposit: '#F59E0B', ovo: '#7C3AED', gopay: '#22C55E', dana: '#3B82F6', shopeepay: '#F97316' };
+const METHOD_COLOR = { cash: C.success, transfer: C.info, qris: C.primary, deposit: C.warning, ovo: C.primaryTint, gopay: C.success, dana: C.info, shopeepay: C.warning };
 const STATUS_LABEL = { draft: 'Draft', pending: 'Pending', process: 'Proses', ready_for_pickup: 'Siap Ambil', ready_for_delivery: 'Siap Antar', completed: 'Selesai', cancelled: 'Batal' };
-const STATUS_COLOR = { draft: '#64748B', pending: '#2563EB', process: '#D97706', ready_for_pickup: '#059669', ready_for_delivery: '#0284C7', completed: '#166534', cancelled: '#DC2626' };
-const STATUS_BG = { draft: '#F1F5F9', pending: '#DBEAFE', process: '#FEF3C7', ready_for_pickup: '#D1FAE5', ready_for_delivery: '#E0F2FE', completed: '#DCFCE7', cancelled: '#FEE2E2' };
+const STATUS_COLOR = { draft: C.n500, pending: C.info, process: C.warning, ready_for_pickup: C.success, ready_for_delivery: C.info, completed: C.success, cancelled: C.danger };
+const STATUS_BG = { draft: C.n100, pending: C.infoBg, process: C.warningBg, ready_for_pickup: C.successBg, ready_for_delivery: C.infoBg, completed: C.successBg, cancelled: C.dangerBg };
 
 const F = { fontFamily: 'Poppins' };
 
@@ -105,7 +105,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: C.white, borderRadius: 14, padding: 12, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: C.white, borderRadius: 14, padding: 12, marginBottom: 12, boxShadow: SHADOW.md }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             {[
               { key: '7d', label: '7 hari' },
@@ -130,11 +130,11 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
             <div style={{
               background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
               borderRadius: 16, padding: '16px 18px', color: C.white, marginBottom: 12,
-              boxShadow: '0 4px 16px rgba(91,0,95,0.18)', position: 'relative', overflow: 'hidden',
+              boxShadow: SHADOW.md, position: 'relative', overflow: 'hidden',
             }}>
               <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: 40, background: 'rgba(255,255,255,0.1)' }} />
               <div style={{ ...F, fontSize: 11, fontWeight: 600, opacity: 0.92, marginBottom: 4, letterSpacing: 0.5 }}>💎 PENDAPATAN PERIODE</div>
-              <div style={{ ...F, fontSize: 26, fontWeight: 800, lineHeight: 1.1, marginBottom: 6 }}>{rp(summary.grandTotal)}</div>
+              <div style={{ ...F, fontSize: 26, fontWeight: 600, lineHeight: 1.1, marginBottom: 6 }}>{rp(summary.grandTotal)}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11, ...F, opacity: 0.95 }}>
                 <span>📋 {summary.totalTx} transaksi</span>
                 <span>📅 {totalDays} hari</span>
@@ -145,10 +145,10 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
 
             {/* Payment Distribution */}
             {methodSummary.length > 0 && (
-              <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+              <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: SHADOW.md }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <span style={{ fontSize: 16 }}>💳</span>
-                  <h3 style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900, margin: 0 }}>Komposisi Pembayaran</h3>
+                  <h3 style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, margin: 0 }}>Komposisi Pembayaran</h3>
                 </div>
 
                 <div style={{ display: 'flex', height: 24, borderRadius: 8, overflow: 'hidden', marginBottom: 12, background: C.n100 }}>
@@ -156,7 +156,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                     const pct = (m.amount / methodTotal) * 100;
                     return (
                       <div key={m.method} title={`${METHOD_LABEL[m.method]}: ${pct.toFixed(1)}%`}
-                        style={{ width: `${pct}%`, background: METHOD_COLOR[m.method] || C.n400 }} />
+                        style={{ width: `${pct}%`, background: METHOD_COLOR[m.method] || C.n700 }} />
                     );
                   })}
                 </div>
@@ -172,9 +172,9 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                           <span style={{ fontSize: 14 }}>{METHOD_ICON[m.method]}</span>
                           <span style={{ ...F, fontSize: 11, fontWeight: 600, color: C.n700 }}>{METHOD_LABEL[m.method]}</span>
-                          <span style={{ ...F, fontSize: 10, fontWeight: 700, color: METHOD_COLOR[m.method], marginLeft: 'auto' }}>{pct.toFixed(1)}%</span>
+                          <span style={{ ...F, fontSize: 10, fontWeight: 600, color: METHOD_COLOR[m.method], marginLeft: 'auto' }}>{pct.toFixed(1)}%</span>
                         </div>
-                        <div style={{ ...F, fontSize: 14, fontWeight: 800, color: C.n900 }}>{rp(m.amount)}</div>
+                        <div style={{ ...F, fontSize: 14, fontWeight: 600, color: C.n900 }}>{rp(m.amount)}</div>
                       </div>
                     );
                   })}
@@ -188,13 +188,13 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           background: C.white, borderRadius: 14, padding: '10px 14px', marginBottom: 8,
-          boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
+          boxShadow: SHADOW.md,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 16 }}>📋</span>
             <div>
-              <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900 }}>Daftar Transaksi</div>
-              <div style={{ ...F, fontSize: 10, color: C.n500 }}>
+              <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>Daftar Transaksi</div>
+              <div style={{ ...F, fontSize: 10, color: C.n700 }}>
                 {pag ? `${pag.totalRecords.toLocaleString('id-ID')} transaksi ditemukan` : 'Memuat...'}
               </div>
             </div>
@@ -207,7 +207,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
 
         {/* Transactions List */}
         {loading && (
-          <div style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n500 }}>
+          <div style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n700 }}>
             <div style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
             Memuat transaksi...
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -215,7 +215,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
         )}
 
         {!loading && transactions.length === 0 && (
-          <div style={{ background: C.white, borderRadius: 14, padding: 32, textAlign: 'center', ...F, fontSize: 13, color: C.n500, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ background: C.white, borderRadius: 14, padding: 32, textAlign: 'center', ...F, fontSize: 13, color: C.n700, boxShadow: SHADOW.md }}>
             <div style={{ fontSize: 40, marginBottom: 8, opacity: 0.4 }}>📭</div>
             Tidak ada transaksi pada periode ini.
           </div>
@@ -225,12 +225,12 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
           const isExpanded = expandedId === tx.id;
           const globalIdx = ((pag?.page || 1) - 1) * perPage + idx + 1;
           const statusBg = STATUS_BG[tx.status] || C.n100;
-          const statusColor = STATUS_COLOR[tx.status] || C.n600;
+          const statusColor = STATUS_COLOR[tx.status] || C.n700;
           const isCancelled = tx.status === 'cancelled';
 
           return (
             <div key={tx.id} style={{
-              background: C.white, borderRadius: 12, marginBottom: 8, boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
+              background: C.white, borderRadius: 12, marginBottom: 8, boxShadow: SHADOW.md,
               overflow: 'hidden', borderLeft: `3px solid ${statusColor}`,
               opacity: isCancelled ? 0.7 : 1,
             }}>
@@ -242,31 +242,31 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                 <div style={{
                   width: 32, height: 32, borderRadius: 16, background: `${statusColor}15`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  ...F, fontSize: 10, fontWeight: 700, color: statusColor,
+                  ...F, fontSize: 10, fontWeight: 600, color: statusColor,
                 }}>#{globalIdx}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900 }}>{tx.customerName || 'Tanpa nama'}</span>
-                    {tx.isExpress && <span style={{ ...F, fontSize: 9, fontWeight: 700, background: '#FEF3C7', color: '#92400E', padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>}
+                    <span style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>{tx.customerName || 'Tanpa nama'}</span>
+                    {tx.isExpress && <span style={{ ...F, fontSize: 9, fontWeight: 600, background: C.warningBg, color: C.warning, padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>}
                   </div>
-                  <div style={{ ...F, fontSize: 10, color: C.n500, marginTop: 2 }}>
+                  <div style={{ ...F, fontSize: 10, color: C.n700, marginTop: 2 }}>
                     {tx.transactionNo} · {fmtDate(tx.createdAt)}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ ...F, fontSize: 14, fontWeight: 800, color: C.n900 }}>{rp(tx.total)}</div>
+                  <div style={{ ...F, fontSize: 14, fontWeight: 600, color: C.n900 }}>{rp(tx.total)}</div>
                   <span style={{
-                    ...F, fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                    ...F, fontSize: 9, fontWeight: 600, padding: '2px 8px', borderRadius: 999,
                     background: statusBg, color: statusColor, display: 'inline-block', marginTop: 3,
                   }}>{STATUS_LABEL[tx.status] || tx.status}</span>
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n700} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
                   <polyline points="6 9 12 15 18 9" />
                 </svg>
               </button>
 
               {isExpanded && (
-                <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: '#FAFAFA' }}>
+                <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: C.n50 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 12, marginBottom: 12 }}>
                     {[
                       ['🏪 Outlet', tx.outletName || '—'],
@@ -275,37 +275,37 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                       ['📦 Pickup', tx.pickupType || 'self'],
                     ].map(([label, val]) => (
                       <div key={label} style={{ background: C.white, padding: '8px 10px', borderRadius: 8 }}>
-                        <div style={{ ...F, fontSize: 9, color: C.n500, fontWeight: 600 }}>{label}</div>
-                        <div style={{ ...F, fontSize: 12, fontWeight: 700, color: C.n900, marginTop: 2 }}>{val}</div>
+                        <div style={{ ...F, fontSize: 9, color: C.n700, fontWeight: 600 }}>{label}</div>
+                        <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n900, marginTop: 2 }}>{val}</div>
                       </div>
                     ))}
                   </div>
 
                   <div style={{ background: C.white, borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                    <div style={{ ...F, fontSize: 10, fontWeight: 700, color: C.n500, marginBottom: 6, letterSpacing: 0.3 }}>💰 RINCIAN HARGA</div>
+                    <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 6, letterSpacing: 0.3 }}>💰 RINCIAN HARGA</div>
                     {[
                       ['Subtotal', rp(tx.subtotal)],
                       tx.discount > 0 ? ['Diskon', `- ${rp(tx.discount)}`] : null,
                       tx.deliveryFee > 0 ? ['Ongkir', rp(tx.deliveryFee)] : null,
                     ].filter(Boolean).map(([label, val]) => (
                       <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', ...F, fontSize: 12 }}>
-                        <span style={{ color: C.n600 }}>{label}</span>
+                        <span style={{ color: C.n700 }}>{label}</span>
                         <span style={{ color: C.n900 }}>{val}</span>
                       </div>
                     ))}
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', borderTop: `1.5px solid ${C.n200}`, marginTop: 6, ...F, fontSize: 13 }}>
-                      <span style={{ fontWeight: 700, color: C.n900 }}>Total</span>
-                      <span style={{ fontWeight: 800, color: C.primary, fontSize: 15 }}>{rp(tx.total)}</span>
+                      <span style={{ fontWeight: 600, color: C.n900 }}>Total</span>
+                      <span style={{ fontWeight: 600, color: C.primary, fontSize: 15 }}>{rp(tx.total)}</span>
                     </div>
                   </div>
 
                   {tx.payments && tx.payments.length > 0 ? (
                     <div style={{ background: C.white, borderRadius: 10, padding: 12 }}>
-                      <div style={{ ...F, fontSize: 10, fontWeight: 700, color: C.n500, marginBottom: 6, letterSpacing: 0.3 }}>💳 METODE PEMBAYARAN</div>
+                      <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 6, letterSpacing: 0.3 }}>💳 METODE PEMBAYARAN</div>
                       {tx.payments.map((p, i) => (
                         <div key={`${p.method}-${i}`} style={{
                           display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px',
-                          background: `${METHOD_COLOR[p.method] || C.n400}10`, borderRadius: 8, marginBottom: 4,
+                          background: `${METHOD_COLOR[p.method] || C.n700}10`, borderRadius: 8, marginBottom: 4,
                         }}>
                           <span style={{ fontSize: 14 }}>{METHOD_ICON[p.method] || '💳'}</span>
                           <span style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n800, flex: 1 }}>{METHOD_LABEL[p.method] || p.method}</span>
@@ -328,13 +328,13 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
 
         {/* Pagination */}
         {pag && pag.totalPages > 1 && (
-          <div style={{ background: C.white, borderRadius: 14, padding: 12, marginTop: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+          <div style={{ background: C.white, borderRadius: 14, padding: 12, marginTop: 12, boxShadow: SHADOW.md }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap' }}>
               <button disabled={page <= 1} onClick={() => setPage(1)} style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}>«</button>
               <button disabled={page <= 1} onClick={() => setPage(page - 1)} style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}>‹</button>
               {getPageNumbers(page, pag.totalPages).map((p, i) =>
                 p === '...' ? (
-                  <span key={`dot-${i}`} style={{ ...F, fontSize: 12, color: C.n400, padding: '0 4px' }}>…</span>
+                  <span key={`dot-${i}`} style={{ ...F, fontSize: 12, color: C.n700, padding: '0 4px' }}>…</span>
                 ) : (
                   <button key={p} onClick={() => setPage(p)} style={{
                     ...paginBtnStyle,
@@ -348,7 +348,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
               <button disabled={page >= pag.totalPages} onClick={() => setPage(page + 1)} style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}>›</button>
               <button disabled={page >= pag.totalPages} onClick={() => setPage(pag.totalPages)} style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}>»</button>
             </div>
-            <div style={{ textAlign: 'center', ...F, fontSize: 10, color: C.n500, marginTop: 8 }}>
+            <div style={{ textAlign: 'center', ...F, fontSize: 10, color: C.n700, marginTop: 8 }}>
               Halaman {pag.page} dari {pag.totalPages} · {pag.totalRecords.toLocaleString('id-ID')} record
             </div>
           </div>

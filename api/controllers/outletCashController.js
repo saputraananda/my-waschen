@@ -10,6 +10,20 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { getSettingValue } from './settingsController.js';
 
+// ─── Schema helpers ─────────────────────────────────────────────────────────────
+const _schemaCache = new Map();
+async function hasColumn(tableName, columnName) {
+  const key = `${tableName}.${columnName}`;
+  if (_schemaCache.has(key)) return _schemaCache.get(key);
+  const [rows] = await poolWaschenPos.execute(
+    `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1`,
+    [tableName, columnName]
+  );
+  const result = rows.length > 0;
+  _schemaCache.set(key, result);
+  return result;
+}
+
 const AUTO_APPROVE_LIMIT = 500_000; // Rp 500.000
 // Default kalau setting belum ada — tetap diquery dari mst_setting setiap call.
 const DEFAULT_MIN_BALANCE = 2_000_000;
@@ -151,18 +165,35 @@ export const getAllBalances = async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/outlet-cash/topup — admin top-up saldo outlet
-// Body: { outletId, amount, source, referenceNo?, notes? }
+// Body: { outletId, amount, source, referenceNo?, notes?, picName, proofPhotoUrl }
 // ════════════════════════════════════════════════════════════════════════════
 export const topupCash = async (req, res) => {
   const conn = await poolWaschenPos.getConnection();
   try {
-    const { outletId, amount, source = 'transfer', referenceNo = null, notes = null } = req.body || {};
+    const { 
+      outletId, 
+      amount, 
+      source = 'transfer', 
+      referenceNo = null, 
+      notes = null,
+      picName = null,
+      proofPhotoUrl = null
+    } = req.body || {};
+    
     const numAmount = Math.round(Number(amount));
     if (!outletId || !Number.isFinite(numAmount) || numAmount <= 0) {
       return res.status(400).json({ success: false, message: 'outletId & amount wajib & positif.' });
     }
     if (!TOPUP_SOURCES.includes(source)) {
       return res.status(400).json({ success: false, message: `Source tidak valid. Pilih: ${TOPUP_SOURCES.join(', ')}` });
+    }
+    
+    // Validasi field wajib: picName dan proofPhotoUrl
+    if (!picName || String(picName).trim() === '') {
+      return res.status(400).json({ success: false, message: 'Nama PIC / Penanggung Jawab wajib diisi.' });
+    }
+    if (!proofPhotoUrl || String(proofPhotoUrl).trim() === '') {
+      return res.status(400).json({ success: false, message: 'Bukti foto transfer wajib diunggah.' });
     }
 
     const userId = req.user?.userId;
@@ -173,12 +204,23 @@ export const topupCash = async (req, res) => {
     const balanceBefore = await ensureBalance(conn, outletId);
     const balanceAfter = balanceBefore + numAmount;
 
+    // Check if columns exist
+    const hasPicName = await hasColumn('tr_outlet_cash_topup', 'pic_name');
+    const hasProofPhotoUrl = await hasColumn('tr_outlet_cash_topup', 'proof_photo_url');
+
     const [topupRes] = await conn.execute(
-      `INSERT INTO tr_outlet_cash_topup
-        (outlet_id, amount, source, reference_no, notes, topup_by,
-         balance_before, balance_after, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [outletId, numAmount, source, referenceNo, notes, userId, balanceBefore, balanceAfter]
+      hasPicName && hasProofPhotoUrl
+        ? `INSERT INTO tr_outlet_cash_topup
+            (outlet_id, amount, source, reference_no, notes, topup_by,
+             balance_before, balance_after, pic_name, proof_photo_url, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`
+        : `INSERT INTO tr_outlet_cash_topup
+            (outlet_id, amount, source, reference_no, notes, topup_by,
+             balance_before, balance_after, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      hasPicName && hasProofPhotoUrl
+        ? [outletId, numAmount, source, referenceNo, notes, userId, balanceBefore, balanceAfter, picName, proofPhotoUrl]
+        : [outletId, numAmount, source, referenceNo, notes, userId, balanceBefore, balanceAfter]
     );
     const topupId = topupRes.insertId;
 
@@ -191,7 +233,7 @@ export const topupCash = async (req, res) => {
 
     await logLedger(conn, {
       outletId, type: 'topup', amount: numAmount, balanceAfter,
-      topupId, notes: notes || `Top-up via ${source}`, createdBy: userId,
+      topupId, notes: notes || `Top-up via ${source} oleh ${picName}`, createdBy: userId,
     });
 
     await conn.commit();
@@ -216,7 +258,7 @@ export const topupCash = async (req, res) => {
 export const submitExpense = async (req, res) => {
   const conn = await poolWaschenPos.getConnection();
   try {
-    const { amount, category = 'other', description, receiptPhotoUrl = null } = req.body || {};
+    const { amount, category = 'other', description, receiptPhotoUrl = null, picName = null } = req.body || {};
     const numAmount = Math.round(Number(amount));
 
     if (!Number.isFinite(numAmount) || numAmount <= 0) {
@@ -227,6 +269,12 @@ export const submitExpense = async (req, res) => {
     }
     if (!description || String(description).trim() === '') {
       return res.status(400).json({ success: false, message: 'Deskripsi pengeluaran wajib.' });
+    }
+    if (!picName || String(picName).trim() === '') {
+      return res.status(400).json({ success: false, message: 'Nama PIC / Penanggung Jawab wajib diisi.' });
+    }
+    if (!receiptPhotoUrl || String(receiptPhotoUrl).trim() === '') {
+      return res.status(400).json({ success: false, message: 'Bukti foto pengeluaran wajib diunggah.' });
     }
 
     const userId = req.user?.userId;
@@ -257,14 +305,24 @@ export const submitExpense = async (req, res) => {
 
       const balanceAfter = balanceBefore - numAmount;
 
+      // Cek apakah kolom pic_name sudah ada
+      const hasPicName = await hasColumn('tr_outlet_cash_expense', 'pic_name');
+
       const [expRes] = await conn.execute(
-        `INSERT INTO tr_outlet_cash_expense
-          (outlet_id, category, amount, description, receipt_photo_url,
-           status, requested_by, approved_by, resolved_at,
-           balance_before, balance_after, created_at)
-         VALUES (?, ?, ?, ?, ?, 'auto_approved', ?, ?, NOW(), ?, ?, NOW())`,
-        [outletId, category, numAmount, description, receiptPhotoUrl,
-         userId, userId, balanceBefore, balanceAfter]
+        hasPicName
+          ? `INSERT INTO tr_outlet_cash_expense
+              (outlet_id, category, amount, description, receipt_photo_url, pic_name,
+               status, requested_by, approved_by, resolved_at,
+               balance_before, balance_after, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, 'auto_approved', ?, ?, NOW(), ?, ?, NOW())`
+          : `INSERT INTO tr_outlet_cash_expense
+              (outlet_id, category, amount, description, receipt_photo_url,
+               status, requested_by, approved_by, resolved_at,
+               balance_before, balance_after, created_at)
+             VALUES (?, ?, ?, ?, ?, 'auto_approved', ?, ?, NOW(), ?, ?, NOW())`,
+        hasPicName
+          ? [outletId, category, numAmount, description, receiptPhotoUrl, picName, userId, userId, balanceBefore, balanceAfter]
+          : [outletId, category, numAmount, description, receiptPhotoUrl, userId, userId, balanceBefore, balanceAfter]
       );
       const expenseId = expRes.insertId;
 
@@ -292,11 +350,18 @@ export const submitExpense = async (req, res) => {
 
     // Pengeluaran > limit: butuh approval — saldo BELUM dipotong
     const [expRes] = await conn.execute(
-      `INSERT INTO tr_outlet_cash_expense
-        (outlet_id, category, amount, description, receipt_photo_url,
-         status, requested_by, created_at)
-       VALUES (?, ?, ?, ?, ?, 'pending_approval', ?, NOW())`,
-      [outletId, category, numAmount, description, receiptPhotoUrl, userId]
+      hasPicName
+        ? `INSERT INTO tr_outlet_cash_expense
+            (outlet_id, category, amount, description, receipt_photo_url, pic_name,
+             status, requested_by, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'pending_approval', ?, NOW())`
+        : `INSERT INTO tr_outlet_cash_expense
+            (outlet_id, category, amount, description, receipt_photo_url,
+             status, requested_by, created_at)
+           VALUES (?, ?, ?, ?, ?, 'pending_approval', ?, NOW())`,
+      hasPicName
+        ? [outletId, category, numAmount, description, receiptPhotoUrl, picName, userId]
+        : [outletId, category, numAmount, description, receiptPhotoUrl, userId]
     );
     const expenseId = expRes.insertId;
 
@@ -554,6 +619,12 @@ export const getExpenses = async (req, res) => {
       where += ' AND e.amount <= ?';
       params.push(Number(req.query.maxAmount));
     }
+    // Filter by has proof photo
+    if (req.query.hasPhoto === '1') {
+      where += ' AND e.receipt_photo_url IS NOT NULL AND e.receipt_photo_url <> \'\' ';
+    } else if (req.query.hasPhoto === '0') {
+      where += ' AND (e.receipt_photo_url IS NULL OR e.receipt_photo_url = \'\') ';
+    }
 
     const [countRows] = await poolWaschenPos.execute(
       `SELECT COUNT(*) AS total
@@ -564,6 +635,8 @@ export const getExpenses = async (req, res) => {
     );
     const total = Number(countRows[0]?.total || 0);
 
+    const hasPicName = await hasColumn('tr_outlet_cash_expense', 'pic_name');
+
     const [rows] = await poolWaschenPos.execute(
       `SELECT e.id, e.outlet_id AS outletId, e.category, e.amount, e.description,
               e.receipt_photo_url AS receiptPhotoUrl, e.status, e.reject_reason AS rejectReason,
@@ -572,6 +645,7 @@ export const getExpenses = async (req, res) => {
               u.name AS requesterName,
               ru.name AS approverName,
               o.name AS outletName
+              ${hasPicName ? ', IFNULL(e.pic_name, NULL) AS pic_name' : ''}
          FROM tr_outlet_cash_expense e
          LEFT JOIN mst_user u ON u.id = e.requested_by
          LEFT JOIN mst_user ru ON ru.id = e.approved_by
@@ -584,7 +658,11 @@ export const getExpenses = async (req, res) => {
 
     return res.json({
       success: true,
-      data: rows.map(r => ({ ...r, amount: Number(r.amount) })),
+      data: rows.map(r => ({
+        ...r,
+        amount: Number(r.amount),
+        picName: hasPicName ? (r.pic_name || null) : null,
+      })),
       pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) || 1 },
     });
   } catch (err) {
@@ -622,12 +700,18 @@ export const getTopups = async (req, res) => {
     );
     const total = Number(countRows[0]?.total || 0);
 
+    // Check if columns exist
+    const hasPicName = await hasColumn('tr_outlet_cash_topup', 'pic_name');
+    const hasProofPhotoUrl = await hasColumn('tr_outlet_cash_topup', 'proof_photo_url');
+
     const [rows] = await poolWaschenPos.execute(
       `SELECT t.id, t.outlet_id AS outletId, t.amount, t.source, t.reference_no AS referenceNo,
               t.notes, t.balance_before AS balanceBefore, t.balance_after AS balanceAfter,
               t.created_at AS createdAt,
               u.name AS topupByName,
               o.name AS outletName
+              ${hasPicName ? ', IFNULL(t.pic_name, NULL) AS picName' : ''}
+              ${hasProofPhotoUrl ? ', IFNULL(t.proof_photo_url, NULL) AS proofPhotoUrl' : ''}
          FROM tr_outlet_cash_topup t
          LEFT JOIN mst_user u ON u.id = t.topup_by
          LEFT JOIN mst_outlet o ON o.id = t.outlet_id
@@ -639,7 +723,12 @@ export const getTopups = async (req, res) => {
 
     return res.json({
       success: true,
-      data: rows.map(r => ({ ...r, amount: Number(r.amount) })),
+      data: rows.map(r => ({
+        ...r,
+        amount: Number(r.amount),
+        picName: hasPicName ? (r.picName || null) : null,
+        proofPhotoUrl: hasProofPhotoUrl ? (r.proofPhotoUrl || null) : null,
+      })),
       pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) || 1 },
     });
   } catch (err) {
@@ -713,7 +802,141 @@ export const reconcileBalance = async (req, res) => {
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// GET /api/outlet-cash/ledger — audit ledger detail
+// PATCH /api/outlet-cash/expense/:id/cancel — kasir cancel own pending expense
+// ════════════════════════════════════════════════════════════════════════════
+export const cancelExpense = async (req, res) => {
+  const conn = await poolWaschenPos.getConnection();
+  try {
+    const { id } = req.params;
+    const userId = req.user?.userId;
+    const userRole = req.user?.roleCode;
+
+    if (!userId) return res.status(401).json({ success: false, message: 'Auth required.' });
+
+    await conn.beginTransaction();
+
+    const [rows] = await conn.execute(
+      `SELECT e.id, e.outlet_id, e.status, e.requested_by, e.amount, e.category, e.description,
+              a.id AS approval_id
+         FROM tr_outlet_cash_expense e
+         LEFT JOIN tr_outlet_cash_approval a ON a.expense_id = e.id AND a.is_active = 1
+        WHERE e.id = ?`,
+      [id]
+    );
+
+    if (!rows.length) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Pengeluaran tidak ditemukan.' });
+    }
+
+    const exp = rows[0];
+
+    if (exp.status !== 'pending_approval') {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: 'Hanya pengeluaran yang masih pending yang bisa dibatalkan.' });
+    }
+
+    // Hanya pemilik request atau admin yang bisa cancel
+    const isOwner = exp.requested_by === userId;
+    const isAdminUser = ['admin', 'superadmin', 'owner'].includes(userRole);
+    if (!isOwner && !isAdminUser) {
+      await conn.rollback();
+      return res.status(403).json({ success: false, message: 'Hanya pemilik request atau admin yang bisa membatalkan.' });
+    }
+
+    // Update expense status
+    await conn.execute(
+      `UPDATE tr_outlet_cash_expense SET status = 'cancelled', resolved_at = NOW() WHERE id = ?`,
+      [id]
+    );
+
+    // Cancel associated approval if exists
+    if (exp.approval_id) {
+      await conn.execute(
+        `UPDATE tr_outlet_cash_approval SET status = 'cancelled', resolved_at = NOW() WHERE id = ?`,
+        [exp.approval_id]
+      );
+    }
+
+    // Log to ledger (cancel does not affect balance — saldo belum dipotong untuk pending)
+    await logLedger(conn, {
+      outletId: exp.outlet_id, type: 'adjustment_out', amount: 0, balanceAfter: 0,
+      expenseId: id,
+      notes: `Dibatalkan: ${exp.category}: ${exp.description} (Rp ${Number(exp.amount).toLocaleString('id-ID')})`,
+      createdBy: userId,
+    });
+
+    await conn.commit();
+    return res.json({
+      success: true,
+      data: { expenseId: id, status: 'cancelled', message: 'Pengeluaran berhasil dibatalkan.' },
+    });
+  } catch (err) {
+    try { await conn.rollback(); } catch {}
+    console.error('[cancelExpense] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal membatalkan pengeluaran.' });
+  } finally {
+    conn.release();
+  }
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// GET /api/outlet-cash/low-balance-check — cek apakah saldo outlet rendah
+// ════════════════════════════════════════════════════════════════════════════
+export const checkLowBalance = async (req, res) => {
+  try {
+    const userOutletId = req.user?.outletId;
+    const userRole = req.user?.roleCode;
+    const isAdminUser = ['admin', 'superadmin', 'owner'].includes(userRole);
+
+    const minBalance = await getSettingValue('kas_minimum_balance', DEFAULT_MIN_BALANCE);
+
+    if (isAdminUser) {
+      // Admin: cek semua outlet
+      const [rows] = await poolWaschenPos.execute(
+        `SELECT b.outlet_id AS outletId, o.name AS outletName,
+                COALESCE(b.balance, 0) AS balance
+           FROM mst_outlet o
+           LEFT JOIN mst_outlet_cash_balance b ON b.outlet_id = o.id
+          WHERE o.deleted_at IS NULL`
+      );
+      const lowOutlets = rows
+        .map(r => ({ ...r, balance: Number(r.balance || 0) }))
+        .filter(r => r.balance < Number(minBalance));
+      return res.json({
+        success: true,
+        data: { isLow: lowOutlets.length > 0, lowOutlets, minBalance: Number(minBalance) },
+      });
+    }
+
+    // Kasir: cek outlet sendiri
+    if (!userOutletId) {
+      return res.json({ success: true, data: { isLow: false, lowOutlets: [], minBalance: Number(minBalance) } });
+    }
+
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT COALESCE(balance, 0) AS balance FROM mst_outlet_cash_balance WHERE outlet_id = ?`,
+      [userOutletId]
+    );
+    const balance = Number(rows[0]?.balance || 0);
+    const isLow = balance < Number(minBalance);
+
+    return res.json({
+      success: true,
+      data: {
+        isLow,
+        lowOutlets: isLow ? [{ outletId: userOutletId, balance, outletName: null }] : [],
+        minBalance: Number(minBalance),
+      },
+    });
+  } catch (err) {
+    console.error('[checkLowBalance] Error:', err);
+    return res.status(500).json({ success: false, message: 'Gagal cek saldo.' });
+  }
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// GET /api/outlet-cash/ledger — audit ledger detail (enhanced with date filter)
 // ════════════════════════════════════════════════════════════════════════════
 export const getLedger = async (req, res) => {
   try {
@@ -728,6 +951,21 @@ export const getLedger = async (req, res) => {
 
     const limitNum = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
 
+    const params = [targetOutletId];
+    let whereExtra = '';
+    if (req.query.startDate) {
+      whereExtra += ' AND DATE(l.created_at) >= ?';
+      params.push(req.query.startDate);
+    }
+    if (req.query.endDate) {
+      whereExtra += ' AND DATE(l.created_at) <= ?';
+      params.push(req.query.endDate);
+    }
+    if (req.query.type) {
+      whereExtra += ' AND l.type = ?';
+      params.push(req.query.type);
+    }
+
     const [rows] = await poolWaschenPos.execute(
       `SELECT l.id, l.outlet_id AS outletId, l.type, l.amount,
               l.balance_after AS balanceAfter, l.notes,
@@ -735,10 +973,10 @@ export const getLedger = async (req, res) => {
               u.name AS createdByName, l.created_at AS createdAt
          FROM tr_outlet_cash_ledger l
          LEFT JOIN mst_user u ON u.id = l.created_by
-        WHERE l.outlet_id = ?
+        WHERE l.outlet_id = ?${whereExtra}
         ORDER BY l.created_at DESC
         LIMIT ${limitNum}`,
-      [targetOutletId]
+      params
     );
     return res.json({
       success: true,

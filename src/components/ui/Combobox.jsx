@@ -185,7 +185,7 @@ export function Combobox({
       {label && (
         <label htmlFor={id} style={{
           display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500,
-          color: C.n600, marginBottom: 6,
+          color: '#3a3a3a', marginBottom: 6,
         }}>
           {label}
         </label>
@@ -211,7 +211,7 @@ export function Combobox({
             width: '100%', height: 48, borderRadius: 10,
             padding: '0 40px 0 14px',
             border: `${open ? 2 : 1.5}px solid ${error ? (C.danger || '#DC2626') : open ? C.primary : C.n300}`,
-            fontFamily: 'Poppins', fontSize: 14, color: disabled ? C.n500 : C.n900,
+            fontFamily: 'Poppins', fontSize: 14, color: disabled ? '#3a3a3a' : C.n900,
             background: disabled ? C.n50 : C.white,
             outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s',
           }}
@@ -232,7 +232,7 @@ export function Combobox({
             width: 26, height: 26, borderRadius: 6,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: disabled ? 'not-allowed' : 'pointer',
-            color: C.n600,
+            color: '#3a3a3a',
           }}
           aria-label={value ? 'Bersihkan' : 'Buka daftar'}
         >
@@ -252,7 +252,7 @@ export function Combobox({
       {/* Helper / status */}
       {!error && (helperText || isFreeText) && (
         <div style={{
-          fontFamily: 'Poppins', fontSize: 10, color: isFreeText ? C.primary : C.n500,
+          fontFamily: 'Poppins', fontSize: 10, color: isFreeText ? C.primary : '#3a3a3a',
           marginTop: 4,
         }}>
           {isFreeText ? '✏️ Input manual — tidak ada di daftar tapi tetap akan disimpan.' : helperText}
@@ -285,7 +285,7 @@ export function Combobox({
           {filtered.length === 0 ? (
             <div style={{
               padding: '14px 12px',
-              fontFamily: 'Poppins', fontSize: 12, color: C.n600,
+              fontFamily: 'Poppins', fontSize: 12, color: '#3a3a3a',
               lineHeight: 1.5,
             }}>
               {emptyText}
@@ -335,7 +335,7 @@ export function Combobox({
             <div style={{
               borderTop: `1px solid ${C.n100}`,
               padding: '6px 12px',
-              fontFamily: 'Poppins', fontSize: 10, color: C.n500,
+              fontFamily: 'Poppins', fontSize: 10, color: '#3a3a3a',
               background: '#FAFBFC', position: 'sticky', bottom: 0,
             }}>
               {filtered.length} item · ketik bebas jika tidak ada di daftar

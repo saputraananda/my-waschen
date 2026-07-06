@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { authenticate, requireRole } from '../middleware/auth.js';
+import { authenticate, requireRole, requireActiveShift } from '../middleware/auth.js';
 import { writeLimiter, approvalLimiter, readLimiter } from '../middleware/rateLimit.js';
 import { cacheResponse, invalidatePattern } from '../middleware/cacheResponse.js';
+import { validateCheckout } from '../schemas/validationSchemas.js';
 import {
   checkoutTransaction,
   getTransactions,
@@ -10,7 +11,6 @@ import {
   getDashboardStats,
   getProductionQueue,
   getProductionHistory,
-  getProductionOrderDetail,
   updateTransactionStatus,
   cancelTransaction,
   updateProductionStage,
@@ -23,7 +23,16 @@ import {
   requestApproval,
   updateDeliveryType,
   updatePackingInfo,
+  rescheduleTransaction,
+  requestCancellation,
 } from '../controllers/transactionController.js';
+
+// BUG FIX 5 & 6: Label Printing Controller (Requirements 2.7, 2.8)
+import {
+  getTransactionLabels as getLabelsFromLabelController,
+  printTransactionLabels,
+} from '../controllers/labelPrintingController.js';
+import { sendTransactionWhatsapp } from '../controllers/whatsappController.js';
 
 const router = Router();
 
@@ -53,19 +62,23 @@ router.get('/production/queue', authenticate, requireRole('kasir', 'frontline', 
 router.get('/production/history', authenticate, requireRole('produksi', 'admin', 'kasir', 'frontline'), cacheResponse({ ttl: 30_000 }), readLimiter, getProductionHistory);
 
 // GET /api/transactions/production/order/:id — detail riwayat (cache 60 detik)
-router.get('/production/order/:id', authenticate, requireRole('produksi', 'admin', 'kasir', 'frontline'), cacheResponse({ ttl: 60_000 }), readLimiter, getProductionOrderDetail);
+// TODO: Temporarily disabled - function not yet implemented
+// router.get('/production/order/:id', authenticate, requireRole('produksi', 'admin', 'kasir', 'frontline'), cacheResponse({ ttl: 60_000 }), readLimiter, getProductionOrderDetail);
 
 // GET /api/transactions/:id — detail transaksi (cache 10 detik, sering dilihat saat proses)
 router.get('/:id', authenticate, cacheResponse({ ttl: 10_000 }), readLimiter, getTransactionById);
 
-// PUT /api/transactions/:id/status — update status transaksi
+// PUT /api/transactions/:id/status — update status transaksi (konfirmasi diambil, dll.)
+// NOTE: tidak pakai requireActiveShift karena endpoint ini juga dipakai oleh role produksi
+// untuk update stage, dan produksi tidak punya shift.
 router.put('/:id/status', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, updateTransactionStatus);
 
 // POST /api/transactions/checkout — buat nota (kasir / admin / finance; bukan produksi)
-router.post('/checkout', authenticate, requireRole('kasir', 'frontline', 'admin', 'finance'), writeLimiter, invalidateTx, checkoutTransaction);
+// Validation: Zod schema validates customerId, items[], outletId, payment details
+router.post('/checkout', authenticate, requireRole('kasir', 'frontline', 'admin', 'finance'), requireActiveShift, writeLimiter, invalidateTx, validateCheckout, checkoutTransaction);
 
 // POST /api/transactions/:id/payments — pelunasan / pembayaran lanjutan (kasir & admin)
-router.post('/:id/payments', authenticate, requireRole('kasir', 'frontline', 'admin', 'finance'), writeLimiter, invalidateTx, recordTransactionPayment);
+router.post('/:id/payments', authenticate, requireRole('kasir', 'frontline', 'admin', 'finance'), requireActiveShift, writeLimiter, invalidateTx, recordTransactionPayment);
 
 // PATCH /api/transactions/:id/cancel — batalkan transaksi
 router.patch('/:id/cancel', authenticate, requireRole('kasir', 'frontline', 'admin'), approvalLimiter, invalidateTx, cancelTransaction);
@@ -99,5 +112,22 @@ router.patch('/:id/delivery-type', authenticate, requireRole('kasir', 'frontline
 
 // PATCH /api/transactions/:id/items/:itemId/packing — set packing requirement (kasir) atau update packing_done (produksi)
 router.patch('/:id/items/:itemId/packing', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, updatePackingInfo);
+
+// PATCH /api/transactions/:id/reschedule — ubah estimasi & jadwal pickup/delivery
+router.patch('/:id/reschedule', authenticate, requireRole('kasir', 'frontline', 'admin'), writeLimiter, invalidateTx, rescheduleTransaction);
+
+// POST /api/transactions/:id/cancellation-requests — ajukan pembatalan
+router.post('/:id/cancellation-requests', authenticate, requireRole('kasir', 'frontline', 'admin'), writeLimiter, invalidateTx, requestCancellation);
+
+// GET /api/transactions/:id/labels — data label untuk print nota/item
+// BUG FIX 5: Use dedicated label controller (Requirements 2.7)
+router.get('/:id/labels', authenticate, readLimiter, getLabelsFromLabelController);
+
+// POST /api/transactions/:id/labels/print — log print/reprint action
+// BUG FIX 6: Label print logging (Requirements 2.8)
+router.post('/:id/labels/print', authenticate, writeLimiter, invalidateTx, printTransactionLabels);
+
+// POST /api/transactions/:id/send-whatsapp — kirim pesan WhatsApp dari transaksi
+router.post('/:id/send-whatsapp', authenticate, requireRole('kasir', 'frontline', 'admin', 'produksi'), writeLimiter, invalidateTx, sendTransactionWhatsapp);
 
 export default router;

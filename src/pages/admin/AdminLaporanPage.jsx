@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import axios from 'axios';
-import { C, T } from '../../utils/theme';
+import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Chip, Select, DateInput, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart } from '../../components/ui';
+import { TopBar, Btn, Select, DateInput, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, SearchFilterHeader, FilterModal, FilterSection, DatePresets } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency, fmtDate } from '../../utils/exportReport';
 import { getDateRangePreset } from '../../utils/filterPresets';
@@ -16,8 +16,8 @@ const METHOD_ICON = {
   ovo: '🟣', gopay: '🟢', dana: '🔵', shopeepay: '🟠', mixed: '🔀',
 };
 const METHOD_COLOR = {
-  cash: '#10B981', transfer: '#0EA5E9', qris: '#8B5CF6', deposit: '#F59E0B',
-  ovo: '#7C3AED', gopay: '#22C55E', dana: '#3B82F6', shopeepay: '#F97316', mixed: '#EC4899',
+  cash: C.success, transfer: C.info, qris: C.primary, deposit: C.warning,
+  ovo: '#6e2e78', gopay: '#22C55E', dana: '#3B82F6', shopeepay: '#F97316', mixed: '#EC4899',
 };
 
 const F = { fontFamily: 'Poppins' };
@@ -29,15 +29,15 @@ const PAGE_STYLES = `
   .lap-filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .lap-date-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 14px; }
   .lap-date-col { flex: 1; min-width: 0; }
-  .lap-date-arrow { flex-shrink: 0; padding-bottom: 12px; color: ${C.n400}; font-size: 14px; }
+  .lap-date-arrow { flex-shrink: 0; padding-bottom: 12px; color: ${C.n800}; font-size: 14px; }
   .lap-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
   .lap-section-title { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
   .lap-section-title h3 { font-family: Poppins; font-size: 13px; font-weight: 700; color: ${C.n900}; margin: 0; line-height: 1.35; }
   .lap-section-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
   .lap-export-pill { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; padding: 0 10px; border-radius: 999px; border: none; cursor: pointer; font-family: Poppins; font-size: 10px; font-weight: 600; white-space: nowrap; line-height: 1; }
-  .lap-export-pill--muted { color: ${C.n600}; background: ${C.n100}; }
-  .lap-export-pill--excel { color: #15803D; background: #DCFCE7; }
-  .lap-export-pill--pdf { color: #991B1B; background: #FEE2E2; }
+  .lap-export-pill--muted { color: ${C.n800}; background: ${C.n100}; }
+  .lap-export-pill--excel { color: ${C.successDark}; background: ${C.successBg}; }
+  .lap-export-pill--pdf { color: ${C.dangerDark}; background: ${C.dangerBg}; }
   .lap-payment-grid { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: center; }
   .lap-quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
   @media (max-width: 520px) {
@@ -59,18 +59,18 @@ const PAGE_STYLES = `
 const DualBarChart = memo(function DualBarChartInner({ points, labelKey = 'label', maxBars = 14, height = 160 }) {
   const arr = [...(points || [])];
   const sliced = arr.length <= maxBars ? arr : arr.slice(-maxBars);
-  if (!sliced.length) return <div style={{ ...F, fontSize: 12, color: C.n400, textAlign: 'center', padding: '24px 0' }}>Belum ada data</div>;
+  if (!sliced.length) return <div style={{ ...F, fontSize: 12, color: C.n800, textAlign: 'center', padding: '24px 0' }}>Belum ada data</div>;
   const maxVal = Math.max(...sliced.flatMap((p) => [Number(p.revenue) || 0, Number(p.pelunasan) || 0]), 1);
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <div style={{ width: 10, height: 10, borderRadius: 3, background: C.primary }} />
-          <span style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n600 }}>Total Transaksi</span>
+          <span style={{ ...F, fontSize: 10, fontWeight: 500, color: C.n800 }}>Total Transaksi</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <div style={{ width: 10, height: 10, borderRadius: 3, background: C.success }} />
-          <span style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n600 }}>Total Pelunasan</span>
+          <span style={{ ...F, fontSize: 10, fontWeight: 500, color: C.n800 }}>Total Pelunasan</span>
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height, padding: '8px 0 0' }}>
@@ -93,11 +93,11 @@ const DualBarChart = memo(function DualBarChartInner({ points, labelKey = 'label
                 <div
                   title={`Pelunasan: ${rp(pv)}`}
                   style={{ flex: 1, maxWidth: 18, height: `${ph}%`, minHeight: 4, borderRadius: '4px 4px 1px 1px',
-                    background: isLast ? `linear-gradient(180deg, ${C.success}, #059669)` : `${C.success}88`,
+                    background: isLast ? `linear-gradient(180deg, ${C.success}, ${C.successDark})` : `${C.success}88`,
                     transition: 'height 0.3s' }}
                 />
               </div>
-              <span style={{ ...F, fontSize: 8, color: C.n500, textAlign: 'center', lineHeight: 1.1, wordBreak: 'break-all' }}>{lbl}</span>
+              <span style={{ ...F, fontSize: 8, color: C.n800, textAlign: 'center', lineHeight: 1.1, wordBreak: 'break-all' }}>{lbl}</span>
             </div>
           );
         })}
@@ -117,7 +117,7 @@ const HeroCard = ({ title, value, delta, icon, gradient }) => (
       <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
       <span style={{ ...F, fontSize: 10, fontWeight: 600, opacity: 0.92, letterSpacing: 0.3, lineHeight: 1.3 }}>{title}</span>
     </div>
-    <div style={{ ...F, fontSize: 'clamp(18px, 4.5vw, 22px)', fontWeight: 800, lineHeight: 1.15, position: 'relative', wordBreak: 'break-word' }}>{value}</div>
+    <div style={{ ...F, fontSize: 'clamp(18px, 4.5vw, 22px)', fontWeight: 600, lineHeight: 1.15, position: 'relative', wordBreak: 'break-word' }}>{value}</div>
     {delta != null && (
       <div style={{ ...F, fontSize: 10, opacity: 0.9, marginTop: 6, position: 'relative', lineHeight: 1.4 }}>{delta}</div>
     )}
@@ -127,7 +127,7 @@ const HeroCard = ({ title, value, delta, icon, gradient }) => (
 const KpiCard = ({ label, value, sub, icon, color = C.primary, accent }) => (
   <div style={{
     background: C.white, borderRadius: 14, padding: '10px 12px',
-    boxShadow: '0 2px 8px rgba(15,23,42,0.06)', borderLeft: `4px solid ${color}`,
+    boxShadow: SHADOW.sm, borderLeft: `4px solid ${color}`,
     display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0,
   }}>
     <div style={{
@@ -135,15 +135,15 @@ const KpiCard = ({ label, value, sub, icon, color = C.primary, accent }) => (
       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16,
     }}>{icon}</div>
     <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ ...F, fontSize: 9, color: C.n500, fontWeight: 700, letterSpacing: 0.3, lineHeight: 1.2 }}>{label}</div>
-      <div style={{ ...F, fontSize: 'clamp(13px, 3.5vw, 16px)', fontWeight: 800, color: C.n900, marginTop: 2, lineHeight: 1.2, wordBreak: 'break-word' }}>{value}</div>
-      {sub && <div style={{ ...F, fontSize: 9, color: accent || C.n500, fontWeight: 600, marginTop: 3, lineHeight: 1.3 }}>{sub}</div>}
+      <div style={{ ...F, fontSize: 9, color: C.n800, fontWeight: 600, letterSpacing: 0.3, lineHeight: 1.2 }}>{label}</div>
+      <div style={{ ...F, fontSize: 'clamp(13px, 3.5vw, 16px)', fontWeight: 600, color: C.n900, marginTop: 2, lineHeight: 1.2, wordBreak: 'break-word' }}>{value}</div>
+      {sub && <div style={{ ...F, fontSize: 9, color: accent || C.n800, fontWeight: 600, marginTop: 3, lineHeight: 1.3 }}>{sub}</div>}
     </div>
   </div>
 );
 
 const SectionCard = ({ icon, title, action, children }) => (
-  <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)', minWidth: 0 }}>
+  <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: SHADOW.sm, minWidth: 0 }}>
     <div className="lap-section-head">
       <div className="lap-section-title">
         <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
@@ -177,6 +177,11 @@ export default function AdminLaporanPage({ navigate, goBack }) {
   const [endDate, setEndDate] = useState('');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
+
+  // Count active filters
+  const filterActive = (preset !== '30d' || !!outletId || groupBy !== 'day');
 
   const applyPreset = (key) => {
     // Map display keys to getDateRangePreset keys
@@ -194,7 +199,10 @@ export default function AdminLaporanPage({ navigate, goBack }) {
       try {
         const res = await axios.get('/api/outlets');
         setOutlets(res?.data?.data || []);
-      } catch { setOutlets([]); }
+      } catch (e) {
+        console.warn('[AdminLaporan] Failed to fetch outlets:', e?.message);
+        setOutlets([]);
+      }
     })();
   }, []);
 
@@ -207,7 +215,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
       const res = await axios.get(url);
       if (res?.data?.data) setReport(res.data.data);
     } catch (e) {
-      console.error(e);
+      console.error('[AdminLaporan] fetchReport failed:', e);
       setReport(null);
     } finally {
       setLoading(false);
@@ -306,77 +314,33 @@ export default function AdminLaporanPage({ navigate, goBack }) {
       <style>{PAGE_STYLES}</style>
       <TopBar title="Laporan Pusat" subtitle="Analitik omset & transaksi terpusat" onBack={goBack} />
 
+      {/* Search & Filter Header */}
+      <div style={{ padding: '12px 16px', background: 'white', borderBottom: `1px solid ${C.n100}` }}>
+        <SearchFilterHeader
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          onFilterClick={() => setShowFilter(true)}
+          filterActive={filterActive}
+          searchPlaceholder="Cari outlet..."
+        />
+      </div>
+
       <div className="lap-content" style={{ flex: 1, overflowY: 'auto' }}>
-        {/* Filter panel */}
+        {/* Quick Stats */}
         <div style={{
-          background: C.white, borderRadius: 14, padding: '14px 14px 12px', marginBottom: 12,
-          boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 8,
+          marginBottom: 12,
         }}>
-          <div style={{ ...F, fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8, letterSpacing: 0.3 }}>
-            ⚡ Periode Cepat
-          </div>
-          <div style={{
-            display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 14,
-            scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 2,
-          }}>
-            {[
-              { key: '7d', label: '7 hari' },
-              { key: '30d', label: '30 hari' },
-              { key: 'month', label: 'Bulan ini' },
-              { key: '3m', label: '3 bulan' },
-              { key: '6m', label: '6 bulan' },
-            ].map((p) => (
-              <Chip key={p.key} label={p.label} active={preset === p.key} onClick={() => applyPreset(p.key)} />
-            ))}
-          </div>
-
-          <div style={{ ...F, fontSize: 11, fontWeight: 700, color: C.n600, marginBottom: 8, letterSpacing: 0.3 }}>
-            📅 Rentang Tanggal
-          </div>
-          <div className="lap-date-row">
-            <div className="lap-date-col">
-              <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n500, marginBottom: 4 }}>Dari</div>
-              <DateInput
-                compact
-                iconOnlyEmpty
-                value={startDate}
-                onChange={(v) => { setPreset(''); setStartDate(v || ''); }}
-                maxDate={endDate ? new Date(`${endDate}T00:00:00`) : undefined}
-              />
-            </div>
-            <div className="lap-date-arrow">→</div>
-            <div className="lap-date-col">
-              <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n500, marginBottom: 4 }}>Sampai</div>
-              <DateInput
-                compact
-                iconOnlyEmpty
-                value={endDate}
-                onChange={(v) => { setPreset(''); setEndDate(v || ''); }}
-                minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
-              />
-            </div>
-          </div>
-
-          <div className="lap-filter-grid">
-            <Select
-              compact
-              label="Outlet"
-              value={outletId}
-              onChange={setOutletId}
-              options={[{ value: '', label: '🏪 Semua outlet' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]}
-            />
-            <Select
-              compact
-              label="Grafik"
-              value={groupBy}
-              onChange={setGroupBy}
-              options={[{ value: 'day', label: '📅 Per hari' }, { value: 'month', label: '📆 Per bulan' }]}
-            />
-          </div>
+          <StatMini label="Periode" value={preset === '30d' ? '30 Hari' : preset === '7d' ? '7 Hari' : preset === 'month' ? 'Bulan Ini' : preset} />
+          <StatMini label="Outlet" value={outletId ? '1 Outlet' : 'Semua'} />
+          <StatMini label="Grup" value={groupBy === 'day' ? 'Per Hari' : 'Per Bulan'} />
+          <StatMini label="Data" value={chartPoints.length} suffix="titik" />
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n500 }}>
+          <div style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n800 }}>
             <div style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
             Memuat data laporan...
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -399,7 +363,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
                 value={rp(totalPelunasan)}
                 delta={`Uang diterima${piutang > 0 ? ` · piutang ${rp(piutang)}` : ' · lunas semua'}`}
                 icon={'💰'}
-                gradient={`linear-gradient(135deg, #059669 0%, #047857 100%)`}
+                gradient={`linear-gradient(135deg, ${C.success} 0%, ${C.successDark} 100%)`}
               />
             </div>
 
@@ -407,8 +371,8 @@ export default function AdminLaporanPage({ navigate, goBack }) {
             <div className="lap-kpi-grid">
               <KpiCard label="TRANSAKSI" value={totalTx.toLocaleString('id-ID')} sub={`${(totalTx / totalDays).toFixed(1)} per hari`} icon="🧾" color={C.info} />
               <KpiCard label="RATA-RATA/TRX" value={rp(avgPerTx)} icon="📊" color={C.success} />
-              <KpiCard label="RATA-RATA/HARI" value={rp(avgPerDay)} icon="📅" color="#F59E0B" />
-              <KpiCard label="OUTLET AKTIF" value={sortedByOutlet.length} sub={outletId ? 'Filter outlet aktif' : 'Semua outlet'} icon="🏪" color="#EC4899" />
+              <KpiCard label="RATA-RATA/HARI" value={rp(avgPerDay)} icon="📅" color={C.warning} />
+              <KpiCard label="OUTLET AKTIF" value={sortedByOutlet.length} sub={outletId ? 'Filter outlet aktif' : 'Semua outlet'} icon="🏪" color={C.materialSutra} />
               {piutang > 0 && (
                 <KpiCard label="PIUTANG" value={rp(piutang)} sub="Belum terbayar" icon="⚠️" color={C.warning} accent={C.warning} />
               )}
@@ -449,8 +413,8 @@ export default function AdminLaporanPage({ navigate, goBack }) {
                             <span style={{ ...F, fontSize: 11, color: C.n700 }}>{METHOD_LABEL[m.method] || m.method}</span>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ ...F, fontSize: 11, fontWeight: 700, color: C.n900 }}>{rp(m.revenue)}</div>
-                            <div style={{ ...F, fontSize: 9, color: C.n500 }}>{pct.toFixed(1)}% · {m.txCount} trx</div>
+                            <div style={{ ...F, fontSize: 11, fontWeight: 600, color: C.n900 }}>{rp(m.revenue)}</div>
+                            <div style={{ ...F, fontSize: 9, color: C.n800 }}>{pct.toFixed(1)}% · {m.txCount} trx</div>
                           </div>
                         </div>
                       );
@@ -468,30 +432,30 @@ export default function AdminLaporanPage({ navigate, goBack }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {sortedByOutlet.map((row, idx) => {
                     const pct = totalRevenue > 0 ? (Number(row.revenue) / totalRevenue) * 100 : 0;
-                    const rankColor = idx === 0 ? '#F59E0B' : idx === 1 ? '#94A3B8' : idx === 2 ? '#CD7F32' : C.n400;
+                    const rankColor = idx === 0 ? C.warning : idx === 1 ? C.n400 : idx === 2 ? '#CD7F32' : C.n800;
                     return (
                       <div key={row.outletName || idx} style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                        background: idx === 0 ? '#FFFBEB' : C.n50, borderRadius: 10,
-                        border: `1px solid ${idx === 0 ? '#FCD34D' : 'transparent'}`,
+                        background: idx === 0 ? C.warningBg : C.n50, borderRadius: 10,
+                        border: `1px solid ${idx === 0 ? C.warning : 'transparent'}`,
                       }}>
                         <div style={{
                           width: 32, height: 32, borderRadius: 16, background: rankColor,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          ...F, fontSize: 12, fontWeight: 800, color: C.white, flexShrink: 0,
+                          ...F, fontSize: 12, fontWeight: 600, color: C.white, flexShrink: 0,
                         }}>{idx + 1}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ ...F, fontSize: 13, fontWeight: 700, color: C.n900, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.outletName || '—'}</div>
+                          <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.outletName || '—'}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{ flex: 1, height: 6, background: C.n200, borderRadius: 3, overflow: 'hidden' }}>
                               <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${C.primary}, ${C.primaryDark})`, transition: 'width 0.5s' }} />
                             </div>
-                            <span style={{ ...F, fontSize: 10, fontWeight: 700, color: C.primary, minWidth: 38, textAlign: 'right' }}>{pct.toFixed(1)}%</span>
+                            <span style={{ ...F, fontSize: 10, fontWeight: 600, color: C.primary, minWidth: 38, textAlign: 'right' }}>{pct.toFixed(1)}%</span>
                           </div>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <div style={{ ...F, fontSize: 13, fontWeight: 800, color: C.n900 }}>{rp(row.revenue)}</div>
-                          <div style={{ ...F, fontSize: 10, color: C.n500 }}>{row.txCount} trx</div>
+                          <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>{rp(row.revenue)}</div>
+                          <div style={{ ...F, fontSize: 10, color: C.n800 }}>{row.txCount} trx</div>
                         </div>
                       </div>
                     );
@@ -512,16 +476,120 @@ export default function AdminLaporanPage({ navigate, goBack }) {
         )}
 
         {!loading && !report && (
-          <div style={{ ...T.card, textAlign: 'center', padding: 24, ...F, color: C.n500, fontSize: 13 }}>
+          <div style={{ ...T.card, textAlign: 'center', padding: 24, ...F, color: C.n800, fontSize: 13 }}>
             Tidak ada data untuk periode ini.
           </div>
         )}
       </div>
+
+      {/* Filter Modal */}
+      <FilterModal
+        visible={showFilter}
+        onClose={() => setShowFilter(false)}
+        title="Filter Laporan"
+        onApply={() => {
+          // Apply is automatic - values are already updated via state
+        }}
+        onReset={() => {
+          applyPreset('30d');
+          setOutletId('');
+          setGroupBy('day');
+        }}
+      >
+        <FilterSection title="Periode Waktu">
+          <DatePresets
+            selected={preset}
+            onChange={(val) => {
+              setPreset(val);
+              applyPreset(val);
+            }}
+          />
+        </FilterSection>
+
+        <FilterSection title="Outlet">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              onClick={() => setOutletId('')}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 999,
+                border: `1.5px solid ${!outletId ? C.primary : C.n200}`,
+                background: !outletId ? `${C.primary}12` : 'white',
+                cursor: 'pointer',
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: !outletId ? 600 : 500,
+                color: !outletId ? C.primary : C.n700,
+              }}
+            >
+              Semua Outlet
+            </button>
+            {outlets.slice(0, 6).map((o) => (
+              <button
+                key={o.id}
+                onClick={() => setOutletId(o.id)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 999,
+                  border: `1.5px solid ${outletId === o.id ? C.primary : C.n200}`,
+                  background: outletId === o.id ? `${C.primary}12` : 'white',
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  fontWeight: outletId === o.id ? 600 : 500,
+                  color: outletId === o.id ? C.primary : C.n700,
+                }}
+              >
+                {o.name}
+              </button>
+            ))}
+          </div>
+        </FilterSection>
+
+        <FilterSection title="Pengelompokan">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setGroupBy('day')}
+              style={{
+                flex: 1,
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: `1.5px solid ${groupBy === 'day' ? C.primary : C.n200}`,
+                background: groupBy === 'day' ? `${C.primary}12` : 'white',
+                cursor: 'pointer',
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: groupBy === 'day' ? 600 : 500,
+                color: groupBy === 'day' ? C.primary : C.n700,
+              }}
+            >
+              Per Hari
+            </button>
+            <button
+              onClick={() => setGroupBy('month')}
+              style={{
+                flex: 1,
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: `1.5px solid ${groupBy === 'month' ? C.primary : C.n200}`,
+                background: groupBy === 'month' ? `${C.primary}12` : 'white',
+                cursor: 'pointer',
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: groupBy === 'month' ? 600 : 500,
+                color: groupBy === 'month' ? C.primary : C.n700,
+              }}
+            >
+              Per Bulan
+            </button>
+          </div>
+        </FilterSection>
+      </FilterModal>
     </div>
   );
 }
 
-const thStyle = { ...F, fontSize: 10, fontWeight: 700, color: C.n500, padding: '8px 6px', textAlign: 'left', letterSpacing: 0.3, whiteSpace: 'nowrap' };
+const thStyle = { ...F, fontSize: 10, fontWeight: 600, color: C.n800, padding: '8px 6px', textAlign: 'left', letterSpacing: 0.3, whiteSpace: 'nowrap' };
 const tdStyle = { ...F, fontSize: 12, color: C.n800, padding: '10px 6px', whiteSpace: 'nowrap' };
 
 const QuickLink = ({ icon, label, onClick }) => (

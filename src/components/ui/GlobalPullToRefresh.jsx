@@ -100,9 +100,7 @@ export const GlobalPullToRefresh = ({ children, threshold = 70 }) => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
-      }}
-    >
+      }}>
       {showIndicator && (
         <div
           style={{
@@ -139,7 +137,7 @@ export const GlobalPullToRefresh = ({ children, threshold = 70 }) => {
               <svg
                 width="18" height="18" viewBox="0 0 24 24"
                 fill="none"
-                stroke={progress >= 1 ? C.primary : C.n400}
+                stroke={progress >= 1 ? C.primary : '#3a3a3a'}
                 strokeWidth="2.5" strokeLinecap="round"
               >
                 <polyline points="23 4 23 10 17 10" />
@@ -157,7 +155,6 @@ export const GlobalPullToRefresh = ({ children, threshold = 70 }) => {
         transform: `translateY(${pullDistance}px)`,
         transition: refreshing || isPulling.current ? 'none' : 'transform 0.25s ease',
         minHeight: 0,
-        overflow: 'hidden',
       }}>
         {children}
       </div>

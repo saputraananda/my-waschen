@@ -1,35 +1,46 @@
+// ══════════════════════════════════════════════════════════════════════════════
+// ShiftPage.jsx — Complete Shift Management (Kasir View)
+// Supports: Main Session + Sub-Session + Handover Flow
+// Tabs: Status | Kas | Sub-Session | Riwayat
+// ══════════════════════════════════════════════════════════════════════════════
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Input, Select, MoneyInput } from '../../components/ui';
-import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
+import { TopBar, Btn, MoneyInput, Modal, Badge } from '../../components/ui';
+import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import PaymentBreakdownCard from '../../components/ui/PaymentBreakdownCard';
+import {
+  IconClock, IconCash, IconTrendUp, IconTrendDown, IconWarning,
+  IconReceipt, IconChevronRight, IconRefresh, IconCheck, IconX,
+  IconPerson, IconUsers
+} from '../../components/ui/StatusIcons';
 
-const METHOD_LABEL = {
-  cash: 'Tunai',
-  transfer: 'Transfer',
-  qris: 'QRIS',
-  ovo: 'OVO',
-  gopay: 'GoPay',
-  dana: 'DANA',
-  shopeepay: 'ShopeePay',
-  deposit: 'Deposit',
-};
+// ─── Constants ────────────────────────────────────────────────────────────────
+const SHIFT_OPTIONS = [
+  { value: 'pagi', label: 'Pagi', jam: '06:00 - 14:00', icon: '🌅' },
+  { value: 'siang', label: 'Siang', jam: '14:00 - 22:00', icon: '🌤️' },
+  { value: 'malam', label: 'Malam', jam: '22:00 - 06:00', icon: '🌙' },
+  { value: 'full', label: 'Full Day', jam: '06:00 - 22:00', icon: '☀️' },
+];
 
-const fmtDt = (v) => {
+const TABS = [
+  { id: 'status', label: 'Status', icon: IconClock },
+  { id: 'kas', label: 'Kas', icon: IconCash },
+  { id: 'subSession', label: 'Sub-Session', icon: IconUsers },
+  { id: 'riwayat', label: 'Riwayat', icon: IconReceipt },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmtTime = (v) => {
   if (!v) return '-';
   try {
-    return new Date(v).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
-  } catch {
-    return String(v);
-  }
-};
-
-const SHIFT_LABEL = { pagi: 'Pagi', siang: 'Siang', malam: 'Malam', full: 'Full Day' };
-
-const fmtTimeOnly = (v) => {
-  if (!v) return '';
-  return new Date(v).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+    return new Date(v).toLocaleString('id-ID', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    });
+  } catch { return String(v); }
 };
 
 const fmtElapsed = (openedAt) => {
@@ -43,504 +54,914 @@ const fmtElapsed = (openedAt) => {
   return `${m} menit`;
 };
 
-const METHOD_ICON_COLOR = {
-  cash: { icon: '💵', bg: '#DCFCE7', color: '#166534' },
-  transfer: { icon: '🏦', bg: '#DBEAFE', color: '#1E40AF' },
-  qris: { icon: '📱', bg: '#F3E8FF', color: '#7C3AED' },
-  ovo: { icon: '🟣', bg: '#F3E8FF', color: '#7C3AED' },
-  gopay: { icon: '🟢', bg: '#DCFCE7', color: '#166534' },
-  dana: { icon: '🔵', bg: '#DBEAFE', color: '#1E40AF' },
-  shopeepay: { icon: '🟠', bg: '#FFF7ED', color: '#C2410C' },
-  deposit: { icon: '💰', bg: '#FEF3C7', color: '#92400E' },
+const fmtDate = () => {
+  return new Date().toLocaleString('id-ID', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
+  });
 };
 
+const fmtCurrency = (num) => {
+  if (!num && num !== 0) return '-';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(num).replace('Rp', '').trim();
+};
+
+// ─── Status Badge ─────────────────────────────────────────────────────────────
+const StatusBadge = ({ status }) => {
+  const config = {
+    open: { bg: '#ECFDF5', color: '#059669', text: '● Aktif', pulse: true },
+    closed: { bg: C.n100, color: C.n500, text: 'Tutup', pulse: false },
+    handover: { bg: '#FEF3C7', color: '#D97706', text: '● Dioper', pulse: true },
+    'belum-buka': { bg: '#FEE2E2', color: '#DC2626', text: 'Belum Aktif', pulse: false },
+  };
+  const c = config[status] || config.closed;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+      background: c.bg, color: c.color,
+    }}>
+      {c.pulse && (
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%', background: c.color,
+          animation: 'pulse 2s infinite'
+        }} />
+      )}
+      {c.text}
+    </span>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function KasirShiftPage({ navigate, goBack }) {
-  const [shift, setShift] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [openingCash, setOpeningCash] = useState('');
-  const [shiftType, setShiftType] = useState('full');
-  const [closingCash, setClosingCash] = useState('');
-  const [notes, setNotes] = useState('');
-  const [closingResult, setClosingResult] = useState(null);
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('status');
+  const [shiftStatus, setShiftStatus] = useState(null);
+  const [shiftSummary, setShiftSummary] = useState(null);
+  const [subSessions, setSubSessions] = useState([]);
+  const [recentTransactions, setRecentTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingSummary, setLoadingSummary] = useState(false);
   const [elapsed, setElapsed] = useState('');
-  const [liveSummary, setLiveSummary] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
 
-  // ── Kas Laci state ──
-  const [drawerEntries, setDrawerEntries] = useState([]);
-  const [drawerSummary, setDrawerSummary] = useState(null);
-  const [drawerLoading, setDrawerLoading] = useState(false);
-  const [showAddEntry, setShowAddEntry] = useState(false);
-  const [entryForm, setEntryForm] = useState({ type: 'out', category: 'pengeluaran_operasional', amount: '', description: '' });
-  const [entryLoading, setEntryLoading] = useState(false);
-  const [entryError, setEntryError] = useState('');
+  // ── Modal States ───────────────────────────────────────────────────────────
+  const [showBukaShift, setShowBukaShift] = useState(false);
+  const [showGabungShift, setShowGabungShift] = useState(false);
+  const [showTutup, setShowTutup] = useState(false);
+  const [showTutupSubSession, setShowTutupSubSession] = useState(false);
+  const [showHandover, setShowHandover] = useState(false);
 
-  const loadStatus = async () => {
+  // ── Form States ────────────────────────────────────────────────────────────
+  const [shiftType, setShiftType] = useState('full');
+  const [openingCash, setOpeningCash] = useState('');
+  const [closingCash, setClosingCash] = useState('');
+  const [closeNotes, setCloseNotes] = useState('');
+  const [handoverAmount, setHandoverAmount] = useState('');
+  const [handoverNotes, setHandoverNotes] = useState('');
+  const [selectedSubSession, setSelectedSubSession] = useState(null);
+  const [subSessionCash, setSubSessionCash] = useState('');
+
+  // ── Close/Handover Result ─────────────────────────────────────────────────
+  const [closeResult, setCloseResult] = useState(null);
+
+  // ── Load Data ──────────────────────────────────────────────────────────────
+  const loadStatus = useCallback(async () => {
     try {
       const res = await axios.get('/api/shifts/status');
-      setShift(res?.data || null);
-    } catch {
-      setShift(null);
+      setShiftStatus(res.data);
+    } catch (e) {
+      console.warn('[ShiftPage] Load status failed:', e?.message);
+      setShiftStatus(null);
     }
-  };
+  }, []);
 
-  const loadLiveSummary = async () => {
-    setSummaryLoading(true);
+  const loadSummary = useCallback(async () => {
+    setLoadingSummary(true);
     try {
       const res = await axios.get('/api/shifts/current-summary');
-      setLiveSummary(res?.data?.data || null);
-    } catch {
-      setLiveSummary(null);
+      setShiftSummary(res.data?.data || null);
+    } catch (e) {
+      console.warn('[ShiftPage] Load summary failed:', e?.message);
+      setShiftSummary(null);
     } finally {
-      setSummaryLoading(false);
-    }
-  };
-
-  const loadDrawerEntries = useCallback(async () => {
-    setDrawerLoading(true);
-    try {
-      const res = await axios.get('/api/cash-drawer/entries');
-      setDrawerEntries(res?.data?.data || []);
-      setDrawerSummary(res?.data?.summary || null);
-    } catch {
-      setDrawerEntries([]);
-      setDrawerSummary(null);
-    } finally {
-      setDrawerLoading(false);
+      setLoadingSummary(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadStatus();
-  }, []);
-
-  useEffect(() => {
-    if (shift?.isOpen && !shift?.bypass) {
-      loadLiveSummary();
-      loadDrawerEntries();
-    }
-  }, [shift, loadDrawerEntries]);
-
-  useEffect(() => {
-    if (!shift?.isOpen || !shift.session?.openedAt) return;
-    const tick = () => setElapsed(fmtElapsed(shift.session.openedAt));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [shift]);
-
-  const [frontlinerName, setFrontlinerName] = useState('');
-
-  const handleOpenShift = async () => {
-    if (!frontlinerName.trim()) {
-      alertWarning('Nama frontliner wajib diisi.');
+  const loadSubSessions = useCallback(async () => {
+    if (!shiftStatus?.session?.id) {
+      setSubSessions([]);
       return;
     }
+    try {
+      const res = await axios.get(`/api/shifts/sub-session/${shiftStatus.session.id}/all`);
+      setSubSessions(res.data?.data || []);
+    } catch (e) {
+      console.warn('[ShiftPage] Load sub-sessions failed:', e?.message);
+      setSubSessions([]);
+    }
+  }, [shiftStatus?.session?.id]);
+
+  const loadRecentTransactions = useCallback(async () => {
+    if (!shiftStatus?.session?.id) return;
+    try {
+      const res = await axios.get(`/api/transactions?session_id=${shiftStatus.session.id}&limit=10`);
+      setRecentTransactions(res.data?.data || []);
+    } catch (e) {
+      console.warn('[ShiftPage] Load transactions failed:', e?.message);
+    }
+  }, [shiftStatus?.session?.id]);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadStatus(), loadSummary()]);
+    setLoading(false);
+  }, [loadStatus, loadSummary]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
+
+  useEffect(() => {
+    if (shiftStatus?.session?.id) {
+      loadSubSessions();
+      loadRecentTransactions();
+    }
+  }, [shiftStatus?.session?.id, loadSubSessions, loadRecentTransactions]);
+
+  // ── Elapsed Timer ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!shiftStatus?.session?.openedAt) return;
+    const tick = () => setElapsed(fmtElapsed(shiftStatus.session.openedAt));
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [shiftStatus?.session?.openedAt]);
+
+  // ── Derived State ──────────────────────────────────────────────────────────
+  const isOpen = !!shiftStatus?.isOpen && !shiftStatus?.bypass;
+  const session = shiftStatus?.session;
+  const subSession = shiftStatus?.subSession;
+  const hasSubSession = !!subSession;
+  const shiftOpt = SHIFT_OPTIONS.find(s => s.value === session?.shift) || SHIFT_OPTIONS[3];
+
+  // Calculate cash position
+  const cashPosition = shiftSummary ? {
+    opening: shiftSummary.openingCash || 0,
+    sales: shiftSummary.cashSales || 0,
+    expenses: shiftSummary.totalExpense || 0,
+    expected: shiftSummary.expectedCash || 0,
+    total: shiftSummary.grandTotalPayments || 0,
+    transactions: shiftSummary.totalTransactions || 0,
+  } : { opening: 0, sales: 0, expenses: 0, expected: 0, total: 0, transactions: 0 };
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+  const handleBukaShift = async () => {
     setLoading(true);
     try {
-      await axios.post('/api/shifts/open', {
-        openingCash: Number(openingCash || 0),
+      const res = await axios.post('/api/shifts/open', {
+        openingCash: Number(String(openingCash).replace(/\D/g, '') || 0),
         shift: shiftType,
-        shiftUserName: frontlinerName.trim(),
       });
       setOpeningCash('');
-      setFrontlinerName('');
-      await loadStatus();
-      alertSuccess(`Shift berhasil dibuka oleh ${frontlinerName.trim()}.`);
+      setShowBukaShift(false);
+      await loadAll();
+      alertSuccess('Shift berhasil dibuka! 💪');
     } catch (e) {
-      alertError(e?.response?.data?.message || 'Gagal buka shift.');
+      alertError(e?.response?.data?.message || 'Gagal buka shift');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCloseShift = async () => {
-    const cash = Number(closingCash || 0);
-    if (!Number.isFinite(cash) || cash < 0) {
-      alertWarning('Total uang tunai di laci tidak valid.');
+  const handleGabungShift = async () => {
+    if (!session?.id) {
+      alertError('Tidak ada shift aktif untuk digabungkan.');
       return;
     }
+    setLoading(true);
+    try {
+      const res = await axios.post('/api/shifts/sub-session/open', {
+        sessionId: session.id,
+        beginningCash: Number(String(openingCash).replace(/\D/g, '') || 0),
+      });
+      setOpeningCash('');
+      setShowGabungShift(false);
+      await loadAll();
+      alertSuccess('Berhasil bergabung dengan shift! 🎉');
+    } catch (e) {
+      alertError(e?.response?.data?.message || 'Gagal gabung shift');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTutupShift = async () => {
     setLoading(true);
     try {
       const res = await axios.post('/api/shifts/close', {
-        closingCash: cash,
-        notes,
+        closingCash: Number(String(closingCash).replace(/\D/g, '') || 0),
+        notes: closeNotes || null,
       });
-      setClosingResult(res?.data?.data || null);
-      setClosingCash('');
-      setNotes('');
-      await loadStatus();
-      alertSuccess('Shift berhasil ditutup.');
+      setCloseResult(res.data.data);
+      setShowTutup(false);
+      await loadAll();
     } catch (e) {
-      alertError(e?.response?.data?.message || 'Gagal tutup shift.');
+      alertError(e?.response?.data?.message || 'Gagal tutup shift');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddEntry = async () => {
-    const amt = Number(String(entryForm.amount).replace(/\D/g, ''));
-    if (!amt || amt <= 0) { setEntryError('Jumlah harus lebih dari 0.'); return; }
-    if (!entryForm.description?.trim()) { setEntryError('Keterangan wajib diisi.'); return; }
-    setEntryLoading(true); setEntryError('');
+  const handleTutupSubSession = async () => {
+    if (!subSession?.id) {
+      alertError('Tidak ada sub-session aktif.');
+      return;
+    }
+    setLoading(true);
     try {
-      await axios.post('/api/cash-drawer/entry', {
-        type: entryForm.type,
-        category: entryForm.category,
-        amount: amt,
-        description: entryForm.description.trim(),
+      const res = await axios.post('/api/shifts/sub-session/close', {
+        subSessionId: subSession.id,
+        endingCash: Number(String(subSessionCash).replace(/\D/g, '') || 0),
       });
-      setEntryForm({ type: 'out', category: 'pengeluaran_operasional', amount: '', description: '' });
-      setShowAddEntry(false);
-      await loadDrawerEntries();
+      setSubSessionCash('');
+      setShowTutupSubSession(false);
+      await loadAll();
+      const d = res.data.data;
+      if (d.variance === 0) {
+        alertSuccess('Sub-session ditutup. Kas rapi! ✅');
+      } else {
+        alertWarning(`Sub-session ditutup. Ada selisih Rp ${fmtCurrency(Math.abs(d.variance))}`);
+      }
     } catch (e) {
-      setEntryError(e?.response?.data?.message || 'Gagal mencatat entri.');
+      alertError(e?.response?.data?.message || 'Gagal tutup sub-session');
     } finally {
-      setEntryLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleDeleteEntry = async (id) => {
-    const ok = await confirmAction({ text: 'Hapus entri kas ini?' });
-    if (!ok) return;
+  const handleHandover = async () => {
+    setLoading(true);
     try {
-      await axios.delete(`/api/cash-drawer/entry/${id}`);
-      await loadDrawerEntries();
+      await axios.post('/api/shifts/handover', {
+        handoverCash: Number(String(handoverAmount).replace(/\D/g, '') || 0),
+        notes: handoverNotes || null,
+      });
+      setShowHandover(false);
+      setHandoverAmount('');
+      setHandoverNotes('');
+      await loadAll();
+      alertSuccess('Shift berhasil dioper! 🎉');
     } catch (e) {
-      alertError(e?.response?.data?.message || 'Gagal menghapus entri.');
+      alertError(e?.response?.data?.message || 'Gagal oper shift');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const isOpen = !!shift?.isOpen && !shift?.bypass;
-  const activeSession = shift?.session;
-  const lastClosed = closingResult || shift?.lastClosedSession;
-  const paymentSummary = lastClosed?.paymentSummary || [];
+  // ─── Render: Header ────────────────────────────────────────────────────────
+  const renderHeader = () => (
+    <div style={{
+      background: 'linear-gradient(145deg, ' + C.primaryTint + ', white)',
+      borderRadius: 20,
+      padding: 20,
+      marginBottom: 16,
+      border: '1px solid ' + C.primary + '15',
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+      }}>
+        <StatusBadge status={isOpen ? (session?.status === 'handover' ? 'handover' : 'open') : 'belum-buka'} />
+        <span style={{ fontSize: 12, color: C.n500 }}>{fmtDate()}</span>
+      </div>
 
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Shift Kasir" subtitle="Buka/tutup shift dan rekap pembayaran harian" onBack={goBack} />
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        <div style={{ ...T.card, marginBottom: 12 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '4px 10px', background: isOpen ? '#DCFCE7' : '#FEE2E2' }}>
-            <span style={{ width: 6, height: 6, borderRadius: 3, background: isOpen ? C.success : C.danger, animation: isOpen ? 'pulse 2s ease-in-out infinite' : 'none' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: isOpen ? '#166534' : '#991B1B' }}>
-              {isOpen ? `Shift aktif sejak ${fmtTimeOnly(activeSession?.openedAt)}` : 'Shift belum aktif'}
-            </span>
+      {isOpen && session ? (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <span style={{ fontSize: 28 }}>{shiftOpt.icon}</span>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.n800 }}>
+                Shift {shiftOpt.label}
+              </div>
+              <div style={{ fontSize: 12, color: C.n500 }}>
+                {fmtTime(session.openedAt)}
+              </div>
+            </div>
           </div>
-          {activeSession && (
-            <div style={{ marginTop: 8, fontFamily: 'Poppins', fontSize: 12, color: C.n700, lineHeight: 1.6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                <span style={{ background: '#EFF6FF', color: '#1D4ED8', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999 }}>{SHIFT_LABEL[activeSession.shift] || activeSession.shift}</span>
-                {elapsed && <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>⏱ {elapsed} berlalu</span>}
-              </div>
-              <div>Dibuka: <strong>{fmtDt(activeSession.openedAt)}</strong></div>
-              <div>Modal awal: <strong>{rp(activeSession.openingCash || 0)}</strong></div>
-            </div>
-          )}
-        </div>
-
-        {!isOpen && (
-          <div style={{ ...T.card, marginBottom: 12 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Buka shift</div>
-            <Input
-              label="Nama Frontliner / Kasir"
-              value={frontlinerName}
-              onChange={(v) => setFrontlinerName(v.replace(/(^|\s)\S/g, c => c.toUpperCase()))}
-              placeholder="Mis. Andi, Sari, dll"
-            />
-            <Select
-              label="Jenis shift"
-              value={shiftType}
-              onChange={(val) => setShiftType(val)}
-              options={[
-                { value: 'full', label: 'Full hari' },
-                { value: 'pagi', label: 'Pagi' },
-                { value: 'siang', label: 'Siang' },
-                { value: 'malam', label: 'Malam' },
-              ]}
-            />
-            <MoneyInput label="Modal awal laci (Rp)" value={openingCash} onChange={(v) => setOpeningCash(v)} placeholder="0" />
-            <Btn variant="success" fullWidth loading={loading} onClick={handleOpenShift}>Buka shift sekarang</Btn>
-          </div>
-        )}
-
-        {isOpen && (
-          <>
-            {/* ── Ringkasan Transaksi Shift ── */}
-            <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>Ringkasan Transaksi</div>
-                <button onClick={loadLiveSummary} disabled={summaryLoading} style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primary, background: 'none', border: 'none', cursor: 'pointer' }}>
-                  {summaryLoading ? 'Memuat...' : '↻ Refresh'}
-                </button>
-              </div>
-
-              {/* Stat cards row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-                <div style={{ background: '#F0F9FF', borderRadius: 12, padding: '12px 14px' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color: '#0C4A6E' }}>{liveSummary?.totalTransactions ?? 0}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#0369A1' }}>Total Transaksi</div>
-                </div>
-                <div style={{ background: '#F0FDF4', borderRadius: 12, padding: '12px 14px' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: '#166534' }}>{rp(liveSummary?.totalOmset ?? 0)}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#15803D' }}>Total Omset</div>
-                </div>
-              </div>
-
-              {/* Per-method breakdown */}
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Rekap per Metode Pembayaran</div>
-              {(!liveSummary?.paymentSummary || liveSummary.paymentSummary.length === 0) ? (
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, textAlign: 'center', padding: '16px 0' }}>
-                  Belum ada transaksi pada shift ini.
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {liveSummary.paymentSummary.map((p) => {
-                    const meta = METHOD_ICON_COLOR[p.method] || { icon: '💳', bg: C.n50, color: C.n700 };
-                    return (
-                      <div key={p.method} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: meta.bg, borderRadius: 10 }}>
-                        <span style={{ fontSize: 20, flexShrink: 0 }}>{meta.icon}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: meta.color }}>{METHOD_LABEL[p.method] || p.method}</div>
-                          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: meta.color, opacity: 0.7 }}>{p.count} transaksi</div>
-                        </div>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: meta.color }}>{rp(p.amount)}</div>
-                      </div>
-                    );
-                  })}
-                  {/* Grand total */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderTop: `2px solid ${C.n200}`, marginTop: 4 }}>
-                    <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Total Semua Metode</span>
-                    <span style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 800, color: C.primary }}>{rp(liveSummary.grandTotalPayments || 0)}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ── Panel Kas Laci & Pengeluaran ── */}
-            <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>🗄️ Kas Laci</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={loadDrawerEntries} disabled={drawerLoading} style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, background: 'none', border: 'none', cursor: 'pointer' }}>
-                    {drawerLoading ? '...' : '↻'}
-                  </button>
-                  <button
-                    onClick={() => { setShowAddEntry(!showAddEntry); setEntryError(''); }}
-                    style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: 'white', background: C.primary, border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer' }}
-                  >
-                    {showAddEntry ? 'Tutup' : '+ Catat'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Ringkasan saldo kas laci */}
-              {drawerSummary && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 12 }}>
-                  {[
-                    { label: 'Masuk', val: drawerSummary.totalIn, color: '#166534', bg: '#DCFCE7' },
-                    { label: 'Keluar', val: drawerSummary.totalOut, color: '#991B1B', bg: '#FEE2E2' },
-                    { label: 'Saldo', val: drawerSummary.balance, color: '#1E40AF', bg: '#DBEAFE' },
-                  ].map((s) => (
-                    <div key={s.label} style={{ background: s.bg, borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: s.color, marginBottom: 2 }}>{s.label}</div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 800, color: s.color }}>{rp(s.val)}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Form tambah entri */}
-              {showAddEntry && (
-                <div style={{ background: C.n50, borderRadius: 12, padding: 12, marginBottom: 12, border: `1.5px solid ${C.n200}` }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n800, marginBottom: 10 }}>Catat Pengeluaran / Kas Masuk</div>
-
-                  {/* Tipe */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    {[['out', '📤 Keluar', '#FEE2E2', '#991B1B'], ['in', '📥 Masuk', '#DCFCE7', '#166534']].map(([val, label, bg, color]) => (
-                      <button
-                        key={val}
-                        onClick={() => setEntryForm(f => ({ ...f, type: val }))}
-                        style={{ flex: 1, padding: '8px 4px', borderRadius: 10, border: entryForm.type === val ? `2px solid ${color}` : `1.5px solid ${C.n200}`, background: entryForm.type === val ? bg : C.white, fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: entryForm.type === val ? color : C.n600, cursor: 'pointer' }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Kategori */}
-                  <Select
-                    label="Kategori"
-                    value={entryForm.category}
-                    onChange={(val) => setEntryForm(f => ({ ...f, category: val }))}
-                    options={entryForm.type === 'out' ? [
-                      { value: 'pengeluaran_operasional', label: 'Pengeluaran Operasional' },
-                      { value: 'setoran_bank', label: 'Setoran Bank' },
-                      { value: 'cash_adjustment', label: 'Penyesuaian Kas' },
-                      { value: 'lainnya', label: 'Lainnya' },
-                    ] : [
-                      { value: 'modal', label: 'Modal / Tambah Kas' },
-                      { value: 'cash_adjustment', label: 'Penyesuaian Kas' },
-                      { value: 'lainnya', label: 'Lainnya' },
-                    ]}
-                  />
-
-                  {/* Jumlah */}
-                  <MoneyInput
-                    label="Jumlah (Rp)"
-                    value={entryForm.amount}
-                    onChange={(v) => setEntryForm(f => ({ ...f, amount: v }))}
-                    placeholder="0"
-                  />
-
-                  {/* Keterangan */}
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Keterangan <span style={{ color: '#DC2626' }}>*</span></div>
-                    <input
-                      type="text"
-                      value={entryForm.description}
-                      onChange={(e) => setEntryForm(f => ({ ...f, description: e.target.value }))}
-                      placeholder="Contoh: Beli detergen Rinso 2kg"
-                      style={{ ...T.input }}
-                    />
-                  </div>
-
-                  {entryError && <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger, marginBottom: 8 }}>{entryError}</div>}
-
-                  <button
-                    onClick={handleAddEntry}
-                    disabled={entryLoading}
-                    style={{ width: '100%', height: 48, borderRadius: 10, background: entryForm.type === 'out' ? C.danger : C.success, color: 'white', border: 'none', fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: entryLoading ? 0.6 : 1 }}
-                  >
-                    {entryLoading ? 'Menyimpan...' : `Simpan ${entryForm.type === 'out' ? 'Pengeluaran' : 'Kas Masuk'}`}
-                  </button>
-                </div>
-              )}
-
-              {/* Riwayat entri */}
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Riwayat Kas Laci</div>
-              {drawerLoading ? (
-                <div style={{ textAlign: 'center', padding: 16, color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>Memuat...</div>
-              ) : drawerEntries.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 16, color: C.n400, fontFamily: 'Poppins', fontSize: 12 }}>Belum ada entri kas laci shift ini.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {drawerEntries.map((e) => (
-                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: e.type === 'out' ? '#FFF5F5' : '#F0FDF4', borderRadius: 10 }}>
-                      <span style={{ fontSize: 16, flexShrink: 0 }}>{e.type === 'out' ? '📤' : '📥'}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: e.type === 'out' ? '#991B1B' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {e.description || e.categoryLabel}
-                        </div>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
-                          {e.categoryLabel} · {new Date(e.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: e.type === 'out' ? '#DC2626' : '#16A34A' }}>
-                          {e.type === 'out' ? '-' : '+'}{rp(e.amount)}
-                        </div>
-                        <button
-                          onClick={() => handleDeleteEntry(e.id)}
-                          style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n400, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                        >
-                          hapus
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* ── Form Tutup Shift ── */}
-            <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900, marginBottom: 4 }}>Tutup Shift</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 14, lineHeight: 1.5 }}>
-                Hitung uang tunai di laci lalu rekonsiliasi. Data tutup shift dan timestamp dikirim ke pusat agar admin dapat memantau disiplin kas per outlet.
-              </div>
-
-              <MoneyInput
-                label="Total uang tunai di laci (Rp)"
-                value={closingCash}
-                onChange={(v) => setClosingCash(v)}
-                placeholder="0"
-              />
-
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Catatan (opsional)</div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                placeholder="Contoh: selisih karena kembalian"
-                style={{ width: '100%', borderRadius: 12, border: `1.5px solid ${C.n300}`, padding: 12, fontFamily: 'Poppins', fontSize: 13, resize: 'vertical', boxSizing: 'border-box', marginBottom: 14 }}
-              />
-
-              <Btn variant="danger" fullWidth loading={loading} onClick={handleCloseShift}>
-                Tutup shift & simpan
-              </Btn>
-            </div>
-          </>
-        )}
-
-        {lastClosed && (
-          <div style={{ background: C.white, borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900, marginBottom: 12 }}>Rekap Shift Terakhir</div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-              <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>Buka</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{fmtDt(lastClosed.openedAt)}</div>
-              </div>
-              <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>Tutup</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{fmtDt(lastClosed.closedAt)}</div>
-              </div>
-            </div>
-
-            {/* Reconciliation */}
-            <div style={{ background: '#FAFAFA', borderRadius: 12, padding: 12, marginBottom: 12 }}>
-              {[
-                ['Modal awal', rp(lastClosed.openingCash || 0), null],
-                ['+ Penjualan tunai', rp((lastClosed.systemCash || 0) - (lastClosed.openingCash || 0) + (lastClosed.totalExpense || 0)), '#166534'],
-                ['− Pengeluaran kas', lastClosed.totalExpense != null ? rp(lastClosed.totalExpense) : '-', C.danger],
-                ['= Sistem (seharusnya)', rp(lastClosed.systemCash || 0), '#1D4ED8'],
-                ['Fisik di laci', rp(lastClosed.closingCash || 0), null],
-              ].map(([label, val, color]) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontFamily: 'Poppins', fontSize: 12 }}>
-                  <span style={{ color: C.n600 }}>{label}</span>
-                  <strong style={{ color: color || C.n900 }}>{val}</strong>
-                </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', borderTop: `1.5px solid ${C.n200}`, marginTop: 4, fontFamily: 'Poppins', fontSize: 13 }}>
-                <span style={{ fontWeight: 700, color: C.n900 }}>Selisih</span>
-                <strong style={{ color: Math.abs(Number(lastClosed.difference ?? lastClosed.cashDiff ?? 0)) >= 10000 ? C.danger : C.success }}>
-                  {rp(lastClosed.difference ?? lastClosed.cashDiff ?? 0)}
-                </strong>
-              </div>
-            </div>
-
-            {/* Payment methods */}
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Rekap per Metode Pembayaran</div>
-            {paymentSummary.length === 0 ? (
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, textAlign: 'center', padding: 12 }}>Belum ada pembayaran tercatat.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {paymentSummary.map((p) => {
-                  const meta = METHOD_ICON_COLOR[p.method] || { icon: '💳', bg: C.n50, color: C.n700 };
-                  return (
-                    <div key={p.method} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: meta.bg, borderRadius: 8 }}>
-                      <span style={{ fontSize: 16 }}>{meta.icon}</span>
-                      <span style={{ flex: 1, fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: meta.color }}>{METHOD_LABEL[p.method] || p.method} ({p.count}x)</span>
-                      <strong style={{ fontFamily: 'Poppins', fontSize: 12, color: meta.color }}>{rp(p.amount || 0)}</strong>
-                    </div>
-                  );
-                })}
-              </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Badge variant="primary">{elapsed}</Badge>
+            <Badge variant="secondary">{shiftOpt.jam}</Badge>
+            {hasSubSession && (
+              <Badge variant="success">Sub-Session Aktif</Badge>
             )}
           </div>
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: 12 }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>😴</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700, marginBottom: 4 }}>
+            Shift Belum Aktif
+          </div>
+          <div style={{ fontSize: 12, color: C.n500 }}>
+            Buka atau gabung shift untuk mulai bertransaksi
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── Render: Tabs ──────────────────────────────────────────────────────────
+  const renderTabs = () => (
+    <div style={{
+      display: 'flex',
+      gap: 8,
+      marginBottom: 16,
+      padding: 4,
+      background: C.n50,
+      borderRadius: 12,
+    }}>
+      {TABS.map(tab => {
+        const Icon = tab.icon;
+        const isActive = activeTab === tab.id;
+        return (
+          <motion.button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              padding: '10px 12px',
+              borderRadius: 10,
+              border: 'none',
+              background: isActive ? 'white' : 'transparent',
+              color: isActive ? C.primary : C.n500,
+              fontFamily: 'Poppins',
+              fontSize: 12,
+              fontWeight: isActive ? 600 : 500,
+              cursor: 'pointer',
+              boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Icon size={16} color={isActive ? C.primary : C.n500} />
+            {tab.label}
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+
+  // ─── Tab Content ────────────────────────────────────────────────────────────
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'status': return renderStatusTab();
+      case 'kas': return renderKasTab();
+      case 'subSession': return renderSubSessionTab();
+      case 'riwayat': return renderRiwayatTab();
+      default: return null;
+    }
+  };
+
+  // ─── Tab: Status ────────────────────────────────────────────────────────────
+  const renderStatusTab = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {isOpen && shiftSummary && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          <StatBox label="Transaksi" value={shiftSummary.totalTransactions || 0} suffix="nota" color={C.primary} />
+          <StatBox label="Omset" value={shiftSummary.totalOmset || 0} color={C.success} isCurrency />
+          <StatBox label="Kas Tunai" value={shiftSummary.cashSales || 0} color="#F59E0B" isCurrency />
+        </div>
+      )}
+
+      <div style={{ background: 'white', borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Aksi Cepat
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <ActionButton icon={<IconReceipt size={18} />} label="Lihat Semua Transaksi" onClick={() => navigate('transaksi')} color={C.primary} />
+          {isOpen && (
+            <ActionButton icon={<IconRefresh size={18} />} label="Refresh Data" onClick={loadAll} color={C.n500} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ─── Tab: Kas ────────────────────────────────────────────────────────────────
+  const renderKasTab = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {isOpen && shiftSummary ? (
+        <div style={{ background: 'linear-gradient(145deg, ' + C.primaryTint + ', white)', border: '1px solid ' + C.primary + '20' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.primary, textTransform: 'uppercase' }}>
+                Posisi Kas Sekarang
+              </div>
+            </div>
+            {loadingSummary ? (
+              <span style={{ fontSize: 10, color: C.n400 }}>Memuat...</span>
+            ) : (
+              <motion.button whileTap={{ scale: 0.9 }} onClick={loadSummary} style={{
+                background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: 8,
+                padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                <IconRefresh size={14} color={C.primary} />
+              </motion.button>
+            )}
+          </div>
+
+          <div style={{ fontSize: 32, fontWeight: 800, color: C.n800, marginBottom: 16 }}>
+            Rp {fmtCurrency(cashPosition.expected)}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <CashRow label="Modal Awal" value={cashPosition.opening} color={C.n600} />
+            <CashRow label="Penjualan Tunai" value={cashPosition.sales} color={C.success} prefix="+" />
+            <CashRow label="Pengeluaran" value={cashPosition.expenses} color={C.danger} prefix="-" />
+            <div style={{ height: 1, background: C.n100, margin: '4px 0' }} />
+            <CashRow label="Seharusnya Ada" value={cashPosition.expected} color={C.n800} bold />
+          </div>
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: 24 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700 }}>
+            {isOpen ? 'Memuat data kas...' : 'Buka Shift Dulu'}
+          </div>
+          <div style={{ fontSize: 12, color: C.n500, marginTop: 4 }}>
+            {isOpen ? 'Posisi kas akan muncul di sini' : 'Shift harus aktif untuk melihat posisi kas'}
+          </div>
+        </div>
+      )}
+
+      {isOpen && shiftSummary?.paymentSummary?.length > 0 && (
+        <PaymentBreakdownCard payments={shiftSummary.paymentSummary} title="Pembayaran per Metode" compact={false} />
+      )}
+
+      {isOpen && shiftSummary?.setorSummary?.hasPending && (
+        <div style={{ background: C.warningBg, border: '1px solid ' + C.warning + '30' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <IconWarning size={24} color={C.warning} />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.warning }}>
+                {shiftSummary.setorSummary.pendingCount} Setoran Pending
+              </div>
+              <div style={{ fontSize: 11, color: C.n600 }}>
+                Total: Rp {fmtCurrency(shiftSummary.setorSummary.totalPending)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── Tab: Sub-Session ────────────────────────────────────────────────────────
+  const renderSubSessionTab = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {!session ? (
+        <div style={{ textAlign: 'center', padding: 24 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>👥</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700 }}>
+            Belum Ada Shift Utama
+          </div>
+          <div style={{ fontSize: 12, color: C.n500, marginTop: 4 }}>
+            Buka shift utama terlebih dahulu
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Current User's Sub-Session */}
+          {hasSubSession ? (
+            <div style={{ border: '2px solid ' + C.success + '30' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <IconPerson size={20} color={C.success} />
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.n800 }}>Sub-Session Anda</span>
+                </div>
+                <Badge variant="success">Aktif</Badge>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                <div style={{ background: C.n50, borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontSize: 10, color: C.n500 }}>Modal</div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>Rp {fmtCurrency(subSession.beginningCash)}</div>
+                </div>
+                <div style={{ background: C.n50, borderRadius: 8, padding: 10 }}>
+                  <div style={{ fontSize: 10, color: C.n500 }}>Transaksi</div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{subSession.transactionCount || 0} nota</div>
+                </div>
+              </div>
+              <Btn variant="danger" size="sm" fullWidth onClick={() => setShowTutupSubSession(true)}>
+                Tutup Sub-Session
+              </Btn>
+            </div>
+          ) : (
+            <div style={{ border: '2px solid ' + C.warning + '30', background: C.warningBg }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.n800, marginBottom: 4 }}>
+                  Belum Bergabung
+                </div>
+                <div style={{ fontSize: 12, color: C.n600, marginBottom: 12 }}>
+                  Gabung shift untuk bisa bertransaksi
+                </div>
+                <Btn variant="warning" fullWidth onClick={() => setShowGabungShift(true)}>
+                  Gabung Shift
+                </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* All Sub-Sessions in this Shift */}
+          {subSessions.length > 0 && (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.n600, marginTop: 8 }}>
+                Semua Sub-Session dalam Shift Ini
+              </div>
+              {subSessions.map((ss, i) => (
+                <SubSessionCard key={ss.id} subSession={ss} index={i} />
+              ))}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  // ─── Tab: Riwayat ───────────────────────────────────────────────────────────
+  const renderRiwayatTab = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {recentTransactions.length > 0 ? (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.n600 }}>
+              {recentTransactions.length} transaksi terakhir
+            </span>
+            <ActionButton label="Lihat Semua" onClick={() => navigate('transaksi')} color={C.primary} size="sm" />
+          </div>
+          {recentTransactions.map((tx, i) => (
+            <TransactionRow key={tx.id} transaction={tx} index={i} onClick={() => navigate('transaksi_detail', { id: tx.id })} />
+          ))}
+        </>
+      ) : (
+        <div style={{ textAlign: 'center', padding: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700 }}>Belum Ada Transaksi</div>
+          <div style={{ fontSize: 12, color: C.n500, marginTop: 4 }}>Transaksi akan muncul di sini</div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── Action Buttons ─────────────────────────────────────────────────────────
+  const renderActions = () => (
+    <div style={{
+      display: 'flex',
+      gap: 10,
+      padding: 16,
+      background: 'white',
+      borderTop: '1px solid ' + C.n100,
+      boxShadow: '0 -4px 12px rgba(0,0,0,0.04)',
+    }}>
+      {!session ? (
+        <Btn variant="success" fullWidth size="lg" onClick={() => setShowBukaShift(true)}>
+          🟢 Buka Shift Sekarang
+        </Btn>
+      ) : session.status === 'handover' ? (
+        <div style={{ flex: 1, textAlign: 'center', padding: 12, background: C.warningBg }}>
+          <span style={{ fontSize: 12, color: C.warning }}>Menunggu konfirmasi handover...</span>
+        </div>
+      ) : (
+        <>
+          {!hasSubSession && (
+            <Btn variant="secondary" style={{ flex: 1 }} size="lg" onClick={() => setShowGabungShift(true)}>
+              👥 Gabung
+            </Btn>
+          )}
+          <Btn variant="secondary" style={{ flex: 1 }} size="lg" onClick={() => setShowHandover(true)}>
+            🔄 Oper
+          </Btn>
+          <Btn variant="danger" style={{ flex: 1 }} size="lg" onClick={() => setShowTutup(true)}>
+            🚪 Tutup
+          </Btn>
+        </>
+      )}
+    </div>
+  );
+
+  // ─── Close Result Modal ─────────────────────────────────────────────────────
+  const renderCloseResult = () => {
+    if (!closeResult) return null;
+    const isBalanced = closeResult.isBalanced || closeResult.difference === 0;
+    return (
+      <Modal visible={true} onClose={() => setCloseResult(null)} title="📊 Hasil Tutup Shift">
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>{isBalanced ? '✅' : '⚠️'}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.n800 }}>
+            {isBalanced ? 'Kas Rapi!' : 'Ada Selisih Kas'}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <ResultBox label="Transaksi" value={closeResult.paymentSummary?.reduce((s, p) => s + p.count, 0) || 0} />
+          <ResultBox label="Total Bayar" value={closeResult.paymentSummary?.reduce((s, p) => s + p.amount, 0) || 0} isCurrency />
+          <ResultBox label="Kas Fisik" value={closeResult.closingCash} isCurrency />
+          <ResultBox label="Seharusnya" value={closeResult.systemCash} isCurrency />
+          <ResultBox label="Selisih" value={closeResult.difference} isCurrency color={isBalanced ? C.success : C.danger} />
+        </div>
+
+        {closeResult.pendingSetorWarning && (
+          <div style={{ background: C.warningBg, padding: 12, borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: C.warning }}>{closeResult.pendingSetorWarning.message}</div>
+          </div>
         )}
+
+        <Btn variant="primary" fullWidth onClick={() => setCloseResult(null)}>Tutup</Btn>
+      </Modal>
+    );
+  };
+
+  // ─── Buka Shift Modal ────────────────────────────────────────────────────────
+  const renderBukaShiftModal = () => (
+    <Modal visible={showBukaShift} onClose={() => setShowBukaShift(false)} title="🟢 Buka Shift Baru">
+      <div style={{ background: C.infoBg, padding: 12, borderRadius: 10, marginBottom: 16, textAlign: 'center' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.infoDark }}>{fmtDate()}</div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 10 }}>Pilih Jenis Shift</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {SHIFT_OPTIONS.map(opt => (
+            <motion.button key={opt.value} whileTap={{ scale: 0.95 }} onClick={() => setShiftType(opt.value)} style={{
+              padding: '14px 12px', borderRadius: 12,
+              border: `2px solid ${shiftType === opt.value ? C.primary : C.n200}`,
+              background: shiftType === opt.value ? C.primaryTint : C.white,
+              cursor: 'pointer', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 24, marginBottom: 4 }}>{opt.icon}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: shiftType === opt.value ? C.primary : C.n700, marginBottom: 2 }}>{opt.label}</div>
+              <div style={{ fontSize: 10, color: C.n500 }}>{opt.jam}</div>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      <MoneyInput label="💰 Modal Awal Kas Laci" value={openingCash} onChange={setOpeningCash} placeholder="0" />
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+        <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setShowBukaShift(false)}>Batal</Btn>
+        <Btn variant="success" style={{ flex: 1 }} loading={loading} onClick={handleBukaShift}>Buka Shift</Btn>
+      </div>
+    </Modal>
+  );
+
+  // ─── Gabung Shift Modal ─────────────────────────────────────────────────────
+  const renderGabungShiftModal = () => (
+    <Modal visible={showGabungShift} onClose={() => setShowGabungShift(false)} title="👥 Gabung Shift">
+      <div style={{ background: C.success + '15', padding: 12, borderRadius: 10, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: C.success, fontWeight: 600 }}>
+          Bergabung dengan shift yang sudah ada
+        </div>
+        <div style={{ fontSize: 11, color: C.n600, marginTop: 4 }}>
+          Shift {shiftOpt.label} • {session?.openedAt ? fmtTime(session.openedAt) : '-'}
+        </div>
+      </div>
+
+      <MoneyInput label="💰 Modal Awal Sub-Session" value={openingCash} onChange={setOpeningCash} placeholder="0" />
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+        <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setShowGabungShift(false)}>Batal</Btn>
+        <Btn variant="success" style={{ flex: 1 }} loading={loading} onClick={handleGabungShift}>Gabung Shift</Btn>
+      </div>
+    </Modal>
+  );
+
+  // ─── Tutup Shift Modal ─────────────────────────────────────────────────────
+  const renderTutupModal = () => (
+    <Modal visible={showTutup} onClose={() => setShowTutup(false)} title="🚪 Tutup Shift">
+      <div style={{ background: C.n50, padding: 12, borderRadius: 10, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: C.n600, marginBottom: 4 }}>Seharusnya Ada</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: C.n800 }}>Rp {fmtCurrency(cashPosition.expected)}</div>
+      </div>
+
+      <MoneyInput label="💵 Total Uang Fisik di Laci" value={closingCash} onChange={setClosingCash} placeholder="0" />
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Catatan (opsional)</div>
+        <textarea value={closeNotes} onChange={e => setCloseNotes(e.target.value)} rows={2} placeholder="Contoh: selisih karena kembalian kurang" style={{
+          width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid ' + C.n200,
+          fontFamily: 'Poppins', fontSize: 13, resize: 'none', boxSizing: 'border-box',
+        }} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setShowTutup(false)}>Batal</Btn>
+        <Btn variant="danger" style={{ flex: 1 }} loading={loading} onClick={handleTutupShift}>Konfirmasi Tutup</Btn>
+      </div>
+    </Modal>
+  );
+
+  // ─── Tutup Sub-Session Modal ────────────────────────────────────────────────
+  const renderTutupSubSessionModal = () => (
+    <Modal visible={showTutupSubSession} onClose={() => setShowTutupSubSession(false)} title="📋 Tutup Sub-Session">
+      <div style={{ background: C.n50, padding: 12, borderRadius: 10, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: C.n600, marginBottom: 4 }}>Kas Anda</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: C.n800 }}>Rp {fmtCurrency(subSessionCash || subSession?.beginningCash)}</div>
+      </div>
+
+      <MoneyInput label="💵 Total Uang Fisik" value={subSessionCash} onChange={setSubSessionCash} placeholder="0" />
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+        <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setShowTutupSubSession(false)}>Batal</Btn>
+        <Btn variant="danger" style={{ flex: 1 }} loading={loading} onClick={handleTutupSubSession}>Konfirmasi</Btn>
+      </div>
+    </Modal>
+  );
+
+  // ─── Handover Modal ─────────────────────────────────────────────────────────
+  const renderHandoverModal = () => (
+    <Modal visible={showHandover} onClose={() => setShowHandover(false)} title="🔄 Oper Shift">
+      <div style={{ background: C.warningBg, padding: 12, borderRadius: 10, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: C.warning, fontWeight: 600 }}>
+          Serahkan kas ke penanggung jawab berikutnya
+        </div>
+      </div>
+
+      <div style={{ background: C.n50, padding: 12, borderRadius: 10, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: C.n600 }}>Seharusnya Ada</div>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>Rp {fmtCurrency(cashPosition.expected)}</div>
+      </div>
+
+      <MoneyInput label="💰 Jumlah Uang yang Dioper" value={handoverAmount} onChange={setHandoverAmount} placeholder="0" />
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Catatan (opsional)</div>
+        <textarea value={handoverNotes} onChange={e => setHandoverNotes(e.target.value)} rows={2} placeholder="Contoh: ada PR yang belum di-approve" style={{
+          width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid ' + C.n200,
+          fontFamily: 'Poppins', fontSize: 13, resize: 'none', boxSizing: 'border-box',
+        }} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setShowHandover(false)}>Batal</Btn>
+        <Btn variant="primary" style={{ flex: 1 }} loading={loading} onClick={handleHandover}>Oper Shift</Btn>
+      </div>
+    </Modal>
+  );
+
+  // ─── Main Render ────────────────────────────────────────────────────────────
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
+      <TopBar title="Shift Kasir" subtitle="Kelola shift & kas" onBack={goBack} />
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        {loading && !shiftStatus ? (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <div style={{ fontSize: 14, color: C.n500 }}>Memuat...</div>
+          </div>
+        ) : (
+          <>
+            {renderHeader()}
+            {renderTabs()}
+            {renderTabContent()}
+          </>
+        )}
+      </div>
+
+      {renderActions()}
+
+      <AnimatePresence>
+        {showBukaShift && renderBukaShiftModal()}
+        {showGabungShift && renderGabungShiftModal()}
+        {showTutup && renderTutupModal()}
+        {showTutupSubSession && renderTutupSubSessionModal()}
+        {showHandover && renderHandoverModal()}
+        {closeResult && renderCloseResult()}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Helper Components ────────────────────────────────────────────────────────
+
+function StatBox({ label, value, suffix, color, isCurrency }) {
+  return (
+    <div style={{ background: color + '10', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
+      <div style={{ fontSize: 10, color: C.n500, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: color }}>
+        {isCurrency ? 'Rp ' + fmtCurrency(value) : value}
+        {suffix && <span style={{ fontSize: 10, fontWeight: 500 }}> {suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+function CashRow({ label, value, color, prefix = '', bold }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span style={{ fontSize: 12, color }}>{label}</span>
+      <span style={{ fontSize: bold ? 14 : 13, fontWeight: bold ? 700 : 500, color }}>
+        {prefix}{value ? 'Rp ' + fmtCurrency(value) : '-'}
+      </span>
+    </div>
+  );
+}
+
+function ActionButton({ icon, label, onClick, color, size = 'md' }) {
+  return (
+    <motion.button whileTap={{ scale: 0.98 }} onClick={onClick} style={{
+      display: 'flex', alignItems: 'center', gap: 10, padding: size === 'sm' ? '6px 0' : '10px 12px',
+      background: 'transparent', border: 'none', borderRadius: 10, cursor: 'pointer', width: '100%', textAlign: 'left',
+    }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {icon}
+      </div>
+      <span style={{ flex: 1, fontSize: size === 'sm' ? 11 : 13, fontWeight: 600, color }}>{label}</span>
+      <IconChevronRight size={16} color={C.n400} />
+    </motion.button>
+  );
+}
+
+function SubSessionCard({ subSession, index }) {
+  const statusColors = {
+    open: { bg: '#ECFDF5', color: '#059669', text: 'Aktif' },
+    closed: { bg: C.n100, color: C.n500, text: 'Tutup' },
+    handed_over: { bg: '#FEF3C7', color: '#D97706', text: 'Dioper' },
+  };
+  const sc = statusColors[subSession.status] || statusColors.closed;
+
+  return (
+    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
+      style={{ background: 'white', borderRadius: 12, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <IconPerson size={16} color={C.n500} />
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{subSession.cashierName || 'Kasir'}</span>
+        </div>
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.color }}>
+          {sc.text}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+        <div>
+          <div style={{ fontSize: 9, color: C.n500 }}>Modal</div>
+          <div style={{ fontSize: 11, fontWeight: 500 }}>Rp {fmtCurrency(subSession.beginningCash)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 9, color: C.n500 }}>Transaksi</div>
+          <div style={{ fontSize: 11, fontWeight: 500 }}>{subSession.transactionCount || 0}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 9, color: C.n500 }}>Selisih</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: subSession.variance !== 0 ? C.danger : C.success }}>
+            {subSession.variance !== null ? 'Rp ' + fmtCurrency(subSession.variance) : '-'}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function TransactionRow({ transaction, index, onClick }) {
+  const methodIcons = { cash: '💵', qris: '📱', transfer: '🏦', deposit: '👤' };
+
+  return (
+    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
+      onClick={onClick} style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'white',
+        borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', cursor: 'pointer',
+      }}>
+      <div style={{ fontSize: 24 }}>{methodIcons[transaction.primary_payment_method] || '💳'}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.n800 }}>{transaction.transaction_no}</div>
+        <div style={{ fontSize: 11, color: C.n500 }}>{transaction.customer_name || 'Customer'}</div>
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.n800 }}>Rp {fmtCurrency(transaction.total)}</div>
+        <div style={{ fontSize: 10, color: C.n400 }}>
+          {new Date(transaction.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false })}
+        </div>
+      </div>
+      <IconChevronRight size={16} color={C.n400} />
+    </motion.div>
+  );
+}
+
+function ResultBox({ label, value, isCurrency, color }) {
+  return (
+    <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
+      <div style={{ fontSize: 10, color: C.n500, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: color || C.n800 }}>
+        {isCurrency ? 'Rp ' + fmtCurrency(value) : value}
       </div>
     </div>
   );

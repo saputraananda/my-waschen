@@ -1,12 +1,18 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// Waschen POS — Service Worker
+// Waschen POS — Service Worker v2.0
 // Strategy: Network-First for API, Cache-First for static assets
-// Tidak mengganggu performa — justru mempercepat load & handle offline
+// ═══════════════════════════════════════════════════════════════════════════════
+// CACHE STRATEGY SUMMARY:
+// - Static assets (JS/CSS/images): Cache-First (fastest, update in background)
+// - Navigation HTML: Network-First with offline fallback
+// - Master data API (/api/master/, /api/outlets, /api/services): Network-First + cache
+// - Transaction data API: NETWORK ONLY (no cache) — data is dynamic/stale-sensitive
+// - Auth/health APIs: No cache (always fresh)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const CACHE_NAME = 'waschen-v1';
-const STATIC_CACHE = 'waschen-static-v1';
-const API_CACHE = 'waschen-api-v1';
+const CACHE_VERSION = 'waschen-v2';
+const STATIC_CACHE = 'waschen-static-v2';
+const API_CACHE = 'waschen-api-v2';
 
 // Static assets yang di-precache saat install
 const PRECACHE_URLS = [
@@ -29,7 +35,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys
-          .filter((key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_NAME)
+          .filter((key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_VERSION)
           .map((key) => caches.delete(key))
       );
     }).then(() => self.clients.claim())
@@ -48,9 +54,10 @@ self.addEventListener('fetch', (event) => {
   if (!url.protocol.startsWith('http')) return;
 
   // ── API requests: Network-First ──
-  // Coba network dulu, kalau gagal fallback ke cache (untuk GET saja)
+  // Try network first, fallback to cache for safe APIs only.
+  // IMPORTANT: Transaction data is NEVER cached to prevent stale data.
   if (url.pathname.startsWith('/api/')) {
-    // Hanya cache GET API yang "safe" (master data, dashboard stats)
+    // Safe to cache: master data, outlets, services (changes infrequently)
     const cachableAPIs = [
       '/api/health',
       '/api/master/',
@@ -72,7 +79,8 @@ self.addEventListener('fetch', (event) => {
           .catch(() => caches.match(request))
       );
     }
-    // Non-cachable API: just let it through (no interception)
+    // Non-cachable API (transactions, reports, etc): always network, no caching
+    // This ensures transaction data is always fresh (no stale cache)
     return;
   }
 
@@ -117,12 +125,21 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// ─── MESSAGE: Manual cache clear ─────────────────────────────────────────────
+// ─── MESSAGE: Manual cache clear & skip waiting ──────────────────────────────
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') {
     self.skipWaiting();
   }
   if (event.data === 'CLEAR_CACHE') {
     caches.keys().then((keys) => keys.forEach((key) => caches.delete(key)));
+  }
+  // Force refresh transaction data (bypass any potential cache)
+  if (event.data === 'REFRESH_TRANSACTIONS') {
+    // Notify all clients to refresh their transaction data
+    self.clients.matchAll().then((clients) => {
+      clients.forEach((client) => {
+        client.postMessage({ type: 'REFRESH_TRANSACTIONS' });
+      });
+    });
   }
 });

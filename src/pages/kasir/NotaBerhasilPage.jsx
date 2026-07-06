@@ -1,12 +1,43 @@
 import { useEffect } from 'react';
 
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 
 import { rp } from '../../utils/helpers';
 
 import { Btn } from '../../components/ui';
 
 import { hapticSuccess } from '../../utils/haptic';
+
+// ─── Payment Status Auto-Detection ──────────────────────────────────────────────
+function getPaymentStatus(paidAmount, total) {
+  if (!paidAmount || paidAmount <= 0) return 'bayar_nanti';
+  if (paidAmount >= total) return 'lunas';
+  return 'dp';
+}
+
+const PAYMENT_STATUS_CONFIG = {
+  lunas: {
+    label: 'LUNAS',
+    color: '#059669',
+    bg: '#d1fae5',
+    icon: '✅',
+    desc: 'Pembayaran sudah lunas',
+  },
+  dp: {
+    label: 'UANG MUKA',
+    color: '#d97706',
+    bg: '#fef3c7',
+    icon: '💰',
+    desc: 'Ada uang muka / DP',
+  },
+  bayar_nanti: {
+    label: 'BAYAR NANTI',
+    color: '#6b7280',
+    bg: '#f3f4f6',
+    icon: '⏳',
+    desc: 'Belum ada pembayaran',
+  },
+};
 
 
 
@@ -18,6 +49,20 @@ const buildWhatsAppMessage = (nota) => {
   lines.push('Terima kasih sudah mempercayakan cucian Anda di *Waschen Laundry* 🧺');
   lines.push('');
   lines.push(`*Nota:* ${nota.id}`);
+
+  // Payment Status
+  const paidAmount = Number(nota.paidAmount) || 0;
+  const total = Number(nota.total) || 0;
+  const balance = Math.max(0, total - paidAmount);
+
+  if (paidAmount <= 0) {
+    lines.push('📋 *Status:* _Belum dibayar_');
+  } else if (paidAmount >= total) {
+    lines.push('✅ *Status:* _Lunas_');
+  } else {
+    lines.push('💰 *Status:* _Uang Muka (DP)_');
+  }
+
   if (nota.items?.length) {
     lines.push('*Item:*');
     nota.items.forEach((it, i) => {
@@ -25,11 +70,10 @@ const buildWhatsAppMessage = (nota) => {
     });
   }
   lines.push('');
-  lines.push(`*Total:* ${rp(nota.total)}`);
-  if (nota.paidAmount > 0) {
-    lines.push(`Sudah dibayar: ${rp(nota.paidAmount)}`);
+  lines.push(`*Total:* ${rp(total)}`);
+  if (paidAmount > 0) {
+    lines.push(`Sudah dibayar: ${rp(paidAmount)}`);
   }
-  const balance = Math.max(0, Number(nota.total || 0) - Number(nota.paidAmount || 0));
   if (balance > 0) {
     lines.push(`Sisa pembayaran: ${rp(balance)}`);
   }
@@ -63,7 +107,10 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
 
   const nota = screenParams;
 
-
+  // Compute payment status from nota data
+  const paymentStatus = nota ? getPaymentStatus(Number(nota.paidAmount) || 0, Number(nota.total) || 0) : null;
+  const statusConfig = paymentStatus ? PAYMENT_STATUS_CONFIG[paymentStatus] : null;
+  const balance = nota ? Math.max(0, Number(nota.total || 0) - Number(nota.paidAmount || 0)) : 0;
 
   // Haptic feedback on mount — checkout success
 
@@ -105,7 +152,7 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
 
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C.n50, padding: 24 }}>
 
-      <div style={{ width: 88, height: 88, borderRadius: 44, background: `linear-gradient(135deg, ${C.success}, #0CA678)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, boxShadow: `0 8px 24px ${C.success}44` }}>
+      <div style={{ width: 88, height: 88, borderRadius: 44, background: `linear-gradient(135deg, ${C.success}, ${C.success}CC)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, boxShadow: `0 8px 24px ${C.success}44` }}>
 
         <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
 
@@ -113,27 +160,27 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
 
 
 
-      <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 700, color: C.n900, marginBottom: 6 }}>Nota Berhasil Dibuat!</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 600, color: C.n900, marginBottom: 6 }}>Nota Berhasil Dibuat!</div>
 
-      <div style={{ fontFamily: 'Poppins', fontSize: 14, color: C.n600, marginBottom: 24, textAlign: 'center' }}>Nota laundry telah berhasil disimpan</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 14, color: 'C.n600', marginBottom: 24, textAlign: 'center' }}>Nota laundry telah berhasil disimpan</div>
 
 
 
       {nota && (
 
-        <div style={{ width: '100%', background: C.white, borderRadius: 16, padding: '16px 20px', boxShadow: '0 2px 12px rgba(15,23,42,0.08)', marginBottom: 24 }}>
+        <div style={{ width: '100%', background: C.white, borderRadius: 16, padding: '16px 20px', boxShadow: SHADOW.md, marginBottom: 24 }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
 
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>No. Nota</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: 'C.n600' }}>No. Nota</span>
 
-            <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary }}>{nota.id}</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.primary }}>{nota.id}</span>
 
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
 
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Customer</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: 'C.n600' }}>Customer</span>
 
             <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{nota.customerName}</span>
 
@@ -141,7 +188,7 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
 
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Item</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: 'C.n600' }}>Item</span>
 
             <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{nota.items?.length} layanan</span>
 
@@ -149,16 +196,56 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
 
           <div style={{ height: 1, background: C.n100, margin: '8px 0' }} />
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Payment Status Badge */}
+          {statusConfig && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: statusConfig.bg,
+              marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 20 }}>{statusConfig.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: statusConfig.color }}>
+                  {statusConfig.label}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: statusConfig.color, opacity: 0.8 }}>
+                  {statusConfig.desc}
+                </div>
+              </div>
+            </div>
+          )}
 
-            <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>Total</span>
-
-            <span style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.primary }}>{rp(nota.total)}</span>
-
+          {/* Payment Details */}
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Total Tagihan</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(nota.total)}</span>
+            </div>
+            {nota.paidAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Sudah Dibayar</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.success }}>{rp(nota.paidAmount)}</span>
+              </div>
+            )}
+            {balance > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Sisa Pembayaran</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.danger }}>{rp(balance)}</span>
+              </div>
+            )}
           </div>
 
-        </div>
+          <div style={{ height: 1, background: C.n100, margin: '8px 0' }} />
 
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Total</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, color: C.n900 }}>{rp(nota.total)}</span>
+          </div>
+        </div>
       )}
 
 
@@ -181,7 +268,7 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
             style={{
               width: '100%', height: 48, borderRadius: 12, border: 'none',
               background: 'linear-gradient(135deg, #25D366, #128C7E)',
-              cursor: 'pointer', fontFamily: 'Poppins', fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
               color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               boxShadow: '0 4px 12px rgba(37,211,102,0.35)',
             }}
@@ -200,6 +287,12 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
         <Btn variant="ghost" fullWidth onClick={() => navigate('transaksi')}>
 
           Lihat Transaksi
+
+        </Btn>
+
+        <Btn variant="ghost" fullWidth onClick={() => navigate('dashboard')}>
+
+          🏠 Ke Beranda
 
         </Btn>
 

@@ -2,7 +2,7 @@
 // KasApprovalPage — admin approve/reject pengeluaran kas operasional outlet
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Textarea, Chip, useAppRefresh } from '../../components/ui';
 import { alertError, alertSuccess } from '../../utils/alert';
@@ -91,13 +91,13 @@ export default function KasApprovalPage({ goBack }) {
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>
+          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>
             Memuat…
           </div>
         )}
 
         {!loading && items.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 50, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>
+          <div style={{ textAlign: 'center', padding: 50, fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>
             <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
             <div>Tidak ada approval kas {statusFilter === 'pending' ? 'pending' : statusFilter}.</div>
           </div>
@@ -108,8 +108,8 @@ export default function KasApprovalPage({ goBack }) {
           return (
             <div key={it.id} style={{
               background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 10,
-              boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
-              borderLeft: `4px solid ${it.status === 'pending' ? '#F59E0B' : it.status === 'approved' ? '#10B981' : '#EF4444'}`,
+              boxShadow: SHADOW.md,
+              borderLeft: `4px solid ${it.status === 'pending' ? C.warning : it.status === 'approved' ? C.success : C.danger}`,
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -119,7 +119,7 @@ export default function KasApprovalPage({ goBack }) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
                   }}>{cat.icon}</div>
                   <div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
                       {cat.label}
                     </div>
                     <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 1 }}>
@@ -127,7 +127,7 @@ export default function KasApprovalPage({ goBack }) {
                     </div>
                   </div>
                 </div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: C.danger }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.danger }}>
                   {rp(it.amount)}
                 </div>
               </div>
@@ -144,14 +144,14 @@ export default function KasApprovalPage({ goBack }) {
                 </a>
               )}
 
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginBottom: 10 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginBottom: 10 }}>
                 Diajukan: {fmtDate(it.requestedAt)}
                 {it.resolverName && ` · Diproses oleh ${it.resolverName}`}
                 {it.resolvedAt && ` · ${fmtDate(it.resolvedAt)}`}
               </div>
 
               {it.status === 'rejected' && it.rejectReason && (
-                <div style={{ background: '#FEE2E2', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontFamily: 'Poppins', fontSize: 11, color: '#991B1B' }}>
+                <div style={{ background: C.dangerBg, borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontFamily: 'Poppins', fontSize: 11, color: C.dangerDark }}>
                   ❌ Alasan tolak: {it.rejectReason}
                 </div>
               )}
@@ -178,10 +178,10 @@ export default function KasApprovalPage({ goBack }) {
               {it.status !== 'pending' && (
                 <div style={{
                   display: 'inline-block',
-                  fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
+                  fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
                   padding: '3px 10px', borderRadius: 999,
-                  background: it.status === 'approved' ? '#DCFCE7' : '#FEE2E2',
-                  color: it.status === 'approved' ? '#15803D' : '#991B1B',
+                  background: it.status === 'approved' ? C.successBg : C.dangerBg,
+                  color: it.status === 'approved' ? C.successDark : C.dangerDark,
                 }}>
                   {it.status === 'approved' ? '✓ Disetujui' : '✗ Ditolak'}
                 </div>

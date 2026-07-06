@@ -2,6 +2,7 @@ import { poolWaschenPos } from '../db/connection.js';
 // bcrypt dihapus — password disimpan plain text sesuai permintaan user
 import { writeAudit } from '../utils/auditLog.js';
 import { validatePassword, validateEmail } from '../utils/validation.js';
+import { notDeleted, softDeleteRecord } from '../utils/softDelete.js';
 
 // ─── Cache cek kolom schema ───────────────────────────────────────────────────
 const schemaColumnCache = new Map();

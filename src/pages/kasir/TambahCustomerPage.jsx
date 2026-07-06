@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { C } from '../../utils/theme';
+import { C, SHADOW } from '../../utils/theme';
 import { TopBar, Input, Btn, Select, Modal, DateTimeInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
@@ -91,7 +91,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Wajib diisi';
     if (!form.phone.trim()) errs.phone = 'Wajib diisi';
-    else if (!/^\d{8,13}$/.test(form.phone)) errs.phone = 'Nomor tidak valid (8–13 digit)';
+    else if (!/^8\d{7,12}$/.test(form.phone)) errs.phone = 'Nomor tidak valid (08xxxxxxxxxx,8-13 digit)';
     // Semua field lain opsional — sesuai kebutuhan customer menengah ke atas yang ga banyak waktu
 
     if (Object.keys(errs).length) { 
@@ -171,13 +171,13 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
       <TopBar title={isEdit ? "Edit Konsumen" : "Buat Konsumen Baru"} onBack={handleBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-        <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: SHADOW.sm }}>
           <Input label="Nama Konsumen *" value={form.name} onChange={setCap('name', 'title')} placeholder="Nama Lengkap" error={errors.name} />
           
           {/* Nomor HP +62 prefix */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Nomor Handphone</div>
-            <div style={{ display: 'flex', borderRadius: 10, border: `1.5px solid ${errors.phone ? (C.error || '#DC2626') : C.n300}`, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', borderRadius: 10, border: `1.5px solid ${errors.phone ? C.danger : C.n300}`, overflow: 'hidden' }}>
               <div style={{ padding: '10px 12px', background: C.n50, fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n700, borderRight: `1.5px solid ${C.n200}`, display: 'flex', alignItems: 'center' }}>+62</div>
               <input
                 value={form.phone}
@@ -187,8 +187,8 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
                 style={{ flex: 1, padding: '10px 12px', border: 'none', outline: 'none', fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: 'transparent' }}
               />
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 4 }}>Untuk kirim nota, pengingat deposit & promo secara otomatis. Wajib diisi jika daftar member.</div>
-            {errors.phone && <div style={{ color: C.error || '#DC2626', fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.phone}</div>}
+            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 4 }}>Untuk kirim nota, pengingat deposit & promo secara otomatis. Wajib diisi jika daftar member.</div>
+            {errors.phone && <div style={{ color: C.danger, fontFamily: 'Poppins', fontSize: 11, marginTop: 4 }}>{errors.phone}</div>}
           </div>
 
           {/* Jenis Kelamin — Radio (opsional) */}
@@ -214,22 +214,22 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: optionalOpen ? `${C.primary}15` : C.n100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, transition: 'background 0.2s' }}>📝</div>
               <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: optionalOpen ? C.primary : '#475569', textAlign: 'left' }}>Data Opsional</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#64748B', marginTop: 1, textAlign: 'left' }}>Instansi, email, tanggal lahir, agama</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: optionalOpen ? C.primary : C.n600, textAlign: 'left' }}>Data Opsional</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 1, textAlign: 'left' }}>Instansi, email, tanggal lahir, agama</div>
               </div>
             </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={optionalOpen ? C.primary : '#64748B'} strokeWidth="2.5" strokeLinecap="round" style={{ transform: optionalOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', flexShrink: 0 }}><polyline points="6 9 12 15 18 9" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={optionalOpen ? C.primary : C.n600} strokeWidth="2.5" strokeLinecap="round" style={{ transform: optionalOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', flexShrink: 0 }}><polyline points="6 9 12 15 18 9" /></svg>
           </button>
 
           {optionalOpen && (
-            <div style={{ background: '#FAFBFC', borderRadius: 12, padding: '16px 14px', border: `1px solid ${C.n100}` }}>
+            <div style={{ background: C.n50, borderRadius: 12, padding: '16px 14px', border: `1px solid ${C.n100}` }}>
               {/* Alamat */}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Alamat</div>
                 <button type="button" onClick={() => {}} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.primary }}>
                   + Tambah Alamat
                 </button>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 4 }}>Untuk pengantaran / penjemputan ke lokasi konsumen</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 4 }}>Untuk pengantaran / penjemputan ke lokasi konsumen</div>
               </div>
 
               {/* Sapaan */}
@@ -237,19 +237,19 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
               {/* Instansi */}
               <Input label="Instansi" value={form.instansi} onChange={set('instansi')} placeholder="Instansi Konsumen" />
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk pengkategorian konsumen berdasarkan instansi-nya</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: -8, marginBottom: 14 }}>Untuk pengkategorian konsumen berdasarkan instansi-nya</div>
 
               {/* Email */}
               <Input label="Email" value={form.email} onChange={set('email')} type="email" placeholder="Email konsumen" />
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk pengiriman promosi melalui email</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: -8, marginBottom: 14 }}>Untuk pengiriman promosi melalui email</div>
 
               {/* Tanggal Lahir */}
               <DateTimeInput label="Tanggal Lahir" value={form.birthDate ? (form.birthDate.includes('T') ? form.birthDate : `${form.birthDate}T00:00:00`) : ''} onChange={(v) => set('birthDate')(v || '')} placeholder="Atur Tanggal" timeOptional />
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk keperluan promosi atau lainnya</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: -8, marginBottom: 14 }}>Untuk keperluan promosi atau lainnya</div>
 
               {/* Agama */}
               <Select label="Agama" value={form.religion} onChange={set('religion')} options={[{ value: '', label: 'Pilih...' }, { value: 'islam', label: 'Islam' }, { value: 'kristen', label: 'Kristen' }, { value: 'katolik', label: 'Katolik' }, { value: 'hindu', label: 'Hindu' }, { value: 'buddha', label: 'Buddha' }, { value: 'konghucu', label: 'Konghucu' }]} />
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: -8, marginBottom: 14 }}>Untuk keperluan promosi atau lainnya</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: -8, marginBottom: 14 }}>Untuk keperluan promosi atau lainnya</div>
             </div>
           )}
 
@@ -257,10 +257,10 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
           {/* ─── Informasi Pemasaran ─── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📣</div>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.infoBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📣</div>
             <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>Informasi Pemasaran</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#64748B' }}>Dari mana customer tahu Waschen</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Informasi Pemasaran</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>Dari mana customer tahu Waschen</div>
             </div>
           </div>
           
@@ -286,10 +286,10 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
           {/* ─── Alamat Lengkap ─── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📍</div>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.successBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>📍</div>
             <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>Alamat Tempat Tinggal</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#64748B' }}>Untuk penjemputan & pengantaran</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>Alamat Tempat Tinggal</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>Untuk penjemputan & pengantaran</div>
             </div>
           </div>
 
@@ -361,7 +361,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="secondary" onClick={() => setExitGuard(false)} style={{ flex: 1 }}>Kembali</Btn>
-          <Btn variant="secondary" onClick={() => { setExitGuard(false); navigate('customer'); }} style={{ flex: 1, fontWeight: 700 }}>Ya, Tetap Keluar</Btn>
+          <Btn variant="secondary" onClick={() => { setExitGuard(false); navigate('customer'); }} style={{ flex: 1, fontWeight: 600 }}>Ya, Tetap Keluar</Btn>
         </div>
       </Modal>
     </div>

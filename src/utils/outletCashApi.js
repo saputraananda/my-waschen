@@ -25,9 +25,9 @@ export async function getAllBalances() {
 }
 
 // ── Top-up (admin) ───────────────────────────────────────────────────────────
-export async function topupCash({ outletId, amount, source, referenceNo, notes }) {
+export async function topupCash({ outletId, amount, source, referenceNo, notes, picName, proofPhotoUrl }) {
   const res = await axios.post('/api/outlet-cash/topup', {
-    outletId, amount, source, referenceNo, notes,
+    outletId, amount, source, referenceNo, notes, picName, proofPhotoUrl,
   });
   return res?.data?.data;
 }
@@ -38,9 +38,9 @@ export async function getTopups(filters = {}) {
 }
 
 // ── Expense (kasir) ──────────────────────────────────────────────────────────
-export async function submitExpense({ amount, category, description, receiptPhotoUrl }) {
+export async function submitExpense({ amount, category, description, receiptPhotoUrl, picName }) {
   const res = await axios.post('/api/outlet-cash/expense', {
-    amount, category, description, receiptPhotoUrl,
+    amount, category, description, receiptPhotoUrl, picName,
   });
   return res?.data?.data;
 }
@@ -69,9 +69,21 @@ export async function reconcileBalance({ outletId, actualBalance, notes }) {
   return res?.data?.data;
 }
 
+// ── Cancel Expense (kasir) ──────────────────────────────────────────────────
+export async function cancelExpense(id) {
+  const res = await axios.patch(`/api/outlet-cash/expense/${id}/cancel`);
+  return res?.data?.data;
+}
+
+// ── Low Balance Check ────────────────────────────────────────────────────────
+export async function checkLowBalance() {
+  const res = await axios.get('/api/outlet-cash/low-balance-check');
+  return res?.data?.data;
+}
+
 // ── Ledger ───────────────────────────────────────────────────────────────────
-export async function getLedger(outletId, limit = 50) {
-  const params = { limit };
+export async function getLedger(outletId, limit = 50, filters = {}) {
+  const params = { limit, ...filters };
   if (outletId) params.outletId = outletId;
   const res = await axios.get('/api/outlet-cash/ledger', { params });
   return res?.data?.data || [];
@@ -149,4 +161,5 @@ export const STATUS_META = {
   approved:         { label: 'Disetujui', bg: '#DBEAFE', fg: '#1E40AF' },
   pending_approval: { label: 'Menunggu Approval', bg: '#FEF3C7', fg: '#92400E' },
   rejected:         { label: 'Ditolak',   bg: '#FEE2E2', fg: '#991B1B' },
+  cancelled:        { label: 'Dibatalkan', bg: '#F1F5F9', fg: '#475569' },
 };

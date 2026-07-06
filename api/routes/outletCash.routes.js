@@ -2,7 +2,7 @@
 // Outlet Cash Routes
 // ─────────────────────────────────────────────────────────────────────────────
 import { Router } from 'express';
-import { authenticate, requireRole } from '../middleware/auth.js';
+import { authenticate, requireRole, requireActiveShift } from '../middleware/auth.js';
 import { writeLimiter, readLimiter, approvalLimiter } from '../middleware/rateLimit.js';
 import { cacheResponse, invalidatePattern } from '../middleware/cacheResponse.js';
 import {
@@ -11,6 +11,7 @@ import {
   getApprovals, getExpenses, getTopups,
   reconcileBalance, getLedger, getSummary, getCashConfig,
   exportTransactionsCsv,
+  cancelExpense, checkLowBalance,
 } from '../controllers/outletCashController.js';
 
 const router = Router();
@@ -39,9 +40,13 @@ router.get('/balances', authenticate, requireRole(...ADMIN_ROLES), cacheResponse
 router.post('/topup', authenticate, requireRole(...ADMIN_ROLES), writeLimiter, invalidateCash, topupCash);
 router.get('/topups', authenticate, cacheResponse({ ttl: 30_000 }), readLimiter, getTopups);
 
-// Expense (kasir only untuk submit, semua role baca riwayatnya)
-router.post('/expense', authenticate, requireRole(...KASIR_ROLES), writeLimiter, invalidateCash, submitExpense);
+// Expense (kasir only untuk submit — butuh shift aktif)
+router.post('/expense', authenticate, requireRole(...KASIR_ROLES), requireActiveShift, writeLimiter, invalidateCash, submitExpense);
 router.get('/expenses', authenticate, cacheResponse({ ttl: 20_000 }), readLimiter, getExpenses);
+router.patch('/expense/:id/cancel', authenticate, writeLimiter, invalidateCash, cancelExpense);
+
+// Low balance check
+router.get('/low-balance-check', authenticate, readLimiter, checkLowBalance);
 
 // Approval (admin only)
 router.get('/approvals', authenticate, requireRole(...ADMIN_ROLES), cacheResponse({ ttl: 10_000 }), readLimiter, getApprovals);
