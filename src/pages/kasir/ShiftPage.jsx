@@ -6,10 +6,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { C, T } from '../../utils/theme';
+import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, MoneyInput, Modal, Badge } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
 import PaymentBreakdownCard from '../../components/ui/PaymentBreakdownCard';
 import {
   IconClock, IconCash, IconTrendUp, IconTrendDown, IconWarning,
@@ -98,6 +99,15 @@ const StatusBadge = ({ status }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function KasirShiftPage({ navigate, goBack }) {
   // ── State ──────────────────────────────────────────────────────────────────
+  const componentNavigate = navigate || ((path) => window.location.href = path);
+  const componentGoBack = goBack || (() => window.history.back());
+  const { isMobile, isTablet } = useResponsive();
+  const { width } = useWindowSize();
+
+  useEffect(() => {
+    // Use responsive hooks if available
+  }, [isMobile, isTablet, width]);
+
   const [activeTab, setActiveTab] = useState('status');
   const [shiftStatus, setShiftStatus] = useState(null);
   const [shiftSummary, setShiftSummary] = useState(null);
@@ -119,6 +129,10 @@ export default function KasirShiftPage({ navigate, goBack }) {
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
   const [closeNotes, setCloseNotes] = useState('');
+  // Handover 3 inputs: Saldo, Kas Modal, Revenue
+  const [handoverSaldo, setHandoverSaldo] = useState('');
+  const [handoverKasModal, setHandoverKasModal] = useState('');
+  const [handoverRevenue, setHandoverRevenue] = useState('');
   const [handoverAmount, setHandoverAmount] = useState('');
   const [handoverNotes, setHandoverNotes] = useState('');
   const [selectedSubSession, setSelectedSubSession] = useState(null);
@@ -133,7 +147,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       const res = await axios.get('/api/shifts/status');
       setShiftStatus(res.data);
     } catch (e) {
-      console.warn('[ShiftPage] Load status failed:', e?.message);
+      // Silent fail - shift status optional
       setShiftStatus(null);
     }
   }, []);
@@ -144,7 +158,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       const res = await axios.get('/api/shifts/current-summary');
       setShiftSummary(res.data?.data || null);
     } catch (e) {
-      console.warn('[ShiftPage] Load summary failed:', e?.message);
+      // Silent fail - summary optional
       setShiftSummary(null);
     } finally {
       setLoadingSummary(false);
@@ -160,7 +174,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       const res = await axios.get(`/api/shifts/sub-session/${shiftStatus.session.id}/all`);
       setSubSessions(res.data?.data || []);
     } catch (e) {
-      console.warn('[ShiftPage] Load sub-sessions failed:', e?.message);
+      // Silent fail - sub-sessions optional
       setSubSessions([]);
     }
   }, [shiftStatus?.session?.id]);
@@ -171,7 +185,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       const res = await axios.get(`/api/transactions?session_id=${shiftStatus.session.id}&limit=10`);
       setRecentTransactions(res.data?.data || []);
     } catch (e) {
-      console.warn('[ShiftPage] Load transactions failed:', e?.message);
+      // Silent fail - transactions optional
     }
   }, [shiftStatus?.session?.id]);
 
@@ -304,14 +318,30 @@ export default function KasirShiftPage({ navigate, goBack }) {
   };
 
   const handleHandover = async () => {
+    // Validate 3 inputs required
+    const saldo = Number(String(handoverSaldo).replace(/\D/g, '') || 0);
+    const kasModal = Number(String(handoverKasModal).replace(/\D/g, '') || 0);
+    const revenue = Number(String(handoverRevenue).replace(/\D/g, '') || 0);
+
+    if (saldo === 0 && kasModal === 0 && revenue === 0) {
+      alertError('Isi minimal salah satu input (Saldo, Kas Modal, atau Revenue)');
+      return;
+    }
+
     setLoading(true);
     try {
+      const total = saldo + kasModal + revenue;
       await axios.post('/api/shifts/handover', {
-        handoverCash: Number(String(handoverAmount).replace(/\D/g, '') || 0),
+        handoverCash: total,
+        handoverSaldo: saldo,
+        handoverKasModal: kasModal,
+        handoverRevenue: revenue,
         notes: handoverNotes || null,
       });
       setShowHandover(false);
-      setHandoverAmount('');
+      setHandoverSaldo('');
+      setHandoverKasModal('');
+      setHandoverRevenue('');
       setHandoverNotes('');
       await loadAll();
       alertSuccess('Shift berhasil dioper! 🎉');
@@ -409,7 +439,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
               fontSize: 12,
               fontWeight: isActive ? 600 : 500,
               cursor: 'pointer',
-              boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+              boxShadow: isActive ? SHADOW.sm : 'none',
               transition: 'all 0.2s ease',
             }}
           >
@@ -443,7 +473,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
         </div>
       )}
 
-      <div style={{ background: 'white', borderRadius: 16, padding: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+      <div style={{ background: C.white, borderRadius: 16, padding: 16, boxShadow: SHADOW.md }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Aksi Cepat
         </div>
@@ -628,9 +658,9 @@ export default function KasirShiftPage({ navigate, goBack }) {
       display: 'flex',
       gap: 10,
       padding: 16,
-      background: 'white',
+      background: C.white,
       borderTop: '1px solid ' + C.n100,
-      boxShadow: '0 -4px 12px rgba(0,0,0,0.04)',
+      boxShadow: SHADOW.nav,
     }}>
       {!session ? (
         <Btn variant="success" fullWidth size="lg" onClick={() => setShowBukaShift(true)}>
@@ -787,7 +817,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
     </Modal>
   );
 
-  // ─── Handover Modal ─────────────────────────────────────────────────────────
+  // ─── Handover Modal - 3 Input Wajib ─────────────────────────────────────
   const renderHandoverModal = () => (
     <Modal visible={showHandover} onClose={() => setShowHandover(false)} title="🔄 Oper Shift">
       <div style={{ background: C.warningBg, padding: 12, borderRadius: 10, marginBottom: 16 }}>
@@ -796,15 +826,50 @@ export default function KasirShiftPage({ navigate, goBack }) {
         </div>
       </div>
 
+      {/* Summary from previous shift */}
       <div style={{ background: C.n50, padding: 12, borderRadius: 10, marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: C.n600 }}>Seharusnya Ada</div>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>Rp {fmtCurrency(cashPosition.expected)}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 11, color: C.n600 }}>Seharusnya Ada</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>Rp {fmtCurrency(cashPosition.expected)}</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 11, color: C.n600 }}>Revenue Shift Ini</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.success }}>+Rp {fmtCurrency(cashPosition.revenue || 0)}</div>
+          </div>
+        </div>
       </div>
 
-      <MoneyInput label="💰 Jumlah Uang yang Dioper" value={handoverAmount} onChange={setHandoverAmount} placeholder="0" />
+      {/* 3 Input Wajib: Saldo, Kas Modal, Total Dioper */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>💰 Saldo Terakhir *</div>
+        <MoneyInput value={handoverSaldo} onChange={setHandoverSaldo} placeholder="0" />
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>🏦 Kas Modal *</div>
+        <MoneyInput value={handoverKasModal} onChange={setHandoverKasModal} placeholder="0" />
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>📊 Total Revenue *</div>
+        <MoneyInput value={handoverRevenue} onChange={setHandoverRevenue} placeholder="0" />
+      </div>
+
+      {/* Calculated Expected */}
+      <div style={{ background: '#F0FDF4', padding: 12, borderRadius: 10, marginBottom: 16, border: '1px solid #86EFAC' }}>
+        <div style={{ fontSize: 11, color: '#166534' }}>Total yang Dioper (Otomatis)</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#15803D' }}>
+          Rp {fmtCurrency(
+            parseInt(String(handoverSaldo).replace(/\D/g, '') || 0) +
+            parseInt(String(handoverKasModal).replace(/\D/g, '') || 0) +
+            parseInt(String(handoverRevenue).replace(/\D/g, '') || 0)
+          )}
+        </div>
+      </div>
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Catatan (opsional)</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>📝 Catatan (Opsional)</div>
         <textarea value={handoverNotes} onChange={e => setHandoverNotes(e.target.value)} rows={2} placeholder="Contoh: ada PR yang belum di-approve" style={{
           width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid ' + C.n200,
           fontFamily: 'Poppins', fontSize: 13, resize: 'none', boxSizing: 'border-box',
@@ -901,7 +966,7 @@ function SubSessionCard({ subSession, index }) {
 
   return (
     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
-      style={{ background: 'white', borderRadius: 12, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+      style={{ background: C.white, borderRadius: 12, padding: 14, boxShadow: SHADOW.smSoft }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <IconPerson size={16} color={C.n500} />
@@ -937,8 +1002,8 @@ function TransactionRow({ transaction, index, onClick }) {
   return (
     <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
       onClick={onClick} style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'white',
-        borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: C.white,
+        borderRadius: 12, boxShadow: SHADOW.smSoft, cursor: 'pointer',
       }}>
       <div style={{ fontSize: 24 }}>{methodIcons[transaction.primary_payment_method] || '💳'}</div>
       <div style={{ flex: 1 }}>

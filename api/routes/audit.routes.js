@@ -5,7 +5,7 @@ import { getAuditLog, getAuditActions } from '../controllers/auditController.js'
 const router = Router();
 
 // Hanya role global yang bisa lihat audit log
-const adminOnly = requireRole('admin', 'superadmin', 'owner', 'finance');
+const adminOnly = requireRole('admin');
 
 router.get('/',         authenticate, adminOnly, getAuditLog);
 router.get('/actions',  authenticate, adminOnly, getAuditActions);

@@ -17,7 +17,7 @@ import {
 
 const router = Router();
 
-const ADMIN = requireRole('admin', 'superadmin', 'owner');
+const ADMIN = requireRole('admin');
 
 // GET /api/birthday/today — Get customers with birthday today
 router.get('/today', authenticate, cacheResponse({ ttl: 60000 }), readLimiter, getTodayBirthdays);

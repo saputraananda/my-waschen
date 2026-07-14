@@ -30,7 +30,7 @@ const ALL_SCREENS = new Set([
   'splash', 'login', 'dashboard', 'transaksi', 'history_produksi',
   'customer', 'tambah_customer', 'detail_customer', 'daftar_member',
   'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
-  'detail_transaksi', 'cetak_nota', 'antrian',
+  'detail_transaksi', 'cetak_nota', 'antrian', 'stok_produksi',
   'detail_item_produksi', 'detail_riwayat_produksi', 'foto_kondisi', 'produksi_qr_scan',
   'manajemen_user', 'manajemen_outlet', 'manajemen_layanan', 'kelola_layanan_outlet',
   'admin_promo_sla', 'admin_promo', 'admin_stok',
@@ -48,9 +48,9 @@ const ALL_SCREENS = new Set([
   'request_barang', 'admin_purchase_requests',
 ]);
 
-const NAV_SCREENS = ['dashboard', 'transaksi', 'customer', 'settings', 'kasir_shift', 'antrian',
+const NAV_SCREENS = ['dashboard', 'transaksi', 'customer', 'profil', 'settings', 'kasir_shift', 'antrian',
   'approval', 'admin_laporan', 'history_produksi', 'nota_step1',
-  'verifikasi_payment', 'laporan_keuangan'];
+  'verifikasi_payment', 'laporan_keuangan', 'delivery_tasks', 'delivery_history'];
 
 function screenToUrl(scr, params) {
   if (!scr || scr === 'splash') return '/';

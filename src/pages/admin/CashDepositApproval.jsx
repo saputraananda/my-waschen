@@ -5,8 +5,10 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Select } from '../../components/ui';
 import { alertError, alertSuccess, confirmAction } from '../../utils/alert';
 import { exportToExcel } from '../../utils/excelExport';
+import { useResponsive } from '../../utils/hooks';
 
 export default function CashDepositApproval({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [deposits, setDeposits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('pending');
@@ -23,7 +25,6 @@ export default function CashDepositApproval({ navigate, goBack }) {
       const res = await axios.get('/api/cash-deposits', { params });
       setDeposits(res.data?.data || []);
     } catch (e) {
-      console.error('Failed to load deposits:', e);
       alertError('Gagal memuat data setoran kas');
     } finally {
       setLoading(false);
@@ -35,7 +36,6 @@ export default function CashDepositApproval({ navigate, goBack }) {
       const res = await axios.get('/api/outlets');
       setOutlets(res.data?.data || []);
     } catch (e) {
-      console.error('Failed to load outlets:', e);
     }
   };
 
@@ -130,11 +130,11 @@ export default function CashDepositApproval({ navigate, goBack }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Setoran Kas" subtitle="Approval setoran kas dari outlet" onBack={goBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, overflowX: 'hidden' }}>
         {/* Filters */}
-        <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: SHADOW.sm }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? 12 : 16, marginBottom: 16, boxShadow: SHADOW.sm }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-            <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={{ flex: 1, minWidth: isMobile ? '100%' : 150 }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Status</div>
               <Select
                 value={statusFilter}
@@ -147,7 +147,7 @@ export default function CashDepositApproval({ navigate, goBack }) {
                 ]}
               />
             </div>
-            <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={{ flex: 1, minWidth: isMobile ? '100%' : 150 }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Outlet</div>
               <Select
                 value={outletFilter}
@@ -196,7 +196,7 @@ export default function CashDepositApproval({ navigate, goBack }) {
                 </div>
 
                 {/* Details */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
                   <div style={{ background: C.n50, borderRadius: 10, padding: '8px 10px' }}>
                     <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n700, marginBottom: 2 }}>Penjualan Tunai</div>
                     <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n900 }}>{rp(dep.cash_sales_total)}</div>

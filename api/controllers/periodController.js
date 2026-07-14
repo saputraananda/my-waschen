@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 const MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -106,7 +107,7 @@ export const getCurrentPeriod = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getCurrentPeriod] Error:', err);
+    logger.error('Gagal memuat data periode', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data periode.' });
   }
 };
@@ -115,7 +116,7 @@ export const getCurrentPeriod = async (req, res) => {
 export const getPeriodHistory = async (req, res) => {
   try {
     const userRole  = req.user?.roleCode;
-    const isGlobal  = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+    const isGlobal  = ['admin'].includes(userRole);
     const outletId  = req.query.outletId || (isGlobal ? null : req.user?.outletId);
 
     const params = outletId ? [outletId] : [];
@@ -155,7 +156,7 @@ export const getPeriodHistory = async (req, res) => {
     if (err.code === 'ER_NO_SUCH_TABLE') {
       return res.json({ success: true, data: [] });
     }
-    console.error('[getPeriodHistory] Error:', err);
+    logger.error('Gagal memuat riwayat tutup buku', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat riwayat tutup buku.' });
   }
 };
@@ -236,7 +237,7 @@ export const closePeriod = async (req, res) => {
     if (err.code === 'ER_NO_SUCH_TABLE') {
       return res.status(503).json({ success: false, message: 'Tabel periode belum tersedia. Jalankan migration_target_period_tables.sql terlebih dahulu.' });
     }
-    console.error('[closePeriod] Error:', err);
+    logger.error('Gagal melakukan tutup buku', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal melakukan tutup buku.' });
   }
 };

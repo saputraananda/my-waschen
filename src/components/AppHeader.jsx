@@ -14,33 +14,7 @@ import { motion } from 'framer-motion';
 import { useApp } from '../../context/AppContext';
 
 // ─── Avatar Images (from spec Section 5) ────────────────────────────────────────
-import staffGirl from '../assets/Avatar set/staff-girl.webp'
-import staffGirlSayHi from '../assets/Avatar set/staff-girl-say-hi.webp'
-import staffBoy from '../assets/Avatar set/staff-boy.webp'
-import staffBoyThumbsUp from '../assets/Avatar set/staff-boy-thumbs-up.webp'
-import adminAvatar from '../assets/Avatar set/admin.webp'
-import adminLaptop from '../assets/Avatar set/admin-laptop.webp'
-
-// ─── Avatar Selection Helper (from spec Section 5) ──────────────────────────────
-// Avatar berubah otomatis sesuai role & gender akun yang login
-const getAvatarSource = (user) => {
-  const role = user?.roleCode || user?.originalRoleCode;
-  const gender = user?.gender?.toLowerCase();
-
-  // Role-based avatar
-  if (role === 'admin') {
-    return adminLaptop;
-  }
-  if (role === 'frontline' || role === 'kasir') {
-    if (gender === 'male') return staffBoy;
-    return staffGirl;
-  }
-  if (role === 'delivery') {
-    return staffBoyThumbsUp;
-  }
-  // Default
-  return gender === 'male' ? staffBoy : staffGirl;
-};
+import { getAvatarSource } from '../utils/avatar';
 
 // ─── Greeting Helper ────────────────────────────────────────────────────────────
 const getGreeting = (name) => {

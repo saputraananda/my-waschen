@@ -1,6 +1,7 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
-const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+const globalRoles = ['admin'];
 
 // ─── GET /api/dashboard/stats ──────────────────────────────────────────────────
 // Multi-outlet admin: query outletId opsional (default semua outlet untuk admin).
@@ -114,7 +115,529 @@ export const getDashboardStats = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getDashboardStats] Error:', err);
+    logger.error('Get dashboard stats failed', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat statistik dashboard.' });
+  }
+};
+
+// ─── GET /api/dashboard/revenue-trend ──────────────────────────────────────────
+// Revenue trend chart: Aktual vs Target per day
+export const getRevenueTrend = async (req, res) => {
+  try {
+    const userOutletId = req.user?.outletId;
+    const userRole = req.user?.roleCode;
+    const isGlobalRole = globalRoles.includes(userRole);
+
+    // Parse filters
+    const { range = '7d', startDate, endDate, outletId } = req.query;
+
+    // Calculate date range
+    let start;
+    let end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (startDate && endDate) {
+      start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+    } else if (range === 'today') {
+      start = today;
+    } else if (range === '7d') {
+      start = new Date(today);
+      start.setDate(start.getDate() - 6);
+    } else if (range === '30d') {
+      start = new Date(today);
+      start.setDate(start.getDate() - 29);
+    } else {
+      start = new Date(today);
+      start.setDate(start.getDate() - 6);
+    }
+
+    // Get outlet filter
+    let effectiveOutlet = null;
+    if (isGlobalRole) {
+      effectiveOutlet = outletId || null;
+    } else {
+      effectiveOutlet = userOutletId;
+    }
+
+    const outletFilter = effectiveOutlet ? 'AND outlet_id = ?' : '';
+    const params = effectiveOutlet ? [effectiveOutlet] : [];
+
+    // Get daily revenue for the date range
+    const [revenueRows] = await poolWaschenPos.query(
+      `SELECT
+         DATE(created_at) as date,
+         COALESCE(SUM(total), 0) as daily_revenue,
+         COUNT(*) as transaction_count
+       FROM tr_transaction
+       WHERE deleted_at IS NULL
+         AND status != 'cancelled'
+         AND created_at >= ?
+         AND created_at <= ?
+         ${outletFilter}
+       GROUP BY DATE(created_at)
+       ORDER BY date ASC`,
+      [start, end, ...params]
+    );
+
+    // Get target from database
+    let dailyTarget = 500000; // Default 500k per hari
+    try {
+      const now = new Date();
+      let targetQuery, targetParams;
+
+      if (effectiveOutlet) {
+        targetQuery = `SELECT target_amount FROM mst_outlet_target
+         WHERE deleted_at IS NULL AND outlet_id = ?
+         AND period_year = YEAR(CURDATE()) AND period_month = MONTH(CURDATE())
+         LIMIT 1`;
+        targetParams = [effectiveOutlet];
+      } else {
+        // Get average target from all outlets if no specific outlet
+        targetQuery = `SELECT AVG(target_amount) as avg_target FROM mst_outlet_target
+         WHERE deleted_at IS NULL
+         AND period_year = YEAR(CURDATE()) AND period_month = MONTH(CURDATE())`;
+        targetParams = [];
+      }
+
+      const [targetRows] = await poolWaschenPos.query(targetQuery, targetParams);
+      if (targetRows.length > 0 && targetRows[0].target_amount > 0) {
+        const monthlyTarget = Number(targetRows[0].target_amount);
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        dailyTarget = Math.round(monthlyTarget / daysInMonth);
+      } else if (targetRows[0]?.avg_target > 0) {
+        const avgTarget = Number(targetRows[0].avg_target);
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        dailyTarget = Math.round(avgTarget / daysInMonth);
+      }
+    } catch (e) {
+      console.warn('Target query failed, using default:', e.message);
+    }
+
+    // Calculate actual revenue
+    const dateMap = new Map();
+    revenueRows.forEach(r => {
+      const dateStr = r.date instanceof Date
+        ? r.date.toISOString().slice(0, 10)
+        : new Date(r.date).toISOString().slice(0, 10);
+      dateMap.set(dateStr, {
+        date: dateStr,
+        actual: Number(r.daily_revenue),
+        transactions: Number(r.transaction_count),
+      });
+    });
+
+    // Fill missing dates with zero
+    const result = [];
+    const current = new Date(start);
+    while (current <= end) {
+      const dateStr = current.toISOString().slice(0, 10);
+      if (dateMap.has(dateStr)) {
+        result.push(dateMap.get(dateStr));
+      } else {
+        result.push({
+          date: dateStr,
+          actual: 0,
+          transactions: 0,
+        });
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Calculate target based on database target
+    const trendWithTarget = result.map(day => ({
+      ...day,
+      target: dailyTarget,
+    }));
+
+    // Summary stats
+    const totalActual = result.reduce((sum, d) => sum + d.actual, 0);
+    const totalTarget = trendWithTarget.reduce((sum, d) => sum + d.target, 0);
+    const achievementRate = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        range: range,
+        startDate: start.toISOString().slice(0, 10),
+        endDate: end.toISOString().slice(0, 10),
+        daily: trendWithTarget,
+        summary: {
+          totalActual,
+          totalTarget,
+          achievementRate,
+          avgDailyActual: result.length > 0 ? Math.round(totalActual / result.length) : 0,
+          avgDailyTarget: Math.round(dailyTarget),
+          dayCount: result.length,
+        },
+      },
+    });
+  } catch (err) {
+    logger.error('getRevenueTrend failed', { error: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, message: 'Gagal memuat tren revenue.' });
+  }
+};
+
+// ─── GET /api/dashboard/sparkline ────────────────────────────────────────────
+// Returns sparkline data: array of daily values for mini charts
+export const getSparkline = async (req, res) => {
+  try {
+    const userOutletId = req.user?.outletId;
+    const userRole = req.user?.roleCode;
+    const isGlobalRole = globalRoles.includes(userRole);
+    const days = Math.min(parseInt(req.query.days) || 7, 30);
+
+    // Get outlet filter
+    let effectiveOutlet = null;
+    if (isGlobalRole) {
+      effectiveOutlet = req.query.outletId || userOutletId || null;
+    } else {
+      effectiveOutlet = userOutletId;
+      if (!effectiveOutlet) {
+        return res.status(400).json({
+          success: false,
+          message: 'User tidak memiliki outlet yang ditetapkan.'
+        });
+      }
+    }
+
+    const outletFilter = effectiveOutlet ? 'AND outlet_id = ?' : '';
+    const params = effectiveOutlet ? [effectiveOutlet] : [];
+
+    // Calculate date range
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    const start = new Date();
+    start.setDate(start.getDate() - days + 1);
+    start.setHours(0, 0, 0, 0);
+
+    // Get daily data for sparkline
+    const [rows] = await poolWaschenPos.query(
+      `SELECT
+         DATE(created_at) as date,
+         COALESCE(SUM(total), 0) as omset,
+         COUNT(*) as transaksi,
+         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as selesai
+       FROM tr_transaction
+       WHERE deleted_at IS NULL
+         AND status != 'cancelled'
+         AND created_at >= ? AND created_at <= ?
+         ${outletFilter}
+       GROUP BY DATE(created_at)
+       ORDER BY date ASC`,
+      [start, end, ...params]
+    );
+
+    // Fill missing dates with zero
+    const omsetArr = [];
+    const transaksiArr = [];
+    const selesaiArr = [];
+    const current = new Date(start);
+
+    while (current <= end) {
+      const dateStr = current.toISOString().slice(0, 10);
+      const row = rows.find(r => {
+        const rowDate = r.date instanceof Date
+          ? r.date.toISOString().slice(0, 10)
+          : new Date(r.date).toISOString().slice(0, 10);
+        return rowDate === dateStr;
+      });
+      omsetArr.push(row ? Number(row.omset) : 0);
+      transaksiArr.push(row ? Number(row.transaksi) : 0);
+      selesaiArr.push(row ? Number(row.selesai) : 0);
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Calculate target array (target per day)
+    const totalOmset = omsetArr.reduce((a, b) => a + b, 0);
+    const targetPerDay = totalOmset > 0 ? Math.round(totalOmset / Math.max(omsetArr.filter(v => v > 0).length, 1)) : 500000;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        omset: omsetArr,
+        transaksi: transaksiArr,
+        selesai: selesaiArr,
+        target: omsetArr.map(() => targetPerDay),
+      },
+    });
+  } catch (err) {
+    logger.error('Get sparkline failed', { error: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, message: 'Gagal memuat data sparkline.' });
+  }
+};
+
+// ─── GET /api/dashboard/target-tracking ────────────────────────────────────────────
+// Returns monthly target with daily breakdown for target achievement tracking
+export const getTargetTracking = async (req, res) => {
+  try {
+    const userOutletId = req.user?.outletId;
+    const userRole = req.user?.roleCode;
+    const isGlobalRole = globalRoles.includes(userRole);
+    const requestedOutletId = req.query.outletId;
+
+    let effectiveOutlet = null;
+    if (isGlobalRole) {
+      effectiveOutlet = requestedOutletId || null;
+    } else {
+      effectiveOutlet = userOutletId;
+      if (!effectiveOutlet) {
+        return res.status(400).json({
+          success: false,
+          message: 'User tidak memiliki outlet yang ditetapkan.'
+        });
+      }
+    }
+
+    const outletFilter = effectiveOutlet ? 'AND outlet_id = ?' : '';
+    const params = effectiveOutlet ? [effectiveOutlet] : [];
+
+    // Get current month's date range
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of month
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Get monthly target from config (default 40jt)
+    const [[targetConfig]] = await poolWaschenPos.execute(
+      `SELECT value FROM mst_setting WHERE category = 'target' AND setting_key = 'monthly_revenue_target' LIMIT 1`
+    );
+    const monthlyTarget = Number(targetConfig?.value) || 40000000;
+
+    // Get daily target (monthly / days in month)
+    const daysInMonth = monthEnd.getDate();
+    const dayOfMonth = today.getDate();
+    const dailyTarget = Math.round(monthlyTarget / daysInMonth);
+
+    // Calculate target until today (for "should be" calculation)
+    const targetUntilToday = dailyTarget * dayOfMonth;
+
+    // Get daily revenue for current month
+    const [dailyRows] = await poolWaschenPos.execute(
+      `SELECT
+         DATE(created_at) as date,
+         COALESCE(SUM(total), 0) as omset,
+         COUNT(*) as transaksi
+       FROM tr_transaction
+       WHERE deleted_at IS NULL
+         AND status != 'cancelled'
+         AND YEAR(created_at) = YEAR(CURDATE())
+         AND MONTH(created_at) = MONTH(CURDATE())
+         ${outletFilter}
+       GROUP BY DATE(created_at)
+       ORDER BY date ASC`,
+      params
+    );
+
+    // Build daily data with target comparison
+    const dailyData = [];
+    let cumulativeActual = 0;
+    let cumulativeTarget = 0;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(now.getFullYear(), now.getMonth(), d);
+      const dateStr = dateObj.toISOString().slice(0, 10);
+      const dayData = dailyRows.find(r => {
+        const rowDate = r.date instanceof Date
+          ? r.date.toISOString().slice(0, 10)
+          : new Date(r.date).toISOString().slice(0, 10);
+        return rowDate === dateStr;
+      });
+
+      const actual = dayData ? Number(dayData.omset) : 0;
+      cumulativeActual += actual;
+      cumulativeTarget += dailyTarget;
+
+      const isToday = d === dayOfMonth;
+      const isPast = d < dayOfMonth;
+
+      dailyData.push({
+        date: dateStr,
+        day: d,
+        actual,
+        target: dailyTarget,
+        cumulativeActual,
+        cumulativeTarget,
+        achievementPct: cumulativeTarget > 0 ? Math.round((cumulativeActual / cumulativeTarget) * 100) : 0,
+        dailyAchievementPct: actual > 0 ? Math.round((actual / dailyTarget) * 100) : 0,
+        isToday,
+        isPast,
+        isFuture: d > dayOfMonth,
+      });
+    }
+
+    // Summary
+    const totalActualMonth = cumulativeActual;
+    const monthAchievement = cumulativeTarget > 0 ? Math.round((totalActualMonth / cumulativeTarget) * 100) : 0;
+    const remainingDays = daysInMonth - dayOfMonth;
+    const remainingTarget = cumulativeTarget - totalActualMonth;
+    const neededPerDay = remainingDays > 0 ? Math.round(remainingTarget / remainingDays) : 0;
+
+    // Status
+    let status = 'on_track';
+    if (monthAchievement < 90) status = 'behind';
+    else if (monthAchievement >= 100) status = 'achieved';
+    else if (monthAchievement >= 95) status = 'almost';
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        month: {
+          name: now.toLocaleString('id-ID', { month: 'long', year: 'numeric' }),
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+        },
+        target: {
+          monthly: monthlyTarget,
+          daily: dailyTarget,
+          targetUntilToday,
+        },
+        actual: {
+          total: totalActualMonth,
+          targetUntilToday,
+          avgPerDay: dayOfMonth > 0 ? Math.round(totalActualMonth / dayOfMonth) : 0,
+        },
+        achievement: {
+          monthly: monthAchievement,
+          daily: dayOfMonth > 0 ? Math.round((totalActualMonth / targetUntilToday) * 100) : 0,
+        },
+        remaining: {
+          days: remainingDays,
+          target: remainingTarget,
+          neededPerDay,
+        },
+        status,
+        dailyData,
+      },
+    });
+  } catch (err) {
+    logger.error('Get target tracking failed', { error: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, message: 'Gagal memuat data target.' });
+  }
+};
+
+// ─── GET /api/dashboard/outlets ──────────────────────────────────────────────
+// Returns list of all outlets with their dashboard summary (admin only)
+export const getOutletDashboard = async (req, res) => {
+  try {
+    const userRole = req.user?.roleCode;
+    const isGlobalRole = globalRoles.includes(userRole);
+
+    if (!isGlobalRole) {
+      return res.status(403).json({
+        success: false,
+        message: 'Hanya admin yang dapat melihat semua outlet.'
+      });
+    }
+
+    // Get all active outlets
+    const [outlets] = await poolWaschenPos.execute(
+      `SELECT id, name, address, phone, is_active
+       FROM mst_outlet
+       WHERE is_active = 1 AND deleted_at IS NULL
+       ORDER BY name ASC`
+    );
+
+    // Get stats for each outlet (today + month)
+    const outletStats = await Promise.all(
+      outlets.map(async (outlet) => {
+        const [[todayStats]] = await poolWaschenPos.execute(
+          `SELECT
+             COALESCE(SUM(total), 0) as omset_today,
+             COUNT(*) as transaksi_today,
+             SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as selesai_today
+           FROM tr_transaction
+           WHERE deleted_at IS NULL
+             AND status != 'cancelled'
+             AND outlet_id = ?
+             AND DATE(created_at) = CURDATE()`,
+          [outlet.id]
+        );
+
+        const [[monthStats]] = await poolWaschenPos.execute(
+          `SELECT
+             COALESCE(SUM(total), 0) as omset_month,
+             COUNT(*) as transaksi_month
+           FROM tr_transaction
+           WHERE deleted_at IS NULL
+             AND status != 'cancelled'
+             AND outlet_id = ?
+             AND YEAR(created_at) = YEAR(CURDATE())
+             AND MONTH(created_at) = MONTH(CURDATE())`,
+          [outlet.id]
+        );
+
+        const [[pendingStats]] = await poolWaschenPos.execute(
+          `SELECT COUNT(*) as pending
+           FROM tr_transaction
+           WHERE deleted_at IS NULL
+             AND status IN ('pending', 'process', 'ready_for_pickup', 'ready_for_delivery')
+             AND outlet_id = ?`,
+          [outlet.id]
+        );
+
+        const [[customerStats]] = await poolWaschenPos.execute(
+          `SELECT COUNT(*) as total_customers
+           FROM mst_customer
+           WHERE is_active = 1 AND deleted_at IS NULL
+             AND registered_outlet_id = ?`,
+          [outlet.id]
+        );
+
+        return {
+          id: outlet.id,
+          name: outlet.name,
+          address: outlet.address,
+          phone: outlet.phone,
+          stats: {
+            today: {
+              omset: Number(todayStats?.omset_today || 0),
+              transaksi: Number(todayStats?.transaksi_today || 0),
+              selesai: Number(todayStats?.selesai_today || 0),
+            },
+            month: {
+              omset: Number(monthStats?.omset_month || 0),
+              transaksi: Number(monthStats?.transaksi_month || 0),
+            },
+            pending: Number(pendingStats?.pending || 0),
+            customers: Number(customerStats?.total_customers || 0),
+          },
+        };
+      })
+    );
+
+    // Sort by today's revenue descending
+    outletStats.sort((a, b) => b.stats.today.omset - a.stats.today.omset);
+
+    // Add ranking
+    const rankedOutlets = outletStats.map((outlet, index) => ({
+      ...outlet,
+      rank: index + 1,
+    }));
+
+    // Calculate totals
+    const totals = {
+      omsetToday: rankedOutlets.reduce((sum, o) => sum + o.stats.today.omset, 0),
+      omsetMonth: rankedOutlets.reduce((sum, o) => sum + o.stats.month.omset, 0),
+      transaksiToday: rankedOutlets.reduce((sum, o) => sum + o.stats.today.transaksi, 0),
+      pending: rankedOutlets.reduce((sum, o) => sum + o.stats.pending, 0),
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        outlets: rankedOutlets,
+        totals,
+        count: rankedOutlets.length,
+      },
+    });
+  } catch (err) {
+    logger.error('Get outlet dashboard failed', { error: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, message: 'Gagal memuat data outlet.' });
   }
 };

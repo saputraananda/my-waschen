@@ -3,12 +3,68 @@
 // Semua tipe approval dalam satu view: Umum · Pengadaan · Kas Outlet
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, inPeriod } from '../../utils/helpers';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Avatar, Btn, SearchBar, Chip, useAppRefresh, EmptyState, FilterIconButton, FilterModal, FilterSection, FilterChipGroup } from '../../components/ui';
 import { alertError, alertSuccess } from '../../utils/alert';
 import { resolveCashApproval } from '../../utils/outletCashApi';
+import { FloatingBubble, Sparkle, GlowOrb } from '../../components/ui/PremiumAnimations';
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
+
+// ─── Mini Sparkline ─────────────────────────────────────────────────────────
+function MiniSparkline({ data = [], color = '#10B981', width = 50, height = 28 }) {
+  if (!data || data.length < 2) {
+    return <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <path d={`M0 ${height/2} L${width} ${height/2}`} stroke={color} strokeWidth="2" fill="none" />
+    </svg>;
+  }
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const points = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((d - min) / range) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <polygon points={`0,${height} ${points} ${width},${height}`} fill={`${color}20`} />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <circle cx={width} cy={points.split(' ').pop().split(',')[1]} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+// ─── Premium Stat Card ───────────────────────────────────────────────────────
+function PremiumStatCard({ icon, label, value, color = '#5B005F', sparkline = [] }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      style={{
+        background: 'linear-gradient(145deg, #FFFFFF, #F8F7FC)',
+        borderRadius: 12,
+        padding: '10px 12px',
+        boxShadow: '4px 4px 10px rgba(91, 0, 95, 0.06), -2px -2px 6px rgba(255, 255, 255, 0.95)',
+        border: '1px solid rgba(91, 0, 95, 0.04)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color }}>{label}</span>
+        <MiniSparkline data={sparkline} color={color} width={40} height={24} />
+      </div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: '#1E293B' }}>{value}</div>
+    </motion.div>
+  );
+}
 
 // ─── Type configs ────────────────────────────────────────────────────────────
 const TYPE_META = {
@@ -68,17 +124,19 @@ function ApprovalCardCompact({ item, typeMeta, onApprove, onReject, actionLoadin
     .split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <div
+    <motion.div
       onClick={onToggle}
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.99 }}
       style={{
-        background: C.white,
-        borderRadius: 16,
+        background: 'linear-gradient(145deg, #FFFFFF, #F8F7FC)',
+        borderRadius: 14,
         borderLeft: `4px solid ${expanded ? typeMeta.color : typeMeta.borderColor}`,
-        boxShadow: expanded ? SHADOW.md : SHADOW.sm,
+        boxShadow: '6px 6px 14px rgba(91, 0, 95, 0.08), -3px -3px 10px rgba(255, 255, 255, 0.95)',
+        border: '1px solid rgba(91, 0, 95, 0.04)',
         marginBottom: 10,
         overflow: 'hidden',
         cursor: 'pointer',
-        transition: 'all 0.2s ease',
       }}
     >
       {/* Header row */}
@@ -232,7 +290,7 @@ function ApprovalCardCompact({ item, typeMeta, onApprove, onReject, actionLoadin
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -304,6 +362,7 @@ function RejectModal({ visible, item, typeMeta, onConfirm, onClose, loading }) {
 // ─── Main ApprovalCenter Page ─────────────────────────────────────────────────
 export default function ApprovalCenterPage({ goBack }) {
   // ── State ──────────────────────────────────────────────────────────────
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab]       = useState('all');    // 'all' | 'general' | 'purchase' | 'cash_expense'
   const [statusFilter, setStatusFilter] = useState('pending');
   const [periodFilter, setPeriodFilter]  = useState('all');
@@ -326,7 +385,7 @@ export default function ApprovalCenterPage({ goBack }) {
       const params = { status: statusFilter, limit: 100 };
       const r = await axios.get('/api/approvals', { params });
       setGeneralApprovals(r?.data?.data || []);
-    } catch {} finally { setGeneralLoading(false); }
+    } catch (err) { console.error('[fetchGeneral] Error:', err); } finally { setGeneralLoading(false); }
   }, [statusFilter]);
 
   const fetchPurchase = useCallback(async () => {
@@ -336,7 +395,7 @@ export default function ApprovalCenterPage({ goBack }) {
       const params = { status: statusMap[statusFilter] || statusFilter, limit: 100 };
       const r = await axios.get('/api/purchase-requests', { params });
       setPurchaseApprovals(r?.data?.data || []);
-    } catch {} finally { setPurchaseLoading(false); }
+    } catch (err) { console.error('[fetchPurchase] Error:', err); } finally { setPurchaseLoading(false); }
   }, [statusFilter]);
 
   const fetchCash = useCallback(async () => {
@@ -346,7 +405,7 @@ export default function ApprovalCenterPage({ goBack }) {
       const params = { status: statusMap[statusFilter] || statusFilter, limit: 100 };
       const r = await axios.get('/api/outlet-cash/approvals', { params });
       setCashApprovals(r?.data?.data || []);
-    } catch {} finally { setCashLoading(false); }
+    } catch (err) { console.error('[fetchCash] Error:', err); } finally { setCashLoading(false); }
   }, [statusFilter]);
 
   useEffect(() => { fetchGeneral(); }, [fetchGeneral]);
@@ -502,25 +561,86 @@ export default function ApprovalCenterPage({ goBack }) {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar
-        title="Approval Center"
-        subtitle={totalPending > 0 ? `${totalPending} menunggu persetujuan` : 'Semua sudah diproses'}
-        onBack={goBack}
-      />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8F4FF', overflow: 'hidden' }}>
+      {/* ── Premium Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 20px 20px',
+        position: 'relative',
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}>
+        <GlowOrb color="rgba(140, 76, 143, 0.4)" size={200} top="-60px" left="-30px" blur={50} />
+        <GlowOrb color="rgba(249, 62, 17, 0.25)" size={150} top="40px" right="-40px" blur={40} />
+        <Sparkle top="10%" left="15%" size={8} delay={0} color="#FFD700" />
+        <Sparkle top="20%" left="80%" size={6} delay={0.5} color="#FF6B6B" />
+        <Sparkle top="60%" left="25%" size={7} delay={1} color="#4ECDC4" />
+        <FloatingBubble src={bubbleIcon} size={18} top="15%" left="5%" delay={0} opacity={0.4} />
+        <FloatingBubble src={bubble2Icon} size={14} top="35%" right="8%" delay={0.5} opacity={0.35} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative' }}>
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: 'white', letterSpacing: '-0.5px' }}
+            >
+              Approval Center
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}
+            >
+              {totalPending > 0 ? `${totalPending} menunggu persetujuan` : 'Semua sudah diproses'}
+            </motion.div>
+          </div>
+          {goBack && (
+            <button
+              onClick={goBack}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: 'white',
+              }}
+            >
+              ← Kembali
+            </button>
+          )}
+        </div>
+      </div>
 
-        {/* Stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
-          <StatCard type="all"          count={totalPending}        active={activeTab === 'all'} />
-          <StatCard type="general"       count={pendingGeneral}     active={activeTab === 'general'} />
-          <StatCard type="purchase"       count={pendingPurchase}     active={activeTab === 'purchase'} />
-          <StatCard type="cash_expense"   count={pendingCash}        active={activeTab === 'cash_expense'} />
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 24px' }}>
+
+        {/* Premium Stats Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 8,
+          marginBottom: 14,
+        }} className="approval-stats-grid">
+          <PremiumStatCard label="📊 Total" value={totalPending} color={C.primary} sparkline={[5, 8, 6, totalPending || 1]} />
+          <PremiumStatCard label="📋 Umum" value={pendingGeneral} color={C.primary} sparkline={[1, 2, 1, pendingGeneral || 1]} />
+          <PremiumStatCard label="📦 Pengadaan" value={pendingPurchase} color={C.info} sparkline={[2, 3, 2, pendingPurchase || 1]} />
+          <PremiumStatCard label="💰 Kas Outlet" value={pendingCash} color={C.success} sparkline={[1, 2, 1, pendingCash || 1]} />
         </div>
 
+        {/* Responsive: stack stats on mobile */}
+        <style>{`
+          @media (max-width: 480px) {
+            .approval-stats-grid {
+              grid-template-columns: repeat(2, 1fr) !important;
+            }
+          }
+          @media (max-width: 360px) {
+            .approval-stats-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
+
         {/* Search & Filter Header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 44px', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 44px', gap: 8, marginBottom: 10 }} className="approval-filter-row">
           <SearchBar
             value={query}
             onChange={setQuery}
@@ -615,6 +735,18 @@ export default function ApprovalCenterPage({ goBack }) {
             />
           );
         })}
+        {/* Responsive modal for mobile */}
+        <style>{`
+          @media (max-width: 480px) {
+            .approval-modal-content {
+              margin: 10px !important;
+              max-width: calc(100% - 20px) !important;
+            }
+            .approval-filter-row {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
       </div>
 
       {/* Reject modal */}

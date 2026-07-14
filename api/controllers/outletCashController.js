@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { poolWaschenPos } from '../db/connection.js';
 import { getSettingValue } from './settingsController.js';
+import logger from '../utils/logger.js';
 
 // ─── Schema helpers ─────────────────────────────────────────────────────────────
 const _schemaCache = new Map();
@@ -103,7 +104,7 @@ export const getBalance = async (req, res) => {
   try {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
-    const isAdmin = ['admin', 'superadmin', 'owner'].includes(userRole);
+    const isAdmin = ['admin'].includes(userRole);
 
     const targetOutletId = isAdmin && req.query.outletId
       ? Number(req.query.outletId)
@@ -134,7 +135,7 @@ export const getBalance = async (req, res) => {
 
     return res.json({ success: true, data: { ...rows[0], balance: Number(rows[0].balance) } });
   } catch (err) {
-    console.error('[getBalance] Error:', err);
+    logger.error('Gagal mengambil saldo kas', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengambil saldo kas.' });
   }
 };
@@ -158,7 +159,7 @@ export const getAllBalances = async (req, res) => {
       data: rows.map(r => ({ ...r, balance: Number(r.balance || 0) })),
     });
   } catch (err) {
-    console.error('[getAllBalances] Error:', err);
+    logger.error('Gagal mengambil saldo semua outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengambil saldo semua outlet.' });
   }
 };
@@ -242,8 +243,8 @@ export const topupCash = async (req, res) => {
       data: { topupId, outletId, amount: numAmount, balanceBefore, balanceAfter },
     });
   } catch (err) {
-    try { await conn.rollback(); } catch {}
-    console.error('[topupCash] Error:', err);
+    try { await conn.rollback(); } catch (e) { /* rollback cleanup - ignore */ }
+    logger.error('Gagal top-up kas', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal top-up kas.' });
   } finally {
     conn.release();
@@ -281,8 +282,8 @@ export const submitExpense = async (req, res) => {
     const userRole = req.user?.roleCode;
     const outletId = req.user?.outletId;
     if (!userId) return res.status(401).json({ success: false, message: 'Auth required.' });
-    if (userRole !== 'kasir' && userRole !== 'frontline') {
-      return res.status(403).json({ success: false, message: 'Hanya kasir yang bisa input pengeluaran.' });
+    if (userRole !== 'frontline') {
+      return res.status(403).json({ success: false, message: 'Hanya frontline yang bisa input pengeluaran.' });
     }
     if (!outletId) {
       return res.status(400).json({ success: false, message: 'User tidak terikat ke outlet.' });
@@ -389,8 +390,8 @@ export const submitExpense = async (req, res) => {
       },
     });
   } catch (err) {
-    try { await conn.rollback(); } catch {}
-    console.error('[submitExpense] Error:', err);
+    try { await conn.rollback(); } catch (e) { /* rollback cleanup - ignore */ }
+    logger.error('Gagal mencatat pengeluaran', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mencatat pengeluaran.' });
   } finally {
     conn.release();
@@ -409,7 +410,7 @@ export const resolveApproval = async (req, res) => {
     const userId = req.user?.userId;
     const userRole = req.user?.roleCode;
 
-    if (!['admin', 'superadmin', 'owner'].includes(userRole)) {
+    if (!['admin'].includes(userRole)) {
       return res.status(403).json({ success: false, message: 'Hanya admin/owner yang bisa approve.' });
     }
     if (!['approve', 'reject'].includes(action)) {
@@ -507,8 +508,8 @@ export const resolveApproval = async (req, res) => {
       data: { status: 'rejected', expenseId: apr.expense_id },
     });
   } catch (err) {
-    try { await conn.rollback(); } catch {}
-    console.error('[resolveApproval] Error:', err);
+    try { await conn.rollback(); } catch (e) { /* rollback cleanup - ignore */ }
+    logger.error('Gagal proses approval', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal proses approval.' });
   } finally {
     conn.release();
@@ -521,7 +522,7 @@ export const resolveApproval = async (req, res) => {
 export const getApprovals = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
-    if (!['admin', 'superadmin', 'owner'].includes(userRole)) {
+    if (!['admin'].includes(userRole)) {
       return res.status(403).json({ success: false, message: 'Hanya admin yang bisa lihat approval.' });
     }
 
@@ -559,7 +560,7 @@ export const getApprovals = async (req, res) => {
       data: rows.map(r => ({ ...r, amount: Number(r.amount) })),
     });
   } catch (err) {
-    console.error('[getApprovals outlet-cash] Error:', err);
+    logger.error('Gagal memuat approval', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat approval.' });
   }
 };
@@ -572,7 +573,7 @@ export const getExpenses = async (req, res) => {
   try {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     const targetOutletId = isGlobal && req.query.outletId
       ? Number(req.query.outletId)
@@ -666,7 +667,7 @@ export const getExpenses = async (req, res) => {
       pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) || 1 },
     });
   } catch (err) {
-    console.error('[getExpenses] Error:', err);
+    logger.error('Gagal memuat pengeluaran', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat pengeluaran.' });
   }
 };
@@ -678,7 +679,7 @@ export const getTopups = async (req, res) => {
   try {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     const targetOutletId = isGlobal && req.query.outletId
       ? Number(req.query.outletId)
@@ -732,7 +733,7 @@ export const getTopups = async (req, res) => {
       pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) || 1 },
     });
   } catch (err) {
-    console.error('[getTopups] Error:', err);
+    logger.error('Gagal memuat top-up', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat top-up.' });
   }
 };
@@ -745,7 +746,7 @@ export const reconcileBalance = async (req, res) => {
   const conn = await poolWaschenPos.getConnection();
   try {
     const userRole = req.user?.roleCode;
-    if (!['admin', 'superadmin', 'owner'].includes(userRole)) {
+    if (!['admin'].includes(userRole)) {
       return res.status(403).json({ success: false, message: 'Hanya admin yang bisa rekonsiliasi.' });
     }
 
@@ -793,8 +794,8 @@ export const reconcileBalance = async (req, res) => {
       data: { balanceBefore, balanceAfter: numActual, diff, message: 'Rekonsiliasi tercatat.' },
     });
   } catch (err) {
-    try { await conn.rollback(); } catch {}
-    console.error('[reconcileBalance] Error:', err);
+    try { await conn.rollback(); } catch (e) { /* rollback cleanup - ignore */ }
+    logger.error('Gagal rekonsiliasi', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal rekonsiliasi.' });
   } finally {
     conn.release();
@@ -838,7 +839,7 @@ export const cancelExpense = async (req, res) => {
 
     // Hanya pemilik request atau admin yang bisa cancel
     const isOwner = exp.requested_by === userId;
-    const isAdminUser = ['admin', 'superadmin', 'owner'].includes(userRole);
+    const isAdminUser = ['admin'].includes(userRole);
     if (!isOwner && !isAdminUser) {
       await conn.rollback();
       return res.status(403).json({ success: false, message: 'Hanya pemilik request atau admin yang bisa membatalkan.' });
@@ -872,8 +873,8 @@ export const cancelExpense = async (req, res) => {
       data: { expenseId: id, status: 'cancelled', message: 'Pengeluaran berhasil dibatalkan.' },
     });
   } catch (err) {
-    try { await conn.rollback(); } catch {}
-    console.error('[cancelExpense] Error:', err);
+    try { await conn.rollback(); } catch (e) { /* rollback cleanup - ignore */ }
+    logger.error('Gagal membatalkan pengeluaran', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal membatalkan pengeluaran.' });
   } finally {
     conn.release();
@@ -887,7 +888,7 @@ export const checkLowBalance = async (req, res) => {
   try {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
-    const isAdminUser = ['admin', 'superadmin', 'owner'].includes(userRole);
+    const isAdminUser = ['admin'].includes(userRole);
 
     const minBalance = await getSettingValue('kas_minimum_balance', DEFAULT_MIN_BALANCE);
 
@@ -930,7 +931,7 @@ export const checkLowBalance = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[checkLowBalance] Error:', err);
+    logger.error('Gagal cek saldo', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal cek saldo.' });
   }
 };
@@ -942,7 +943,7 @@ export const getLedger = async (req, res) => {
   try {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
     const targetOutletId = isGlobal && req.query.outletId
       ? Number(req.query.outletId)
       : userOutletId;
@@ -983,7 +984,7 @@ export const getLedger = async (req, res) => {
       data: rows.map(r => ({ ...r, amount: Number(r.amount), balanceAfter: Number(r.balanceAfter) })),
     });
   } catch (err) {
-    console.error('[getLedger] Error:', err);
+    logger.error('Gagal memuat ledger', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat ledger.' });
   }
 };
@@ -995,7 +996,7 @@ export const getSummary = async (req, res) => {
   try {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
     const targetOutletId = isGlobal && req.query.outletId
       ? Number(req.query.outletId)
       : userOutletId;
@@ -1127,7 +1128,7 @@ export const getSummary = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getSummary outlet-cash] Error:', err);
+    logger.error('Gagal memuat summary', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat summary.' });
   }
 };
@@ -1153,7 +1154,7 @@ export const getCashConfig = async (_req, res) => {
 export const exportTransactionsCsv = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
-    if (!['admin', 'superadmin', 'owner', 'finance'].includes(userRole)) {
+    if (!['admin'].includes(userRole)) {
       return res.status(403).json({ success: false, message: 'Hanya admin/finance.' });
     }
 
@@ -1300,7 +1301,7 @@ export const exportTransactionsCsv = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(csv);
   } catch (err) {
-    console.error('[exportTransactionsCsv]', err);
+    logger.error('Gagal export CSV', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal export CSV.' });
   }
 };

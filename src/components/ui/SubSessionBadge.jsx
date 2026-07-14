@@ -47,7 +47,7 @@ export const SubSessionBadge = ({ compact = false, onSubSessionRequired }) => {
       const res = await axios.get('/api/shifts/sub-session/current');
       setSubSession(res?.data?.data || null);
     } catch (e) {
-      console.warn('[SubSessionBadge] Failed to load sub-session:', e?.message);
+      // Silent fail - sub-session optional
       setSubSession(null);
     } finally {
       setLoading(false);
@@ -61,7 +61,7 @@ export const SubSessionBadge = ({ compact = false, onSubSessionRequired }) => {
       const sessions = (res?.data?.data || []).filter(s => s.status === 'open');
       setMainSessions(sessions);
     } catch (e) {
-      console.warn('[SubSessionBadge] Failed to load main sessions:', e?.message);
+      // Silent fail - main sessions optional
       setMainSessions([]);
     }
   }, []);

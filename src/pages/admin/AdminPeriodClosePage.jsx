@@ -4,6 +4,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Input, Select } from '../../components/ui';
 import { alertError, alertSuccess, alertConfirm } from '../../utils/alert';
+import { useResponsive } from '../../utils/hooks';
 
 const MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -39,6 +40,7 @@ function ProgressBar({ pct, color }) {
 }
 
 export default function AdminPeriodClosePage({ goBack }) {
+  const { isMobile } = useResponsive();
   const [outlets, setOutlets] = useState([]);
   const [selOutlet, setSelOutlet] = useState('');
   const [period, setPeriod]   = useState(null);
@@ -56,8 +58,8 @@ export default function AdminPeriodClosePage({ goBack }) {
       const list = r?.data?.data || [];
       setOutlets(list);
       if (list.length > 0) setSelOutlet(list[0].id);
-    }).catch((e) => {
-      console.warn('[AdminPeriodClose] Failed to fetch outlets:', e?.message);
+    }).catch(() => {
+      // Silent fail for optional outlet fetch
     });
   }, []);
 
@@ -67,8 +69,7 @@ export default function AdminPeriodClosePage({ goBack }) {
     try {
       const res = await axios.get(`/api/periods/current?outletId=${selOutlet}`);
       setPeriod(res?.data?.data || null);
-    } catch (e) {
-      console.warn('[AdminPeriodClose] fetchPeriod failed:', e?.message);
+    } catch {
       setPeriod(null);
     } finally {
       setLoading(false);
@@ -81,8 +82,7 @@ export default function AdminPeriodClosePage({ goBack }) {
     try {
       const res = await axios.get(`/api/periods/history?outletId=${selOutlet}`);
       setHistory(res?.data?.data || []);
-    } catch (e) {
-      console.warn('[AdminPeriodClose] fetchHistory failed:', e?.message);
+    } catch {
       setHistory([]);
     } finally {
       setHistLoading(false);
@@ -128,7 +128,7 @@ export default function AdminPeriodClosePage({ goBack }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 80px' }}>
 
         {/* Outlet selector */}
-        <div style={{ background: 'white', borderRadius: 14, padding: '12px 14px', marginBottom: 16, boxShadow: SHADOW.md }}>
+        <div style={{ background: 'white', borderRadius: 14, padding: isMobile ? '12px' : '12px 14px', marginBottom: 16, boxShadow: SHADOW.md }}>
           <Select
             label="Outlet"
             value={selOutlet}
@@ -195,7 +195,7 @@ export default function AdminPeriodClosePage({ goBack }) {
             )}
 
             {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
               {[
                 { label: 'OMSET PERIODE', value: rp(period.stats.totalOmset), color: C.primary },
                 { label: 'PELUNASAN', value: rp(period.stats.totalPelunasan), color: C.success },
@@ -255,7 +255,7 @@ export default function AdminPeriodClosePage({ goBack }) {
 
                     {/* Stats row */}
                     <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                      <div style={{ flex: 1, minWidth: 80, background: C.n50, borderRadius: 8, padding: '6px 10px' }}>
+                      <div style={{ flex: 1, minWidth: isMobile ? '100%' : 80, background: C.n50, borderRadius: 8, padding: '6px 10px' }}>
                         <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n700, fontWeight: 600 }}>OMSET</div>
                         <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary }}>{rp(row.totalOmset)}</div>
                       </div>

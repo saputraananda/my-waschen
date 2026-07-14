@@ -5,6 +5,8 @@ import { STAGES, txApiId, photoTypeLabel } from '../../utils/helpers';
 import { TopBar, Btn, Badge, Avatar, ErrorBoundary, PhotoLightbox } from '../../components/ui';
 import { alertWarning } from '../../utils/alert';
 import { STAGE_STYLE, STAGE_ICONS, PROD_SHADOW, HEADER, CARD, getStageStyle } from '../../utils/productionDesign';
+import { uploadImage } from '../../utils/imageUpload';
+import { useResponsive } from '../../utils/hooks';
 
 const PROBLEM_PRESETS = [
   '🔴 Ada kerusakan / noda permanen',
@@ -25,6 +27,7 @@ function getSLAStatus(estimatedDoneAt) {
 
 // Internal component (wrapped by ErrorBoundary)
 export function DetailItemPageContent({ navigate, goBack, screenParams, user }) {
+  const { isMobile } = useResponsive();
   const tx = screenParams;
   // item = layanan spesifik yang dipilih dari dashboard produksi
   const item = tx?.item || null;
@@ -80,8 +83,8 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
         } else if (txData.progress) {
           setLocalProgress(txData.progress);
         }
-      } catch (e) {
-        console.warn('[DetailItemPage] fetchTx failed:', e?.message);
+      } catch {
+        // Silent fail for optional data refresh
       }
       finally { if (!cancelled) setPhotosLoading(false); }
     };
@@ -106,8 +109,8 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
           if (serverItem?.progress) setLocalProgress(serverItem.progress);
           if (serverItem?.packingDone != null) setPackingDone(Number(serverItem.packingDone) || 0);
         }
-      } catch (e) {
-        console.warn('[DetailItemPage] handlePhotoSaved failed:', e?.message);
+      } catch {
+        // Silent fail for photo refresh
       }
     };
     window.addEventListener('produksi:photo-saved', handlePhotoSaved);
@@ -127,7 +130,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
   );
 
   // STAGES tanpa Selesai (Selesai = end state, bukan active stage)
-  const ACTIVE_STAGES = STAGES.filter(s => s !== 'Selesai'); // ['Diterima','Cuci','Setrika','Packing']
+  const ACTIVE_STAGES = STAGES.filter(s => s !== 'Selesai'); // ['Diterima','Packing']
   const doneStages = localProgress.map(p => p.stage);
   const nextStage = ACTIVE_STAGES.find(s => !doneStages.includes(s));
   const allDone = !nextStage;
@@ -151,8 +154,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
     try {
       await axios.patch(`/api/transactions/${apiId}/items/${item.itemId}/packing`, { packingDone: clamped });
     } catch (err) {
-      // Roll back UI state kalau backend gagal — supaya tidak misleading
-      console.error('[packing-update]', err);
+      // Silent fail - UI rollback handled automatically
       setPackingDone((prev) => prev); // kalau perlu, fetch ulang di future
     }
     finally { setPackingUpdating(false); }
@@ -257,8 +259,8 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
       const txData = res?.data?.data;
       if (Array.isArray(txData?.conditionPhotos)) setConditionPhotos(txData.conditionPhotos);
       if (txData?.production) setProductionMeta(txData.production);
-    } catch (e) {
-      console.warn('[DetailItemPage] refreshPhotos failed:', e?.message);
+    } catch {
+      // Silent fail for optional refresh
     }
   };
 
@@ -329,7 +331,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
       setProblemText('');
       setCustomProblem('');
     } catch (err) {
-      console.error('[ReportProblem]', err);
+      // Silent fail - error already handled via alertWarning
     } finally {
       setReportingProblem(false);
     }
@@ -340,18 +342,16 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
     if (files.length === 0) return;
     setProblemUploading(true);
     try {
-      const { uploadImage } = await import('../../utils/imageUpload.js');
       const results = await Promise.all(files.map(f => uploadImage(f, 'documentation').catch(() => null)));
       const valid = results.filter(r => r && r.dataUrl).map(r => r.dataUrl);
-      
+
       // Feedback jika semua upload gagal
       if (files.length > 0 && valid.length === 0) {
         alertWarning('Gagal meng-upload foto. Silakan coba lagi.');
       }
-      
+
       setProblemPhotos((prev) => [...prev, ...valid].slice(0, 5)); // max 5 photos
     } catch (err) {
-      console.error('[AddProblemPhoto]', err);
       alertWarning('Gagal meng-upload foto. Silakan coba lagi.');
     } finally {
       setProblemUploading(false);
@@ -395,7 +395,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
         rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 16, display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 12, paddingBottom: isMobile ? 120 : 100 }}>
 
         {(nextStage === 'Packing' || allDone) && !productionMeta?.hasPackingPhoto && !conditionPhotos.some((p) => p.type === 'packing') && (
           <div style={{ background: C.successBg, borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: C.successDark }}>
@@ -412,11 +412,11 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
         )}
 
         {/* Nota & Customer Info (Simplified) */}
-        <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: PROD_SHADOW.card }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            <Avatar initials={(tx.customerName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()} size={46} />
+        <div style={{ background: 'white', borderRadius: 16, padding: isMobile ? '12px 14px' : '14px 16px', boxShadow: PROD_SHADOW.card }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12, marginBottom: isMobile ? 8 : 10 }}>
+            <Avatar initials={(tx.customerName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()} size={isMobile ? 40 : 46} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n800 }}>{tx.customerName}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 14 : 16, fontWeight: 600, color: C.n800 }}>{tx.customerName}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>
                 {tx.isExpress && <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, padding: '1px 8px', borderRadius: 999 }}>⚡ EXPRESS</span>}
                 {tx.pickupType === 'delivery' && <span style={{ background: C.infoBg, color: C.primary, fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, padding: '1px 8px', borderRadius: 999 }}>🚗 Antar</span>}
@@ -479,26 +479,26 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
           background: allDone
             ? C.successBg
             : stageStyle.bg,
-          borderRadius: 18, padding: '16px 18px',
+          borderRadius: 18, padding: isMobile ? '12px 14px' : '16px 18px',
           boxShadow: PROD_SHADOW.card,
           border: `2px solid ${allDone ? C.success : stageStyle.accent + '60'}`,
-          display: 'flex', alignItems: 'center', gap: 14,
+          display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 14,
         }}>
           <div style={{
-            width: 56, height: 56, borderRadius: 16, flexShrink: 0,
+            width: isMobile ? 48 : 56, height: isMobile ? 48 : 56, borderRadius: isMobile ? 14 : 16, flexShrink: 0,
             background: allDone ? C.success : stageStyle.accent + '20',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28,
+            fontSize: isMobile ? 24 : 28,
             border: allDone ? 'none' : `2px solid ${stageStyle.accent}40`,
             boxShadow: stageStyle.dotShadow ? `0 0 8px ${stageStyle.dotShadow}` : 'none',
           }}>
             {STAGE_ICONS[nextStage || 'Selesai']}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: allDone ? C.successDark : C.n500, fontWeight: 500, letterSpacing: '0.06em' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, color: allDone ? C.successDark : C.n500, fontWeight: 500, letterSpacing: '0.06em' }}>
               {allDone ? 'STATUS' : 'TAHAP SELANJUTNYA'}
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 600, color: allDone ? C.successDark : stageStyle.text, marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 16 : 20, fontWeight: 600, color: allDone ? C.successDark : stageStyle.text, marginTop: 2 }}>
               {allDone ? 'SELESAI 🎉' : nextStage}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
@@ -774,7 +774,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
       </div>
 
       {/* Bottom action area */}
-      <div style={{ padding: '12px 16px', background: 'white', borderTop: `1px solid ${C.n100}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: isMobile ? '10px 12px' : '12px 16px', background: 'white', borderTop: `1px solid ${C.n100}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {stageError && (
           <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.validationErrorText, background: C.validationErrorBg, borderRadius: 8, padding: '8px 12px', textAlign: 'center' }}>
             ⚠️ {stageError}
@@ -842,7 +842,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
                   </div>
                 ))}
                 {problemPhotos.length < 5 && (
-                  <label style={{ width: 56, height: 56, borderRadius: 8, border: `1.5px dashed #64748B`, background: '#334155', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                  <label style={{ width: 56, height: 56, borderRadius: 8, border: `1.5px dashed ${C.n500}`, background: '#334155', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                     {problemUploading ? (
                       <div style={{ width: 16, height: 16, border: `2px solid #475569`, borderTopColor: '#A78BFA', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                     ) : (

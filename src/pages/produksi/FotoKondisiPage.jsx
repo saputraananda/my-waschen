@@ -5,6 +5,7 @@ import { uploadImage } from '../../utils/imageUpload';
 import { TopBar, Btn } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { txApiId } from '../../utils/helpers';
+import { useResponsive } from '../../utils/hooks';
 
 const PHASE_CONFIG = {
   receive: {
@@ -24,6 +25,7 @@ const PHASE_CONFIG = {
 };
 
 export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
+  const { isMobile } = useResponsive();
   const tx = screenParams;
   const phase = screenParams?.photoPhase || 'receive';
   const cfg = PHASE_CONFIG[phase] || PHASE_CONFIG.receive;
@@ -112,8 +114,8 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title={cfg.title} subtitle={tx?.id || cfg.subtitle} onBack={goBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        <div style={{ background: phase === 'receive' ? C.validationInfoBg : C.successBg, borderRadius: 12, padding: '10px 12px', marginBottom: 14, fontFamily: 'Poppins', fontSize: 11, color: phase === 'receive' ? C.validationInfoText : C.successDark }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 16 }}>
+        <div style={{ background: phase === 'receive' ? C.validationInfoBg : C.successBg, borderRadius: 12, padding: '10px 12px', marginBottom: 14, fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, color: phase === 'receive' ? C.validationInfoText : C.successDark }}>
           {phase === 'receive'
             ? '📥 Opsional. Boleh dilewati. Foto ini berguna jika ada catatan kerusakan / noda awal.'
             : '📦 Wajib diisi saat packing / sebelum customer mengambil. Mencegah salah serah barang.'}
@@ -122,22 +124,22 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
         <input type="file" accept="image/*" capture="environment" multiple ref={beforeFileRef} style={{ display: 'none' }} onChange={(e) => handlePhotoUpload(e, 'before')} />
         <input type="file" accept="image/*" capture="environment" multiple ref={afterFileRef} style={{ display: 'none' }} onChange={(e) => handlePhotoUpload(e, 'after')} />
 
-        <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: isMobile ? 10 : 12, marginBottom: 20 }}>
           <button
             onClick={() => beforeFileRef.current?.click()}
             disabled={uploading}
-            style={{ flex: 1, height: 140, borderRadius: 14, border: `2px dashed ${C.primary}`, background: C.white, cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.n600, opacity: uploading ? 0.5 : 1 }}
+            style={{ flex: 1, height: isMobile ? 120 : 140, borderRadius: 14, border: `2px dashed ${C.primary}`, background: C.white, cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.n600, opacity: uploading ? 0.5 : 1 }}
           >
-            <span style={{ fontSize: 28 }}>📷</span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600 }}>{cfg.beforeLabel}</span>
+            <span style={{ fontSize: isMobile ? 24 : 28 }}>📷</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, fontWeight: 600 }}>{cfg.beforeLabel}</span>
           </button>
           <button
             onClick={() => afterFileRef.current?.click()}
             disabled={uploading}
-            style={{ flex: 1, height: 140, borderRadius: 14, border: `2px dashed ${C.n300}`, background: C.white, cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.n600, opacity: uploading ? 0.5 : 1 }}
+            style={{ flex: 1, height: isMobile ? 120 : 140, borderRadius: 14, border: `2px dashed ${C.n300}`, background: C.white, cursor: uploading ? 'not-allowed' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.n600, opacity: uploading ? 0.5 : 1 }}
           >
-            <span style={{ fontSize: 28 }}>📷</span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600 }}>{cfg.afterLabel}</span>
+            <span style={{ fontSize: isMobile ? 24 : 28 }}>📷</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, fontWeight: 600 }}>{cfg.afterLabel}</span>
           </button>
         </div>
 
@@ -166,7 +168,7 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>FOTO ({photos.length})</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {photos.map((p, i) => (
-                <div key={i} style={{ position: 'relative', width: 72, height: 72, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.n200}` }}>
+                <div key={i} style={{ position: 'relative', width: isMobile ? 64 : 72, height: isMobile ? 64 : 72, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.n200}` }}>
                   <img src={p.url} alt={p.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   <button
                     onClick={() => removePhoto(i)}
@@ -201,7 +203,7 @@ export default function FotoKondisiPage({ navigate, goBack, screenParams }) {
         </div>
       </div>
 
-      <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: 10 }}>
+      <div style={{ padding: isMobile ? '10px 12px' : '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', gap: isMobile ? 8 : 10 }}>
         {saved ? (
           <>
             <Btn variant="secondary" onClick={handleAddMore} style={{ flex: 1 }}>+ Tambah Lagi</Btn>

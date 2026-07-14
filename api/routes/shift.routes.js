@@ -20,6 +20,8 @@ import {
   handoverShift,
   acceptHandover,
   getPendingHandover,
+  getMyStats,
+  getMyHistory,
 } from '../controllers/shiftController.js';
 import {
   openSubSession,
@@ -58,6 +60,12 @@ router.get('/outlet-summary', authenticate, getShiftOutletSummary);
 
 // GET /api/shifts/export - Admin: export report
 router.get('/export', authenticate, exportShiftReport);
+
+// GET /api/shifts/my-stats - Stats for profile page (by period)
+router.get('/my-stats', authenticate, getMyStats);
+
+// GET /api/shifts/my-history - Shift history for profile page
+router.get('/my-history', authenticate, getMyHistory);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // HANDOVER ROUTES (Kasir → Produksi)

@@ -4,8 +4,9 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
 import { cache } from '../utils/cache.js';
+import logger from '../utils/logger.js';
 
-const ADMIN_ROLES = ['admin', 'superadmin', 'owner'];
+const ADMIN_ROLES = ['admin'];
 const isAdmin = (role) => ADMIN_ROLES.includes(role);
 
 // In-memory cache untuk hot read (tiap pengeluaran cek kas_minimum_balance)
@@ -58,7 +59,7 @@ export const getSettings = async (req, res) => {
 
     return res.json({ success: true, data: rows });
   } catch (err) {
-    console.error('[getSettings]', err);
+    logger.error('Gagal memuat settings', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat settings.' });
   }
 };
@@ -81,7 +82,7 @@ export const getSettingByKey = async (req, res) => {
     }
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
-    console.error('[getSettingByKey]', err);
+    logger.error('Gagal memuat setting', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat setting.' });
   }
 };
@@ -147,7 +148,7 @@ export const updateSetting = async (req, res) => {
 
     return res.json({ success: true, data: { settingKey: key, settingValue: newValueStr } });
   } catch (err) {
-    console.error('[updateSetting]', err);
+    logger.error('Gagal update setting', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal update setting.' });
   }
 };

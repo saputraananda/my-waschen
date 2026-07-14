@@ -1,175 +1,163 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// KasirDashboardPage.jsx — Redesigned with Responsive Grid Layout
-// Mobile: 1 column stacked │ Desktop: Multi-column packed to top
+// KasirDashboardPage — Premium Glassmorphism + Claymorphism UI
+// Layout: Target Hero → Stat Cards → Status + Target Progress → Charts → Menu Fitur → Transaksi
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { C, T, SHADOW } from '../../utils/theme';
-import { rp } from '../../utils/helpers';
-import { Avatar, Badge, Btn, SectionHeader, useAppRefresh, TransactionMetricsWidget, LowStockAlertWidget } from '../../components/ui';
-import TradingLineChart from '../../components/ui/TradingLineChart';
-import { alertWarning } from '../../utils/alert';
+import { motion, AnimatePresence } from 'framer-motion';
+import { C } from '../../utils/theme';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
 import TodayTargetWidget from '../../components/TodayTargetWidget';
-import { useRealtimeMulti } from '../../utils/realtime';
-import { checkLowBalance } from '../../utils/outletCashApi';
-import { CharacterAvatar } from '../../components/CharacterAvatar';
-import { motion } from 'framer-motion';
+import RevenueTrendChart from '../../components/RevenueTrendChart';
+import TopServicesChart from '../../components/TopServicesChart';
 import {
-  Plus, List, Users, CreditCard, DollarSign, TrendingUp,
-  Clock, ArrowLeftRight, PenLine, Wallet, Package,
-  Bell, FileText, AlertCircle, LayoutGrid, Zap, Check, ChevronRight, X,
+  Plus, Users, Package, Wallet, CreditCard, FileText,
+  TrendingUp, Clock, Check, Bell, ChevronRight, Search,
+  DollarSign, X, ArrowUpRight, ArrowDownRight,
+  Edit3, ArrowLeftRight, Receipt, Sparkles,
+  Zap, AlertTriangle, ShoppingCart, Target, Percent, Home,
+  ArrowRightLeft, FileSignature, Building, ChevronDown
 } from 'lucide-react';
 
-// ─── Premium Animation Assets ───────────────────────────────────────────────
-import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp'
-import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp'
-import soapBubble from '../../assets/Decorative icon/soap-bubble.webp'
-
-// ─── Premium Animation Components ──────────────────────────────────────────────
-const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.5 }) => (
-  <motion.div
-    animate={{
-      y: [0, -20, 0],
-      scale: [1, 1.1, 1],
-      opacity: [opacity * 0.6, opacity, opacity * 0.6],
-    }}
-    transition={{ duration, repeat: Infinity, ease: 'easeInOut', delay }}
-    style={{ position: 'absolute', top, left, right, bottom, width: size, height: size, pointerEvents: 'none', zIndex: 0 }}
-  >
-    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.08))' }} loading="lazy" />
-  </motion.div>
-);
-
-// Sparkle dengan multiple colors dan styles
-const Sparkle = ({ top, left, size = 6, delay = 0, color = '#FFD700' }) => (
-  <motion.div
-    style={{
-      position: 'absolute', top, left, width: size, height: size,
-      pointerEvents: 'none', zIndex: 2,
-    }}
-    animate={{
-      scale: [0, 1.2, 0],
-      opacity: [0, 1, 0],
-      rotate: [0, 180, 360],
-    }}
-    transition={{ duration: 2, delay, repeat: Infinity, ease: 'easeOut' }}
-  >
-    {/* Star shape */}
-    <svg viewBox="0 0 24 24" width={size} height={size} style={{ filter: `drop-shadow(0 0 ${size/2}px ${color})` }}>
-      <path
-        d="M12 0L14.5 9.5L24 12L14.5 14.5L12 24L9.5 14.5L0 12L9.5 9.5L12 0Z"
-        fill={color}
-      />
-    </svg>
-  </motion.div>
-);
-
-// GlowOrb with animation
-const GlowOrb = ({ color = 'rgba(91, 0, 95, 0.08)', size = 200, top, left, right, bottom, blur = 40 }) => (
-  <motion.div
-    animate={{
-      scale: [1, 1.15, 1],
-      opacity: [0.6, 0.8, 0.6],
-    }}
-    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-    style={{
-      position: 'absolute', top, left, right, bottom, width: size, height: size,
-      borderRadius: '50%',
-      background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
-      filter: `blur(${blur}px)`,
-      pointerEvents: 'none', zIndex: 0,
-    }}
-  />
-);
-
-const WIB_FORMATTER = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-const WIB_TIME = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-const SHIFT_LABEL = { pagi: 'Pagi', siang: 'Siang', malam: 'Malam', full: 'Full Day' };
-
-const STATUS_META = {
-  baru: { label: 'Baru', color: C.prosesText, bg: C.prosesBg },
-  diproses: { label: 'Proses', color: C.prosesText, bg: C.prosesBg },
-  selesai: { label: 'Selesai', color: C.success, bg: C.successBg },
-  siap_diambil: { label: 'Siap Ambil', color: C.primary, bg: C.primaryTint },
-  selesai_diambil: { label: 'Diambil', color: C.n600, bg: C.n100 },
-  dibatalkan: { label: 'Batal', color: C.batalText, bg: C.batalBg },
+// ─── Extended Colors ────────────────────────────────────────────────────────
+// Using design tokens from theme.js for consistency
+const COLORS = {
+  ...C,
+  // Brand variants - use theme tokens
+  primaryDark: C.primaryStrong || '#3D0040',
+  primaryTint: C.primarySoft || '#F8F4FF',
+  // Semantic backgrounds
+  successBg: C.successBg || '#D1FAE5',
+  warningBg: C.warningBg || '#FEF3C7',
+  dangerBg: C.dangerBg || '#FEE2E2',
+  infoLight: C.infoBg || '#DBEAFE',
 };
 
-function fmtElapsed(openedAt) {
+// ─── Responsive CSS Variables ───────────────────────────────────────────────
+const getResponsiveStyles = (bp) => {
+  // Breakpoint-based responsive values
+  const spacing = {
+    mobile: { xs: 8, sm: 12, md: 16, lg: 20, xl: 24 },
+    tablet: { xs: 10, sm: 14, md: 18, lg: 22, xl: 28 },
+    desktop: { xs: 12, sm: 16, md: 20, lg: 24, xl: 32 },
+  };
+
+  const fonts = {
+    mobile: { xs: 9, sm: 10, md: 11, lg: 13, xl: 15, xxl: 18, hero: 20 },
+    tablet: { xs: 10, sm: 11, md: 12, lg: 14, xl: 16, xxl: 20, hero: 24 },
+    desktop: { xs: 11, sm: 12, md: 13, lg: 15, xl: 18, xxl: 22, hero: 26 },
+  };
+
+  const radius = {
+    mobile: { sm: 10, md: 14, lg: 18, xl: 22 },
+    tablet: { sm: 12, md: 16, lg: 20, xl: 24 },
+    desktop: { sm: 14, md: 18, lg: 22, xl: 26 },
+  };
+
+  // Determine device type
+  const type = bp.isMobile ? 'mobile' : bp.isTablet ? 'tablet' : 'desktop';
+
+  return {
+    spacing: spacing[type],
+    fonts: fonts[type],
+    radius: radius[type],
+    // Grid columns based on breakpoint
+    statGridCols: bp.isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+    notaGridCols: bp.isMobile ? 'repeat(2, 1fr)' : bp.isTablet ? 'repeat(4, 1fr)' : 'repeat(4, 1fr)',
+    statusTargetCols: bp.isMobile ? '1fr' : '1fr 1fr',
+    chartGridCols: bp.isMobile ? '1fr' : '1fr 1fr',
+    menuGridCols: bp.isMobile ? 'repeat(4, 1fr)' : bp.isTablet ? 'repeat(4, 1fr)' : 'repeat(6, 1fr)',
+    // Content max-width for desktop
+    maxContentWidth: '100%',
+  };
+};
+
+// ─── Claymorphism Card Style ────────────────────────────────────────────────
+const clayCard = (isHero = false, r = { sm: 14, md: 18, lg: 22 }) => ({
+  background: `linear-gradient(145deg, ${C.white}, ${C.primarySoft || '#F8F4FF'})`,
+  borderRadius: isHero ? r.lg : r.md,
+  padding: isHero ? '18px 16px' : '14px',
+  boxShadow: `10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)`,
+  border: `1px solid ${C.primarySoft || 'rgba(139, 92, 246, 0.08)'}`,
+  position: 'relative',
+  overflow: 'hidden',
+});
+
+const clayIcon = (color = COLORS.primary, size = 36) => ({
+  width: size,
+  height: size,
+  borderRadius: 10,
+  background: `linear-gradient(145deg, ${color}20, ${color}10)`,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow: `4px 4px 10px ${color}20, -2px -2px 6px rgba(255, 255, 255, 0.9)`,
+});
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+const rp = (n) => {
+  if (n == null) return 'Rp 0';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency', currency: 'IDR',
+    minimumFractionDigits: 0, maximumFractionDigits: 0
+  }).format(n);
+};
+
+const formatDate = () => {
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const d = new Date();
+  return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+};
+
+const formatTime = () => new Date().toLocaleTimeString('id-ID', {
+  hour: '2-digit', minute: '2-digit'
+});
+
+const fmtElapsed = (openedAt) => {
   if (!openedAt) return '';
   const ms = Date.now() - new Date(openedAt).getTime();
   if (ms < 0) return '';
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   return h > 0 ? `${h}j ${m}m` : `${m}m`;
-}
-
-function fmtTime(v) {
-  if (!v) return '';
-  return new Date(v).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-// ─── Responsive Hook ─────────────────────────────────────────────────────────
-const useResponsive = () => {
-  const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
-  useEffect(() => {
-    const handle = () => setWidth(window.innerWidth);
-    window.addEventListener('resize', handle);
-    return () => window.removeEventListener('resize', handle);
-  }, []);
-  return {
-    isMobile: width < 768,
-    isTablet: width >= 768 && width < 1024,
-    isDesktop: width >= 1024,
-    width,
-  };
 };
 
-// ─── Mini Sparkline Chart ─────────────────────────────────────────────────────
-function MiniSparkline({ data = [], color = '#10B981', width = 80, height = 40 }) {
+const fmtK = (n) => {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}Jt`;
+  if (n >= 1000) return `${(n / 1000).toFixed(0)}Rb`;
+  return n.toString();
+};
+
+// ─── Mini Sparkline Component ───────────────────────────────────────────────
+function MiniSparkline({ data, color = COLORS.primary, height = 32 }) {
   if (!data || data.length < 2) {
-    // Default line if no data
-    return (
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-        <path
-          d={`M0 ${height/2} L${width} ${height/2}`}
-          stroke={color}
-          strokeWidth="2"
-          fill="none"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
+    data = [0, 0];
   }
 
-  const max = Math.max(...data.map(d => typeof d === 'object' ? d.value : d));
-  const min = Math.min(...data.map(d => typeof d === 'object' ? d.value : d));
+  const max = Math.max(...data);
+  const min = Math.min(...data);
   const range = max - min || 1;
+  const width = 70;
 
-  const points = data.map((d, i) => {
-    const val = typeof d === 'object' ? d.value : d;
+  const points = data.map((val, i) => {
     const x = (i / (data.length - 1)) * width;
-    const y = height - ((val - min) / range) * (height - 4) - 2;
+    const y = height - ((val - min) / range) * height * 0.8 - height * 0.1;
     return `${x},${y}`;
   }).join(' ');
-
-  // Create gradient fill
-  const gradientId = `sparkline-grad-${Math.random().toString(36).substr(2, 9)}`;
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        <linearGradient id={`spark-${color.replace('#', '')}`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      {/* Fill */}
       <polygon
         points={`0,${height} ${points} ${width},${height}`}
-        fill={`url(#${gradientId})`}
+        fill={`url(#spark-${color.replace('#', '')})`}
       />
-      {/* Line */}
       <polyline
         points={points}
         fill="none"
@@ -178,1135 +166,1190 @@ function MiniSparkline({ data = [], color = '#10B981', width = 80, height = 40 }
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* End dot */}
-      <circle
-        cx={width}
-        cy={points.split(' ').pop().split(',')[1]}
-        r="3"
-        fill={color}
-      />
     </svg>
   );
 }
 
-// ─── Trend Indicator ───────────────────────────────────────────────────────────
-function TrendIndicator({ value, positive = true }) {
-  const color = positive ? '#10B981' : '#EF4444';
-  const icon = positive ? '↑' : '↓';
-  return (
-    <span style={{
-      fontFamily: 'Poppins',
-      fontSize: 10,
-      fontWeight: 600,
-      color: color,
-      marginLeft: 4,
-    }}>
-      {icon} {value}%
-    </span>
-  );
-}
+// ─── Components ────────────────────────────────────────────────────────────
 
-// ─── Stat Card Component ──────────────────────────────────────────────────────
-function StatCard({ icon, label, value, sublabel, color = '#5B005F', delay = 0, sparklineData = [], trend = 0 }) {
+/** ClayStatCard — Premium Stat Card with Sparkline */
+function ClayStatCard({ icon, label, value, subValue, trend, trendValue, color, sparkData, delay = 0, styles }) {
+  const { fonts, spacing } = styles || {};
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
+      transition={{ delay, duration: 0.3 }}
+      whileHover={{ y: -4, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
       style={{
-        background: 'linear-gradient(145deg, #FFFFFF, #F8F7FC)',
-        borderRadius: 14,
-        padding: '12px 14px',
-        boxShadow: '4px 4px 12px rgba(91, 0, 95, 0.06), -2px -2px 8px rgba(255, 255, 255, 0.95)',
-        border: '1px solid rgba(91, 0, 95, 0.04)',
+        ...clayCard(false, { sm: 14, md: 18, lg: 22 }),
         display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-        minHeight: 90,
+        alignItems: 'stretch',
+        gap: 0,
+        padding: 0,
+        minHeight: 80,
       }}
     >
-      {/* Top row: Icon + Label + Sparkline */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: `linear-gradient(145deg, ${color}15, ${color}08)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {icon}
-          </div>
-          <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: color }}>
-            {label}
-          </span>
+      {/* Main content */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: spacing?.md || 12, padding: `${spacing?.md || 14}px ${spacing?.sm || 12}px` }}>
+        <div style={{ ...clayIcon(color, 36), color, flexShrink: 0 }}>
+          {icon}
         </div>
-        {/* Mini Sparkline */}
-        <MiniSparkline data={sparklineData} color={color} width={60} height={32} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, fontWeight: 600, color: COLORS.n500, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 2 }}>
+            {label}
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: fonts?.lg || 18, fontWeight: 800, color: COLORS.n800, lineHeight: 1.2 }}>
+            {value}
+          </div>
+          {subValue && (
+            <div style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n500, marginTop: 2 }}>{subValue}</div>
+          )}
+        </div>
       </div>
 
-      {/* Value with trend */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-        <span style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: '#1E293B', letterSpacing: '-0.5px' }}>
-          {value}
-        </span>
-        {trend !== 0 && <TrendIndicator value={Math.abs(trend)} positive={trend > 0} />}
+      {/* Right side: Trend badge + Sparkline stacked */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        padding: `${spacing?.sm || 10}px ${spacing?.sm || 12}px ${spacing?.sm || 10}px 0`,
+        minWidth: 90,
+      }}>
+        {trend !== undefined && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: delay + 0.1 }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 2,
+              padding: '3px 8px', borderRadius: 999,
+              background: trend >= 0 ? COLORS.successBg : COLORS.dangerBg,
+              color: trend >= 0 ? COLORS.success : COLORS.danger,
+              fontFamily: 'Poppins',
+              fontSize: fonts?.xs || 10, fontWeight: 600,
+            }}
+          >
+            {trend >= 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+            {trendValue !== undefined ? trendValue : Math.abs(trend)}
+          </motion.div>
+        )}
+        <div style={{ marginTop: 'auto' }}>
+          <MiniSparkline data={sparkData} color={color} height={32} />
+        </div>
       </div>
-
-      {/* Sublabel */}
-      {sublabel && (
-        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: '#94A3B8' }}>{sublabel}</div>
-      )}
     </motion.div>
   );
 }
 
-// ─── Quick Action Button ──────────────────────────────────────────────────────
-function QuickAction({ label, icon, color, badge, onClick, cols = 2 }) {
+/** ClayMenuBtn — Premium Menu Button */
+function ClayMenuBtn({ icon, label, color, badge, onClick, index = 0, styles }) {
+  const { fonts, spacing, radius } = styles || {};
+
   return (
     <motion.button
       onClick={onClick}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: index * 0.03 }}
       whileHover={{ y: -3, scale: 1.02 }}
-      whileTap={{ scale: 0.96 }}
+      whileTap={{ scale: 0.97 }}
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        padding: '12px 8px',
-        borderRadius: 14,
-        background: 'linear-gradient(145deg, #FFFFFF, #F4EDF4)',
-        border: '1.5px solid rgba(91, 0, 95, 0.06)',
-        cursor: 'pointer',
-        boxShadow: '5px 5px 12px rgba(91, 0, 95, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)',
-        position: 'relative',
-        overflow: 'hidden',
-        transition: 'all 0.2s ease',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        gap: 6, padding: `${spacing?.sm || 10}px ${spacing?.xs || 6}px`,
+        background: `linear-gradient(145deg, ${C.white}, ${C.primarySoft || '#F8F4FF'})`,
+        border: `1.5px solid rgba(139, 92, 246, 0.08)`,
+        borderRadius: radius?.md || 14, cursor: 'pointer',
+        boxShadow: `4px 4px 12px rgba(110, 46, 120, 0.06), -2px -2px 8px rgba(255, 255, 255, 0.95)`,
+        minHeight: 80,
       }}
     >
+      {badge > 0 && (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          style={{
+            position: 'absolute', top: -4, right: -4,
+            background: `linear-gradient(135deg, ${C.danger}, ${C.danger})`,
+            color: 'white', fontFamily: 'Poppins',
+            fontSize: 8, fontWeight: 700,
+            padding: '1px 5px', borderRadius: 999,
+            boxShadow: '0 2px 4px rgba(239,68,68,0.4)',
+          }}
+        >
+          {badge > 99 ? '99+' : badge}
+        </motion.div>
+      )}
       <div style={{
-        position: 'absolute',
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: `linear-gradient(145deg, ${color}08, ${color}03)`,
-        opacity: 0,
-        transition: 'opacity 0.2s',
-      }} />
-      <div style={{ position: 'relative' }}>
-        <div style={{
-          width: 42, height: 42, borderRadius: 12,
-          background: `linear-gradient(145deg, ${color}18, ${color}08)`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: color,
-          boxShadow: `3px 3px 10px ${color}18, -2px -2px 5px rgba(255, 255, 255, 0.9)`,
-        }}>
-          {icon}
-        </div>
-        {badge && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            style={{
-              position: 'absolute', top: -6, right: -6,
-              minWidth: 20, height: 20, borderRadius: 10,
-              background: 'linear-gradient(145deg, #F93E11, #FA6541)',
-              border: '2px solid white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 4px',
-              boxShadow: '0 4px 8px rgba(249, 62, 17, 0.4)',
-            }}
-          >
-            <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: 'white' }}>{badge}</span>
-          </motion.div>
-        )}
+        width: 36, height: 36, borderRadius: 10,
+        background: `linear-gradient(145deg, ${color}20, ${color}08)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: color,
+        boxShadow: `3px 3px 8px ${color}15, -1px -1px 4px rgba(255, 255, 255, 0.9)`,
+      }}>
+        {icon}
       </div>
-      <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n800, textAlign: 'center', position: 'relative' }}>
+      <span style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 9, fontWeight: 600, color: COLORS.n700, textAlign: 'center', lineHeight: 1.2 }}>
         {label}
       </span>
     </motion.button>
   );
 }
 
-// ─── Transaction Card ──────────────────────────────────────────────────────────
-function TransactionCard({ tx, onClick, delay = 0 }) {
-  const sm = STATUS_META[tx.status] || { label: tx.status, color: C.n600, bg: C.n100 };
-  const initials = tx.customerName?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '??';
-  const statusAccent = sm.accent || '#5B005F';
+/** Period Selector Button */
+function PeriodSelector({ value, onChange, options, styles }) {
+  return (
+    <div style={{
+      display: 'flex',
+      background: 'linear-gradient(145deg, #F4EDF4, #E6D9E7)',
+      borderRadius: 10,
+      padding: 2,
+      gap: 2,
+    }}>
+      {options.map(opt => (
+        <motion.button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            padding: '4px 10px',
+            borderRadius: 8,
+            border: 'none',
+            background: value === opt.value
+              ? `linear-gradient(145deg, ${C.primaryStrong || '#5B005F'}, ${C.primaryHover || '#8C4C8F'})`
+              : 'transparent',
+            color: value === opt.value ? 'white' : COLORS.n600,
+            fontFamily: 'Poppins',
+            fontSize: 10, fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          {opt.label}
+        </motion.button>
+      ))}
+    </div>
+  );
+}
+
+/** ClayProgressBar — Premium Progress Bar */
+function ClayProgressBar({ value, max, color = COLORS.primary, styles }) {
+  const { fonts } = styles || {};
+  const percent = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n500 }}>{rp(value)}</span>
+        <span style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, fontWeight: 600, color }}>{percent.toFixed(0)}%</span>
+      </div>
+      <div style={{
+        height: 8, borderRadius: 999,
+        background: `${color}15`, overflow: 'hidden',
+      }}>
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${percent}%` }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          style={{
+            height: '100%', borderRadius: 999,
+            background: `linear-gradient(90deg, ${color}, ${color}dd)`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** ClayTransactionRow — Premium Transaction Row */
+function ClayTransactionRow({ tx, onClick, index = 0, styles }) {
+  const { fonts, spacing } = styles || {};
+  const statusConfig = {
+    paid: { bg: C.success, label: 'Lunas' },
+    partial: { bg: C.warning, label: 'DP' },
+    unpaid: { bg: '#6B7280', label: 'Nanti' },
+  };
+  const status = statusConfig[tx.paymentStatus] || statusConfig.unpaid;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
-      whileHover={{ y: -2, scale: 1.01 }}
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.04 }}
+      onClick={onClick}
+      whileHover={{ x: 4, backgroundColor: `${C.primarySoft || '#F8F4FF'}` }}
       whileTap={{ scale: 0.99 }}
-      onClick={() => onClick(tx)}
       style={{
-        background: 'linear-gradient(145deg, #FFFFFF, #F4EDF4)',
-        borderRadius: 16,
-        padding: '12px 14px',
-        boxShadow: '6px 6px 16px rgba(91, 0, 95, 0.08), -3px -3px 10px rgba(255, 255, 255, 0.95)',
+        display: 'flex', alignItems: 'center', gap: spacing?.md || 12,
+        padding: `${spacing?.md || 12}px ${spacing?.md || 14}px`,
+        background: `linear-gradient(145deg, ${C.white}, ${C.primarySoft || '#F8F4FF'})`,
+        borderRadius: 14,
         cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        border: '1px solid rgba(91, 0, 95, 0.04)',
-        borderLeft: `3px solid ${statusAccent}`,
+        boxShadow: `4px 4px 10px rgba(110, 46, 120, 0.06), -2px -2px 8px rgba(255, 255, 255, 0.95)`,
+        border: `1px solid rgba(139, 92, 246, 0.06)`,
       }}
     >
       <div style={{
-        width: 42, height: 42, borderRadius: 12,
-        background: `linear-gradient(145deg, ${statusAccent}20, ${statusAccent}08)`,
-        border: `1px solid ${statusAccent}30`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}>
-        <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: statusAccent }}>{initials}</span>
+        width: 10, height: 10, borderRadius: '50%',
+        background: status.bg, flexShrink: 0,
+        boxShadow: `0 0 8px ${status.bg}50`,
+      }} />
+      <div style={{ width: 80, flexShrink: 0 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.sm || 11, fontWeight: 600, color: COLORS.n800 }}>
+          #{tx.id?.slice(-6) || tx.id}
+        </div>
+        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n500 }}>{tx.time || '08:30'}</div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {tx.customerName}
-          </span>
-          <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: '#5B005F', flexShrink: 0 }}>{rp(tx.total)}</span>
+        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.md || 12, fontWeight: 600, color: COLORS.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {tx.customerName}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>#{tx.id}</span>
-          {tx.items?.some((i) => i.express) && (
-            <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontFamily: 'Poppins', fontSize: 8, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⚡</span>
-          )}
-          <span style={{
-            fontFamily: 'Poppins',
-            fontSize: 9,
-            fontWeight: 600,
-            color: sm.color,
-            background: sm.bg,
-            padding: '2px 8px',
-            borderRadius: 999,
-          }}>{sm.label}</span>
+        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n500 }}>
+          {tx.services || '1 layanan'} {tx.items ? `• ${tx.items} item` : ''}
         </div>
       </div>
-      <ChevronRight size={16} color={statusAccent} style={{ flexShrink: 0 }} />
+      <div style={{
+        padding: '3px 10px', borderRadius: 8,
+        background: status.bg, color: 'white',
+        fontFamily: 'Poppins',
+        fontSize: fonts?.xs || 9, fontWeight: 600, flexShrink: 0,
+      }}>
+        {status.label}
+      </div>
+      <div style={{ width: 75, textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.md || 12, fontWeight: 700, color: COLORS.n800 }}>{rp(tx.total)}</div>
+      </div>
+      <ChevronRight size={16} color={COLORS.n400} style={{ flexShrink: 0 }} />
     </motion.div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-export default function KasirDashboardPage({ user, navigate }) {
-  const { isMobile, isTablet, isDesktop } = useResponsive();
+// ─── Mini Line Chart ────────────────────────────────────────────────────────
+function MiniLineChart({ data, color = COLORS.primary }) {
+  if (!data || data.length === 0 || data.every(v => v === 0)) {
+    // Flat line when no data
+    return (
+      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line x1="0" y1="90" x2="100" y2="90" stroke={color} strokeWidth="2" strokeDasharray="5,5" opacity="0.3" />
+        <text x="50" y="55" textAnchor="middle" fill={COLORS.n400} fontSize="10" fontFamily="Poppins">Tidak ada data</text>
+      </svg>
+    );
+  }
 
-  const [stats, setStats] = useState({ total: 0, omset: 0, totalPelunasan: 0, express: 0, pending: 0, completed: 0 });
-  const [activeQueue, setActiveQueue] = useState({ total: 0, process: 0, ready: 0 });
-  const [recent, setRecent] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [target, setTarget] = useState(null);
-  const [periodAlert, setPeriodAlert] = useState(null);
-  const [alertDismissed, setAlertDismissed] = useState(false);
-  const [clock, setClock] = useState(() => {
-    const n = new Date();
-    return { date: WIB_FORMATTER.format(n), time: WIB_TIME.format(n) };
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const width = 100;
+  const height = 100;
+
+  const points = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((val - min) / range) * height * 0.85 - height * 0.05;
+    return `${x},${y}`;
+  }).join(' ');
+
+  // Add dots for each point
+  const dots = data.map((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((val - min) / range) * height * 0.85 - height * 0.05;
+    return <circle key={i} cx={x} cy={y} r="3" fill={color} />;
   });
+
+  return (
+    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`chart-grad-${color.replace('#', '')}`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <polygon
+        points={`0,${height} ${points} ${width},${height}`}
+        fill={`url(#chart-grad-${color.replace('#', '')})`}
+      />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {dots}
+    </svg>
+  );
+}
+
+// ─── Donut Chart ────────────────────────────────────────────────────────────
+function DonutChart({ data, loading, styles }) {
+  const { fonts } = styles || {};
+  // Color palette for payment methods
+  const paymentColors = {
+    Tunai: COLORS.success,
+    QRIS: COLORS.info,
+    Deposit: COLORS.warning,
+    EDC: COLORS.n500,
+    Transfer: C.primaryHover,
+    Lainnya: COLORS.n400,
+  };
+
+  // Map API data to chart format with fallback colors
+  const chartData = data && data.length > 0
+    ? data.map(item => ({
+        ...item,
+        color: item.color || paymentColors[item.label] || COLORS.primary,
+      }))
+    : null;
+
+  const total = chartData?.reduce((sum, d) => sum + (d.value || 0), 0) || 0;
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <div style={{
+          fontFamily: 'Poppins', fontSize: fonts?.sm || 11, color: COLORS.n400,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <div style={{
+            width: 16, height: 16, borderRadius: '50%',
+            border: '2px solid ' + COLORS.n200,
+            borderTopColor: COLORS.primary,
+            animation: 'spin 1s linear infinite',
+          }} />
+          Memuat...
+        </div>
+      </div>
+    );
+  }
+
+  if (!chartData || chartData.length === 0 || total === 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 8 }}>
+        <span style={{ fontSize: 24 }}>📊</span>
+        <span style={{ fontFamily: 'Poppins', fontSize: fonts?.sm || 11, color: COLORS.n400 }}>Belum ada data</span>
+      </div>
+    );
+  }
+
+  let currentAngle = -90;
+
+  const segments = chartData.map(item => {
+    const angle = ((item.value || 0) / total) * 360;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + angle;
+    currentAngle = endAngle;
+
+    const x1 = 50 + 40 * Math.cos((startAngle * Math.PI) / 180);
+    const y1 = 50 + 40 * Math.sin((startAngle * Math.PI) / 180);
+    const x2 = 50 + 40 * Math.cos((endAngle * Math.PI) / 180);
+    const y2 = 50 + 40 * Math.sin((endAngle * Math.PI) / 180);
+
+    const largeArc = angle > 180 ? 1 : 0;
+
+    return { ...item, path: `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z` };
+  });
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, height: '100%' }}>
+      <svg viewBox="0 0 100 100" style={{ width: 100, height: 100, flexShrink: 0 }}>
+        {segments.map((seg, i) => (
+          <path key={i} d={seg.path} fill={seg.color} />
+        ))}
+        <circle cx="50" cy="50" r="25" fill="white" />
+      </svg>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {segments.map((seg, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: seg.color, flexShrink: 0 }} />
+            <span style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n600, flex: 1 }}>{seg.label}</span>
+            <span style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, fontWeight: 600, color: COLORS.n800 }}>{seg.value}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Dashboard ────────────────────────────────────────────────────────
+export default function KasirDashboardPage({ user, navigate }) {
+  // Responsive hooks
+  const bp = useResponsive();
+  const { width } = useWindowSize();
+  const styles = getResponsiveStyles(bp);
+
+  const [stats, setStats] = useState({
+    total: 0, omset: 0, target: 5000000, completed: 0,
+    express: 0, pending: 0, customers: 0, lunasRate: 82,
+    targetMonth: 40000000, omsetMonth: 0,
+    // Nota count stats
+    notaCount: {
+      dibuat: 0, lunas: 0, dp: 0, selesai: 0
+    },
+    timeMetrics: { avgProcessingHours: 0, oldestWaitingHours: 0, expressProcessing: 0, overduePickup: 0 },
+  });
+  const [recent, setRecent] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [shift, setShift] = useState(null);
-  const [elapsed, setElapsed] = useState('');
-  const [lowBalanceAlert, setLowBalanceAlert] = useState(null);
-  const [chartData, setChartData] = useState([]);
+  const [clock, setClock] = useState({ date: formatDate(), time: formatTime() });
 
-  // ── Top Up: customer picker ──
-  const [topupSheet, setTopupSheet] = useState(false);
-  const [topupSearch, setTopupSearch] = useState('');
-  const [topupFilter, setTopupFilter] = useState('all');
-  const [topupList, setTopupList] = useState([]);
-  const [topupLookup, setTopupLookup] = useState([]);
-  const [topupLoading, setTopupLoading] = useState(false);
-  const [topupSearching, setTopupSearching] = useState(false);
-  const topupDebounce = useRef(null);
+  // Sparkline data from API
+  const [sparkData, setSparkData] = useState({
+    omset: null,
+    transaksi: null,
+    selesai: null,
+    target: null,
+  });
 
-  const TOPUP_FILTERS = [
-    { key: 'all', label: 'Semua', icon: '👥' },
-    { key: 'member', label: 'Member', icon: '⭐' },
-    { key: 'has_deposit', label: 'Ada Saldo', icon: '💰' },
+  // Chart data with period
+  const [chartPeriod, setChartPeriod] = useState('7d');
+  const [paymentPeriod, setPaymentPeriod] = useState('7d');
+  const [chartData, setChartData] = useState({
+    revenue: { '7d': null, '14d': null, '30d': null },
+    payment: { '7d': null, '14d': null, '30d': null },
+  });
+  const [chartLoading, setChartLoading] = useState(false);
+
+  // Menu Items - all operational features
+  const MENU_ITEMS = [
+    // Transaction
+    { key: 'nota', label: 'Nota Baru', icon: <Plus size={16} />, color: COLORS.primary, category: 'Transaksi' },
+    { key: 'customer', label: 'Customer', icon: <Users size={16} />, color: COLORS.info, category: 'Transaksi' },
+    { key: 'topup', label: 'Top Up', icon: <CreditCard size={16} />, color: COLORS.success, category: 'Operasional' },
+    // Inventory & Stock
+    { key: 'inventory', label: 'Inventory', icon: <Package size={16} />, color: COLORS.primaryHover, category: 'Inventory' },
+    { key: 'adjustment', label: 'Koreksi Nota', icon: <Edit3 size={16} />, color: COLORS.warning, category: 'Operasional' },
+    // Financial
+    { key: 'kas', label: 'Kas Outlet', icon: <Wallet size={16} />, color: COLORS.info, category: 'Keuangan' },
+    { key: 'piutang', label: 'Piutang', icon: <TrendingUp size={16} />, color: COLORS.danger, category: 'Keuangan' },
+    { key: 'pettycash', label: 'Petty Cash', icon: <DollarSign size={16} />, color: '#EC4899', category: 'Keuangan' },
+    // Operations
+    { key: 'merge', label: 'Gabung Nota', icon: <ArrowRightLeft size={16} />, color: COLORS.success, category: 'Operasional' },
+    { key: 'ap', label: 'Pengajuan AP', icon: <Receipt size={16} />, color: COLORS.warning, category: 'Operasional' },
+    // Reports & Admin
+    { key: 'laporan', label: 'Laporan', icon: <FileText size={16} />, color: '#64748B', category: 'Laporan' },
+    { key: 'shift', label: 'Shift', icon: <Clock size={16} />, color: '#6B7280', category: 'Laporan' },
   ];
 
-  const openTopupSheet = () => {
-    if (!shiftOpen) {
-      alertWarning('Buka shift dulu sebelum melakukan Top Up deposit.', { title: '⚠️ Shift Belum Aktif' });
-      navigate('kasir_shift');
-      return;
-    }
-    setTopupSearch('');
-    setTopupFilter('all');
-    setTopupLookup([]);
-    setTopupSheet(true);
-    setTopupLoading(true);
-    axios.get('/api/customers?limit=300&sort=name_asc')
-      .then((r) => setTopupList(r?.data?.data || []))
-      .catch(() => setTopupList([]))
-      .finally(() => setTopupLoading(false));
-  };
-
+  // Clock
   useEffect(() => {
-    if (!topupSheet) return;
-    clearTimeout(topupDebounce.current);
-    if (!topupSearch.trim()) {
-      setTopupLookup([]);
-      setTopupSearching(false);
-      return;
-    }
-    topupDebounce.current = setTimeout(async () => {
-      setTopupSearching(true);
-      try {
-        const res = await axios.get(`/api/customers/lookup?q=${encodeURIComponent(topupSearch)}&limit=30`);
-        setTopupLookup(res?.data?.data || []);
-      } catch { setTopupLookup([]); }
-      finally { setTopupSearching(false); }
-    }, 250);
-    return () => clearTimeout(topupDebounce.current);
-  }, [topupSearch, topupSheet]);
-
-  const topupDisplayList = useMemo(() => {
-    let base = topupSearch.trim() ? topupLookup : topupList;
-    if (topupFilter === 'member') {
-      base = base.filter((c) => c.isMember || c.membershipStatus === 'active');
-    } else if (topupFilter === 'has_deposit') {
-      base = base.filter((c) => Number(c.depositBalance ?? c.deposit ?? 0) > 0);
-    }
-    return base;
-  }, [topupSearch, topupLookup, topupList, topupFilter]);
-
-  const selectTopupCustomer = (c) => {
-    setTopupSheet(false);
-    navigate('topup_deposit', c);
-  };
-
-  useEffect(() => {
-    const tick = () => {
-      const n = new Date();
-      setClock({ date: WIB_FORMATTER.format(n), time: WIB_TIME.format(n) });
-      if (shift?.isOpen && shift.session?.openedAt) setElapsed(fmtElapsed(shift.session.openedAt));
-    };
+    const tick = () => setClock({ date: formatDate(), time: formatTime() });
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [shift]);
+  }, []);
 
-  const loadDashboard = async () => {
-    setLoading(true);
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-
-      const [resStats, resShift, resTarget] = await Promise.all([
-        axios.get('/api/transactions/dashboard/stats'),
-        axios.get('/api/shifts/status'),
-        axios.get('/api/targets/progress').catch(() => null),
-      ]);
-      if (resStats?.data?.data) {
-        setStats(resStats.data.data.today);
-        setActiveQueue(resStats.data.data.active || { total: 0, process: 0, ready: 0 });
-        setRecent(resStats.data.data.recent || []);
-      }
-      if (resShift?.data?.success !== false) setShift(resShift.data);
-      if (resTarget?.data?.data) setTarget(resTarget.data.data);
+  // Load data
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
       try {
-        const resPeriod = await axios.get('/api/periods/current');
-        const pd = resPeriod?.data?.data;
-        if (pd && !pd.alreadyClosed && pd.daysLeft <= 3) {
-          const dismissKey = `period_alert_dismissed_${pd.periodStart}`;
-          if (!sessionStorage.getItem(dismissKey)) setPeriodAlert(pd);
+        const [statsRes, shiftRes, sparkRes, targetRes] = await Promise.all([
+          axios.get('/api/transactions/dashboard/stats').catch(() => null),
+          axios.get('/api/shifts/status').catch(() => null),
+          axios.get('/api/dashboard/sparkline?days=7').catch(() => null),
+          axios.get('/api/targets/today-summary').catch(() => null),
+        ]);
+
+        if (statsRes?.data?.data) {
+          const d = statsRes.data.data;
+          // Calculate lunas rate
+          const lunasRate = d.today?.omset > 0 && d.today?.omsetLunas > 0
+            ? Math.round((d.today.omsetLunas / d.today.omset) * 100)
+            : 0;
+          // Calculate DP count (transactions with partial payment)
+          const dpCount = d.today?.total > 0 ? Math.max(0, d.today.total - (d.today.completed || 0) - (d.today.pending || 0)) : 0;
+
+          setStats(prev => ({
+            ...prev,
+            total: d.today?.total || 0,
+            omset: d.today?.omset || 0,
+            target: targetRes?.data?.data?.dailyTarget || 5000000,
+            targetMonth: targetRes?.data?.data?.monthlyTarget || 40000000,
+            omsetMonth: targetRes?.data?.data?.monthActual || 0,
+            express: d.today?.express || 0,
+            pending: d.today?.pending || 0,
+            completed: d.today?.completed || 0,
+            lunasRate: lunasRate || 82,
+            notaCount: {
+              dibuat: d.today?.total || 0,
+              lunas: d.today?.completed || 0,
+              dp: dpCount,
+              selesai: d.today?.completed || 0,
+            },
+            timeMetrics: d.timeMetrics || { avgProcessingHours: 0, oldestWaitingHours: 0, expressProcessing: 0, overduePickup: 0 },
+          }));
+          setRecent(d.recent || []);
         }
-      } catch (_) { }
-      try {
-        const lbData = await checkLowBalance();
-        if (lbData?.isLow) setLowBalanceAlert(lbData);
-        else setLowBalanceAlert(null);
-      } catch (_) {}
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (shiftRes?.data) setShift(shiftRes.data);
 
-  useEffect(() => { loadDashboard(); }, []);
-  useAppRefresh(() => loadDashboard(), []);
-  useRealtimeMulti(['transaction:checkout', 'payment:settled', 'cash:low'], () => { loadDashboard(); });
+        // Sparkline data
+        if (sparkRes?.data?.data) {
+          setSparkData({
+            omset: sparkRes.data.data.omset || null,
+            transaksi: sparkRes.data.data.transaksi || null,
+            selesai: sparkRes.data.data.selesai || null,
+            target: sparkRes.data.data.target || null,
+          });
+        } else {
+          setSparkData({
+            omset: stats.omset > 0 ? [stats.omset * 0.6, stats.omset * 0.8, stats.omset * 0.7, stats.omset * 0.9, stats.omset] : null,
+            transaksi: stats.total > 0 ? [Math.round(stats.total * 0.6), Math.round(stats.total * 0.8), Math.round(stats.total * 0.7), Math.round(stats.total * 0.9), stats.total] : null,
+            selesai: stats.completed > 0 ? [Math.round(stats.completed * 0.6), Math.round(stats.completed * 0.8), Math.round(stats.completed * 0.7), Math.round(stats.completed * 0.9), stats.completed] : null,
+            target: stats.target > 0 ? [stats.omset / stats.target * 0.6, stats.omset / stats.target * 0.8, stats.omset / stats.target * 0.7, stats.omset / stats.target * 0.9, stats.omset / stats.target] : null,
+          });
+        }
+      } catch (err) { console.error('Error loading dashboard data:', err); }
+      finally { setLoading(false); }
+    };
+    load();
+  }, []);
+
+  // Fetch chart data with periods
+  useEffect(() => {
+    const fetchCharts = async () => {
+      setChartLoading(true);
+      try {
+        const [revenueRes, paymentRes] = await Promise.all([
+          axios.get(`/api/transactions/dashboard/revenue-trend?days=${chartPeriod === '7d' ? 7 : chartPeriod === '14d' ? 14 : 30}`).catch(() => null),
+          axios.get(`/api/transactions/dashboard/payment-methods?days=${paymentPeriod === '7d' ? 7 : paymentPeriod === '14d' ? 14 : 30}`).catch(() => null),
+        ]);
+
+        // Process revenue data
+        if (revenueRes?.data?.data) {
+          const revenue = Array.isArray(revenueRes.data.data)
+            ? revenueRes.data.data.map(d => d.revenue)
+            : revenueRes.data.data;
+          setChartData(prev => ({
+            ...prev,
+            revenue: { ...prev.revenue, [chartPeriod]: revenue }
+          }));
+        }
+
+        // Process payment data - API returns {success, data: [...]} format
+        if (paymentRes?.data?.data) {
+          setChartData(prev => ({
+            ...prev,
+            payment: { ...prev.payment, [paymentPeriod]: paymentRes.data.data }
+          }));
+        }
+      } catch (err) { console.error('Error fetching chart data:', err); }
+      finally { setChartLoading(false); }
+    };
+    fetchCharts();
+  }, [chartPeriod, paymentPeriod]);
 
   const shiftOpen = shift?.isOpen || shift?.bypass;
+  const shiftElapsed = shift?.session?.openedAt ? fmtElapsed(shift.session.openedAt) : '';
 
-  // Responsive grid columns
-  const statsCols = isDesktop ? 4 : isTablet ? 4 : 2;
-  // Responsive grid columns - 8 quick actions: 4 cols on desktop/tablet, 2 on mobile
-  const quickCols = isDesktop ? 4 : isTablet ? 4 : 2;
-  const txCols = isDesktop ? 3 : isTablet ? 2 : 1;
-
-  const QUICK = [
-    { label: 'Nota Baru', icon: <Plus size={22} />, action: () => shiftOpen ? navigate('nota_step1') : navigate('kasir_shift'), color: C.primary },
-    { label: 'Antrian', icon: <List size={22} />, action: () => navigate('transaksi'), color: C.primary, badge: activeQueue.total > 0 ? activeQueue.total : null },
-    { label: 'Customer', icon: <Users size={22} />, action: () => navigate('customer'), color: '#6366F1' },
-    { label: 'Top Up', icon: <CreditCard size={22} />, action: () => openTopupSheet(), color: '#EC4899' },
-    { label: 'Setor Tunai', icon: <DollarSign size={22} />, action: () => navigate('setor_tunai'), color: C.success },
-    { label: 'Laporan', icon: <TrendingUp size={22} />, action: () => navigate('kasir_laporan'), color: '#7C3AED' },
-    { label: 'Buka/Oper Shift', icon: <ArrowLeftRight size={22} />, action: () => navigate('oper_shift'), color: '#7C3AED' },
-    { label: 'Shift', icon: <Clock size={22} />, action: () => navigate('kasir_shift'), color: C.warning },
-  ];
-
-  // Grid template for stats
-  const statsGridStyle = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: 10,
+  const goTo = (key) => {
+    const routes = {
+      nota: () => shiftOpen ? navigate('nota_step1') : navigate('kasir_shift'),
+      customer: () => navigate('customer'),
+      inventory: () => navigate('kasir_stok_bahan'),
+      kas: () => navigate('kas_outlet'),
+      piutang: () => navigate('outstanding_list'),
+      pettycash: () => navigate('petty_cash'),
+      laporan: () => navigate('kasir_laporan'),
+      shift: () => navigate('kasir_shift'),
+      topup: () => navigate('topup'),
+      adjustment: () => navigate('adjustment_list'),
+      merge: () => navigate('merge_transaction'),
+      ap: () => navigate('ap_request'),
+    };
+    routes[key]?.();
   };
 
-  // Grid template for quick actions - more compact
-  const quickGridStyle = {
-    display: 'grid',
-    gridTemplateColumns: `repeat(${quickCols}, 1fr)`,
-    gap: 8,
+  const targetHariPercent = stats.target > 0 ? Math.round((stats.omset / stats.target) * 100) : 0;
+  const targetBulanPercent = stats.targetMonth > 0 ? Math.round((stats.omsetMonth / stats.targetMonth) * 100) : 0;
+
+  // Get revenue data for current period
+  const getRevenueData = () => {
+    const data = chartData.revenue[chartPeriod];
+    if (data && data.length > 0) return data;
+    // Show flat line if no data
+    return [0];
   };
 
-  // Grid template for transactions
-  const txGridStyle = {
-    display: 'grid',
-    gridTemplateColumns: txCols === 1 ? '1fr' : `repeat(${txCols}, 1fr)`,
-    gap: 10,
+  // Get payment data for current period
+  const getPaymentData = () => {
+    const data = chartData.payment[paymentPeriod];
+    if (data && data.length > 0) return data;
+    return null;
   };
+
+  // Component styles object for passing responsive values
+  const componentStyles = { fonts: styles.fonts, spacing: styles.spacing, radius: styles.radius };
 
   return (
-    <>
+    <div style={{
+      flex: 1,
+      width: '100%',
+      overflowY: 'auto',
+      paddingBottom: bp.isMobile ? 120 : 100,
+      background: `linear-gradient(180deg, ${C.primarySoft || '#F8F4FF'} 0%, #F1F5F9 50%, #E8EEF5 100%)`,
+      margin: 0,
+    }}>
+
+      {/* ── PREMIUM HEADER - Ultra Aesthetic Cosmic Theme ── */}
       <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        background: 'linear-gradient(180deg, #F8F4FF 0%, #F1F5F9 50%, #E8EEF5 100%)',
-        minHeight: '100vh',
+        background: `
+          radial-gradient(circle at 85% -10%, rgba(232,90,168,0.55) 0%, transparent 55%),
+          radial-gradient(circle at -10% 20%, rgba(95,217,174,0.25) 0%, transparent 45%),
+          linear-gradient(155deg, #3B0B47 0%, #5C1A6B 55%, #4A1259 100%)
+        `,
+        padding: `${styles.spacing.lg}px ${styles.spacing.md}px 44px`,
+        position: 'relative',
+        overflow: 'hidden',
+        minHeight: 220,
       }}>
 
-        {/* ── HEADER ── */}
+        {/* ── BACKGROUND GRID PATTERN ── */}
         <div style={{
-          background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
-          padding: isDesktop ? '24px 32px' : isTablet ? '20px 24px' : '20px 20px',
-          position: 'relative',
-          overflow: 'hidden',
+          position: 'absolute', inset: 0,
+          backgroundImage: `radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 1px)`,
+          backgroundSize: '30px 30px',
+          pointerEvents: 'none',
+        }} />
+
+        {/* ── LARGE AMBIENT ORB (header::after style) ── */}
+        <div style={{
+          position: 'absolute',
+          width: 260, height: 260, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.06)',
+          top: -120, right: -80,
+          filter: 'blur(2px)',
+          animation: 'floatA 14s ease-in-out infinite',
+          pointerEvents: 'none',
+        }} />
+
+        {/* ── BLOB 1 - Magenta Top Right ── */}
+        <div style={{
+          position: 'absolute',
+          width: 180, height: 180, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(232,90,168,0.55) 0%, transparent 70%)',
+          top: -60, right: -40,
+          filter: 'blur(18px)',
+          animation: 'floatB 11s ease-in-out infinite',
+          pointerEvents: 'none',
+        }} />
+
+        {/* ── BLOB 2 - Mint Bottom Left ── */}
+        <div style={{
+          position: 'absolute',
+          width: 150, height: 150, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(95,217,174,0.35) 0%, transparent 70%)',
+          bottom: 20, left: -50,
+          filter: 'blur(18px)',
+          animation: 'floatC 16s ease-in-out infinite',
+          pointerEvents: 'none',
+        }} />
+
+        {/* ── BLOB 3 - White Subtle Center ── */}
+        <div style={{
+          position: 'absolute',
+          width: 90, height: 90, borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%)',
+          top: 40, left: '55%',
+          filter: 'blur(18px)',
+          animation: 'floatA 9s ease-in-out infinite',
+          pointerEvents: 'none',
+        }} />
+
+        {/* ── SPARKLES - 4 Stars with twinkle ── */}
+        <div className="sparkle" style={{ width: 14, top: 24, right: 70, animationDelay: '0s' }}>
+          <svg viewBox="0 0 24 24"><path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8 Z"/></svg>
+        </div>
+        <div className="sparkle" style={{ width: 8, top: 60, right: 30, animationDelay: '1.1s' }}>
+          <svg viewBox="0 0 24 24"><path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8 Z"/></svg>
+        </div>
+        <div className="sparkle" style={{ width: 10, top: 15, left: '30%', animationDelay: '2s' }}>
+          <svg viewBox="0 0 24 24"><path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8 Z"/></svg>
+        </div>
+        <div className="sparkle" style={{ width: 6, bottom: 40, left: '15%', animationDelay: '0.6s' }}>
+          <svg viewBox="0 0 24 24"><path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8 Z"/></svg>
+        </div>
+        <div className="sparkle" style={{ width: 9, top: 90, right: 110, animationDelay: '1.7s' }}>
+          <svg viewBox="0 0 24 24"><path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8 Z"/></svg>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            position: 'relative',
+            zIndex: 5,
+            paddingLeft: bp.isMobile ? 8 : 16,
+            flexWrap: 'wrap',
+            gap: styles.spacing.sm,
+          }}
+        >
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.sm, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 }}>{clock.date}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.hero, fontWeight: 800, color: 'white', marginTop: 4 }}>
+              Halo, {user.name.split(' ')[0]} 👋
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.md, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
+              {user.outlet?.name || 'Waschen'} · <span style={{ fontWeight: 700, color: 'white' }}>{clock.time}</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: styles.spacing.sm }}>
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('notifikasi')}
+              style={{
+                width: bp.isMobile ? 36 : 42, height: bp.isMobile ? 36 : 42, borderRadius: bp.isMobile ? 18 : 21,
+                background: 'rgba(255,255,255,0.2)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'white', position: 'relative',
+              }}
+            >
+              <Bell size={bp.isMobile ? 16 : 18} />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('profil')}
+              style={{
+                width: bp.isMobile ? 36 : 42, height: bp.isMobile ? 36 : 42, borderRadius: bp.isMobile ? 12 : 14,
+                background: 'linear-gradient(145deg, rgba(255,255,255,0.35), rgba(255,255,255,0.15))',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255,255,255,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', overflow: 'hidden',
+              }}
+            >
+              {user.photo ? (
+                <img src={user.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 11 : 13, fontWeight: 700, color: 'white' }}>
+                  {user.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </motion.button>
+          </div>
+        </motion.div>
+
+        {/* Shift Status */}
+        <motion.div
+          onClick={() => navigate('kasir_shift')}
+          animate={shiftOpen ? { scale: [1, 1.02, 1] } : {}}
+          transition={{ duration: 2, repeat: Infinity }}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '8px 16px', borderRadius: 999,
+            background: shiftOpen
+              ? 'linear-gradient(145deg, rgba(16,185,129,0.9), rgba(5,150,105,0.9))'
+              : 'linear-gradient(145deg, rgba(239,68,68,0.9), rgba(220,38,38,0.9))',
+            cursor: 'pointer', marginTop: styles.spacing.sm, marginLeft: bp.isMobile ? 8 : 16,
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'white', boxShadow: '0 0 8px rgba(255,255,255,0.8)' }} />
+          <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.sm, fontWeight: 600, color: 'white' }}>
+            {shiftOpen ? `Shift Terbuka · ${shiftElapsed}` : 'Shift Tertutup'}
+          </span>
+        </motion.div>
+
+        <style dangerouslySetInnerHTML={{ __html: `
+          /* ===== BLOBS - floating background orbs (matching profile design) ===== */
+          @keyframes floatA {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-14px, 16px) scale(1.08); }
+          }
+          @keyframes floatB {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(18px, -12px) scale(1.1); }
+          }
+          @keyframes floatC {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(16px, 10px) scale(0.95); }
+          }
+          /* ===== SPARKLES - stars with twinkle animation ===== */
+          .sparkle {
+            position: absolute;
+            pointer-events: none;
+            animation: twinkle 3.2s ease-in-out infinite;
+          }
+          .sparkle svg {
+            width: 100%;
+            height: 100%;
+            fill: #fff;
+            filter: drop-shadow(0 0 4px rgba(255,255,255,0.9));
+          }
+          @keyframes twinkle {
+            0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+            50% { opacity: 1; transform: scale(1) rotate(20deg); }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .sparkle { animation: none; opacity: 0.6; }
+            .header::after, .blob-1, .blob-2, .blob-3 { animation: none; }
+          }
+        `}} />
+      </div>
+
+      {/* ── CONTENT ── */}
+      <div style={{
+        paddingLeft: styles.spacing.md,
+        paddingRight: styles.spacing.md,
+        paddingTop: 0,
+        marginTop: -16,
+        paddingBottom: bp.isMobile ? 120 : 100
+      }}>
+
+        {/* ── 0. TODAY TARGET HERO WIDGET ── */}
+        <TodayTargetWidget onClick={() => navigate('target_page')} />
+
+        {/* ── 1. STAT CARDS ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: styles.statGridCols,
+          gap: bp.isMobile ? 8 : 10,
+          marginBottom: styles.spacing.md
         }}>
-          {/* Premium Glow Orbs */}
-          <GlowOrb color="rgba(140, 76, 143, 0.4)" size={300} top="-100px" left="-50px" blur={60} />
-          <GlowOrb color="rgba(249, 62, 17, 0.25)" size={200} top="50px" right="-50px" blur={50} />
-          <GlowOrb color="rgba(91, 0, 95, 0.5)" size={250} bottom="-80px" right="20%" blur={70} />
+          <ClayStatCard
+            icon={<TrendingUp size={16} />}
+            label="Omset"
+            value={loading ? '...' : fmtK(stats.omset)}
+            subValue="hari ini"
+            trend={stats.omset > 0 ? 12 : undefined}
+            trendValue={stats.omset > 0 ? '+12%' : undefined}
+            color={COLORS.primary}
+            sparkData={sparkData.omset}
+            delay={0.1}
+            styles={componentStyles}
+          />
+          <ClayStatCard
+            icon={<FileText size={16} />}
+            label="Nota"
+            value={loading ? '...' : stats.total}
+            subValue={`Dibuat hari ini`}
+            trend={stats.total > 0 ? 3 : undefined}
+            trendValue={stats.total > 0 ? '+3' : undefined}
+            color={COLORS.info}
+            sparkData={sparkData.transaksi}
+            delay={0.15}
+            styles={componentStyles}
+          />
+          <ClayStatCard
+            icon={<Check size={16} />}
+            label="Selesai"
+            value={loading ? '...' : stats.completed}
+            subValue={`${stats.lunasRate}% lunas`}
+            color={COLORS.success}
+            sparkData={sparkData.selesai}
+            delay={0.2}
+            styles={componentStyles}
+          />
+          <ClayStatCard
+            icon={<Target size={16} />}
+            label="Target"
+            value={loading ? '...' : `${targetHariPercent}%`}
+            subValue={`Tersisa ${fmtK(Math.max(0, stats.target - stats.omset))}`}
+            color={COLORS.warning}
+            sparkData={sparkData.target}
+            delay={0.25}
+            styles={componentStyles}
+          />
+        </div>
 
-          {/* Sparkle Particles - Multi-color Star Shapes */}
-          <Sparkle top="12%" left="8%" size={10} delay={0} color="#FFD700" />
-          <Sparkle top="20%" left="85%" size={12} delay={0.3} color="#FF6B6B" />
-          <Sparkle top="55%" left="12%" size={8} delay={0.6} color="#4ECDC4" />
-          <Sparkle top="35%" left="65%" size={10} delay={0.9} color="#FFD700" />
-          <Sparkle top="75%" left="40%" size={9} delay={1.2} color="#FF6B6B" />
-          <Sparkle top="18%" left="45%" size={7} delay={0.15} color="#4ECDC4" />
-          <Sparkle top="65%" left="78%" size={8} delay={0.45} color="#FFD700" />
-          <Sparkle top="45%" left="25%" size={6} delay={0.75} color="#FF6B6B" />
-          <Sparkle top="80%" left="15%" size={7} delay={1.0} color="#4ECDC4" />
-          <Sparkle top="30%" left="92%" size={6} delay={0.5} color="#FFD700" />
-          <Sparkle top="60%" left="5%" size={8} delay={1.3} color="#FF6B6B" />
-          <Sparkle top="10%" left="55%" size={7} delay={0.8} color="#4ECDC4" />
-
-          {/* Floating Bubbles - More Visible */}
-          <FloatingBubble src={bubbleIcon} size={28} top="15%" left="3%" delay={0} duration={5} opacity={0.5} />
-          <FloatingBubble src={bubble2Icon} size={24} top="35%" right="5%" delay={0.5} duration={6} opacity={0.45} />
-          <FloatingBubble src={soapBubble} size={26} top="50%" left="5%" delay={0.3} duration={5.5} opacity={0.4} />
-          <FloatingBubble src={bubbleIcon} size={20} bottom="20%" right="12%" delay={0.8} duration={5} opacity={0.35} />
-          <FloatingBubble src={bubble2Icon} size={18} top="8%" right="25%" delay={1.0} duration={6.5} opacity={0.3} />
-          <FloatingBubble src={soapBubble} size={22} bottom="10%" left="20%" delay={0.6} duration={5.2} opacity={0.4} />
-
-          {/* Animated decorative blobs */}
-          <motion.div style={{
-            position: 'absolute', top: -60, right: -60,
-            width: 220, height: 220, borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.08)',
-            filter: 'blur(40px)',
-            animation: 'floatBlob 8s ease-in-out infinite',
-          }} />
-          <motion.div style={{
-            position: 'absolute', bottom: -40, left: -40,
-            width: 160, height: 160, borderRadius: '50%',
-            background: 'rgba(250, 101, 65, 0.12)',
-            filter: 'blur(30px)',
-            animation: 'floatBlob 6s ease-in-out infinite reverse',
-          }} />
-
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative', paddingLeft: 16 }}>
-            <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 }}>
-                {clock.date}
+        {/* ── 1.5 NOTA BREAKDOWN ── */}
+        <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md, marginBottom: styles.spacing.md }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.sm, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: styles.spacing.sm }}>
+            📋 Ringkasan Nota Hari Ini
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: styles.notaGridCols, gap: styles.spacing.sm }}>
+            {/* Dibuat */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              style={{ textAlign: 'center', padding: `${styles.spacing.md}px ${styles.spacing.xs}px`, background: `${COLORS.primary}08`, borderRadius: styles.radius.md }}
+            >
+              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? styles.fonts.xxl : styles.fonts.hero, fontWeight: 800, color: COLORS.primary }}>
+                {loading ? '-' : stats.notaCount.dibuat}
               </div>
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-                style={{ fontFamily: 'Poppins', fontSize: isMobile ? 20 : 26, fontWeight: 800, color: 'white', marginTop: 4, letterSpacing: '-0.5px', textShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-              >
-                Halo, {user.name.split(' ')[0]} 👋
-              </motion.div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
-                {user.outlet?.name || 'Waschen'} · <span style={{ fontWeight: 700, color: 'rgba(255,255,255,0.95)' }}>{clock.time} WIB</span>
+              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4 }}>Dibuat</div>
+            </motion.div>
+            {/* Lunas */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              style={{ textAlign: 'center', padding: `${styles.spacing.md}px ${styles.spacing.xs}px`, background: COLORS.successBg, borderRadius: styles.radius.md }}
+            >
+              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? styles.fonts.xxl : styles.fonts.hero, fontWeight: 800, color: COLORS.success }}>
+                {loading ? '-' : stats.notaCount.lunas}
               </div>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-                style={{ marginTop: 12 }}
-              >
-                {shift ? (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => navigate('kasir_shift')}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 8,
-                      background: shiftOpen
-                        ? 'rgba(5, 150, 105, 0.9)'
-                        : 'rgba(220, 38, 38, 0.85)',
-                      padding: '8px 16px', borderRadius: 999,
-                      cursor: 'pointer',
-                      backdropFilter: 'blur(10px)',
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2)',
-                    }}
-                  >
-                    <motion.span
-                      animate={shiftOpen ? { scale: [1, 1.2, 1] } : {}}
-                      transition={{ duration: 1.5, repeat: Infinity }}
-                      style={{
-                        width: 8, height: 8, borderRadius: 4,
-                        background: 'white',
-                        boxShadow: shiftOpen ? '0 0 8px rgba(255,255,255,0.8)' : 'none',
-                      }}
-                    />
-                    <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: 'white' }}>
-                      {shift.bypass ? 'Akses Khusus' : shiftOpen ? `Shift · ${fmtTime(shift.session?.openedAt)}` : 'Shift Tutup — Ketuk untuk buka'}
-                    </span>
-                    {shiftOpen && elapsed && (
-                      <span style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.85)', borderLeft: '1px solid rgba(255,255,255,0.4)', paddingLeft: 8 }}>
-                        ⏱ {elapsed}
-                      </span>
-                    )}
-                  </motion.div>
-                ) : (
-                  <div style={{ height: 32, width: 140, borderRadius: 999, background: 'rgba(255,255,255,0.15)' }} />
-                )}
-              </motion.div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <motion.button
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('notifikasi')}
-                style={{
-                  width: 44, height: 44, borderRadius: 22,
-                  background: 'rgba(255,255,255,0.2)',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  position: 'relative',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                }}
-              >
-                <Bell size={20} />
-                <div style={{
-                  position: 'absolute', top: 8, right: 8,
-                  width: 8, height: 8, borderRadius: 4,
-                  background: '#F93E11',
-                  border: '2px solid white',
-                  boxShadow: '0 0 8px rgba(249,62,17,0.6)',
-                }} />
-              </motion.button>
-
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('profil')}
-                style={{
-                  width: 48, height: 48, borderRadius: 16,
-                  background: 'linear-gradient(145deg, rgba(255,255,255,0.35), rgba(255,255,255,0.15))',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.2)',
-                  cursor: 'pointer',
-                }}
-              >
-                <Avatar photo={user.photo} initials={user.avatar} size={38} />
-              </motion.div>
-            </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4 }}>Lunas</div>
+            </motion.div>
+            {/* DP */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              style={{ textAlign: 'center', padding: `${styles.spacing.md}px ${styles.spacing.xs}px`, background: COLORS.warningBg, borderRadius: styles.radius.md }}
+            >
+              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? styles.fonts.xxl : styles.fonts.hero, fontWeight: 800, color: COLORS.warning }}>
+                {loading ? '-' : stats.notaCount.dp}
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4 }}>DP</div>
+            </motion.div>
+            {/* Selesai */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45 }}
+              style={{ textAlign: 'center', padding: `${styles.spacing.md}px ${styles.spacing.xs}px`, background: `${COLORS.success}15`, borderRadius: styles.radius.md }}
+            >
+              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? styles.fonts.xxl : styles.fonts.hero, fontWeight: 800, color: COLORS.success }}>
+                {loading ? '-' : stats.notaCount.selesai}
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4 }}>Selesai</div>
+            </motion.div>
           </div>
         </div>
 
-        {/* ── MAIN CONTENT — Responsive Grid ── */}
-        <div style={{
-          padding: isDesktop ? '24px 32px' : isTablet ? '20px 24px' : '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-        }}>
+        {/* ── 2. STATUS PEKERJAAN + TARGET CARDS ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: styles.statusTargetCols, gap: bp.isMobile ? styles.spacing.sm : styles.spacing.md, marginBottom: styles.spacing.md }}>
 
-          {/* ── ALERTS ROW (Desktop: inline, Mobile: stacked) ── */}
-          {(periodAlert && !alertDismissed || lowBalanceAlert?.isLow) && (
-            <div style={{
-              display: isDesktop ? 'flex' : 'block',
-              gap: 12,
-            }}>
-              {periodAlert && !alertDismissed && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{
-                    flex: 1,
-                    background: 'linear-gradient(145deg, rgba(254, 242, 242, 0.9), rgba(255, 247, 237, 0.9))',
-                    backdropFilter: 'blur(10px)',
-                    borderRadius: 16,
-                    padding: '12px 16px',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 12,
-                    boxShadow: '6px 6px 16px rgba(0, 0, 0, 0.04), -3px -3px 10px rgba(255, 255, 255, 0.8)',
-                    border: `1.5px solid ${periodAlert.daysLeft <= 1 ? 'rgba(252, 165, 165, 0.5)' : 'rgba(253, 230, 138, 0.5)'}`,
-                  }}
-                >
-                  <div style={{ fontSize: 20, flexShrink: 0 }}>{periodAlert.daysLeft <= 1 ? '🚨' : '⚠️'}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: periodAlert.daysLeft <= 1 ? C.dangerDark : C.warningDark }}>
-                      {periodAlert.daysLeft === 0 ? 'Hari ini terakhir!' : `${periodAlert.daysLeft} hari lagi tutup buku`}
-                    </div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: periodAlert.daysLeft <= 1 ? C.dangerDark : C.warningDark, marginTop: 2, opacity: 0.8 }}>
-                      Periode <strong>{periodAlert.periodLabel}</strong> berakhir {periodAlert.daysLeft === 0 ? 'hari ini' : `${periodAlert.daysLeft} hari lagi`}
-                    </div>
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => {
-                      setAlertDismissed(true);
-                      sessionStorage.setItem(`period_alert_dismissed_${periodAlert.periodStart}`, '1');
-                    }}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.6)',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: periodAlert.daysLeft <= 1 ? C.dangerDark : C.warningDark,
-                      fontSize: 18,
-                      padding: '0 4px',
-                      flexShrink: 0,
-                      borderRadius: 8,
-                      width: 26,
-                      height: 26,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >×</motion.button>
-                </motion.div>
-              )}
-              {lowBalanceAlert?.isLow && (
-                <motion.div
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  onClick={() => navigate('kas_outlet')}
-                  style={{
-                    flex: 1,
-                    background: 'linear-gradient(145deg, rgba(254, 252, 232, 0.9), rgba(254, 243, 199, 0.85))',
-                    backdropFilter: 'blur(10px)',
-                    borderRadius: 16,
-                    padding: '12px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    boxShadow: '6px 6px 16px rgba(0, 0, 0, 0.04), -3px -3px 10px rgba(255, 255, 255, 0.8)',
-                    border: '1.5px solid rgba(253, 230, 138, 0.5)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div style={{ fontSize: 24 }}>💰⚠️</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.warningDark }}>
-                      Saldo Kas Outlet Rendah
-                    </div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.warningDark, marginTop: 2, opacity: 0.8 }}>
-                      Di bawah minimum ({rp(lowBalanceAlert.minBalance)})
-                    </div>
-                  </div>
-                  <ChevronRight size={16} color={C.warningDark} />
-                </motion.div>
-              )}
+          {/* KIRI: Status Pekerjaan */}
+          <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.sm, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: styles.spacing.sm }}>
+              Status Pekerjaan
             </div>
-          )}
-
-          {/* ── STATS GRID (2 columns, 2 rows) ── */}
-          <div style={statsGridStyle}>
-            <StatCard
-              icon={<FileText size={14} color={C.primary} />}
-              label="Total Omset"
-              value={loading ? '—' : rp(stats.omset)}
-              sublabel="Semua transaksi"
-              color={C.primary}
-              delay={0.05}
-              sparklineData={[{ value: stats.omset * 0.2 }, { value: stats.omset * 0.5 }, { value: stats.omset * 0.3 }, { value: stats.omset }]}
-              trend={12}
-            />
-            <StatCard
-              icon={<DollarSign size={14} color={C.success} />}
-              label="Pelunasan"
-              value={loading ? '—' : rp(stats.totalPelunasan)}
-              sublabel="Uang diterima"
-              color={C.success}
-              delay={0.1}
-              sparklineData={[{ value: stats.totalPelunasan * 0.3 }, { value: stats.totalPelunasan * 0.6 }, { value: stats.totalPelunasan * 0.4 }, { value: stats.totalPelunasan }]}
-              trend={8}
-            />
-            <StatCard
-              icon={<LayoutGrid size={14} color={C.info} />}
-              label="Total Nota"
-              value={loading ? '—' : stats.total}
-              sublabel="Nota dibuat"
-              color={C.info}
-              delay={0.15}
-              sparklineData={[{ value: stats.total * 0.25 }, { value: stats.total * 0.5 }, { value: stats.total * 0.75 }, { value: stats.total }]}
-              trend={5}
-            />
-            <StatCard
-              icon={<AlertCircle size={14} color={C.warning} />}
-              label="Piutang"
-              value={loading ? '—' : rp(Math.max(0, stats.omset - stats.totalPelunasan))}
-              sublabel="Belum terbayar"
-              color={C.warning}
-              delay={0.2}
-              sparklineData={[{ value: (stats.omset - stats.totalPelunasan) * 0.4 }, { value: (stats.omset - stats.totalPelunasan) * 0.3 }, { value: (stats.omset - stats.totalPelunasan) * 0.6 }, { value: Math.max(0, stats.omset - stats.totalPelunasan) }]}
-              trend={-3}
-            />
-              sublabel="Belum terbayar"
-              color={C.warning}
-              delay={0.2}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: styles.spacing.sm }}>
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, padding: `${styles.spacing.sm}px ${styles.spacing.md}px`, background: '#FFF7ED', borderRadius: styles.radius.md }}
+              >
+                <div style={{ ...clayIcon('#F97316', bp.isMobile ? 32 : 36), background: '#FFF7ED' }}>
+                  <Zap size={bp.isMobile ? 16 : 18} color="#F97316" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.n800 }}>{loading ? '-' : stats.express || 0}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Express</div>
+                  </div>
+                  {stats.timeMetrics?.expressProcessing > 0 && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: '#F97316', marginTop: 2 }}>
+                      ⚡ {stats.timeMetrics.expressProcessing} lagi proses
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.15 }}
+                style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, padding: `${styles.spacing.sm}px ${styles.spacing.md}px`, background: COLORS.infoLight, borderRadius: styles.radius.md }}
+              >
+                <div style={{ ...clayIcon(COLORS.info, bp.isMobile ? 32 : 36), background: COLORS.infoLight }}>
+                  <Clock size={bp.isMobile ? 16 : 18} color={COLORS.info} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.n800 }}>{loading ? '-' : stats.pending || 0}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Proses</div>
+                  </div>
+                  {stats.timeMetrics?.oldestWaitingHours > 0 && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.info, marginTop: 2 }}>
+                      🕐 Tertunda {stats.timeMetrics.oldestWaitingHours} jam
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, padding: `${styles.spacing.sm}px ${styles.spacing.md}px`, background: COLORS.successBg, borderRadius: styles.radius.md }}
+              >
+                <div style={{ ...clayIcon(COLORS.success, bp.isMobile ? 32 : 36), background: COLORS.successBg }}>
+                  <Check size={bp.isMobile ? 16 : 18} color={COLORS.success} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.n800 }}>{loading ? '-' : stats.completed || 0}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Selesai</div>
+                  </div>
+                  {stats.timeMetrics?.avgProcessingHours > 0 && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.success, marginTop: 2 }}>
+                      ✓ Avg {stats.timeMetrics.avgProcessingHours} jam proses
+                    </div>
+                  )}
+                  {stats.timeMetrics?.overduePickup > 0 && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.danger, marginTop: 2 }}>
+                      ⚠ {stats.timeMetrics.overduePickup} belum diambil
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
           </div>
 
-          {/* ── DESKTOP: 2-Column Layout ── */}
-          {isDesktop ? (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16 }}>
-              {/* Left Column: Chart */}
-              <TradingLineChart
-                data={chartData}
-                height={280}
-                showLegend={true}
+          {/* KANAN: Target Cards */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: styles.spacing.sm }}>
+            <motion.div
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              style={{ ...clayCard(false, styles.radius), padding: `${styles.spacing.sm}px ${styles.spacing.md}px` }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: styles.spacing.xs }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n500, textTransform: 'uppercase' }}>Target Bulan Ini</div>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.primary }}>{targetBulanPercent}%</span>
+              </div>
+              <ClayProgressBar value={stats.omsetMonth} max={stats.targetMonth} color={COLORS.primary} styles={componentStyles} />
+              <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Realisasi</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.omsetMonth)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Target</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.targetMonth)}</span>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15 }}
+              style={{ ...clayCard(false, styles.radius), padding: `${styles.spacing.sm}px ${styles.spacing.md}px` }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: styles.spacing.xs }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n500, textTransform: 'uppercase' }}>Target Hari Ini</div>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.warning }}>{targetHariPercent}%</span>
+              </div>
+              <ClayProgressBar value={stats.omset} max={stats.target} color={COLORS.warning} styles={componentStyles} />
+              <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Realisasi</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.omset)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Target</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.target)}</span>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+
+        {/* ── 3. CHARTS ROW 1: Revenue Trend ── */}
+        <div style={{ ...clayCard(false, styles.radius), minHeight: bp.isMobile ? 180 : 220, marginBottom: styles.spacing.md }}>
+          <RevenueTrendChart />
+        </div>
+
+        {/* ── 3. CHARTS ROW 2: Payment Methods + Top Services ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: styles.chartGridCols, gap: bp.isMobile ? styles.spacing.sm : styles.spacing.md, marginBottom: styles.spacing.md }}>
+          {/* Payment Methods Donut */}
+          <div style={{ ...clayCard(false, styles.radius), minHeight: bp.isMobile ? 180 : 200 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: styles.spacing.sm, flexWrap: 'wrap', gap: styles.spacing.xs }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm }}>
+                <div style={{ ...clayIcon(COLORS.primary, bp.isMobile ? 28 : 32) }}>
+                  <CreditCard size={bp.isMobile ? 12 : 14} />
+                </div>
+                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.md, fontWeight: 700, color: COLORS.n800 }}>Metode Bayar</span>
+              </div>
+              <PeriodSelector
+                value={paymentPeriod}
+                onChange={setPaymentPeriod}
+                options={[
+                  { value: '7d', label: '7H' },
+                  { value: '14d', label: '14H' },
+                  { value: '30d', label: '30H' },
+                ]}
               />
-
-              {/* Right Column: Mini Stats + Quick Actions */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* Mini Stats Row */}
-                <div style={{
-                  display: 'flex',
-                  gap: 12,
-                  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-                  borderRadius: 16,
-                  padding: '14px 16px',
-                  boxShadow: '6px 6px 14px rgba(60, 10, 99, 0.08), -3px -3px 10px rgba(255, 255, 255, 0.95)',
-                  border: '1px solid rgba(139, 92, 246, 0.08)',
-                }}>
-                  {[
-                    { label: 'Express', desc: 'Kilat', val: stats.express, color: C.warning, icon: <Zap size={14} /> },
-                    { label: 'Proses', desc: 'Dikerjakan', val: stats.pending, color: C.info, icon: <Clock size={14} /> },
-                    { label: 'Selesai', desc: 'Siap ambil', val: stats.completed, color: C.success, icon: <Check size={14} /> },
-                  ].map((s, i) => (
-                    <motion.button
-                      key={s.label}
-                      type="button"
-                      onClick={() => {
-                        if (s.label === 'Express') navigate('transaksi', { onlyExpress: true, period: 'today', status: 'semua' });
-                        else if (s.label === 'Proses') navigate('transaksi', { status: 'proses' });
-                        else navigate('transaksi', { status: 'selesai', pickupFilter: 'belum_diambil' });
-                      }}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.25 + i * 0.05 }}
-                      style={{
-                        flex: 1, textAlign: 'center',
-                        border: 'none', background: 'transparent', cursor: 'pointer',
-                        padding: '6px',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
-                        <span style={{ color: s.color }}>{s.icon}</span>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: s.color }}>{s.label}</span>
-                      </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n800 }}>{loading ? '—' : s.val}</div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 8, color: C.n500 }}>{s.desc}</div>
-                    </motion.button>
-                  ))}
-                </div>
-
-                {/* Quick Actions Grid (2 columns) */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: 10,
-                }}>
-                  {QUICK.slice(0, 4).map((q, i) => (
-                    <QuickAction key={q.label} {...q} cols={2} />
-                  ))}
-                </div>
-
-                {/* More Quick Actions (2 columns) */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: 10,
-                }}>
-                  {QUICK.slice(4, 8).map((q, i) => (
-                    <QuickAction key={q.label} {...q} cols={2} />
-                  ))}
-                </div>
-              </div>
             </div>
-          ) : (
-            /* ── MOBILE/TABLET: Stacked Layout ── */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Mini Stats Row */}
-              <div style={{
-                display: 'flex',
-                gap: isDesktop ? 16 : 8,
-                background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-                borderRadius: 16,
-                padding: isDesktop ? '14px 20px' : '12px 16px',
-                boxShadow: '6px 6px 14px rgba(60, 10, 99, 0.08), -3px -3px 10px rgba(255, 255, 255, 0.95)',
-                border: '1px solid rgba(139, 92, 246, 0.08)',
-              }}>
-                {[
-                  { label: 'Express', desc: 'Kilat', val: stats.express, color: C.warning, icon: <Zap size={14} /> },
-                  { label: 'Proses', desc: 'Dikerjakan', val: stats.pending, color: C.info, icon: <Clock size={14} /> },
-                  { label: 'Selesai', desc: 'Siap ambil', val: stats.completed, color: C.success, icon: <Check size={14} /> },
-                ].map((s, i) => (
-                  <motion.button
-                    key={s.label}
-                    type="button"
-                    onClick={() => {
-                      if (s.label === 'Express') navigate('transaksi', { onlyExpress: true, period: 'today', status: 'semua' });
-                      else if (s.label === 'Proses') navigate('transaksi', { status: 'proses' });
-                      else navigate('transaksi', { status: 'selesai', pickupFilter: 'belum_diambil' });
-                    }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.25 + i * 0.05 }}
-                    style={{
-                      flex: 1, textAlign: 'center',
-                      border: 'none', background: 'transparent', cursor: 'pointer',
-                      padding: '6px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
-                      <span style={{ color: s.color }}>{s.icon}</span>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</span>
-                    </div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n800 }}>{loading ? '—' : s.val}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>{s.desc}</div>
-                  </motion.button>
-                ))}
-              </div>
-
-              {/* Chart for tablet/mobile */}
-              <TradingLineChart
-                data={chartData}
-                height={220}
-                showLegend={true}
-              />
-
-              {/* Quick Actions Grid */}
-              <div style={quickGridStyle}>
-                {QUICK.map((q, i) => (
-                  <QuickAction key={q.label} {...q} cols={quickCols} />
-                ))}
-              </div>
+            <div style={{ height: bp.isMobile ? 100 : 120 }}>
+              <DonutChart data={getPaymentData()} loading={chartLoading} styles={componentStyles} />
             </div>
-          )}
+          </div>
 
-          {/* ── TARGET WIDGET ── */}
-          {target && (
-            <div style={{
-              background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-              borderRadius: 16,
-              padding: '14px 16px',
-              boxShadow: '8px 8px 18px rgba(60, 10, 99, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.95)',
-              border: '1px solid rgba(139, 92, 246, 0.08)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.primary }}>🎯 Target Bulan Ini</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>{target.monthName} {target.year}</div>
-                </div>
-                <div style={{
-                  background: target.pct >= 100 ? 'linear-gradient(145deg, #D1FAE5, #A7F3D0)' : target.pct >= 50 ? 'linear-gradient(145deg, #FEF3C7, #FDE68A)' : 'linear-gradient(145deg, #FEE2E2, #FECACA)',
-                  padding: '4px 12px',
-                  borderRadius: 999,
-                }}>
-                  <span style={{
-                    fontFamily: 'Poppins', fontSize: 14, fontWeight: 800,
-                    color: target.pct >= 100 ? C.success : target.pct >= 50 ? C.warning : C.danger,
-                  }}>{target.pct}%</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1, background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)', borderRadius: 10, padding: '8px 12px' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 8, fontWeight: 600, color: C.primary, textTransform: 'uppercase' }}>Realisasi</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n800, marginTop: 2 }}>{rp(target.actualAmount)}</div>
-                </div>
-                <div style={{ flex: 1, background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)', borderRadius: 10, padding: '8px 12px' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 8, fontWeight: 600, color: C.primary, textTransform: 'uppercase' }}>Target</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.n800, marginTop: 2 }}>{rp(target.targetAmount)}</div>
-                </div>
-              </div>
-              <div style={{ height: 8, background: C.n200, borderRadius: 4, overflow: 'hidden', marginTop: 10 }}>
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, target.pct)}%` }}
-                  transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
-                  style={{
-                    height: '100%',
-                    background: target.pct >= 100 ? 'linear-gradient(90deg, #10B981, #34D399)' : target.pct >= 50 ? 'linear-gradient(90deg, #F59E0B, #FBBF24)' : 'linear-gradient(90deg, #EF4444, #F87171)',
-                    borderRadius: 4,
-                  }}
-                />
-              </div>
+          {/* Top Services */}
+          <div style={{ ...clayCard(false, styles.radius), minHeight: bp.isMobile ? 180 : 200 }}>
+            <TopServicesChart />
+          </div>
+        </div>
+
+        {/* ── 4. MENU FITUR (Card terpisah) ── */}
+        <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md, marginBottom: styles.spacing.md }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, marginBottom: styles.spacing.md }}>
+            <Sparkles size={bp.isMobile ? 14 : 16} color={COLORS.primary} />
+            <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.md, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase' }}>
+              Menu Fitur
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: styles.menuGridCols, gap: bp.isMobile ? 6 : styles.spacing.sm }}>
+            {MENU_ITEMS.map((item, i) => {
+              const { key, ...rest } = item;
+              return <ClayMenuBtn key={key} {...rest} index={i} onClick={() => goTo(key)} styles={componentStyles} />;
+            })}
+          </div>
+        </div>
+
+        {/* ── 5. TRANSAKSI TERAKHIR ── */}
+        <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md, marginBottom: styles.spacing.md }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: styles.spacing.sm, flexWrap: 'wrap', gap: styles.spacing.xs }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm }}>
+              <Clock size={bp.isMobile ? 14 : 16} color={COLORS.primary} />
+              <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.md, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase' }}>
+                Transaksi Terakhir
+              </span>
             </div>
-          )}
+            <motion.button
+              onClick={() => navigate('transaksi')}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: `${styles.spacing.xs}px ${styles.spacing.md}px`,
+                background: 'linear-gradient(145deg, #5B005F, #8C4C8F)',
+                border: 'none', borderRadius: styles.radius.sm,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(91, 0, 95, 0.25)',
+              }}
+            >
+              <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: 'white' }}>Lihat Semua</span>
+              <ChevronRight size={bp.isMobile ? 10 : 12} color="white" />
+            </motion.button>
+          </div>
 
-          {/* ── RECENT TRANSACTIONS ── */}
-          <div style={{
-            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-            borderRadius: 20,
-            padding: isDesktop ? '18px 20px' : '16px',
-            boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
-            border: '1px solid rgba(139, 92, 246, 0.08)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 700, color: C.n800 }}>Transaksi Terbaru</span>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('transaksi')}
-                style={{
-                  background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
-                  border: '1px solid rgba(139, 92, 246, 0.15)',
-                  borderRadius: 999,
-                  padding: '5px 12px',
-                  cursor: 'pointer',
-                  fontFamily: 'Poppins',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: C.primary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                Lihat semua →
-              </motion.button>
-            </div>
-
+          <div style={{ display: 'flex', flexDirection: 'column', gap: styles.spacing.sm }}>
             {loading ? (
-              <div style={{ textAlign: 'center', padding: 24 }}>
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  style={{
-                    width: 28, height: 28, border: `3px solid ${C.n200}`,
-                    borderTopColor: C.primary,
-                    borderRadius: '50%',
-                    margin: '0 auto 10px',
-                  }}
-                />
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat...</span>
-              </div>
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} style={{
+                  height: 52,
+                  background: 'linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%)',
+                  backgroundSize: '200% 100%',
+                  borderRadius: styles.radius.md,
+                  animation: 'shimmer 1.5s infinite',
+                }} />
+              ))
             ) : recent.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 24 }}>
-                <div style={{ fontSize: 36, marginBottom: 8 }}>📋</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800 }}>Belum ada transaksi hari ini</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 4 }}>Yuk mulai transaksi pertama!</div>
+              <div style={{ textAlign: 'center', padding: styles.spacing.lg }}>
+                <div style={{ fontSize: bp.isMobile ? 28 : 32, marginBottom: styles.spacing.sm }}>📋</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.md, fontWeight: 600, color: COLORS.n500 }}>Belum Ada Transaksi</div>
               </div>
             ) : (
-              <div style={txGridStyle}>
-                {recent.slice(0, isDesktop ? 9 : isTablet ? 6 : 5).map((tx, idx) => (
-                  <TransactionCard
-                    key={tx.id}
-                    tx={tx}
-                    onClick={() => navigate('detail_transaksi', tx)}
-                    delay={0.3 + idx * 0.05}
-                  />
-                ))}
-              </div>
+              recent.slice(0, 4).map((tx, i) => (
+                <ClayTransactionRow key={tx.id || i} tx={tx} index={i} onClick={() => navigate('detail_transaksi', tx)} styles={componentStyles} />
+              ))
             )}
           </div>
         </div>
+
       </div>
 
-      {/* ── Top Up Bottom Sheet ── */}
-      {topupSheet && (
-        <>
-          <div onClick={() => setTopupSheet(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 300, backdropFilter: 'blur(4px)' }} />
-          <div
-            style={{
-              position: 'fixed', bottom: 0, left: 0, right: 0,
-              background: C.white, borderRadius: '20px 20px 0 0',
-              padding: '16px 20px 36px',
-              boxShadow: SHADOW.xl,
-              zIndex: 301, maxHeight: '85vh', display: 'flex', flexDirection: 'column',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ width: 40, height: 4, borderRadius: 2, background: C.n200, margin: '0 auto 16px' }} />
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: `${C.primary}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontSize: 20 }}>💳</span>
-                </div>
-                <div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900 }}>Top Up Deposit</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>Pilih customer untuk top up saldo</div>
-                </div>
-              </div>
-              <button onClick={() => setTopupSheet(false)} style={{ width: 32, height: 32, borderRadius: 10, border: `1px solid ${C.n200}`, background: C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <X size={14} color={C.n600} strokeWidth={2.5} />
-              </button>
-            </div>
-
-            <div style={{ position: 'relative', marginBottom: 10 }}>
-              <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n600} strokeWidth="2" strokeLinecap="round">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                value={topupSearch}
-                onChange={(e) => setTopupSearch(e.target.value)}
-                placeholder="Cari nama, nomor HP, atau alamat…"
-                style={{
-                  width: '100%', height: 46, borderRadius: 12,
-                  border: `1.5px solid ${C.n200}`, background: C.n50,
-                  fontFamily: 'Poppins', fontSize: 13,
-                  paddingLeft: 40, paddingRight: 12, boxSizing: 'border-box', outline: 'none',
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              {TOPUP_FILTERS.map((f) => {
-                const isActive = topupFilter === f.key;
-                return (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={() => setTopupFilter(f.key)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      padding: '6px 14px', borderRadius: 999,
-                      border: `1.5px solid ${isActive ? C.primary : C.n200}`,
-                      background: isActive ? C.primaryTint : C.white,
-                      fontFamily: 'Poppins', fontSize: 11, fontWeight: isActive ? 700 : 500,
-                      color: isActive ? C.primary : C.n600, cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{ fontSize: 12 }}>{f.icon}</span>
-                    {f.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600, letterSpacing: 0.5, marginBottom: 8 }}>
-              {topupLoading ? 'Memuat…' : `${topupDisplayList.length} customer ditemukan`}
-            </div>
-
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {topupLoading && (
-                <div style={{ textAlign: 'center', padding: 20 }}>
-                  <div style={{ width: 28, height: 28, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
-                  <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Memuat customer…</span>
-                </div>
-              )}
-              {!topupLoading && !topupSearching && topupDisplayList.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 4 }}>Customer tidak ditemukan</div>
-                  <button
-                    type="button"
-                    onClick={() => { setTopupSheet(false); navigate('tambah_customer'); }}
-                    style={{ background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`, color: 'white', border: 'none', borderRadius: 10, padding: '8px 16px', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    + Tambah Customer Baru
-                  </button>
-                </div>
-              )}
-              {topupDisplayList.map((c) => {
-                const dep = Number(c.depositBalance ?? c.deposit ?? 0);
-                const isMember = c.isMember || c.membershipStatus === 'active';
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => selectTopupCustomer(c)}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 12px', borderRadius: 12, border: 'none',
-                      background: C.white, cursor: 'pointer', textAlign: 'left',
-                      marginBottom: 6, boxShadow: SHADOW.sm,
-                    }}
-                  >
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: isMember ? C.primaryTint : `${C.primary}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: isMember ? C.primary : C.primary }}>
-                        {(c.name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
-                      </span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-                        {isMember && <span style={{ fontFamily: 'Poppins', fontSize: 8, fontWeight: 700, color: C.primary, background: C.primaryTint, padding: '1px 5px', borderRadius: 999 }}>MEMBER</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{c.phone || '-'}</span>
-                        {dep > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, color: C.success, background: C.successBg, padding: '1px 5px', borderRadius: 999 }}>💰 {rp(dep)}</span>}
-                      </div>
-                    </div>
-                    <ChevronRight size={14} color={C.n600} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* CSS Animations */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes floatBlob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(20px, -20px) scale(1.05); }
-          66% { transform: translate(-10px, 15px) scale(0.95); }
-        }
-        @keyframes twinkle {
-          0%, 100% { opacity: 0.4; transform: scale(0.9); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}} />
-    </>
+    </div>
   );
 }

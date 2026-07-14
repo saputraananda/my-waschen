@@ -5,6 +5,7 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
 import { rp } from '../utils/helpers.js';
+import logger from '../utils/logger.js';
 
 // ─── Birthday Campaign Config ────────────────────────────────────────────────
 const CAMPAIGN_TYPES = {
@@ -50,7 +51,7 @@ export const getTodayBirthdays = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     // Get customers with birthday today
     let outletFilter = '';
@@ -145,7 +146,7 @@ export const getTodayBirthdays = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getTodayBirthdays] Error:', err);
+    logger.error('Get today birthdays gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data.' });
   }
 };
@@ -198,7 +199,7 @@ export const getUpcomingBirthdays = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('[getUpcomingBirthdays] Error:', err);
+    logger.error('Get upcoming birthdays gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data.' });
   }
 };
@@ -255,10 +256,10 @@ export const sendBirthdayGreeting = async (req, res) => {
       // const waResult = await sendWhatsApp(customer.phone, message);
       // sent = waResult.success;
       // messageId = waResult.messageId;
-      console.log(`[Birthday] Would send to ${customer.phone}: ${message.slice(0, 50)}...`);
+      // [Birthday] Simulation mode - would send notification
       sent = true; // Simulated for now
     } catch (waErr) {
-      console.error('[Birthday] WhatsApp send failed:', waErr);
+      logger.error('WhatsApp send failed', { error: waErr.message });
     }
 
     // Log notification
@@ -301,7 +302,7 @@ export const sendBirthdayGreeting = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[sendBirthdayGreeting] Error:', err);
+    logger.error('Send birthday greeting gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengirim ucapan.' });
   }
 };
@@ -351,10 +352,10 @@ export const sendBulkBirthdayGreeting = async (req, res) => {
       let sent = false;
       try {
         // TODO: Integrate with WhatsApp API
-        console.log(`[Birthday Bulk] Would send to ${customer.phone}`);
+        // [Birthday Bulk] Simulation mode - would send notification
         sent = true; // Simulated
       } catch (e) {
-        console.error(`[Birthday Bulk] Failed for ${customer.phone}:`, e);
+        logger.warn('birthday', 'Bulk send failed', { error: e.message, phone: customer.phone });
       }
 
       // Log notification
@@ -396,7 +397,7 @@ export const sendBulkBirthdayGreeting = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[sendBulkBirthdayGreeting] Error:', err);
+    logger.error('Send bulk birthday greeting gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengirim bulk.' });
   }
 };
@@ -470,7 +471,7 @@ export const offerDepositBonus = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[offerDepositBonus] Error:', err);
+    logger.error('Offer deposit bonus gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal membuat offer.' });
   }
 };
@@ -540,7 +541,7 @@ export const getBirthdayStats = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getBirthdayStats] Error:', err);
+    logger.error('Get birthday stats gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat statistik.' });
   }
 };

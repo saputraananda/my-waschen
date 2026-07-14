@@ -1,11 +1,15 @@
 import { readFileSync } from 'fs';
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 const DEBUG_ENV_PATH = '.dbg/admin-dashboard-500.env';
 const DEBUG_FALLBACK_URL = 'http://127.0.0.1:7777/event';
 const DEBUG_FALLBACK_SESSION = 'admin-dashboard-500';
 
 const debugReport = (hypothesisId, location, msg, data = {}, runId = 'pre-fix') => {
+  // Skip debug reporting if DEBUG_MODE is not enabled
+  if (process.env.DEBUG_MODE !== 'true') return;
+
   let debugServerUrl = DEBUG_FALLBACK_URL;
   let debugSessionId = DEBUG_FALLBACK_SESSION;
 
@@ -13,7 +17,10 @@ const debugReport = (hypothesisId, location, msg, data = {}, runId = 'pre-fix') 
     const envContent = readFileSync(DEBUG_ENV_PATH, 'utf8');
     debugServerUrl = envContent.match(/DEBUG_SERVER_URL=(.+)/)?.[1]?.trim() || debugServerUrl;
     debugSessionId = envContent.match(/DEBUG_SESSION_ID=(.+)/)?.[1]?.trim() || debugSessionId;
-  } catch {}
+  } catch {
+    // Debug env file not found - skip silently
+    return;
+  }
 
   fetch(debugServerUrl, {
     method: 'POST',
@@ -27,7 +34,7 @@ const debugReport = (hypothesisId, location, msg, data = {}, runId = 'pre-fix') 
       data,
       ts: Date.now(),
     }),
-  }).catch(() => {});
+  }).catch(() => {}); // Silent fail for debug reporting
 };
 
 // Get outlet performance data (revenue per outlet)
@@ -177,10 +184,10 @@ export const getCashDepositStatus = async (req, res) => {
       period
     });
   } catch (err) {
-    console.error('[getCashDepositStatus] Error:', err);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to get cash deposit status data' 
+    logger.error('Gagal memuat cash deposit status', { error: err.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get cash deposit status data'
     });
   }
 };
@@ -221,10 +228,10 @@ export const getPaymentMethodTrend = async (req, res) => {
       data
     });
   } catch (err) {
-    console.error('[getPaymentMethodTrend] Error:', err);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Failed to get payment method trend data' 
+    logger.error('Gagal memuat payment method trend', { error: err.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get payment method trend data'
     });
   }
 };

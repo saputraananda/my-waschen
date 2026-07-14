@@ -23,12 +23,12 @@ const CustomTooltip = ({ active, payload, label }) => {
     return (
       <div style={{
         background: 'rgba(255, 255, 255, 0.98)',
-        border: '1px solid rgba(91, 0, 95, 0.1)',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
         borderRadius: 12,
         padding: '10px 14px',
-        boxShadow: '0 8px 24px rgba(91, 0, 95, 0.15)',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
       }}>
-        <p style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#5B005F', margin: '0 0 6px' }}>
+        <p style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#FFFFFF', margin: '0 0 6px' }}>
           {label}
         </p>
         {payload.map((entry, index) => (
@@ -113,8 +113,8 @@ export default function TradingLineChart({
         background: 'linear-gradient(145deg, #FFFFFF, #F4EDF4)',
         borderRadius: 20,
         padding: '20px 16px 16px',
-        boxShadow: '8px 8px 20px rgba(91, 0, 95, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.95)',
-        border: '1px solid rgba(91, 0, 95, 0.06)',
+        boxShadow: '8px 8px 20px rgba(0, 0, 0, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.95)',
+        border: '1px solid rgba(255, 255, 255, 0.8)',
       }}
     >
       {/* Header */}
@@ -129,7 +129,7 @@ export default function TradingLineChart({
             fontFamily: 'Poppins',
             fontSize: 14,
             fontWeight: 700,
-            color: '#5B005F',
+            color: '#FFFFFF',
             margin: 0,
           }}>
             📈 Omset per Jam
@@ -151,9 +151,9 @@ export default function TradingLineChart({
                 width: 12,
                 height: 3,
                 borderRadius: 2,
-                background: 'linear-gradient(90deg, #5B005F, #7A1481)',
+                background: 'linear-gradient(90deg, #FFFFFF, rgba(255,255,255,0.7))',
               }} />
-              <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#5B005F', fontWeight: 600 }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#FFFFFF', fontWeight: 600 }}>
                 Hari Ini
               </span>
             </div>
@@ -182,9 +182,9 @@ export default function TradingLineChart({
           <defs>
             {/* Gradient for today's area */}
             <linearGradient id="todayGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#5B005F" stopOpacity={0.35} />
-              <stop offset="50%" stopColor="#7A1481" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="#5B005F" stopOpacity={0.02} />
+              <stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.35} />
+              <stop offset="50%" stopColor="rgba(255,255,255,0.2)" />
+              <stop offset="100%" stopColor="#FFFFFF" stopOpacity={0.02} />
             </linearGradient>
             {/* Gradient for yesterday's area */}
             <linearGradient id="yesterdayGradient" x1="0" y1="0" x2="0" y2="1">
@@ -197,7 +197,7 @@ export default function TradingLineChart({
           {showGrid && (
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(91, 0, 95, 0.06)"
+              stroke="rgba(255, 255, 255, 0.15)"
               vertical={false}
             />
           )}
@@ -207,7 +207,7 @@ export default function TradingLineChart({
             dataKey="hour"
             tickFormatter={formatHour}
             tick={{ fontFamily: 'Poppins', fontSize: 10, fill: '#AD80AF' }}
-            axisLine={{ stroke: 'rgba(91, 0, 95, 0.1)' }}
+            axisLine={{ stroke: 'rgba(255, 255, 255, 0.2)' }}
             tickLine={{ stroke: 'transparent' }}
             dy={5}
           />
@@ -243,12 +243,12 @@ export default function TradingLineChart({
             type="monotone"
             dataKey="current"
             name="Hari Ini"
-            stroke="#5B005F"
+            stroke="#FFFFFF"
             strokeWidth={3}
             fill="url(#todayGradient)"
             animationDuration={animationDuration}
             dot={false}
-            activeDot={{ r: 5, fill: '#5B005F', stroke: '#fff', strokeWidth: 2 }}
+            activeDot={{ r: 5, fill: '#FFFFFF', stroke: '#FFFFFF', strokeWidth: 2 }}
           />
         </ComposedChart>
       </ResponsiveContainer>

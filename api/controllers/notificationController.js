@@ -1,7 +1,8 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { getSettingValue } from './settingsController.js';
+import logger from '../utils/logger.js';
 
-const isAdminRole = (role) => ['admin', 'superadmin', 'owner', 'finance'].includes(role);
+const isAdminRole = (role) => role === 'admin';
 
 // ─── Helper: format time ago ─────────────────────────────────────────────────
 function formatTimeAgo(date) {
@@ -21,7 +22,7 @@ function formatTimeAgo(date) {
 
 // ─── GET /api/notifications ─────────────────────────────────────────────────
 // Notifikasi DIPISAH per role& per outlet.
-// Role: kasir/frontliner → notif kasir outlet tsb
+// Role: frontline → notif frontline outlet tsb
 //       produksi → notif produksi outlet tsb (team-specific)
 //       admin/owner/finance → notif approval & lintas outlet
 export const getNotifications = async (req, res) => {
@@ -32,16 +33,16 @@ export const getNotifications = async (req, res) => {
 
     const isAdmin = isAdminRole(userRole);
     const isProduksi = userRole === 'produksi';
-    const isKasir = ['kasir', 'frontline'].includes(userRole);
+    const isFrontliner = ['frontline'].includes(userRole);
 
     // ─── Outlet filter helper ───────────────────────────────────────────────
     const outletFilter = userOutletId ? 'AND t.outlet_id = ?' : '';
     const outletParams = userOutletId ? [userOutletId] : [];
 
     // ════════════════════════════════════════════════════════════════════════
-    // 1. KASIR / FRONTLINER — notifikasi kasir outlet sendiri
+    // 1. FRONTLINER — notifikasi frontline outlet sendiri
     // ════════════════════════════════════════════════════════════════════════
-    if (isKasir && userOutletId) {
+    if (isFrontliner && userOutletId) {
       // 1a. Nota baru hari ini (dari checkout)
       const [newRows] = await poolWaschenPos.execute(
         `SELECT t.transaction_no, c.name AS customerName, t.total, t.created_at
@@ -64,11 +65,11 @@ export const getNotifications = async (req, res) => {
           time: formatTimeAgo(r.created_at),
           timestamp: r.created_at,
           read: true,
-          category: 'kasir',
+          category: 'frontline',
         });
       });
 
-      // 1b. Nota siap diambil (semua item ready) — INFORM ke kasir
+      // 1b. Nota siap diambil (semua item ready) — INFORM ke frontline
       const [readyRows] = await poolWaschenPos.execute(
         `SELECT t.transaction_no, c.name AS customerName, t.updated_at
          FROM tr_transaction t
@@ -90,7 +91,7 @@ export const getNotifications = async (req, res) => {
           time: formatTimeAgo(r.updated_at),
           timestamp: r.updated_at,
           read: false,
-          category: 'kasir',
+          category: 'frontline',
         });
       });
 
@@ -116,7 +117,7 @@ export const getNotifications = async (req, res) => {
           time: formatTimeAgo(r.updated_at),
           timestamp: r.updated_at,
           read: true,
-          category: 'kasir',
+          category: 'frontline',
         });
       });
 
@@ -158,7 +159,7 @@ export const getNotifications = async (req, res) => {
           time: formatTimeAgo(ts),
           timestamp: ts,
           read: false,
-          category: 'kasir',
+          category: 'frontline',
         });
       });
 
@@ -182,7 +183,7 @@ export const getNotifications = async (req, res) => {
             time: 'Hari ini',
             timestamp: new Date().toISOString(),
             read: false,
-            category: 'kasir',
+            category: 'frontline',
           });
         });
       } catch { /* inventaris belum dipakai */ }
@@ -209,7 +210,7 @@ export const getNotifications = async (req, res) => {
               time: formatTimeAgo(balRows[0].updated_at),
               timestamp: balRows[0].updated_at,
               read: false,
-              category: 'kasir',
+              category: 'frontline',
             });
           }
         }
@@ -230,7 +231,7 @@ export const getNotifications = async (req, res) => {
             time: formatTimeAgo(r.created_at),
             timestamp: r.created_at,
             read: false,
-            category: 'kasir',
+            category: 'frontline',
           });
         });
       } catch { /* kas belum dipakai */ }
@@ -583,7 +584,7 @@ export const getNotifications = async (req, res) => {
 
     return res.json({ success: true, data: notifications.slice(0, 40) });
   } catch (err) {
-    console.error('[getNotifications] Error:', err);
+    logger.error('Gagal memuat notifikasi', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat notifikasi.' });
   }
 };

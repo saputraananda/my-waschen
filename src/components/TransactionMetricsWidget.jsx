@@ -111,7 +111,6 @@ export default function TransactionMetricsWidget({ period = 'today', compact = f
         setLastFetch(new Date());
       }
     } catch (err) {
-      console.error('[TransactionMetricsWidget] Fetch error:', err);
       setError(err?.response?.data?.message || 'Gagal memuat metrik');
     } finally {
       setLoading(false);

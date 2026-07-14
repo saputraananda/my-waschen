@@ -1,30 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // productionRolePermission.js — Production Role Permission Helpers
-// Phase 5: Dual Role System for Production Team
-// Task 29.1: Create role-based permissions for production
-// ─────────────────────────────────────────────────────────────────────────────
-// Role A (Packing Updates): Can update production_status only
-// Role B (Inventory Checking): Can view stock, cannot create purchase requests
+// Simple role system: admin, frontline, produksi
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Production role constants
-export const PRODUCTION_ROLES = {
-  PACKING_ONLY: 'packing_only',    // Role A - can update status
-  INVENTORY_CHECK: 'inventory_check', // Role B - read-only stock
-};
+// Roles that can update production status
+export const PRODUCTION_ROLES = ['admin', 'frontline', 'produksi'];
 
 // Check if user has packing role (can update production status)
 export function canUpdateProductionStatus(user) {
   if (!user) return false;
 
   // Admin always has access
-  if (['admin', 'superadmin'].includes(user.roleCode)) return true;
+  if (user.roleCode === 'admin') return true;
 
-  // Check user-level override first
-  if (user.productionPicRole === PRODUCTION_ROLES.PACKING_ONLY) return true;
+  // Produksi can update status
+  if (user.roleCode === 'produksi') return true;
 
-  // Check role-level default
-  if (user.productionRole === PRODUCTION_ROLES.PACKING_ONLY) return true;
+  // Frontliner can update
+  if (user.roleCode === 'frontline') return true;
 
   return false;
 }
@@ -34,19 +27,10 @@ export function canCheckInventory(user) {
   if (!user) return false;
 
   // Admin always has access
-  if (['admin', 'superadmin'].includes(user.roleCode)) return true;
+  if (user.roleCode === 'admin') return true;
 
-  // Both roles can view inventory
-  if (user.productionPicRole === PRODUCTION_ROLES.PACKING_ONLY) return true;
-  if (user.productionPicRole === PRODUCTION_ROLES.INVENTORY_CHECK) return true;
-
-  if (user.productionRole === PRODUCTION_ROLES.PACKING_ONLY) return true;
-  if (user.productionRole === PRODUCTION_ROLES.INVENTORY_CHECK) return true;
-
-  // Default: check if role is produksi
-  if (user.roleCode === 'produksi') return true;
-
-  return false;
+  // Semua role bisa check inventory
+  return true;
 }
 
 // Check if user can create purchase requests
@@ -54,18 +38,10 @@ export function canCreatePurchaseRequest(user) {
   if (!user) return false;
 
   // Admin always has access
-  if (['admin', 'superadmin'].includes(user.roleCode)) return true;
+  if (user.roleCode === 'admin') return true;
 
   // Frontliner always can create
-  if (['kasir', 'frontline'].includes(user.roleCode)) return true;
-
-  // Production role B cannot create
-  if (user.productionPicRole === PRODUCTION_ROLES.INVENTORY_CHECK) return false;
-  if (user.productionRole === PRODUCTION_ROLES.INVENTORY_CHECK) return false;
-
-  // Role A (packing) can create purchase requests
-  if (user.productionPicRole === PRODUCTION_ROLES.PACKING_ONLY) return true;
-  if (user.productionRole === PRODUCTION_ROLES.PACKING_ONLY) return true;
+  if (user.roleCode === 'frontline') return true;
 
   return false;
 }
@@ -75,56 +51,12 @@ export function canSendLowStockAlert(user) {
   if (!user) return false;
 
   // Admin always has access
-  if (['admin', 'superadmin'].includes(user.roleCode)) return true;
+  if (user.roleCode === 'admin') return true;
 
-  // Both production roles can send alerts
-  if (user.productionPicRole) return true;
-  if (user.productionRole) return true;
-
-  // Produksi role can send alerts
+  // Produksi can send alerts
   if (user.roleCode === 'produksi') return true;
 
   return false;
-}
-
-// Get production role display info
-export function getProductionRoleInfo(user) {
-  const role = user?.productionPicRole || user?.productionRole;
-
-  if (role === PRODUCTION_ROLES.PACKING_ONLY) {
-    return {
-      code: 'packing_only',
-      name: 'Role A: Packing Updates',
-      description: 'Can update production status',
-      canUpdateStatus: true,
-      canCheckInventory: true,
-      canCreatePurchaseRequest: false,
-      canSendAlert: true,
-    };
-  }
-
-  if (role === PRODUCTION_ROLES.INVENTORY_CHECK) {
-    return {
-      code: 'inventory_check',
-      name: 'Role B: Inventory Checking',
-      description: 'Can view stock and send alerts',
-      canUpdateStatus: false,
-      canCheckInventory: true,
-      canCreatePurchaseRequest: false,
-      canSendAlert: true,
-    };
-  }
-
-  // Default or non-production role
-  return {
-    code: null,
-    name: 'Full Access',
-    description: 'All production permissions',
-    canUpdateStatus: true,
-    canCheckInventory: true,
-    canCreatePurchaseRequest: true,
-    canSendAlert: true,
-  };
 }
 
 // Middleware helper for production status update
@@ -159,6 +91,6 @@ export function requirePurchaseRequestPermission(req, res, next) {
 
   return res.status(403).json({
     success: false,
-    message: 'Hanya frontliner yang dapat membuat pengajuan pembelian. Hubungi admin.',
+    message: 'Hanya frontline yang dapat membuat pengajuan pembelian. Hubungi admin.',
   });
 }

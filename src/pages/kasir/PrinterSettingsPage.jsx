@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { C, T, SHADOW } from '../../utils/theme';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Btn } from '../../components/ui';
 import { alertSuccess, confirmAction } from '../../utils/alert';
 
@@ -211,6 +212,7 @@ function ReceiptPreview({ cfg }) {
 
 // ── Main Page ───────────────────────────────────────────────────────────────
 export default function PrinterSettingsPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [cfg, setCfg] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -268,7 +270,7 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
             key={t}
             onClick={() => setActiveTab(i)}
             style={{
-              flex: 1, minWidth: 80, padding: '12px 8px', fontFamily: 'Poppins', fontSize: 12, fontWeight: activeTab === i ? 700 : 500,
+              flex: 1, minWidth: 80, padding: '10px 8px', fontFamily: 'Poppins', fontSize: 12, fontWeight: activeTab === i ? 700 : 500,
               color: activeTab === i ? C.primary : '#3a3a3a',
               background: 'none', border: 'none', cursor: 'pointer',
               borderBottom: `2.5px solid ${activeTab === i ? C.primary : 'transparent'}`,
@@ -280,13 +282,13 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12, paddingBottom: isMobile ? 100 : 12 }}>
 
         {/* ── TAB 0: PRINTER ── */}
         {activeTab === 0 && (
           <>
             <Section title="Ukuran Kertas">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr', gap: 8 }}>
                 {PRINTER_TYPES.map(p => (
                   <button
                     key={p.value}

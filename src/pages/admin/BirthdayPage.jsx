@@ -8,6 +8,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { TopBar, Btn, Chip, Input, Modal, SkeletonBar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
+import { useResponsive } from '../../utils/hooks';
 
 const F = { fontFamily: 'Poppins' };
 
@@ -169,6 +170,7 @@ const UpcomingRow = ({ customer, search }) => {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export function BirthdayPageContent({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [activeTab, setActiveTab] = useState('today');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(null);
@@ -196,7 +198,6 @@ export function BirthdayPageContent({ navigate, goBack }) {
         setTodayData(res.data.data);
       }
     } catch (err) {
-      console.error('[Birthday] Failed to fetch today:', err);
       alertError('Gagal memuat data ulang tahun hari ini');
     } finally {
       setLoading(false);
@@ -211,7 +212,6 @@ export function BirthdayPageContent({ navigate, goBack }) {
         setUpcomingData(res.data.data);
       }
     } catch (err) {
-      console.error('[Birthday] Failed to fetch upcoming:', err);
     } finally {
       setLoading(false);
     }
@@ -225,7 +225,6 @@ export function BirthdayPageContent({ navigate, goBack }) {
         setStatsData(res.data.data);
       }
     } catch (err) {
-      console.error('[Birthday] Failed to fetch stats:', err);
     } finally {
       setLoading(false);
     }
@@ -374,10 +373,16 @@ export function BirthdayPageContent({ navigate, goBack }) {
     return (
       <>
         {/* Summary Stats */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-          <StatBox value={toNotify.length} label="BELUM TERKIRIM" color={C.warning} bg={C.warning + '15'} />
-          <StatBox value={alreadyNotified.length} label="SUDAH TERKIRIM" color={C.success} bg={C.success + '15'} />
-          <StatBox value={customers.length} label="TOTAL" color={C.primary} bg={C.primary + '15'} />
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+          <div style={{ flexShrink: 0, minWidth: 100 }}>
+            <StatBox value={toNotify.length} label="BELUM TERKIRIM" color={C.warning} bg={C.warning + '15'} />
+          </div>
+          <div style={{ flexShrink: 0, minWidth: 100 }}>
+            <StatBox value={alreadyNotified.length} label="SUDAH TERKIRIM" color={C.success} bg={C.success + '15'} />
+          </div>
+          <div style={{ flexShrink: 0, minWidth: 100 }}>
+            <StatBox value={customers.length} label="TOTAL" color={C.primary} bg={C.primary + '15'} />
+          </div>
         </div>
 
         {/* Bulk Action */}
@@ -464,19 +469,23 @@ export function BirthdayPageContent({ navigate, goBack }) {
           <div style={{ ...F, fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
             📊 Ringkasan Bulan Ini
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <StatBox
-              value={totalCustomersWithBirthday}
-              label="Customer Ultah"
-              color={C.primary}
-              bg={C.primary + '15'}
-            />
-            <StatBox
-              value={pendingOffers.length}
-              label="Offer Pending"
-              color={C.warning}
-              bg={C.warning + '15'}
-            />
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+            <div style={{ flexShrink: 0, minWidth: 120 }}>
+              <StatBox
+                value={totalCustomersWithBirthday}
+                label="Customer Ultah"
+                color={C.primary}
+                bg={C.primary + '15'}
+              />
+            </div>
+            <div style={{ flexShrink: 0, minWidth: 120 }}>
+              <StatBox
+                value={pendingOffers.length}
+                label="Offer Pending"
+                color={C.warning}
+                bg={C.warning + '15'}
+              />
+            </div>
           </div>
         </Card>
 
@@ -575,7 +584,7 @@ export function BirthdayPageContent({ navigate, goBack }) {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, overflowX: 'hidden' }}>
         {activeTab === 'today' && renderToday()}
         {activeTab === 'upcoming' && renderUpcoming()}
         {activeTab === 'stats' && renderStats()}

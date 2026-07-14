@@ -76,7 +76,7 @@ export function connectRealtime(token) {
       });
     });
   } catch (e) {
-    console.warn('[realtime] failed to open SSE:', e?.message || e);
+    // Silent fail - realtime SSE optional
     scheduleReconnect();
   }
 }

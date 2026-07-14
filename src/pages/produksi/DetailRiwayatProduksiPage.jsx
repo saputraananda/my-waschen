@@ -3,17 +3,15 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { STAGES, photoTypeLabel } from '../../utils/helpers';
 import { TopBar, Avatar, Btn, PhotoLightbox } from '../../components/ui';
+import { useResponsive } from '../../utils/hooks';
 
 // ════════════════════════════════════════════════════════════════════
 // Design tokens
 // ════════════════════════════════════════════════════════════════════
 const STAGE_THEME = {
   Diterima: { icon: '📥', bg: '#EFF6FF', accent: '#3B82F6', soft: '#DBEAFE' },
-  Cuci:     { icon: '🫧', bg: '#ECFEFF', accent: '#06B6D4', soft: '#CFFAFE' },
-  Setrika:  { icon: '♨️', bg: '#FFFBEB', accent: '#F59E0B', soft: '#FEF3C7' },
   Packing:  { icon: '📦', bg: '#ECFDF5', accent: '#10B981', soft: '#D1FAE5' },
   Selesai:  { icon: '✅', bg: '#F0FDF4', accent: '#059669', soft: '#DCFCE7' },
-  QC:       { icon: '🔍', bg: '#F5F3FF', accent: '#8B5CF6', soft: '#EDE9FE' },
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -47,11 +45,12 @@ const fmtDuration = (start, end) => {
 // Sub-components
 // ════════════════════════════════════════════════════════════════════
 function HeroCustomerCard({ data }) {
+  const { isMobile } = useResponsive();
   const initials = (data.customerName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div style={{
       background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0C4A6E 100%)',
-      padding: '14px 16px 16px',
+      padding: isMobile ? '12px 14px 14px' : '14px 16px 16px',
       position: 'relative', overflow: 'hidden',
       flexShrink: 0,
     }}>
@@ -60,22 +59,22 @@ function HeroCustomerCard({ data }) {
         background: 'radial-gradient(circle, rgba(59,130,246,0.35), transparent 70%)',
         filter: 'blur(20px)', pointerEvents: 'none',
       }} />
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Avatar initials={initials} size={50} />
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12 }}>
+        <Avatar initials={initials} size={isMobile ? 44 : 50} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: 'rgba(255,255,255,0.6)', letterSpacing: 0.5, fontWeight: 600 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 8 : 9, color: 'rgba(255,255,255,0.6)', letterSpacing: 0.5, fontWeight: 600 }}>
             📋 {data.id}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 17, fontWeight: 600, color: 'white', marginTop: 1, lineHeight: 1.2 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 15 : 17, fontWeight: 600, color: 'white', marginTop: 1, lineHeight: 1.2 }}>
             {data.customerName}
           </div>
           {data.customerPhone && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, color: 'rgba(255,255,255,0.75)', marginTop: 3 }}>
               📞 {data.customerPhone}
             </div>
           )}
           {data.outletName && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
               🏪 {data.outletName}
             </div>
           )}
@@ -84,7 +83,7 @@ function HeroCustomerCard({ data }) {
           <div style={{
             background: C.warning,
             color: 'white',
-            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+            fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, fontWeight: 600,
             padding: '5px 10px', borderRadius: 999,
             boxShadow: '0 2px 8px rgba(245,158,11,0.4)',
           }}>⚡ EXPRESS</div>
@@ -95,6 +94,7 @@ function HeroCustomerCard({ data }) {
 }
 
 function TimeStatGrid({ data }) {
+  const { isMobile } = useResponsive();
   const tiles = [
     { icon: '📥', label: 'Diterima',  value: fmtDateTime(data.receivedAt),    bg: C.validationInfoBg, fg: C.validationInfoText },
     { icon: '✅', label: 'Selesai',   value: fmtDateTime(data.finishedAt),    bg: C.successBg, fg: C.successDark },
@@ -110,11 +110,12 @@ function TimeStatGrid({ data }) {
 
   return (
     <div style={{
-      background: 'white', borderRadius: 16, padding: '14px 14px',
+      background: 'white', borderRadius: 16, padding: isMobile ? '12px 12px' : '14px 14px',
       marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
       border: `1px solid ${C.n100}`,
+      overflowX: 'auto',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em' }}>
           ⏱️ WAKTU PRODUKSI
         </div>
@@ -129,7 +130,7 @@ function TimeStatGrid({ data }) {
           </span>
         )}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : '1fr 1fr', gap: isMobile ? 6 : 8 }}>
         {tiles.map((t, i) => (
           <div key={i} style={{
             background: t.bg, borderRadius: 10, padding: '9px 11px',
@@ -148,11 +149,13 @@ function TimeStatGrid({ data }) {
 }
 
 function StageTimeline({ timeline = [] }) {
+  const { isMobile } = useResponsive();
   return (
     <div style={{
-      background: 'white', borderRadius: 16, padding: '14px 16px',
+      background: 'white', borderRadius: 16, padding: isMobile ? '12px 12px' : '14px 16px',
       marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
       border: `1px solid ${C.n100}`,
+      overflowX: 'auto',
     }}>
       <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.5, marginBottom: 12 }}>
         🚦 ALUR TAHAP
@@ -256,9 +259,10 @@ function ItemList({ items = [] }) {
 }
 
 function PhotoSection({ title, icon, photos = [], emptyText, onPhotoClick }) {
+  const { isMobile } = useResponsive();
   return (
     <div style={{
-      background: 'white', borderRadius: 16, padding: '14px 16px',
+      background: 'white', borderRadius: 16, padding: isMobile ? '12px 12px' : '14px 16px',
       marginBottom: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
       border: `1px solid ${C.n100}`,
     }}>
@@ -282,7 +286,7 @@ function PhotoSection({ title, icon, photos = [], emptyText, onPhotoClick }) {
           📷 {emptyText}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)', gap: isMobile ? 4 : 6 }}>
           {photos.map((p, idx) => (
             <button
               key={p.id || idx}
@@ -324,6 +328,7 @@ function PhotoSection({ title, icon, photos = [], emptyText, onPhotoClick }) {
 // Main
 // ════════════════════════════════════════════════════════════════════
 export default function DetailRiwayatProduksiPage({ navigate, goBack, screenParams }) {
+  const { isMobile } = useResponsive();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -419,7 +424,7 @@ export default function DetailRiwayatProduksiPage({ navigate, goBack, screenPara
 
       <HeroCustomerCard data={data} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: `${isMobile ? 10 : 12}px ${isMobile ? 12 : 16}px ${isMobile ? 90 : 24}px` }}>
         <TimeStatGrid data={data} />
         <StageTimeline timeline={data.timeline} />
         <ItemList items={data.items} />

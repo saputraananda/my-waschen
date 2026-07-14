@@ -3,6 +3,7 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useResponsive } from '../../utils/hooks';
 import { Avatar, Badge, StatCard, Btn, SectionHeader } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 
@@ -80,6 +81,7 @@ const TrendBadge = ({ current, previous, label }) => {
 };
 
 export default function FinanceDashboardPage({ user, navigate }) {
+  const { isMobile, isTablet } = useResponsive();
   const [stats, setStats] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [recentTx, setRecentTx] = useState([]);
@@ -116,7 +118,6 @@ export default function FinanceDashboardPage({ user, navigate }) {
         setRecentTx((txRes?.data?.data || []).slice(0, 5));
       } catch { /* ignore */ }
     } catch (err) {
-      console.error('[FinanceDash] fetchStats error:', err);
       setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
@@ -191,7 +192,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
         ) : stats && (
           <>
             {/* ── Stat Cards Row ─────────────────────────────────────── */}
-            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, marginBottom: 16, scrollbarWidth: 'none' }}>
+            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, marginBottom: 16, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
               <StatCard label="Minggu Ini" value={rp(stats.week.revenue).replace('Rp ', 'Rp')} sub={`${stats.week.txCount} transaksi`} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>} color={C.info} />
               <StatCard label="Bulan Ini" value={rp(stats.month.revenue).replace('Rp ', 'Rp')} sub={`${stats.month.txCount} transaksi`} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.21 15.89A10 10 0 118 2.83" /><path d="M22 12A10 10 0 0012 2v10z" /></svg>} color={C.success} />
               <StatCard
@@ -206,8 +207,8 @@ export default function FinanceDashboardPage({ user, navigate }) {
 
             {/* ── Revenue Chart (7 Days) ─────────────────────────────── */}
             {chartData.length > 0 && (
-              <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? 12 : 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)', overflowX: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>📊 Trend Revenue 7 Hari</div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>
                     Total: {rp(chartData.reduce((s, d) => s + d.revenue, 0))}
@@ -243,9 +244,9 @@ export default function FinanceDashboardPage({ user, navigate }) {
             )}
 
             {/* ── Quick Menu ─────────────────────────────────────────── */}
-            <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+            <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? 12 : 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 14 }}>Menu Finance</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(auto-fill, minmax(76px, 1fr))', gap: 8 }}>
                 {[
                   { label: 'Verifikasi', screen: 'verifikasi_payment', icon: '✅', color: C.success },
                   { label: 'Laporan', screen: 'laporan_keuangan', icon: '📊', color: C.info },
@@ -267,7 +268,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
             </div>
 
             {/* ── Revenue Summary Card ───────────────────────────────── */}
-            <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+            <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? 12 : 16, marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 14 }}>Ringkasan Omset</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
@@ -279,6 +280,8 @@ export default function FinanceDashboardPage({ user, navigate }) {
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '12px 14px', background: C.n50, borderRadius: 12,
                     borderLeft: `3px solid ${item.color}`,
+                    flexWrap: 'wrap',
+                    gap: 8,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 16 }}>{item.icon}</span>

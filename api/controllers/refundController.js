@@ -5,6 +5,7 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
 import { rp } from '../utils/helpers.js';
+import logger from '../utils/logger.js';
 
 // ─── Helper: Get config value ────────────────────────────────────────────────
 async function getConfig(key, defaultValue = null) {
@@ -14,7 +15,8 @@ async function getConfig(key, defaultValue = null) {
       [key]
     );
     return row?.config_val ?? defaultValue;
-  } catch {
+  } catch (err) {
+    logger.warn('[getConfig]', key, err?.message);
     return defaultValue;
   }
 }
@@ -66,7 +68,7 @@ export const listRefunds = async (req, res) => {
 
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
@@ -163,7 +165,7 @@ export const listRefunds = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[listRefunds] Error:', err);
+    logger.error('Gagal memuat daftar refund', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat daftar refund.' });
   }
 };
@@ -247,7 +249,7 @@ export const getRefundById = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getRefundById] Error:', err);
+    logger.error('Gagal memuat detail refund', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat detail refund.' });
   }
 };
@@ -336,7 +338,7 @@ export const createRefund = async (req, res) => {
     // Determine approval requirement
     const autoApproveThreshold = Number(await getConfig('auto_approve_refund_threshold', 50000));
     const needsApproval = Number(refundAmount) > autoApproveThreshold ||
-      !['admin', 'superadmin', 'owner'].includes(userRole);
+      !userRole !== 'admin';
 
     const refundNo = await generateRefundNo();
     const status = needsApproval ? REFUND_STATUS.PENDING : REFUND_STATUS.APPROVED;
@@ -444,7 +446,7 @@ export const createRefund = async (req, res) => {
       action: 'create_refund',
       newData: { refundNo, refundAmount: Number(refundAmount), reason, status },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[createRefund] writeAudit gagal:', err));
 
     return res.status(201).json({
       success: true,
@@ -462,7 +464,7 @@ export const createRefund = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[createRefund] Error:', err);
+    logger.error('Gagal membuat request refund', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal membuat request refund.' });
   } finally {
     conn.release();
@@ -479,7 +481,7 @@ export const approveRefund = async (req, res) => {
     const userRole = req.user?.roleCode;
 
     // Only admin/superadmin/owner can approve
-    if (!['admin', 'superadmin', 'owner', 'finance'].includes(userRole)) {
+    if (!['admin'].includes(userRole)) {
       conn.release();
       return res.status(403).json({ success: false, message: 'Hanya admin yang dapat menyetujui refund.' });
     }
@@ -548,7 +550,7 @@ export const approveRefund = async (req, res) => {
       action: 'approve_refund',
       newData: { refundNo: refund.refund_no, approvedAmount: finalAmount },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[approveRefund] writeAudit gagal:', err));
 
     return res.json({
       success: true,
@@ -562,7 +564,7 @@ export const approveRefund = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[approveRefund] Error:', err);
+    logger.error('Gagal menyetujui refund', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menyetujui refund.' });
   } finally {
     conn.release();
@@ -577,7 +579,7 @@ export const rejectRefund = async (req, res) => {
     const userId = req.user?.userId;
     const userRole = req.user?.roleCode;
 
-    if (!['admin', 'superadmin', 'owner', 'finance'].includes(userRole)) {
+    if (!['admin'].includes(userRole)) {
       return res.status(403).json({ success: false, message: 'Hanya admin yang dapat menolak refund.' });
     }
 
@@ -611,14 +613,14 @@ export const rejectRefund = async (req, res) => {
       action: 'reject_refund',
       newData: { refundNo: rows[0].refund_no, reason },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[rejectRefund] writeAudit gagal:', err));
 
     return res.json({
       success: true,
       message: `Refund ${rows[0].refund_no} ditolak.`,
     });
   } catch (err) {
-    console.error('[rejectRefund] Error:', err);
+    logger.error('Gagal menolak refund', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menolak refund.' });
   }
 };
@@ -632,7 +634,7 @@ export const processRefund = async (req, res) => {
     const userId = req.user?.userId;
     const userRole = req.user?.roleCode;
 
-    if (!['admin', 'superadmin', 'owner', 'finance'].includes(userRole)) {
+    if (!['admin'].includes(userRole)) {
       conn.release();
       return res.status(403).json({ success: false, message: 'Hanya admin yang dapat memproses refund.' });
     }
@@ -723,7 +725,7 @@ export const processRefund = async (req, res) => {
       action: 'process_refund',
       newData: { refundNo: refund.refund_no, amount: refundAmount },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[processRefund] writeAudit gagal:', err));
 
     return res.json({
       success: true,
@@ -736,7 +738,7 @@ export const processRefund = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[processRefund] Error:', err);
+    logger.error('Gagal memproses refund', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memproses refund.' });
   } finally {
     conn.release();
@@ -768,7 +770,7 @@ export const cancelRefund = async (req, res) => {
     }
 
     // Only requester or admin can cancel
-    if (String(refund.requesterId) !== String(userId) && !['admin', 'superadmin', 'owner'].includes(userRole)) {
+    if (String(refund.requesterId) !== String(userId) && !userRole !== 'admin') {
       return res.status(403).json({ success: false, message: 'Anda tidak memiliki权限 untuk membatalkan refund ini.' });
     }
 
@@ -788,14 +790,14 @@ export const cancelRefund = async (req, res) => {
       action: 'cancel_refund',
       newData: { refundNo: refund.refund_no, reason },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[cancelRefund] writeAudit gagal:', err));
 
     return res.json({
       success: true,
       message: `Refund ${refund.refund_no} berhasil dibatalkan.`,
     });
   } catch (err) {
-    console.error('[cancelRefund] Error:', err);
+    logger.error('Gagal membatalkan refund', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal membatalkan refund.' });
   }
 };
@@ -805,7 +807,7 @@ export const getRefundStats = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     const outletFilter = isGlobal ? '' : 'AND r.outlet_id = ?';
     const params = isGlobal ? [] : [userOutletId];
@@ -887,7 +889,7 @@ export const getRefundStats = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getRefundStats] Error:', err);
+    logger.error('Gagal memuat statistik refund', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat statistik refund.' });
   }
 };

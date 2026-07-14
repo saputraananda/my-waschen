@@ -7,6 +7,8 @@
 import { poolWaschenPos as db } from '../db/connection.js';
 import { canUpdateProductionStatus, PRODUCTION_ROLES } from '../utils/productionRolePermission.js';
 import { sendProductionReadyNotification } from '../services/whatsappService.js';
+import { emitTransactionCheckout, emitProductionUpdate } from '../services/eventBus.js';
+import logger from '../utils/logger.js';
 
 // Production stage order
 const STAGE_ORDER = ['received', 'waiting', 'washing', 'drying', 'ironing', 'qc', 'packing', 'ready', 'done'];
@@ -90,7 +92,7 @@ export async function updateItemUnitStatus(req, res) {
     const oldStatus = itemUnit.production_status;
 
     // ── Validate stage progression (no backward unless admin) ─────────────────
-    const isAdmin = ['admin', 'superadmin'].includes(user.roleCode);
+    const isAdmin = user.roleCode !== 'admin';
     const oldIndex = STAGE_ORDER.indexOf(oldStatus);
     const newIndex = STAGE_ORDER.indexOf(status);
 
@@ -179,15 +181,38 @@ export async function updateItemUnitStatus(req, res) {
             sentBy: userId,
           });
 
-          console.log(`[Production] Ready notification sent for ${txInfo.transaction_no}:`, notifResult.success ? 'SUCCESS' : 'FAILED');
+          // [Production] Ready notification sent
         } catch (notifErr) {
           // Don't fail the status update if notification fails
-          console.error('[Production] Failed to send ready notification:', notifErr.message);
+          logger.error('Gagal mengirim notifikasi ready', { error: notifErr.message });
         }
       }
     }
 
     await conn.commit();
+
+    // ── Emit events for real-time updates ───────────────────────────────────
+    // Emit production update event
+    emitProductionUpdate({
+      type: 'status_change',
+      itemUnitId: id,
+      unitNo: itemUnit.unit_no,
+      transactionId: itemUnit.transaction_id,
+      oldStatus,
+      newStatus: status,
+      isFullyReady,
+      updatedBy: userId,
+    });
+
+    // Emit transaction update if fully ready
+    if (isFullyReady) {
+      emitTransactionCheckout({
+        type: 'production_complete',
+        transactionId: itemUnit.transaction_id,
+        transactionNo: itemUnit.transaction_no,
+        allItemsReady: true,
+      });
+    }
 
     return res.json({
       success: true,
@@ -205,7 +230,7 @@ export async function updateItemUnitStatus(req, res) {
 
   } catch (error) {
     await conn.rollback();
-    console.error('[updateItemUnitStatus] Error:', error);
+    logger.error('Gagal update status produksi', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal update status produksi.',
@@ -292,7 +317,7 @@ export async function getItemUnitDetail(req, res) {
     });
 
   } catch (error) {
-    console.error('[getItemUnitDetail] Error:', error);
+    logger.error('Gagal mengambil detail item unit', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil detail item unit.',
@@ -372,7 +397,7 @@ export async function uploadItemUnitPhoto(req, res) {
 
   } catch (error) {
     await conn.rollback();
-    console.error('[uploadItemUnitPhoto] Error:', error);
+    logger.error('Gagal upload foto', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal upload foto.',

@@ -177,7 +177,6 @@ export default function OutletComparisonWidget({ onSelectOutlet, compact = false
       const res = await axios.get(`/api/dashboard-intelligence/outlet-comparison?period=${period}`, { timeout: 10000 });
       if (res?.data?.data) setData(res.data.data);
     } catch (err) {
-      console.error('[OutletComparisonWidget] Fetch error:', err);
       setError(err?.response?.data?.message || 'Gagal memuat data');
     } finally {
       setLoading(false);

@@ -5,6 +5,7 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Chip, Select, DateTimeInput, ComparisonLineChart, SkeletonStatGrid } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { getDateRangePreset, DATE_PRESETS } from '../../utils/filterPresets';
+import { useResponsive } from '../../utils/hooks';
 
 const F = { fontFamily: 'Poppins' };
 
@@ -35,6 +36,7 @@ const MetricCard = ({ label, currentVal, prevVal, delta, format = 'number', colo
 };
 
 export default function ComparisonReportPage({ goBack }) {
+  const { isMobile } = useResponsive();
   const { adminOutletId } = useApp();
   const [outlets, setOutlets] = useState([]);
   const [outletId, setOutletId] = useState(adminOutletId && adminOutletId !== '_all' ? adminOutletId : '');
@@ -67,8 +69,7 @@ export default function ComparisonReportPage({ goBack }) {
       }
       const res = await axios.get(`/api/reports/comparison?${params.toString()}`);
       setData(res?.data?.data || null);
-    } catch (e) {
-      console.error(e);
+    } catch {
       setData(null);
     } finally {
       setLoading(false);
@@ -92,14 +93,14 @@ export default function ComparisonReportPage({ goBack }) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: SHADOW.md }}>
+        <div style={{ background: C.white, borderRadius: 14, padding: isMobile ? 12 : 14, marginBottom: 14, boxShadow: SHADOW.md }}>
           <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Periode A (Saat Ini)</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             {DATE_PRESETS.slice(0, 6).map(p => (
               <Chip key={p.key} label={p.label} active={preset === p.key} onClick={() => applyPreset(p.key)} />
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
             <DateTimeInput label="Dari" value={startDate ? `${startDate}T00:00:00` : ''} onChange={v => { setStartDate(v ? v.slice(0, 10) : ''); setPreset(''); }} timeOptional />
             <DateTimeInput label="Sampai" value={endDate ? `${endDate}T00:00:00` : ''} onChange={v => { setEndDate(v ? v.slice(0, 10) : ''); setPreset(''); }} timeOptional />
           </div>
@@ -116,7 +117,7 @@ export default function ComparisonReportPage({ goBack }) {
               </label>
             </div>
             {customCompare ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
                 <DateTimeInput label="Dari" value={compareStart ? `${compareStart}T00:00:00` : ''} onChange={(v) => setCompareStart(v ? v.slice(0, 10) : '')} timeOptional />
                 <DateTimeInput label="Sampai" value={compareEnd ? `${compareEnd}T00:00:00` : ''} onChange={(v) => setCompareEnd(v ? v.slice(0, 10) : '')} timeOptional />
               </div>
@@ -146,7 +147,7 @@ export default function ComparisonReportPage({ goBack }) {
             </div>
 
             {/* KPI Comparison Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 14 }}>
               <MetricCard label="OMSET" currentVal={cur.revenue} prevVal={prev.revenue} delta={changes.revenue} format="currency" color={C.primary} />
               <MetricCard label="TRANSAKSI" currentVal={cur.txCount} prevVal={prev.txCount} delta={changes.txCount} color={C.info} />
               <MetricCard label="PELUNASAN" currentVal={cur.pelunasan} prevVal={prev.pelunasan} delta={changes.pelunasan} format="currency" color={C.success} />
@@ -169,8 +170,8 @@ export default function ComparisonReportPage({ goBack }) {
             </div>
 
             {/* Comparison Chart */}
-            <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm, overflowX: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>Tren Perbandingan</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[{ key: 'revenue', label: 'Omset' }, { key: 'txCount', label: 'Transaksi' }].map(m => (

@@ -7,7 +7,7 @@ import {
 
 const router = Router();
 
-const ADMIN = requireRole('admin', 'superadmin', 'owner');
+const ADMIN = requireRole('admin');
 
 router.get('/', authenticate, ADMIN, readLimiter, getSettings);
 router.get('/:key', authenticate, ADMIN, readLimiter, getSettingByKey);

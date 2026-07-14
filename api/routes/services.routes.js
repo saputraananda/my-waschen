@@ -21,7 +21,7 @@ const invalidateServices = (req, res, next) => {
 // Cache 2 menit — data master jarang berubah
 router.get('/', authenticate, cacheResponse({ ttl: 120_000 }), readLimiter, getServices);
 
-// Mutasi master layanan (harga, satuan, dll.) — HANYA admin/superadmin/owner
+// Mutasi master layanan (harga, satuan, dll.) — HANYA admin
 // Kasir/frontline tidak boleh memodifikasi master data layanan (risiko fraud: ubah harga sebelum checkout)
 // Validation: Zod schema validates name, category_id, price, unit, SLA hours
 router.post('/', authenticate, canManageMasterData, invalidateServices, validateServiceCreate, createService);

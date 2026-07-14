@@ -3,10 +3,12 @@ import api from '../../utils/api';
 import { useApp } from '../../context/AppContext';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, formatRupiah, parseRupiah } from '../../utils/helpers';
-import { TopBar, Btn, Input } from '../../components/ui';
+import { TopBar, Btn, Input, EmptyState } from '../../components/ui';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
 
 function SetorTunaiPage({ goBack }) {
   const { user } = useApp();
+  const { isMobile } = useResponsive();
   const today = new Date().toISOString().slice(0, 10);
 
   const [depositDate, setDepositDate] = useState(today);
@@ -110,7 +112,7 @@ function SetorTunaiPage({ goBack }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Setor Tunai" subtitle="Setorkan uang tunai ke admin/bank" onBack={goBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, paddingBottom: isMobile ? 100 : 16 }}>
         <div style={{ maxWidth: 440, margin: '0 auto' }}>
 
           {/* Pending Alert */}
@@ -242,7 +244,14 @@ function SetorTunaiPage({ goBack }) {
           <div style={{ background: C.white, borderRadius: 14, padding: 16, boxShadow: SHADOW.sm, marginBottom: 24 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Riwayat Setor</div>
             {history.length === 0 ? (
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.textMuted, textAlign: 'center', padding: 20 }}>Belum ada riwayat setor</div>
+              <EmptyState
+                type="reports"
+                title="Belum Ada Riwayat Setor"
+                message="Riwayat setoran kas akan muncul di sini"
+                suggestion="Lakukan setoran kas untuk melihat riwayat"
+                illustrationSize={80}
+                compact
+              />
             ) : (
               history.map(h => (
                 <div key={h.id} style={{ padding: '10px 0', borderBottom: `1px solid ${C.n100}` }}>

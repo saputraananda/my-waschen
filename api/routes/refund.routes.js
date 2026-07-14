@@ -19,7 +19,7 @@ import {
 
 const router = Router();
 
-const ADMIN = requireRole('admin', 'superadmin', 'owner', 'finance');
+const ADMIN = requireRole('admin');
 
 // Invalidate cache on refund mutations
 const invalidateRefunds = (req, res, next) => {

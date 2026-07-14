@@ -4,6 +4,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { TopBar, Btn, Chip, Input, Select, MoneyInput, DateTimeInput, ErrorBoundary } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
+import { useResponsive } from '../../utils/hooks';
 
 const F = { fontFamily: 'Poppins' };
 
@@ -64,6 +65,7 @@ const thStyle = { ...F, fontSize: 10, fontWeight: 600, color: C.n600, padding: '
 const tdStyle = { ...F, fontSize: 12, color: C.n800, padding: '10px 12px', whiteSpace: 'nowrap' };
 
 export function AdminPromoSlaStokPageContent({ navigate, goBack, initialTab = 'stok' }) {
+  const { isMobile, isTablet } = useResponsive();
   const validTabs = ['stok', 'inventaris', 'promo'];
   const [tab, setTab] = useState(validTabs.includes(initialTab) ? initialTab : 'stok');
 
@@ -283,9 +285,9 @@ export function AdminPromoSlaStokPageContent({ navigate, goBack, initialTab = 's
             <div style={{ marginTop: 16 }}>
               <SectionHeader icon="🔍" title="Detail Stok Outlet" subtitle="Pilih outlet untuk lihat & atur minimum SKU" />
             </div>
-            <Card style={{ marginBottom: 12 }}>
+            <Card style={{ marginBottom: 12, padding: isMobile ? 12 : 14 }}>
               <Select label="Outlet" value={pickOutlet} onChange={(val) => setPickOutlet(val)} placeholder="Pilih outlet..." options={[{ value: '', label: 'Pilih outlet...' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]} />
-              
+
               {/* Detail Outlet yang Dipilih */}
               {pickOutlet && (() => {
                 const selectedOutlet = outlets.find(o => o.id === Number(pickOutlet));
@@ -293,7 +295,7 @@ export function AdminPromoSlaStokPageContent({ navigate, goBack, initialTab = 's
                 return selectedOutlet && (
                   <div style={{ marginTop: 12, padding: '12px 14px', background: C.n50, borderRadius: 10, borderLeft: `4px solid ${C.primary}` }}>
                     <div style={{ ...F, fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>DETAIL OUTLET</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 12 }}>
                       <div>
                         <div style={{ ...F, fontSize: 10, color: C.n700, marginBottom: 2 }}>📍 Alamat</div>
                         <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n900 }}>{selectedOutlet.address || '-'}</div>
@@ -320,10 +322,10 @@ export function AdminPromoSlaStokPageContent({ navigate, goBack, initialTab = 's
                   </div>
                 );
               })()}
-              
+
               {pickOutlet && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 160 }}>
+                  <div style={{ flex: 1, minWidth: isMobile ? '100%' : 160 }}>
                     <Input label="Cari SKU" value={stockSearch} onChange={setStockSearch} placeholder="Nama bahan..." />
                   </div>
                   <Chip label="🔴 Stok rendah saja" active={showLowOnly} onClick={() => setShowLowOnly(!showLowOnly)} />
@@ -344,8 +346,8 @@ export function AdminPromoSlaStokPageContent({ navigate, goBack, initialTab = 's
                 </Card>
               ) : (
                 <Card style={{ padding: 0, overflow: 'hidden' }}>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', ...F, fontSize: 12 }}>
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', ...F, fontSize: 12, minWidth: 500 }}>
                       <thead>
                         <tr style={{ background: C.n50, borderBottom: `1.5px solid ${C.n200}` }}>
                           <th style={thStyle}>SKU</th>

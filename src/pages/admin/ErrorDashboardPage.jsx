@@ -8,6 +8,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { TopBar, Btn, Chip, Select } from '../../components/ui';
 // import { Pagination } from '../../components/ui'; // TODO: Add Pagination component
 import { alertError, alertSuccess } from '../../utils/alert';
+import { useResponsive } from '../../utils/hooks';
 
 const F = { fontFamily: 'Poppins' };
 
@@ -70,6 +71,7 @@ const StatsCard = ({ title, value, color = C.n900, bg }) => (
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export function ErrorDashboardPageContent({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [errors, setErrors] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -93,7 +95,6 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
         setStats(res.data.data);
       }
     } catch (err) {
-      console.error('[ErrorDashboard] Failed to fetch stats:', err);
     }
   }, []);
 
@@ -117,7 +118,6 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
         }));
       }
     } catch (err) {
-      console.error('[ErrorDashboard] Failed to fetch errors:', err);
       alertError('Gagal memuat error logs');
     } finally {
       setLoading(false);
@@ -181,26 +181,32 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
       {/* Stats Summary */}
       {stats && (
         <div style={{
-          display: 'flex', gap: 10, padding: 16,
+          display: 'flex', gap: 10, padding: 16, overflowX: 'auto',
           background: C.white, borderBottom: `1px solid ${C.n200}`,
         }}>
-          <StatsCard
-            title="TODAY"
-            value={stats.today?.total || 0}
-            bg={C.n50}
-          />
-          <StatsCard
-            title="UNRESOLVED"
-            value={stats.unresolved || 0}
-            color={stats.unresolved > 0 ? C.danger : C.success}
-            bg={stats.unresolved > 0 ? C.dangerBg : C.successBg}
-          />
-          <StatsCard
-            title="7-DAY TREND"
-            value={stats.trend7Days?.reduce((sum, d) => sum + d.count, 0) || 0}
-            color={C.primary}
-            bg={C.primary + '15'}
-          />
+          <div style={{ flexShrink: 0, minWidth: 100 }}>
+            <StatsCard
+              title="TODAY"
+              value={stats.today?.total || 0}
+              bg={C.n50}
+            />
+          </div>
+          <div style={{ flexShrink: 0, minWidth: 100 }}>
+            <StatsCard
+              title="UNRESOLVED"
+              value={stats.unresolved || 0}
+              color={stats.unresolved > 0 ? C.danger : C.success}
+              bg={stats.unresolved > 0 ? C.dangerBg : C.successBg}
+            />
+          </div>
+          <div style={{ flexShrink: 0, minWidth: 100 }}>
+            <StatsCard
+              title="7-DAY TREND"
+              value={stats.trend7Days?.reduce((sum, d) => sum + d.count, 0) || 0}
+              color={C.primary}
+              bg={C.primary + '15'}
+            />
+          </div>
         </div>
       )}
 
@@ -209,6 +215,7 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
         display: 'flex', gap: 10, padding: '12px 16px',
         background: C.white, borderBottom: `1px solid ${C.n200}`,
         flexWrap: 'wrap',
+        overflowX: 'auto',
       }}>
         <select
           value={severity}
@@ -253,7 +260,7 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
       </div>
 
       {/* Error List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, overflowX: 'hidden' }}>
         {loading ? (
           <div style={{ ...F, fontSize: 13, color: C.n500, textAlign: 'center', padding: 40 }}>
             Memuat...
@@ -374,6 +381,7 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
           <div style={{
             background: C.white, borderRadius: 16, padding: 20, maxWidth: 600,
             width: '100%', maxHeight: '80vh', overflowY: 'auto',
+            margin: isMobile ? 12 : 20,
           }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ ...F, fontSize: 16, fontWeight: 700, color: C.n900, margin: 0 }}>

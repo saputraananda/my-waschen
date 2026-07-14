@@ -48,8 +48,27 @@ export const emitPaymentSettled = (outletId, transactionId, amount, method, extr
 export const emitPhotoSaved = (outletId, transactionId, unitId, kind) =>
   bus.publish('production:photo', { outletId, transactionId, unitId, kind });
 
-export const emitProductionUpdate = (outletId, transactionId, unitId, productionStatus) =>
-  bus.publish('production:update', { outletId, transactionId, unitId, productionStatus });
+export const emitProductionUpdate = (outletId, transactionId, unitId, productionStatus) => {
+  // Support both old API (4 args) and new API (object with optional fields)
+  if (typeof outletId === 'object') {
+    const opts = outletId;
+    bus.publish('production:update', {
+      outletId: opts.outletId ?? 0,
+      transactionId: opts.transactionId,
+      unitId: opts.unitId,
+      productionStatus: opts.productionStatus,
+      type: opts.type,
+      itemUnitId: opts.itemUnitId,
+      unitNo: opts.unitNo,
+      oldStatus: opts.oldStatus,
+      newStatus: opts.newStatus,
+      isFullyReady: opts.isFullyReady,
+      updatedBy: opts.updatedBy,
+    });
+  } else {
+    bus.publish('production:update', { outletId, transactionId, unitId, productionStatus });
+  }
+};
 
 export const emitProductionNewItem = (outletId, transactionId, transactionNo, itemName, customerName, isExpress, estimatedDoneAt) =>
   bus.publish('production:new-item', { outletId, transactionId, transactionNo, itemName, customerName, isExpress, estimatedDoneAt });
@@ -62,5 +81,17 @@ export const emitNotificationNew = (outletId, recipientUserId, notifType) =>
 
 export const emitWhatsappSent = ({ outletId, transactionId, customerId, templateCode }) =>
   bus.publish('whatsapp:sent', { outletId: outletId ?? 0, transactionId, customerId, templateCode });
+
+// ── Adjustment Events ───────────────────────────────────────────────────
+export const emitAdjustmentCreated = ({ adjustmentId, adjustmentNo, transactionId, transactionNo, type, difference, action, createdBy }) =>
+  bus.publish('adjustment:created', {
+    adjustmentId, adjustmentNo, transactionId, transactionNo, type, difference, action, createdBy
+  });
+
+export const emitAdjustmentApproved = ({ adjustmentId, adjustmentNo, transactionId, approvedBy }) =>
+  bus.publish('adjustment:approved', { adjustmentId, adjustmentNo, transactionId, approvedBy });
+
+export const emitAdjustmentRejected = ({ adjustmentId, adjustmentNo, transactionId, rejectedBy, reason }) =>
+  bus.publish('adjustment:rejected', { adjustmentId, adjustmentNo, transactionId, rejectedBy, reason });
 
 export default bus;

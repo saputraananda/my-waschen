@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../utils/theme';
 import { rp } from '../utils/helpers';
+import { useResponsive } from '../utils/hooks';
 import { TopBar, Btn, Modal, Input, Select, Textarea, useAppRefresh, SearchBar, MoneyInput } from '../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../utils/alert';
 import { useApp } from '../context/AppContext';
@@ -22,6 +23,7 @@ import {
   exportCashCsv,
   CATEGORY_META, TOPUP_SOURCE_META, STATUS_META,
 } from '../utils/outletCashApi';
+import { uploadImage } from '../utils/imageUpload';
 
 const fmtDate = (v) => {
   if (!v) return '-';
@@ -51,6 +53,7 @@ function periodToRange(period) {
 }
 
 export default function KasOutletPage({ goBack }) {
+  const { isMobile } = useResponsive();
   const { user } = useApp();
   const userRole = user?.originalRoleCode || user?.roleCode || user?.role;
   const isAdmin = ['admin', 'superadmin', 'owner'].includes(userRole);
@@ -96,7 +99,7 @@ export default function KasOutletPage({ goBack }) {
         if (!selectedOutletId && b?.outletId) setSelectedOutletId(b.outletId);
       }
     } catch (err) {
-      console.error('[fetchBalance]', err);
+      // Error handled silently
     }
   }, [isAdmin, selectedOutletId]);
 
@@ -165,7 +168,7 @@ export default function KasOutletPage({ goBack }) {
       });
       setReportData(data);
     } catch (err) {
-      console.error('[fetchReport]', err);
+      // Error handled silently
     } finally {
       setReportLoading(false);
     }
@@ -203,7 +206,7 @@ export default function KasOutletPage({ goBack }) {
         onBack={goBack}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px 24px' : '12px 16px 24px' }}>
         {/* Outlet picker untuk admin */}
         {isAdmin && allBalances.length > 0 && (
           <div style={{ marginBottom: 12 }}>
@@ -262,8 +265,8 @@ export default function KasOutletPage({ goBack }) {
         {tab === 'expenses' && (
           <>
             {/* Period & filter row */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-              <div style={{ flex: 1, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', minWidth: 0 }}>
                 {PERIOD_PRESETS.map(p => {
                   const active = period.key === p.key;
                   return (
@@ -800,7 +803,7 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
       </div>
 
       {/* Custom date range */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
         <label style={{ display: 'block' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginBottom: 4 }}>Dari</div>
           <input
@@ -836,7 +839,7 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
           />
         </label>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexDirection: isMobile ? 'column' : 'row' }}>
         <button
           onClick={onApplyCustomRange}
           disabled={!customRange?.startDate || !customRange?.endDate}
@@ -852,7 +855,7 @@ function ReportPanel({ data, loading, period, setPeriod, customRange, setCustomR
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr', gap: 8, marginBottom: 12 }}>
         <SummaryCard
           icon="📤" label="Total Pengeluaran" value={rp(summary.totalExpense)}
           sub={`${summary.totalCount} transaksi`} color={C.danger} bg={C.validationErrorBg}
@@ -1115,7 +1118,7 @@ function FilterModal({ categoryFilter, setCategoryFilter, statusFilter, setStatu
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, flexDirection: 'window.innerWidth < 640 ? "column" : "row" : "row"' }}>
           <Btn variant="secondary" onClick={() => { onReset(); onClose(); }} style={{ flex: 1 }}>Reset</Btn>
           <Btn variant="primary" onClick={onClose} style={{ flex: 1 }}>Terapkan</Btn>
         </div>
@@ -1153,7 +1156,6 @@ function ExpenseModal({ config, balance, onClose, onSuccess }) {
     if (!file) return;
     setUploadingPhoto(true);
     try {
-      const { uploadImage } = await import('../utils/imageUpload');
       const result = await uploadImage(file, 'receipt');
       setReceiptPhoto({ dataUrl: result.dataUrl, filename: file.name });
     } catch (err) {
@@ -1281,7 +1283,7 @@ function ExpenseModal({ config, balance, onClose, onSuccess }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexDirection: 'window.innerWidth < 640 ? "column" : "row" : "row"' }}>
           <Btn variant="secondary" onClick={onClose} style={{ flex: 1 }}>Batal</Btn>
           <Btn
             variant="primary"
@@ -1316,12 +1318,10 @@ function TopupModal({ outletId, outletName, onClose, onSuccess }) {
 
     setUploadingPhoto(true);
     try {
-      const { uploadImage } = await import('../utils/imageUpload');
       const result = await uploadImage(file, 'documentation');
       setProofPhotoUrl(result.dataUrl);
       alertSuccess('Foto berhasil diunggah');
     } catch (err) {
-      console.error('[handlePhotoUpload] Error:', err);
       alertError(err?.message || 'Gagal upload foto');
     } finally {
       setUploadingPhoto(false);

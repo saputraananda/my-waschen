@@ -1,24 +1,73 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Admin: Inventory Master — All-in-One Stock Management
-// Tabs: Matrix · SKU & Stok · Bahan · Promo
+// InventoryMasterPage — Admin Inventory Management
+// Features: Stock Matrix, SKU & Stok, Purchase Requests
+// Design: Waschen Glassmorphism v2
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, SearchBar, Chip, useAppRefresh, EmptyState } from '../../components/ui';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
+import { TopBar, Btn, SearchBar, Chip, useAppRefresh, EmptyState, Modal } from '../../components/ui';
 import { alertError, alertSuccess } from '../../utils/alert';
 
-// ─── Status badges ───────────────────────────────────────────────────────
+// ─── Tab Config ─────────────────────────────────────────────────────────
+const TABS = [
+  { key: 'matrix', label: '📦 Matrix', icon: '📦' },
+  { key: 'items', label: 'SKU & Stok', icon: '🏷️' },
+  { key: 'requests', label: 'Pengajuan', icon: '📋' },
+];
+
+// ─── Stock Status ────────────────────────────────────────────────────────
 const STOCK_META = {
-  safe:  { color: C.success, bg: C.successBg, label: 'Aman' },
-  low:   { color: C.warning, bg: C.warningBg, label: 'Tipis' },
-  empty: { color: C.danger, bg: C.dangerBg, label: 'Habis' },
+  safe:  { color: C.success, bg: C.successBg, label: 'Aman', icon: '✅' },
+  low:   { color: C.warning, bg: C.warningBg, label: 'Tipis', icon: '⚠️' },
+  empty: { color: C.danger, bg: C.dangerBg, label: 'Habis', icon: '🔴' },
 };
 
-// ─── Tab: Stok Matrix (cross-outlet overview) ───────────────────────────
-function StockMatrix({ goBack }) {
-  const [items, setItems]   = useState([]);
+// ─── Status Badge ────────────────────────────────────────────────────────
+function StatusBadge({ status }) {
+  const meta = STOCK_META[status] || STOCK_META.safe;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      padding: '2px 8px', borderRadius: 999,
+      background: meta.bg, color: meta.color,
+      fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+    }}>
+      {meta.icon} {meta.label}
+    </span>
+  );
+}
+
+// ─── Stat Card ───────────────────────────────────────────────────────────
+function StatCard({ label, value, color, icon }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      style={{
+        background: C.white,
+        borderRadius: 14,
+        padding: '12px 14px',
+        boxShadow: SHADOW.sm,
+        border: `1px solid ${C.n100}`,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600 }}>{label}</span>
+      </div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color }}>{value}</div>
+    </motion.div>
+  );
+}
+
+// ─── Tab 1: Stock Matrix ────────────────────────────────────────────────
+function StockMatrix() {
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [onlyLow, setOnlyLow] = useState(false);
@@ -31,111 +80,112 @@ function StockMatrix({ goBack }) {
       if (search.trim()) params.search = search.trim();
       const r = await axios.get('/api/inventory/all-outlet-stocks', { params });
       setItems(r?.data?.data || []);
-    } catch {} finally { setLoading(false); }
+    } catch (err) { console.error('[StockMatrix] fetchData error:', err); } finally { setLoading(false); }
   }, [onlyLow, search]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useAppRefresh(() => fetchData(), [fetchData]);
 
   const outlets = useMemo(() => {
     if (!items.length) return [];
-    return items[0].outlets.map(o => ({ id: o.outletId, name: o.outletName }));
+    return items[0]?.outlets?.map(o => ({ id: o.outletId, name: o.outletName })) || [];
   }, [items]);
 
   const totalLow = items.filter(i => i.lowStockOutletCount > 0).length;
+  const totalSafe = items.length - totalLow;
+  const totalEmpty = items.filter(i => i.outlets?.some(o => o.stockQty <= 0)).length;
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 24px' }}>
+      {/* Stats Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, padding: '16px 0' }} className="inventory-stats-grid">
+        <StatCard label="Total Item" value={items.length} color={C.primary} icon="📦" />
+        <StatCard label="Butuh Perhatian" value={totalLow} color={C.warning} icon="⚠️" />
+        <StatCard label="Aman" value={totalSafe} color={C.success} icon="✅" />
+      </div>
+
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
           <SearchBar value={search} onChange={setSearch} placeholder="Cari item..." compact />
         </div>
-        <button
+        <Chip
+          label={onlyLow ? '🔴 Tipis/Habis' : 'Semua'}
+          active={onlyLow}
           onClick={() => setOnlyLow(v => !v)}
-          style={{
-            padding: '8px 12px', borderRadius: 10,
-            border: `1.5px solid ${onlyLow ? C.warning : C.n200}`,
-            background: onlyLow ? C.warningBg : C.white,
-            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-            color: onlyLow ? C.warningDark : C.n700,
-            cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-          }}
-        >
-          ⚠️ {onlyLow ? 'Semua' : 'Tipis/Habis'}
-        </button>
+        />
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
-        {[
-          { label: 'Total Item', value: items.length, icon: '📦', color: C.primary },
-          { label: 'Butuh Perhatian', value: totalLow, icon: '⚠️', color: C.warning },
-          { label: 'Aman', value: items.length - totalLow, icon: '✅', color: C.success },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: 'white', borderRadius: 12, padding: '12px 10px',
-            textAlign: 'center', boxShadow: SHADOW.sm,
-          }}>
-            <div style={{ fontSize: 20 }}>{s.icon}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: s.color, marginTop: 2 }}>{s.value}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>{s.label}</div>
+      {/* Low Stock Alerts */}
+      {totalLow > 0 && (
+        <div style={{
+          background: `${C.warning}10`,
+          border: `1px solid ${C.warning}30`,
+          borderRadius: 12,
+          padding: '12px 14px',
+          marginBottom: 12,
+        }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.warning, marginBottom: 8 }}>
+            🔔 {totalLow} item stok rendah atau habis
           </div>
-        ))}
-      </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {items.filter(i => i.lowStockOutletCount > 0).slice(0, 5).map(item => (
+              <span key={item.inventoryId} style={{
+                padding: '4px 10px',
+                background: C.white,
+                borderRadius: 8,
+                fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n800,
+              }}>
+                {item.itemName}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
+      {/* Matrix Table */}
       {loading && (
-        <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat...</div>
+        <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>
+          Memuat...
+        </div>
       )}
 
       {!loading && items.length === 0 && (
-        <EmptyState
-          title="Stok kosong"
-          subtitle="Tidak ada item inventori ditemukan."
-          icon={<span style={{ fontSize: 40 }}>📦</span>}
-        />
+        <EmptyState title="Stok kosong" subtitle="Tidak ada item inventori ditemukan." icon="📦" />
       )}
 
-      {/* Matrix table */}
       {!loading && items.length > 0 && (
-        <div style={{ background: 'white', borderRadius: 14, overflow: 'hidden', boxShadow: SHADOW.sm }}>
+        <div style={{ background: C.white, borderRadius: 14, overflow: 'hidden', boxShadow: SHADOW.sm }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 400 }} className="inventory-matrix-table">
               <thead>
                 <tr style={{ background: C.n50 }}>
-                  <th style={th}>Item</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: C.n600 }}>Item</th>
                   {outlets.map(o => (
-                    <th key={o.id} style={{ ...th, textAlign: 'center', minWidth: 100 }}>
-                      {o.name}
-                    </th>
+                    <th key={o.id} style={{ padding: '10px 8px', textAlign: 'center', fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: C.n600 }}>{o.name}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {items.map(it => (
                   <tr key={it.inventoryId} style={{ borderTop: `1px solid ${C.n100}` }}>
-                    <td style={{ ...td }}>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>{it.categoryName}</div>
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>{it.categoryName}</div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{it.itemName}</div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>{it.itemCode} · {it.unit}</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n400 }}>{it.unit}</div>
                     </td>
                     {it.outlets.map(o => {
-                      const meta = STOCK_META[o.status] || STOCK_META.safe;
+                      const status = o.stockQty <= 0 ? 'empty' : o.stockQty <= (o.minStock || 0) ? 'low' : 'safe';
+                      const meta = STOCK_META[status];
                       return (
-                        <td key={o.outletId} style={{ ...td, textAlign: 'center' }}>
+                        <td key={o.outletId} style={{ padding: '8px', textAlign: 'center' }}>
                           <div style={{
                             display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-                            padding: '6px 8px', borderRadius: 10, background: meta.bg, minWidth: 70,
+                            padding: '6px 10px', borderRadius: 10, background: meta.bg, minWidth: 60,
                           }}>
-                            <span style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: meta.color }}>
+                            <span style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 800, color: meta.color }}>
                               {Number(o.stockQty).toLocaleString('id-ID')}
                             </span>
-                            <span style={{ fontFamily: 'Poppins', fontSize: 8, fontWeight: 700, color: meta.color, textTransform: 'uppercase' }}>
-                              {meta.label}
-                            </span>
-                            <span style={{ fontFamily: 'Poppins', fontSize: 8, color: C.n500 }}>
-                              min {Number(o.minStock).toLocaleString('id-ID')}
-                            </span>
+                            <span style={{ fontFamily: 'Poppins', fontSize: 7, fontWeight: 700, color: meta.color }}>{meta.label}</span>
                           </div>
                         </td>
                       );
@@ -150,10 +200,10 @@ function StockMatrix({ goBack }) {
 
       {/* Legend */}
       {items.length > 0 && (
-        <div style={{ marginTop: 12, padding: '10px 14px', background: 'white', borderRadius: 10, display: 'flex', gap: 14, flexWrap: 'wrap', boxShadow: SHADOW.sm }}>
+        <div style={{ display: 'flex', gap: 16, justifyContent: 'center', padding: '12px 0' }}>
           {Object.entries(STOCK_META).map(([k, m]) => (
-            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color }} />
+            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: m.color }} />
               <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{m.label}</span>
             </div>
           ))}
@@ -163,52 +213,44 @@ function StockMatrix({ goBack }) {
   );
 }
 
-// ─── Tab: SKU & Stok (CRUD items + inline min-stock edit) ─────────────
-function SkuStokTab({ goBack }) {
-  const [items, setItems]       = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [outlets, setOutlets]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [search, setSearch]     = useState('');
-  const [selectedOutlet, setSelectedOutlet] = useState(null);
+// ─── Tab 2: SKU & Stok ─────────────────────────────────────────────────
+function SkuStokTab() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [form, setForm] = useState({ name: '', categoryId: '', unit: '', minStock: '' });
-  const [saving, setSaving]     = useState(false);
+  const [form, setForm] = useState({ name: '', unit: '', minStock: '', categoryId: '' });
+  const [categories, setCategories] = useState([]);
+  const [saving, setSaving] = useState(false);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
       if (search.trim()) params.search = search.trim();
-      if (selectedOutlet) params.outletId = selectedOutlet;
       const r = await axios.get('/api/inventory/items', { params });
       setItems(r?.data?.data || []);
-    } catch {} finally { setLoading(false); }
-  }, [search, selectedOutlet]);
+    } catch (err) { console.error('[SkuStokTab] fetchItems error:', err); } finally { setLoading(false); }
+  }, [search]);
 
   const fetchMeta = useCallback(async () => {
     try {
-      const [catR, outR] = await Promise.all([
-        axios.get('/api/master/outlets'),
-        axios.get('/api/inventory/categories'),
-      ]);
-      setOutlets(catR?.data?.data || []);
-      setCategories(outR?.data?.data || []);
-    } catch {}
+      const r = await axios.get('/api/inventory/categories');
+      setCategories(r?.data?.data || []);
+    } catch (err) { console.error('[SkuStokTab] fetchMeta error:', err); }
   }, []);
 
   useEffect(() => { fetchItems(); fetchMeta(); }, [fetchItems, fetchMeta]);
-  useAppRefresh(() => fetchItems(), [fetchItems]);
 
   const openNew = () => {
-    setForm({ name: '', categoryId: '', unit: '', minStock: '' });
+    setForm({ name: '', unit: '', minStock: '', categoryId: '' });
     setEditingItem(null);
     setShowForm(true);
   };
 
   const openEdit = (item) => {
-    setForm({ name: item.name, categoryId: item.categoryId || item.category_id || '', unit: item.unit || '', minStock: String(item.minStock || item.min_stock || '') });
+    setForm({ name: item.name, unit: item.unit || '', minStock: String(item.minStock || item.min_stock || ''), categoryId: item.categoryId || item.category_id || '' });
     setEditingItem(item);
     setShowForm(true);
   };
@@ -218,61 +260,17 @@ function SkuStokTab({ goBack }) {
     setSaving(true);
     try {
       if (editingItem) {
-        await axios.patch(`/api/inventory/items/${editingItem.id}`, {
-          name: form.name,
-          unit: form.unit,
-          minStock: Number(form.minStock) || 0,
-        });
+        await axios.patch(`/api/inventory/items/${editingItem.id}`, { name: form.name, unit: form.unit, minStock: Number(form.minStock) || 0 });
         alertSuccess('Item diperbarui.');
       } else {
-        await axios.post('/api/inventory/items', {
-          name: form.name,
-          categoryId: form.categoryId || null,
-          unit: form.unit,
-          minStock: Number(form.minStock) || 0,
-        });
+        await axios.post('/api/inventory/items', { name: form.name, unit: form.unit, minStock: Number(form.minStock) || 0, categoryId: form.categoryId || null });
         alertSuccess('Item baru ditambahkan.');
       }
       setShowForm(false);
       fetchItems();
     } catch (err) {
       alertError(err?.response?.data?.message || 'Gagal menyimpan.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const [minStockEdits, setMinStockEdits] = useState({}); // { itemId: { outletId: newVal } }
-
-  const handleMinStockChange = (itemId, outletId, val) => {
-    setMinStockEdits(prev => ({
-      ...prev,
-      [itemId]: { ...(prev[itemId] || {}), [outletId]: val },
-    }));
-  };
-
-  const saveMinStock = async (itemId) => {
-    const edits = minStockEdits[itemId];
-    if (!edits) return;
-    setSaving(true);
-    try {
-      await Promise.all(
-        Object.entries(edits).map(([outletId, val]) =>
-          axios.patch('/api/inventory/outlet-min', {
-            inventoryItemId: itemId,
-            outletId: Number(outletId),
-            minStock: Number(val) || 0,
-          })
-        )
-      );
-      alertSuccess('Min stok disimpan.');
-      setMinStockEdits(prev => ({ ...prev, [itemId]: undefined }));
-      fetchItems();
-    } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal menyimpan min stok.');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const grouped = useMemo(() => {
@@ -286,601 +284,237 @@ function SkuStokTab({ goBack }) {
   }, [items]);
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
-      {/* Search + Add */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 24px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', gap: 8, padding: '16px 0 12px', alignItems: 'center' }}>
         <div style={{ flex: 1 }}>
           <SearchBar value={search} onChange={setSearch} placeholder="Cari item..." compact />
         </div>
         <Btn variant="primary" onClick={openNew} size="sm">+ Item</Btn>
       </div>
 
-      {loading && <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat...</div>}
+      {/* Item List */}
+      {loading && <div style={{ textAlign: 'center', padding: 40, color: C.n500 }}>Memuat...</div>}
 
       {!loading && items.length === 0 && (
-        <EmptyState
-          title="Belum ada item"
-          subtitle="Tambah item pertama di tombol + Item di atas."
-          icon={<span style={{ fontSize: 40 }}>📦</span>}
-          action={openNew} actionLabel="+ Tambah Item"
-        />
+        <EmptyState title="Belum ada item" subtitle="Tambah item pertama dengan tombol + Item." icon="🏷️" action={openNew} actionLabel="+ Tambah Item" />
       )}
 
-      {/* Item list grouped by category */}
       {!loading && grouped.map(([category, rows]) => (
         <div key={category} style={{ marginBottom: 16 }}>
-          <div style={{
-            fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.primary,
-            textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <span>{rows.length}</span>
-            <span>{category}</span>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.primary, marginBottom: 8, textTransform: 'uppercase' }}>
+            {category} ({rows.length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {rows.map(item => (
-              <div key={item.id} style={{ background: 'white', borderRadius: 14, padding: '12px 14px', boxShadow: SHADOW.sm }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <div key={item.id} style={{ background: C.white, borderRadius: 12, padding: '12px 14px', boxShadow: SHADOW.sm }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>{item.name}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>{item.unit || '—'} · {item.itemCode || item.code || '—'}</div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>{item.unit || '—'} · {item.itemCode || '—'}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => openEdit(item)}
-                      style={{ padding: '4px 10px', borderRadius: 8, border: `1px solid ${C.n200}`, background: C.n50, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}
-                    >
-                      Edit
-                    </button>
-                  </div>
+                  <Btn variant="ghost" size="sm" onClick={() => openEdit(item)}>Edit</Btn>
                 </div>
-                {/* Per-outlet stock */}
+                {/* Outlet Stocks */}
                 {item.outletStocks?.length > 0 && (
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                     {item.outletStocks.map(s => {
-                      const meta = s.stockQty <= 0 ? STOCK_META.empty : s.stockQty <= (minStockEdits[item.id]?.[s.outletId] || s.minStock || 0) ? STOCK_META.low : STOCK_META.safe;
+                      const status = s.stockQty <= 0 ? 'empty' : s.stockQty <= (s.minStock || 0) ? 'low' : 'safe';
+                      const meta = STOCK_META[status];
                       return (
-                        <div key={s.outletId} style={{
-                          flex: '1 1 auto', minWidth: 100,
-                          background: meta.bg, borderRadius: 10, padding: '8px 10px',
-                        }}>
-                          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n500, marginBottom: 4 }}>
-                            {s.outletName || `Outlet ${s.outletId}`}
-                          </div>
-                          <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: meta.color }}>
-                            {Number(s.stockQty).toLocaleString('id-ID')}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                            <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500 }}>min</span>
-                            <input
-                              type="number"
-                              value={minStockEdits[item.id]?.[s.outletId] ?? s.minStock ?? ''}
-                              onChange={e => handleMinStockChange(item.id, s.outletId, e.target.value)}
-                              style={{
-                                width: 40, height: 22, borderRadius: 6, border: `1px solid ${C.n200}`,
-                                padding: '0 4px', fontFamily: 'Poppins', fontSize: 9, color: C.n700,
-                                background: 'white', outline: 'none', textAlign: 'center',
-                              }}
-                            />
-                          </div>
-                          {minStockEdits[item.id]?.[s.outletId] != null && (
-                            <button
-                              onClick={() => saveMinStock(item.id)}
-                              style={{
-                                marginTop: 4, width: '100%', padding: '3px',
-                                borderRadius: 6, border: 'none', background: C.primary, color: 'white',
-                                fontFamily: 'Poppins', fontSize: 9, fontWeight: 700, cursor: 'pointer',
-                              }}
-                            >
-                              Simpan
-                            </button>
-                          )}
+                        <div key={s.outletId} style={{ flex: '1 1 auto', minWidth: 80, background: meta.bg, borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                          <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginBottom: 2 }}>{s.outletName || `Outlet ${s.outletId}`}</div>
+                          <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: meta.color }}>{Number(s.stockQty).toLocaleString('id-ID')}</div>
                         </div>
                       );
                     })}
                   </div>
                 )}
-                {(!item.outletStocks || item.outletStocks.length === 0) && (
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400 }}>Tidak ada data stok per outlet.</div>
-                )}
               </div>
             ))}
           </div>
         </div>
       ))}
 
-      {/* Add/Edit form modal */}
-      {showForm && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          background: 'rgba(15,23,42,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        }}
-          onClick={() => setShowForm(false)}
-        >
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'white', borderRadius: 20, padding: '24px 20px', width: '100%', maxWidth: 380,
-            boxShadow: SHADOW.xl,
-          }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: C.n900, marginBottom: 20 }}>
-              {editingItem ? 'Edit Item' : 'Item Baru'}
-            </div>
-            {[
-              { key: 'name', label: 'Nama Item', placeholder: 'cth: Deterjen 5L' },
-              { key: 'unit', label: 'Satuan', placeholder: 'cth: unit, liter, kg' },
-              { key: 'minStock', label: 'Min Stok Default', placeholder: '0' },
-            ].map(field => (
-              <div key={field.key} style={{ marginBottom: 14 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 5 }}>
-                  {field.label} {field.key === 'name' && '*'}
-                </div>
-                <input
-                  type={field.key === 'minStock' ? 'number' : 'text'}
-                  value={form[field.key]}
-                  onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
-                  placeholder={field.placeholder}
-                  style={{
-                    width: '100%', height: 44, borderRadius: 10,
-                    border: `1.5px solid ${C.n200}`, padding: '0 12px',
-                    fontFamily: 'Poppins', fontSize: 13, color: C.n900, background: 'white', outline: 'none',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-            ))}
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <Btn variant="secondary" onClick={() => setShowForm(false)} style={{ flex: 1 }}>Batal</Btn>
-              <Btn variant="primary" onClick={handleSave} loading={saving} style={{ flex: 1 }}>
-                {editingItem ? 'Simpan' : 'Tambah'}
-              </Btn>
-            </div>
+      {/* Add/Edit Modal */}
+      <Modal open={showForm} onClose={() => setShowForm(false)} title={editingItem ? 'Edit Item' : 'Item Baru'}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} className="inventory-form-inputs inventory-form-grid">
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Nama Item *</div>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="cth: Deterjen 5L" style={{ width: '100%', height: 44, borderRadius: 10, border: `1.5px solid ${C.n200}`, padding: '0 12px', fontFamily: 'Poppins', fontSize: 13 }} />
+          </div>
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Satuan</div>
+            <input value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} placeholder="cth: liter, kg, pcs" style={{ width: '100%', height: 44, borderRadius: 10, border: `1.5px solid ${C.n200}`, padding: '0 12px', fontFamily: 'Poppins', fontSize: 13 }} />
+          </div>
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Min Stok Default</div>
+            <input type="number" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} placeholder="0" style={{ width: '100%', height: 44, borderRadius: 10, border: `1.5px solid ${C.n200}`, padding: '0 12px', fontFamily: 'Poppins', fontSize: 13 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            <Btn variant="secondary" onClick={() => setShowForm(false)} style={{ flex: 1 }}>Batal</Btn>
+            <Btn variant="primary" onClick={handleSave} loading={saving} style={{ flex: 1 }}>{editingItem ? 'Simpan' : 'Tambah'}</Btn>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
 
-// ─── Tab: Bahan & Layanan (service-material mapping) ───────────────────
-function BahanLayananTab() {
-  const [services, setServices]   = useState([]);
-  const [mappings, setMappings]   = useState([]);
-  const [selectedService, setSelectedService] = useState(null);
-  const [loading, setLoading]   = useState(true);
+// ─── Tab 3: Purchase Requests ─────────────────────────────────────────
+function RequestsTab() {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [svcR] = await Promise.all([axios.get('/api/services')]);
-      setServices(svcR?.data?.data || []);
-    } catch {} finally { setLoading(false); }
-  }, []);
+      const params = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      const r = await axios.get('/api/purchase-requests', { params });
+      setRequests(r?.data?.data || []);
+    } catch (err) { console.error('[RequestsTab] fetchData error:', err); } finally { setLoading(false); }
+  }, [statusFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useAppRefresh(() => fetchData(), [fetchData]);
 
-  const fetchMappings = useCallback(async (serviceId) => {
-    if (!serviceId) { setMappings([]); return; }
-    try {
-      const r = await axios.get(`/api/inventory/service-usage?serviceId=${serviceId}`);
-      setMappings(r?.data?.data || []);
-    } catch { setMappings([]); }
-  }, []);
-
-  const handleServiceSelect = (svcId) => {
-    setSelectedService(svcId);
-    fetchMappings(svcId);
+  const STATUS_META = {
+    pending:   { label: 'Menunggu', bg: C.warningBg, color: C.warningDark },
+    approved:  { label: 'Disetujui', bg: C.infoBg, color: C.infoDark },
+    fulfilled: { label: 'Selesai', bg: C.successBg, color: C.successDark },
+    rejected:  { label: 'Ditolak', bg: C.dangerBg, color: C.danger },
+    cancelled: { label: 'Dibatalkan', bg: C.n100, color: C.n600 },
   };
 
-  const [addingItem, setAddingItem]   = useState(false);
-  const [addForm, setAddForm]       = useState({ inventoryItemId: '', qty: '' });
-  const [inventoryItems, setInventoryItems] = useState([]);
-
-  const openAdd = async () => {
-    setAddingItem(true);
-    setAddForm({ inventoryItemId: '', qty: '' });
-    try {
-      const r = await axios.get('/api/inventory/items');
-      setInventoryItems(r?.data?.data || []);
-    } catch { setInventoryItems([]); }
+  const formatDate = (v) => {
+    if (!v) return '-';
+    try { return new Date(v).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit' }); }
+    catch (err) { console.error('[RequestsTab] formatDate error:', err); return '-'; }
   };
-
-  const handleAddMapping = async () => {
-    if (!addForm.inventoryItemId || !addForm.qty) { alertError('Lengkapi form.'); return; }
-    try {
-      await axios.post('/api/inventory/service-usage', {
-        serviceId: selectedService,
-        inventoryItemId: addForm.inventoryItemId,
-        qty: Number(addForm.qty),
-      });
-      alertSuccess('Bahan ditambahkan.');
-      setAddingItem(false);
-      fetchMappings(selectedService);
-    } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal menambah bahan.');
-    }
-  };
-
-  const handleRemoveMapping = async (mappingId) => {
-    try {
-      await axios.delete(`/api/inventory/service-usage/${mappingId}`);
-      alertSuccess('Bahan dihapus.');
-      fetchMappings(selectedService);
-    } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal menghapus.');
-    }
-  };
-
-  const selectedSvc = services.find(s => s.id === selectedService);
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
-      {/* Service selector */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Pilih Layanan</div>
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
-          {services.map(s => (
-            <button
-              key={s.id}
-              onClick={() => handleServiceSelect(s.id)}
-              style={{
-                padding: '8px 14px', borderRadius: 10, flexShrink: 0,
-                border: `1.5px solid ${selectedService === s.id ? C.primary : C.n200}`,
-                background: selectedService === s.id ? `${C.primary}14` : 'white',
-                fontFamily: 'Poppins', fontSize: 12, fontWeight: selectedService === s.id ? 700 : 400,
-                color: selectedService === s.id ? C.primary : C.n700,
-                cursor: 'pointer',
-              }}
-            >
-              {s.name}
-            </button>
-          ))}
-        </div>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 24px' }}>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, padding: '16px 0 12px' }}>
+        {['pending', 'approved', 'fulfilled', 'rejected'].map(s => {
+          const count = requests.filter(r => r.status === s).length;
+          const meta = STATUS_META[s];
+          return (
+            <div key={s} style={{ background: C.white, borderRadius: 10, padding: '10px 12px', textAlign: 'center', boxShadow: SHADOW.sm }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: meta.color }}>{count}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>{meta.label}</div>
+            </div>
+          );
+        })}
       </div>
 
-      {loading && <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat...</div>}
-
-      {!loading && !selectedService && (
-        <EmptyState
-          title="Pilih layanan dulu"
-          subtitle="Pilih layanan di atas untuk mengatur bahan yang dipakai."
-          icon={<span style={{ fontSize: 40 }}>🧪</span>}
-        />
-      )}
-
-      {!loading && selectedService && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>{selectedSvc?.name}</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>{mappings.length} bahan terpakai</div>
-            </div>
-            <Btn variant="secondary" size="sm" onClick={openAdd}>+ Bahan</Btn>
-          </div>
-
-          {mappings.length === 0 && (
-            <EmptyState
-              title="Belum ada bahan"
-              subtitle="Tambahkan bahan/material yang dipakai layanan ini."
-              action={openAdd} actionLabel="+ Tambah Bahan"
-              icon={<span style={{ fontSize: 40 }}>🧪</span>}
-            />
-          )}
-
-          {mappings.map(m => (
-            <div key={m.id} style={{
-              background: 'white', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: SHADOW.sm,
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{m.itemName}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>
-                  Pakai: {m.qty} {m.unit || 'unit'} per satuan layanan
-                </div>
-              </div>
-              <button
-                onClick={() => handleRemoveMapping(m.id)}
-                style={{
-                  padding: '6px 12px', borderRadius: 8, border: 'none',
-                  background: C.dangerBg, color: C.danger,
-                  fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
-                Hapus
-              </button>
-            </div>
-          ))}
-        </>
-      )}
-
-      {/* Add mapping modal */}
-      {addingItem && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        }}
-          onClick={() => setAddingItem(false)}
-        >
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'white', borderRadius: 20, padding: '24px 20px', width: '100%', maxWidth: 380, boxShadow: SHADOW.xl,
-          }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: C.n900, marginBottom: 16 }}>Tambah Bahan ke {selectedSvc?.name}</div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 5 }}>Pilih Bahan</div>
-              <select
-                value={addForm.inventoryItemId}
-                onChange={e => setAddForm(f => ({ ...f, inventoryItemId: e.target.value }))}
-                style={{
-                  width: '100%', height: 44, borderRadius: 10, padding: '0 12px',
-                  border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, color: C.n900, background: 'white', outline: 'none',
-                }}
-              >
-                <option value="">— Pilih bahan —</option>
-                {inventoryItems.map(i => (
-                  <option key={i.id} value={i.id}>{i.name} ({i.unit || 'unit'})</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 5 }}>Jumlah per satuan layanan</div>
-              <input
-                type="number"
-                value={addForm.qty}
-                onChange={(e) => setAddForm((f) => ({ ...f, qty: e.target.value }))}
-                placeholder="cth: 0.5"
-                style={{
-                  width: '100%', height: 44, borderRadius: 10, padding: '0 12px',
-                  border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, color: C.n900, outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <Btn variant="secondary" onClick={() => setAddingItem(false)} style={{ flex: 1 }}>Batal</Btn>
-              <Btn variant="primary" onClick={handleAddMapping} style={{ flex: 1 }}>Tambah</Btn>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Tab: Promo ───────────────────────────────────────────────────────────────
-function PromoTab() {
-  const [promos, setPromos]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ code: '', name: '', type: 'percentage', value: '', startDate: '', endDate: '' });
-  const [saving, setSaving]     = useState(false);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await axios.get('/api/promos');
-      setPromos(r?.data?.data || []);
-    } catch {} finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-  useAppRefresh(() => fetchData(), [fetchData]);
-
-  const handleToggle = async (id, isActive) => {
-    try {
-      await axios.patch(`/api/promos/${id}`, { isActive: !isActive });
-      fetchData();
-    } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal update promo.');
-    }
-  };
-
-  const handleSave = async () => {
-    if (!form.code.trim() || !form.name.trim()) { alertError('Code & Nama wajib diisi.'); return; }
-    setSaving(true);
-    try {
-      await axios.post('/api/promos', {
-        code: form.code.toUpperCase(),
-        name: form.name,
-        type: form.type,
-        value: Number(form.value) || 0,
-        startDate: form.startDate || null,
-        endDate: form.endDate || null,
-      });
-      alertSuccess('Promo dibuat.');
-      setShowForm(false);
-      fetchData();
-    } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal membuat promo.');
-    } finally { setSaving(false); }
-  };
-
-  const activePromos  = promos.filter(p => p.isActive);
-  const inactivePromos = promos.filter(p => !p.isActive);
-
-  return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-        {[
-          { label: 'Promo Aktif', value: activePromos.length, color: C.success },
-          { label: 'Nonaktif', value: inactivePromos.length, color: C.n400 },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: 'white', borderRadius: 12, padding: '12px 14px', textAlign: 'center', boxShadow: SHADOW.sm,
-          }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 2 }}>{s.label}</div>
-          </div>
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto', paddingBottom: 4 }}>
+        {['all', 'pending', 'approved', 'fulfilled', 'rejected'].map(s => (
+          <Chip key={s} label={s === 'all' ? 'Semua' : STATUS_META[s]?.label || s} active={statusFilter === s} onClick={() => setStatusFilter(s)} />
         ))}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>Daftar Promo</div>
-        <Btn variant="primary" size="sm" onClick={() => setShowForm(true)}>+ Promo</Btn>
-      </div>
+      {/* List */}
+      {loading && <div style={{ textAlign: 'center', padding: 40, color: C.n500 }}>Memuat...</div>}
 
-      {loading && <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat...</div>}
-
-      {promos.map(p => (
-        <div key={p.id} style={{
-          background: 'white', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: SHADOW.sm,
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{
-                  fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                  background: p.isActive ? C.successBg : C.n100, color: p.isActive ? C.success : C.n500,
-                }}>
-                  {p.isActive ? 'AKTIF' : 'NONAKTIF'}
-                </span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{p.code}</span>
-              </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700, marginTop: 4 }}>{p.name}</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>
-                {p.type === 'percentage' ? `${p.value}%` : rp(p.value)}
-                {p.startDate && ` · ${p.startDate} - ${p.endDate || 'tanpa batas'}`}
-              </div>
-            </div>
-            <button
-              onClick={() => handleToggle(p.id, p.isActive)}
-              style={{
-                padding: '4px 10px', borderRadius: 8, cursor: 'pointer',
-                border: 'none',
-                background: p.isActive ? C.dangerBg : C.successBg,
-                color: p.isActive ? C.danger : C.success,
-                fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-              }}
-            >
-              {p.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-            </button>
-          </div>
-        </div>
-      ))}
-
-      {showForm && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        }}
-          onClick={() => setShowForm(false)}
-        >
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'white', borderRadius: 20, padding: '24px 20px', width: '100%', maxWidth: 380, boxShadow: SHADOW.xl,
-          }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: C.n900, marginBottom: 16 }}>Promo Baru</div>
-            {[
-              { key: 'code', label: 'Kode Promo *' },
-              { key: 'name', label: 'Nama Promo *' },
-            ].map(f => (
-              <div key={f.key} style={{ marginBottom: 12 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 5 }}>{f.label}</div>
-                <input
-                  value={form[f.key]}
-                  onChange={e => setForm(ff => ({ ...ff, [f.key]: e.target.value }))}
-                  style={{
-                    width: '100%', height: 44, borderRadius: 10, padding: '0 12px',
-                    border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, color: C.n900, outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-            ))}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 5 }}>Tipe</div>
-                <select
-                  value={form.type}
-                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                  style={{ width: '100%', height: 44, borderRadius: 10, padding: '0 10px', border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, outline: 'none' }}
-                >
-                  <option value="percentage">Persen (%)</option>
-                  <option value="fixed">Nominal (Rp)</option>
-                </select>
-              </div>
-              <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 5 }}>Nilai</div>
-                <input
-                  type="number"
-                  value={form.value}
-                  onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
-                  placeholder="cth: 10"
-                  style={{ width: '100%', height: 44, borderRadius: 10, padding: '0 12px', border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-                />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <Btn variant="secondary" onClick={() => setShowForm(false)} style={{ flex: 1 }}>Batal</Btn>
-              <Btn variant="primary" onClick={handleSave} loading={saving} style={{ flex: 1 }}>Buat Promo</Btn>
-            </div>
-          </div>
-        </div>
+      {!loading && requests.length === 0 && (
+        <EmptyState title="Tidak ada pengajuan" subtitle="Belum ada pengajuan barang." icon="📋" />
       )}
+
+      {!loading && requests.map(req => {
+        const meta = STATUS_META[req.status] || STATUS_META.pending;
+        return (
+          <div key={req.id} style={{ background: C.white, borderRadius: 12, padding: '12px 14px', marginBottom: 8, boxShadow: SHADOW.sm }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>{req.itemName || req.name}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>
+                  {req.qty} {req.unit} · {formatDate(req.createdAt)}
+                </div>
+              </div>
+              <span style={{ padding: '2px 8px', borderRadius: 999, background: meta.bg, color: meta.color, fontFamily: 'Poppins', fontSize: 10, fontWeight: 700 }}>
+                {meta.label}
+              </span>
+            </div>
+            {req.notes && (
+              <div style={{ marginTop: 8, fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{req.notes}</div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-// ─── Main InventoryMasterPage ────────────────────────────────────────────
-const TABS = [
-  { id: 'matrix',  label: 'Matrix',   icon: '📊' },
-  { id: 'sku',     label: 'SKU & Stok', icon: '📦' },
-  { id: 'bahan',   label: 'Bahan',   icon: '🧪' },
-  { id: 'promo',   label: 'Promo',   icon: '🏷️' },
-];
-
+// ─── Main Component ──────────────────────────────────────────────────────
 export default function InventoryMasterPage({ goBack }) {
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('matrix');
-
-  const content = {
-    matrix: <StockMatrix goBack={goBack} />,
-    sku: <SkuStokTab goBack={goBack} />,
-    bahan: <BahanLayananTab />,
-    promo: <PromoTab />,
-  }[activeTab];
+  useAppRefresh(() => {}, []);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Inventori & Promo" subtitle="Kelola stok, SKU, bahan, promo" onBack={goBack} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Tab bar */}
-        <div style={{
-          display: 'flex', gap: 4, padding: '8px 16px 0',
-          background: C.white, borderBottom: `1px solid ${C.n100}`,
-          overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0,
-        }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .inventory-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .inventory-matrix-table { font-size: 11px !important; }
+          .inventory-form-inputs { gap: 8px !important; }
+          .inventory-tabs { flex-wrap: nowrap !important; overflow-x: auto !important; }
+          .inventory-form-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+      {/* Header */}
+      <div style={{ background: C.white, borderBottom: `1px solid ${C.n100}`, padding: '12px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button onClick={goBack} style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.n700} strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+          </button>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900 }}>📦 Inventory</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>Kelola stok & pengajuan</div>
+          </div>
+          <div style={{ width: 32 }} />
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 12, background: C.n100, borderRadius: 10, padding: 3, flexWrap: 'nowrap', overflowX: 'auto' }} className="inventory-tabs">
           {TABS.map(tab => (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
               style={{
-                padding: '8px 14px', border: 'none', borderBottom: `2.5px solid ${activeTab === tab.id ? C.primary : 'transparent'}`,
-                background: 'transparent', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 5,
-                transition: 'all 0.15s ease', flexShrink: 0,
+                flex: 1, padding: '8px 12px', borderRadius: 8,
+                border: 'none', cursor: 'pointer',
+                background: activeTab === tab.key ? C.white : 'transparent',
+                boxShadow: activeTab === tab.key ? SHADOW.sm : 'none',
+                transition: 'all 0.15s',
               }}
             >
-              <span style={{ fontSize: 14 }}>{tab.icon}</span>
-              <span style={{
-                fontFamily: 'Poppins', fontSize: 11, fontWeight: activeTab === tab.id ? 700 : 500,
-                color: activeTab === tab.id ? C.primary : C.n500,
-                borderBottom: 'none',
-              }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: activeTab === tab.key ? 700 : 500, color: activeTab === tab.key ? C.primary : C.n600 }}>
                 {tab.label}
               </span>
             </button>
           ))}
         </div>
-        {content}
       </div>
+
+      {/* Tab Content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.15 }}
+          style={{ flex: 1, overflowY: 'auto' }}
+        >
+          {activeTab === 'matrix' && <StockMatrix />}
+          {activeTab === 'items' && <SkuStokTab />}
+          {activeTab === 'requests' && <RequestsTab />}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
-
-const th = {
-  fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-  color: C.n700, textAlign: 'left', padding: '10px 12px',
-  textTransform: 'uppercase', letterSpacing: 0.3, whiteSpace: 'nowrap',
-};
-const td = {
-  fontFamily: 'Poppins', fontSize: 12,
-  color: C.n800, padding: '8px 12px',
-  verticalAlign: 'middle',
-};

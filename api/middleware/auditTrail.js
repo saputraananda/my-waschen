@@ -1,4 +1,5 @@
 import { writeAudit } from '../utils/auditLog.js';
+import logger from '../utils/logger.js';
 
 /**
  * Middleware: Auto Audit Trail
@@ -124,7 +125,7 @@ export function auditTrailMiddleware(pool) {
             oldData: null, // Could be enhanced with before-snapshot
             newData: sanitizeBody(req.body),
             req,
-          }).catch(() => {}); // Silent fail
+          }).catch(err => logger.error('[auditTrailMiddleware] writeAudit failed:', err));
         });
       }
 

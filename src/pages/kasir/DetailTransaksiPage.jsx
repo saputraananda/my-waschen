@@ -1,9 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, photoTypeLabel, getTransactionItemLineTotal } from '../../utils/helpers';
 import { TopBar, Btn, Badge, Avatar, Divider, ProgressTimeline, Modal, Input, Select, MoneyInput, DateTimeInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import { uploadImage } from '../../utils/imageUpload';
+import RefundCancelModal from '../../components/RefundCancelModal';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
+import { getAvatarSource } from '../../utils/avatar';
 
 const PAY_METHOD_LABEL = {
   cash: 'Tunai',
@@ -26,6 +30,7 @@ const PAY_STATUS_LABEL = {
 };
 
 export default function DetailTransaksiPage({ navigate, goBack, screenParams }) {
+  const { isMobile } = useResponsive();
   const [tx, setTx] = useState(screenParams);
   const [approvalModal, setApprovalModal] = useState(null); // 'cancel_nota' | 'delete_transaction' | null
   const [approvalReason, setApprovalReason] = useState('');
@@ -63,6 +68,21 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
   const [pkgNeeded, setPkgNeeded] = useState(1);
   const [pkgNotes, setPkgNotes] = useState('');
   const [pkgSaving, setPkgSaving] = useState(false);
+
+  // Refund modal
+  const [refundTx, setRefundTx] = useState(null); // transaction object for refund
+
+  const openRefundModal = () => {
+    setRefundTx({
+      id: tx.id,
+      transactionNo: tx.id || tx.transactionNo,
+      customerName: tx.customerName,
+      total: tx.total,
+      paidAmount: tx.paidAmount || 0,
+      paymentMethod: tx.payMethod,
+      items: tx.items,
+    });
+  };
 
   const openPackingModal = (item) => {
     setPackingModal(item);
@@ -130,7 +150,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       setPhotoProgress({ current: 0, total: files.length, status: 'compress' });
 
       try {
-        const { uploadImage } = await import('../../utils/imageUpload');
         const compressed = [];
         // Compress satu-satu dengan progress
         for (let i = 0; i < files.length; i++) {
@@ -172,7 +191,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         const res = await axios.get(`/api/transactions/${id}`);
         if (res?.data?.data) setTx(res.data.data);
       } catch (error) {
-        console.error('Failed to fetch transaction detail:', error);
       } finally {
         setFetching(false);
       }
@@ -187,7 +205,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       const res = await axios.get(`/api/transactions/${raw}`);
       if (res?.data?.data) setTx(res.data.data);
     } catch (e) {
-      console.error(e);
     }
   };
 
@@ -273,19 +290,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
     try {
       await axios.put(`/api/transactions/${tx.id}/status`, { status: 'diambil' });
       setTx((prev) => ({ ...prev, status: 'diambil' }));
-      // Replace history depth supaya kalau user back, langsung ke dashboard/transaksi list
-      // (bukan ke halaman pelunasan / QR yang sudah selesai sebelumnya)
-      try {
-        window.history.replaceState(
-          { screen: 'detail_transaksi', params: { id: tx.id }, depth: 0 },
-          '',
-          window.location.pathname,
-        );
-      } catch (e) {
-        // Silent fail - history.replaceState tidak kritis
- console.warn('Failed to replace history state:', e?.message);
-      }
-      setTimeout(() => setReviewModal(true), 500);
+      alertSuccess('Konfirmasi pengambilan berhasil!');
     } catch (err) {
       alertError(err?.response?.data?.message || 'Gagal update status.');
     } finally {
@@ -391,19 +396,95 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
     .slice(0, 2)
     .toUpperCase();
 
+  // Customer avatar with webp images
+  const customerAvatarData = useMemo(() => ({
+    photo: tx?.customerPhoto,
+    gender: tx?.customerGender,
+    name: tx?.customerName,
+  }), [tx?.customerPhoto, tx?.customerGender, tx?.customerName]);
+
+  const customerAvatarSrc = useMemo(() => getAvatarSource(customerAvatarData, 'customer'), [customerAvatarData]);
+
+  const getAvatarBg = (name) => {
+    if (!name) return 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
+    const first = name.charAt(0).toUpperCase();
+    const ranges = [
+      { chars: 'ABCDE', gradient: 'linear-gradient(145deg, #E9D3F2, #C77DCB)' },
+      { chars: 'FGHIJ', gradient: 'linear-gradient(145deg, #C8E6FF, #7BA7D4)' },
+      { chars: 'KLMNO', gradient: 'linear-gradient(145deg, #FFE0B2, #E4A87C)' },
+      { chars: 'PQRST', gradient: 'linear-gradient(145deg, #C8F7C5, #7DC97D)' },
+      { chars: 'UVWXYZ', gradient: 'linear-gradient(145deg, #FFD1DC, #E07A8F)' },
+    ];
+    const found = ranges.find(r => r.chars.includes(first));
+    return found?.gradient || 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
+  };
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
-      <TopBar title="Detail Transaksi" onBack={goBack} />
+      <TopBar title="Detail Transaksi" onBack={(e) => { e?.preventDefault?.(); goBack(); }} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12, paddingBottom: isMobile ? 160 : 140 }}>
         {/* Header card */}
-        <div style={{ background: `linear-gradient(135deg, ${C.primary}08, ${C.white})`, borderRadius: 16, padding: '16px 16px', marginBottom: 14, boxShadow: SHADOW.md, border: `1px solid ${C.n100}` }}>
+        <div style={{ background: `linear-gradient(135deg, ${C.primary}08, ${C.white})`, borderRadius: 16, padding: 12, marginBottom: 14, boxShadow: SHADOW.md, border: `1px solid ${C.n100}` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900 }}>{tx.customerName || 'Pelanggan'}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="C.n600" strokeWidth="2" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>{tx.customerPhone || '-'}</span>
+            {/* Customer avatar with webp */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  overflow: 'hidden',
+                  background: 'linear-gradient(145deg, #FFFFFF, #E9D3F2)',
+                  boxShadow: '-4px -4px 10px rgba(255, 255, 255, 0.7), 5px 6px 14px rgba(59, 11, 71, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.5)',
+                }}
+              >
+                {tx?.customerPhoto ? (
+                  <img
+                    src={tx.customerPhoto}
+                    alt={tx.customerName || 'avatar'}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 18 }}
+                  />
+                ) : (
+                  <img
+                    src={customerAvatarSrc}
+                    alt={tx?.customerName || 'avatar'}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 18 }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                )}
+                <div
+                  style={{
+                    display: 'none',
+                    position: 'absolute',
+                    width: 52,
+                    height: 52,
+                    background: getAvatarBg(tx?.customerName),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontFamily: 'Poppins',
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: '#3B0B47',
+                    borderRadius: 18,
+                  }}
+                >
+                  {customerInitials}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900 }}>{tx.customerName || 'Pelanggan'}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="C.n600" strokeWidth="2" strokeLinecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>
+                  <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>{tx.customerPhone || '-'}</span>
+                </div>
               </div>
             </div>
             <Badge status={tx.status || 'baru'} />
@@ -530,8 +611,24 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               ))}
             </div>
           ) : (
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'C.n600', textAlign: 'center', padding: 14 }}>
-              Belum ada foto dari tim produksi
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              padding: '20px 14px', gap: 8
+            }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: 12,
+                background: `${C.warning}15`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 24
+              }}>
+                📷
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, textAlign: 'center' }}>
+                Belum ada foto dari tim produksi
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n400, textAlign: 'center' }}>
+                Foto akan muncul setelah proses produksi selesai
+              </div>
             </div>
           )}
           {docPhotos.length > 0 && (
@@ -591,12 +688,15 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           {payOpen && (
             <>
               <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n700, textAlign: 'center', marginBottom: 8 }}>Detail Tagihan</div>
-              {tx.items?.map((item, index) => (
-                <div key={`pay-item-${item.id || index}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>{item.qty}x - {item.name || item.serviceName}</span>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(getTransactionItemLineTotal(item))}</span>
-                </div>
-              ))}
+        {/* Payment items table */}
+        <div style={{ overflowX: 'auto', marginBottom: 8 }}>
+          {tx.items?.map((item, index) => (
+            <div key={`pay-item-${item.id || index}`} style={{ display: 'flex', justifyContent: 'space-between', minWidth: 280, marginBottom: 4 }}>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>{item.qty}x - {item.name || item.serviceName}</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(getTransactionItemLineTotal(item))}</span>
+            </div>
+          ))}
+        </div>
               <Divider my={8} />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, color: 'C.n600' }}>Sub-Total</span>
@@ -785,8 +885,8 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       </div>
 
       {/* Bottom Actions — hierarki: pelunasan / pickup → cetak → pembatalan */}
-      <div style={{ padding: '12px 16px', background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, textAlign: 'center', marginBottom: 2 }}>
+      <div style={{ padding: isMobile ? '12px 12px calc(12px + env(safe-area-inset-bottom))' : 12, background: C.white, borderTop: `1px solid ${C.n100}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n900, textAlign: 'center', marginBottom: 2 }}>
           Aksi Untuk Transaksi Ini
         </div>
 
@@ -815,7 +915,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                   </Btn>
                   {isReady && (
                     <div style={{
-                      fontFamily: 'Poppins', fontSize: 10, color: 'C.danger',
+                      fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, color: 'C.danger',
                       textAlign: 'center', marginTop: -2, marginBottom: 2,
                     }}>
                       Cucian belum bisa diambil sebelum lunas
@@ -850,23 +950,39 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                 <>
                   <div style={{ height: 1, background: C.n100, margin: '4px 0 2px' }} />
                   <div style={{
-                    fontFamily: 'Poppins', fontSize: 10, color: 'C.n600',
+                    fontFamily: 'Poppins', fontSize: 10, color: C.n600,
                     textAlign: 'center', marginBottom: 2,
                   }}>
                     Aksi sensitif (perlu approval admin)
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => setApprovalModal('cancel_nota')}
+                      onClick={() => {
+                        console.log('Opening refund modal for tx:', tx);
+                        setRefundTx({
+                          id: tx.id,
+                          transactionNo: tx.id || tx.transactionNo,
+                          customerName: tx.customerName,
+                          total: tx.total,
+                          paidAmount: tx.paidAmount || 0,
+                          paymentMethod: tx.payMethod,
+                          items: tx.items,
+                        });
+                      }}
                       style={{
-                        flex: 1, padding: '10px',
-                        border: `1.5px solid C.danger`, background: 'white',
-                        color: 'C.danger', borderRadius: 10,
-                        fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                        flex: 1,
+                        padding: '10px',
+                        border: `1.5px solid ${C.danger}`,
+                        background: '#FFFFFF',
+                        color: C.danger,
+                        borderRadius: 10,
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        fontWeight: 600,
                         cursor: 'pointer',
                       }}
                     >
-                      ⚠️ Ajukan Pembatalan
+                      💰 Ajukan Refund
                     </button>
                     <button
                       onClick={() => setApprovalModal('delete_transaction')}
@@ -973,10 +1089,10 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
             {/* Options */}
             {[
-              { key: 'self',     label: '🏪 Ambil Sendiri',  desc: 'Customer datang langsung ke outlet',   fee: 'Gratis' },
-              { key: 'pickup',   label: '🛵 Dijemput Kurir', desc: 'Kurir menjemput laundry dari customer', fee: 'Rp 10.000' },
-              { key: 'delivery', label: '🚚 Diantar Kurir',  desc: 'Kurir mengantar laundry ke customer',   fee: 'Rp 10.000' },
-              { key: 'both',     label: '🔄 Jemput + Antar', desc: 'Jemput kotoran, antar cucian bersih',  fee: 'Rp 20.000' },
+              { key: 'self',     label: '🏪 Ambil Sendiri',  desc: 'Customer datang langsung ke outlet',   fee: tx.deliveryFee > 0 && tx.pickupType !== 'self' ? `Hapus biaya (Gratis)` : 'Gratis', feeValue: 0 },
+              { key: 'pickup',   label: '🛵 Dijemput Kurir', desc: 'Kurir menjemput laundry dari customer', fee: tx.deliveryFee > 0 && tx.pickupType === 'pickup' ? `${rp(tx.deliveryFee)} (aktif)` : (tx.deliveryFee > 0 ? rp(tx.deliveryFee) : 'Rp 10.000'), feeValue: tx.deliveryFee || 10000 },
+              { key: 'delivery', label: '🚚 Diantar Kurir',  desc: 'Kurir mengantar laundry ke customer',   fee: tx.deliveryFee > 0 && tx.pickupType === 'delivery' ? `${rp(tx.deliveryFee)} (aktif)` : (tx.deliveryFee > 0 ? rp(tx.deliveryFee) : 'Rp 10.000'), feeValue: tx.deliveryFee || 10000 },
+              { key: 'both',     label: '🔄 Jemput + Antar', desc: 'Jemput kotoran, antar cucian bersih',  fee: tx.deliveryFee > 0 && tx.pickupType === 'both' ? `${rp(tx.deliveryFee)} (aktif)` : (tx.deliveryFee > 0 ? rp(tx.deliveryFee * 2) : 'Rp 20.000'), feeValue: (tx.deliveryFee || 10000) * 2 },
             ].map((opt) => (
               <button
                 key={opt.key}
@@ -1100,6 +1216,18 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           <Btn variant="primary" onClick={savePackingInfo} loading={pkgSaving} style={{ flex: 1 }}>Simpan</Btn>
         </div>
       </Modal>
+
+      {/* Refund Cancel Modal */}
+      <RefundCancelModal
+        isOpen={!!refundTx}
+        onClose={() => setRefundTx(null)}
+        transaction={refundTx}
+        onSuccess={(data) => {
+          alertSuccess('Refund berhasil diajukan!');
+          setRefundTx(null);
+          refreshDetail();
+        }}
+      />
     </div>
   );
 };

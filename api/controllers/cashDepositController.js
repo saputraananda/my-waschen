@@ -1,11 +1,11 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
+import logger from '../utils/logger.js';
 
-const ADMIN_ROLES = new Set(['admin', 'superadmin', 'owner', 'finance']);
+const ADMIN_ROLES = ['admin'];
 const assertAdmin = (req, res) => {
   if (!ADMIN_ROLES.has(req.user?.roleCode)) {
-    res.status(403).json({ success: false, message: 'Hanya admin/finance/owner.' });
-    return false;
+    return res.status(403).json({ success: false, message: 'Hanya admin/finance/owner.' });
   }
   return true;
 };
@@ -16,6 +16,11 @@ export const submitDeposit = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const outletId = req.user?.outletId;
+    // ── PIC (Penanggung Jawab) ───────────────────────────────────────────────
+    const { pic_id, pic_name } = req.body;
+    const resolvedPicId = pic_id || userId;
+    const resolvedPicName = pic_name || req.user?.name || req.user?.fullName || 'Unknown';
+
     const { deposit_amount, cash_sales_total, deposit_date, notes, proof_documents } = req.body;
 
     if (!outletId) return res.status(400).json({ success: false, message: 'User tidak terikat outlet.' });
@@ -24,15 +29,15 @@ export const submitDeposit = async (req, res) => {
     const date = deposit_date || new Date().toISOString().slice(0, 10);
 
     const [result] = await poolWaschenPos.execute(
-      `INSERT INTO tr_cash_deposit (outlet_id, cashier_id, deposit_date, deposit_amount, cash_sales_total, proof_documents, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [outletId, userId, date, Number(deposit_amount), Number(cash_sales_total || 0), proof_documents ? JSON.stringify(proof_documents) : null, notes || null]
+      `INSERT INTO tr_cash_deposit (outlet_id, cashier_id, deposit_date, deposit_amount, cash_sales_total, proof_documents, notes, pic_id, pic_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [outletId, userId, date, Number(deposit_amount), Number(cash_sales_total || 0), proof_documents ? JSON.stringify(proof_documents) : null, notes || null, resolvedPicId, resolvedPicName]
     );
 
     await writeAudit(poolWaschenPos, {
       userId, entityType: 'cash_deposit', entityId: result.insertId,
       action: 'submit', newData: { deposit_amount, date }, req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[submitDeposit] writeAudit gagal:', err));
 
     return res.status(201).json({
       success: true,
@@ -40,7 +45,7 @@ export const submitDeposit = async (req, res) => {
       data: { id: result.insertId, status: 'pending' },
     });
   } catch (err) {
-    console.error('[submitDeposit]', err);
+    logger.error('Submit deposit gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal submit setor.' });
   }
 };
@@ -56,6 +61,7 @@ export const listMyDeposits = async (req, res) => {
       SELECT cd.id, cd.deposit_date AS depositDate, cd.deposit_amount AS amount, cd.proof_documents AS proofDocuments,
              cd.notes, cd.status, cd.created_at AS createdAt, cd.approved_at AS approvedAt,
              cd.reject_reason AS rejectionReason,
+             cd.pic_id AS picId, cd.pic_name AS picName,
              u.name AS approvedByName
       FROM tr_cash_deposit cd
       LEFT JOIN mst_user u ON u.id = cd.approved_by
@@ -75,7 +81,7 @@ export const listMyDeposits = async (req, res) => {
       data: rows.map(r => ({ ...r, amount: Number(r.amount) })),
     });
   } catch (err) {
-    console.error('[listMyDeposits]', err);
+    logger.error('List my deposits gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat riwayat setor.' });
   }
 };
@@ -95,6 +101,7 @@ export const listDepositRequests = async (req, res) => {
              cd.deposit_amount AS amount, cd.proof_documents AS proofDocuments,
              cd.notes, cd.status, cd.created_at AS createdAt,
              cd.approved_at AS approvedAt, cd.reject_reason AS rejectionReason,
+             cd.pic_id AS picId, cd.pic_name AS picName,
              ap.name AS approvedByName
       FROM tr_cash_deposit cd
       JOIN mst_outlet o ON o.id = cd.outlet_id
@@ -117,7 +124,7 @@ export const listDepositRequests = async (req, res) => {
       data: rows.map(r => ({ ...r, amount: Number(r.amount) })),
     });
   } catch (err) {
-    console.error('[listDepositRequests]', err);
+    logger.error('List deposit requests gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat daftar setor.' });
   }
 };
@@ -142,11 +149,11 @@ export const approveDeposit = async (req, res) => {
     await writeAudit(poolWaschenPos, {
       userId: adminId, entityType: 'cash_deposit', entityId: Number(id),
       action: 'approve', req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[approveDeposit] writeAudit gagal:', err));
 
     return res.json({ success: true, message: 'Setor disetujui.' });
   } catch (err) {
-    console.error('[approveDeposit]', err);
+    logger.error('Approve deposit gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal approve setor.' });
   }
 };
@@ -176,11 +183,11 @@ export const rejectDeposit = async (req, res) => {
     await writeAudit(poolWaschenPos, {
       userId: adminId, entityType: 'cash_deposit', entityId: Number(id),
       action: 'reject', newData: { reason: reason.trim() }, req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[rejectDeposit] writeAudit gagal:', err));
 
     return res.json({ success: true, message: 'Setor ditolak.' });
   } catch (err) {
-    console.error('[rejectDeposit]', err);
+    logger.error('Reject deposit gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal reject setor.' });
   }
 };
@@ -215,7 +222,7 @@ export const getDepositSummary = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getDepositSummary]', err);
+    logger.error('Get deposit summary gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat ringkasan setor.' });
   }
 };
@@ -292,7 +299,7 @@ export const getCashPoolSummary = async (req, res) => {
 
     return res.json({ success: true, data });
   } catch (err) {
-    console.error('[getCashPoolSummary]', err);
+    logger.error('Get cash pool summary gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat pool kas.' });
   }
 };

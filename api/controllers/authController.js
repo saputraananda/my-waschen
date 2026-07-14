@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 // bcrypt dihapus — password disimpan plain text sesuai permintaan user
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 const getInitials = (name) => {
@@ -26,7 +27,7 @@ export const getMe = async (req, res) => {
     if (!rows.length) return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
     return res.json({ success: true, data: rows[0] });
   } catch (err) {
-    console.error('[getMe]', err);
+    logger.error('Gagal mengambil data user', { error: err.message, userId });
     return res.status(500).json({ success: false, message: 'Gagal mengambil data user' });
   }
 };
@@ -148,7 +149,7 @@ export const login = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[login] Error:', err);
+    logger.error('Login gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Terjadi kesalahan server. Coba lagi.' });
   }
 };
@@ -205,7 +206,7 @@ export const refreshToken = async (req, res) => {
       data: { token: newToken },
     });
   } catch (err) {
-    console.error('[refreshToken] Error:', err);
+    logger.error('Refresh token gagal', { error: err.message, userId });
     return res.status(500).json({ success: false, message: 'Gagal refresh token.' });
   }
 };
@@ -218,7 +219,7 @@ export const getOutlets = async (req, res) => {
     );
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
-    console.error('[getOutlets] Error:', err);
+    logger.error('Gagal memuat data outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data outlet.' });
   }
 };

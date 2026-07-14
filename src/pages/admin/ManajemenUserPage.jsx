@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Avatar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
+import { getAvatarSource } from '../../utils/avatar';
 
 const ROLE_COLORS = { frontline: C.primary, produksi: C.info, admin: C.primary, finance: C.success };
-const ROLE_LABELS = { frontline: 'Frontline', produksi: 'Produksi', admin: 'Admin', finance: 'Finance' };
+const ROLE_LABELS = { frontline: 'Frontliner', produksi: 'Produksi', admin: 'Admin', finance: 'Finance' };
 
 const PlusIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -23,6 +25,7 @@ const FilterIcon = () => (
 );
 
 export default function ManajemenUserPage({ navigate, goBack }) {
+  const isMobile = useIsMobile();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -35,8 +38,8 @@ export default function ManajemenUserPage({ navigate, goBack }) {
   const [modalEdit, setModalEdit] = useState(false);
   const [editingUserId, setEditingUserId] = useState(null);
   const [outlets, setOutlets] = useState([]);
-  const [form, setForm] = useState({ name: '', role: 'frontline', outletId: '', username: '', email: '', password: '' });
-  const [editForm, setEditForm] = useState({ name: '', role: 'frontline', outletId: '', username: '', email: '', active: true });
+  const [form, setForm] = useState({ name: '', role: 'frontline', outletId: '', username: '', email: '', password: '', gender: 'female' });
+  const [editForm, setEditForm] = useState({ name: '', role: 'frontline', outletId: '', username: '', email: '', active: true, gender: 'female' });
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -59,7 +62,6 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         const res = await axios.get('/api/master/outlets');
         setOutlets(res?.data?.data || []);
       } catch (error) {
-        console.error('Failed to fetch outlets:', error);
       }
     };
     fetchOutlets();
@@ -109,6 +111,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         password: form.password,
         role: form.role,
         outletId: form.outletId || null,
+        gender: form.gender,
       };
       const res = await axios.post('/api/users/register', payload);
       const newUser = res?.data?.data;
@@ -116,6 +119,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         const userWithAvatar = {
           ...newUser,
           avatar: newUser.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
+          gender: newUser.gender || form.gender,
         };
         setUsers((prev) => [...prev, userWithAvatar]);
         alertSuccess('User berhasil ditambahkan');
@@ -151,6 +155,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
       role: user.role || 'frontline',
       outletId: outlet?.id || '',
       active: user.active !== false,
+      gender: user.gender || 'female',
     });
     setModalEdit(true);
   };
@@ -169,6 +174,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         role: editForm.role,
         outletId: editForm.outletId || null,
         active: !!editForm.active,
+        gender: editForm.gender,
       };
       const res = await axios.put(`/api/users/${editingUserId}`, payload);
       const updated = res?.data?.data;
@@ -202,6 +208,30 @@ export default function ManajemenUserPage({ navigate, goBack }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .user-list-item {
+            flex-direction: column !important;
+            gap: 12px !important;
+          }
+          .user-list-actions {
+            width: 100% !important;
+            flex-direction: row !important;
+          }
+          .user-modal-inputs {
+            gap: 8px !important;
+          }
+          .user-card-row {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+          .user-card-actions {
+            flex-direction: row !important;
+            width: 100% !important;
+            margin-top: 8px !important;
+          }
+        }
+      `}</style>
 
       {/* ── TOP BAR ── */}
       <TopBar title="Manajemen User" onBack={goBack} rightAction={() => setModalAdd(true)} rightIcon={<PlusIcon />} />
@@ -265,8 +295,26 @@ export default function ManajemenUserPage({ navigate, goBack }) {
                   opacity: u.active === false ? 0.55 : 1,
                   borderLeft: `4px solid ${roleColor}`,
                   transition: 'all 0.2s ease',
-                }}>
-                  <Avatar initials={initials} size={46} />
+                }} className="user-card-row">
+                  {/* Avatar with staff character */}
+                  <div style={{
+                    width: 46,
+                    height: 46,
+                    borderRadius: 23,
+                    overflow: 'hidden',
+                    border: '2px solid #E6D9E7',
+                    flexShrink: 0,
+                  }}>
+                    <img
+                      src={getAvatarSource(u)}
+                      alt="avatar"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.parentNode.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:${C.primary}15;font-size:14px;font-weight:700;color:${C.primary};font-family:Poppins,sans-serif">${initials}</div>`;
+                      }}
+                    />
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{u.name}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
@@ -280,7 +328,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
                       <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>{u.outlet || u.username}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }} className="user-card-actions">
                     <button
                       onClick={() => toggleActive(u.id)}
                       style={{
@@ -354,7 +402,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Role</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
             <Chip label="Semua" active={roleFilter === 'semua'} onClick={() => setRoleFilter('semua')} />
-            <Chip label="Frontline" active={roleFilter === 'frontline'} onClick={() => setRoleFilter('frontline')} />
+            <Chip label="Frontliner" active={roleFilter === 'frontline'} onClick={() => setRoleFilter('frontline')} />
             <Chip label="Produksi" active={roleFilter === 'produksi'} onClick={() => setRoleFilter('produksi')} />
             <Chip label="Admin" active={roleFilter === 'admin'} onClick={() => setRoleFilter('admin')} />
             <Chip label="Finance" active={roleFilter === 'finance'} onClick={() => setRoleFilter('finance')} />
@@ -388,42 +436,78 @@ export default function ManajemenUserPage({ navigate, goBack }) {
       {/* ── ADD MODAL ── */}
       <Modal visible={modalAdd} onClose={() => setModalAdd(false)} title="Tambah User">
         <div style={{ padding: '4px 4px 0' }}>
-          <Input label="Nama Lengkap" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Input label="Nama Lengkap" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />
           <Input label="Username" value={form.username} onChange={(v) => setForm((f) => ({ ...f, username: v }))} placeholder="username" />
           <Input label="Email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} placeholder="email@domain.com" />
           <Input label="Password" value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} type="password" placeholder="Password" />
           <Select label="Role" value={form.role} onChange={(v) => setForm((f) => ({ ...f, role: v }))} options={[
-            { value: 'frontline', label: 'Frontline' },
+            { value: 'frontline', label: 'Frontliner' },
             { value: 'produksi', label: 'Produksi' },
             { value: 'admin', label: 'Admin' },
             { value: 'finance', label: 'Finance' },
           ]} />
           <Select label="Outlet" value={form.outletId} onChange={(v) => setForm((f) => ({ ...f, outletId: v }))} options={outlets.map((o) => ({ value: o.id, label: o.name }))} placeholder="Pilih outlet" />
+
+          {/* Gender Selection */}
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Jenis Kelamin</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" onClick={() => setForm((f) => ({ ...f, gender: 'male' }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${form.gender === 'male' ? C.primary : C.n200}`, background: form.gender === 'male' ? `${C.primary}15` : C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>👨</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: form.gender === 'male' ? C.primary : C.n600 }}>Laki-laki</span>
+              </button>
+              <button type="button" onClick={() => setForm((f) => ({ ...f, gender: 'female' }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${form.gender === 'female' ? C.primary : C.n200}`, background: form.gender === 'female' ? `${C.primary}15` : C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>👩</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: form.gender === 'female' ? C.primary : C.n600 }}>Perempuan</span>
+              </button>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', gap: 10 }}>
             <Btn variant="secondary" onClick={() => setModalAdd(false)} style={{ flex: 1 }}>Batal</Btn>
             <Btn variant="primary" onClick={handleAdd} loading={submitting} style={{ flex: 1 }}>Simpan</Btn>
           </div>
+        </div>
         </div>
       </Modal>
 
       {/* ── EDIT MODAL ── */}
       <Modal visible={modalEdit} onClose={() => { setModalEdit(false); setEditingUserId(null); }} title="Edit User">
         <div style={{ padding: '4px 4px 0' }}>
-          <Input label="Nama Lengkap" value={editForm.name} onChange={(v) => setEditForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Input label="Nama Lengkap" value={editForm.name} onChange={(v) => setEditForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />
           <Input label="Username" value={editForm.username} onChange={(v) => setEditForm((f) => ({ ...f, username: v }))} placeholder="username" />
           <Input label="Email" value={editForm.email} onChange={(v) => setEditForm((f) => ({ ...f, email: v }))} placeholder="email@domain.com" />
           <Select label="Role" value={editForm.role} onChange={(v) => setEditForm((f) => ({ ...f, role: v }))} options={[
-            { value: 'frontline', label: 'Frontline' },
+            { value: 'frontline', label: 'Frontliner' },
             { value: 'produksi', label: 'Produksi' },
             { value: 'admin', label: 'Admin' },
             { value: 'finance', label: 'Finance' },
           ]} />
           <Select label="Outlet" value={editForm.outletId} onChange={(v) => setEditForm((f) => ({ ...f, outletId: v }))} options={outlets.map((o) => ({ value: o.id, label: o.name }))} placeholder="Pilih outlet" />
           <Select label="Status Akun" value={editForm.active ? 'active' : 'inactive'} onChange={(v) => setEditForm((f) => ({ ...f, active: v === 'active' }))} options={[{ value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />
+
+          {/* Gender Selection */}
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Jenis Kelamin</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" onClick={() => setEditForm((f) => ({ ...f, gender: 'male' }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${editForm.gender === 'male' ? C.primary : C.n200}`, background: editForm.gender === 'male' ? `${C.primary}15` : C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>👨</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: editForm.gender === 'male' ? C.primary : C.n600 }}>Laki-laki</span>
+              </button>
+              <button type="button" onClick={() => setEditForm((f) => ({ ...f, gender: 'female' }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${editForm.gender === 'female' ? C.primary : C.n200}`, background: editForm.gender === 'female' ? `${C.primary}15` : C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>👩</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: editForm.gender === 'female' ? C.primary : C.n600 }}>Perempuan</span>
+              </button>
+            </div>
+          </div>
+
           <div style={{ display: 'flex', gap: 10 }}>
             <Btn variant="secondary" onClick={() => { setModalEdit(false); setEditingUserId(null); }} style={{ flex: 1 }}>Batal</Btn>
             <Btn variant="primary" onClick={handleEdit} loading={submitting} style={{ flex: 1 }}>Update</Btn>
           </div>
+        </div>
         </div>
       </Modal>
     </div>

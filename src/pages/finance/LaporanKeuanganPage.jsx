@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useResponsive } from '../../utils/hooks';
 import { TopBar, Chip, Btn } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 
@@ -50,6 +51,7 @@ const METHOD_COLORS = {
 };
 
 export default function LaporanKeuanganPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('30d');
@@ -79,7 +81,7 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
         if (statsRes?.data?.data?.outlets) setOutlets(statsRes.data.data.outlets);
       } catch { /* ignore */ }
     } catch (err) {
-      console.error('[LaporanKeuangan] Error:', err);
+      // Silent fail, report remains null
     } finally {
       setLoading(false);
     }
@@ -148,7 +150,7 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
 
       {/* Filters */}
       <div style={{ padding: '12px 16px 8px' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {PERIOD_OPTIONS.map((p) => (
             <Chip key={p.key} label={p.label} active={period === p.key} onClick={() => setPeriod(p.key)} />
           ))}
@@ -177,15 +179,15 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
             {/* ── Summary Card ───────────────────────────────────────── */}
             <div style={{
               background: `linear-gradient(135deg, ${C.primary}, #1E3A5F)`,
-              borderRadius: 16, padding: 20, marginBottom: 14, color: 'white',
+              borderRadius: 16, padding: isMobile ? 16 : 20, marginBottom: 14, color: 'white',
             }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                 Total Revenue
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 28, fontWeight: 700, marginBottom: 4 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 24 : 28, fontWeight: 700, marginBottom: 4 }}>
                 {rp(report.summary.totalRevenue)}
               </div>
-              <div style={{ display: 'flex', gap: 20, marginTop: 12 }}>
+              <div style={{ display: 'flex', gap: isMobile ? 16 : 20, marginTop: 12, flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700 }}>{report.summary.totalTx}</div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>Total Transaksi</div>
@@ -199,7 +201,7 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
 
             {/* ── Chart ──────────────────────────────────────────────── */}
             {report.daily?.length > 0 && (
-              <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+              <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? 12 : 16, marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)', overflowX: 'auto' }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
                   📊 Grafik Revenue Harian
                 </div>
@@ -216,7 +218,7 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
             )}
 
             {/* ── By Payment Method ──────────────────────────────────── */}
-            <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+            <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? 12 : 16, marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 14 }}>Per Metode Pembayaran</div>
 
               {/* Stacked bar visualization */}
@@ -234,14 +236,14 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
                 const pct = report.summary.totalRevenue > 0 ? Math.round((m.revenue / report.summary.totalRevenue) * 100) : 0;
                 const mc = METHOD_COLORS[m.method] || { bg: C.n300, label: m.method, icon: '💰' };
                 return (
-                  <div key={m.method} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, padding: '8px 10px', background: C.n50, borderRadius: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: `${mc.bg}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{mc.icon}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div key={m.method} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, padding: '8px 10px', background: C.n50, borderRadius: 10, flexWrap: 'wrap' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: `${mc.bg}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{mc.icon}</div>
+                    <div style={{ flex: 1, minWidth: '60%' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
                         <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>{mc.label}</span>
                         <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: mc.bg }}>{rp(m.revenue)}</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, flexWrap: 'wrap', gap: 4 }}>
                         <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{m.txCount} transaksi</span>
                         <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{pct}%</span>
                       </div>
@@ -253,12 +255,12 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
 
             {/* ── By Outlet ──────────────────────────────────────────── */}
             {report.byOutlet.length > 0 && (
-              <div style={{ background: C.white, borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
+              <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? 12 : 16, marginBottom: 14, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 14 }}>🏪 Per Outlet</div>
                 {report.byOutlet.map((o, i) => {
                   const pct = report.summary.totalRevenue > 0 ? Math.round((o.revenue / report.summary.totalRevenue) * 100) : 0;
                   return (
-                    <div key={o.outletName || i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < report.byOutlet.length - 1 ? `1px solid ${C.n100}` : 'none' }}>
+                    <div key={o.outletName || i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < report.byOutlet.length - 1 ? `1px solid ${C.n100}` : 'none', flexWrap: 'wrap', gap: 8 }}>
                       <div>
                         <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{o.outletName || 'Unknown'}</div>
                         <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>{o.txCount} transaksi · {pct}%</div>
@@ -271,14 +273,14 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
             )}
 
             {/* ── Daily breakdown ─────────────────────────────────────── */}
-            <div style={{ background: C.white, borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? 12 : 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)', overflowX: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>📅 Detail Harian</div>
                 <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{report.daily.length} hari</div>
               </div>
               {report.daily.slice(0, 21).map((d, i) => (
                 <div key={d.date} style={{ padding: '10px 0', borderBottom: i < Math.min(report.daily.length, 21) - 1 ? `1px solid ${C.n50}` : 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
                     <div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>
                         {new Date(d.date).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}
@@ -288,7 +290,7 @@ export default function LaporanKeuanganPage({ navigate, goBack }) {
                     <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>{rp(d.revenue)}</div>
                   </div>
                   {/* Mini method breakdown */}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
                     {d.cashRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.success, background: C.successBg, padding: '1px 6px', borderRadius: 999 }}>💵 {rp(d.cashRevenue)}</span>}
                     {d.transferRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.info, background: C.infoBg, padding: '1px 6px', borderRadius: 999 }}>🏦 {rp(d.transferRevenue)}</span>}
                     {d.qrisRevenue > 0 && <span style={{ fontFamily: 'Poppins', fontSize: 9, color: C.primary, background: C.primaryTint, padding: '1px 6px', borderRadius: 999 }}>📱 {rp(d.qrisRevenue)}</span>}

@@ -57,7 +57,7 @@ export const checkoutTransactionSchema = z.object({
 
   // Payment
   payment: z.object({
-    method: z.enum(['cash', 'transfer', 'qris', 'deposit']).optional(),
+    method: z.enum(['cash', 'transfer', 'qris', 'edc', 'deposit']).optional(),
     paidAmount: z.number().min(0).optional(),
     changeAmount: z.number().min(0).optional(),
   }).optional(),
@@ -101,7 +101,11 @@ export const createPromoSchema = z.object({
   value: z.number().min(0, 'Nilai tidak boleh negatif'),
   min_trx_amount: z.number().min(0).optional(),
   max_discount: z.number().min(0).optional(),
-  promo_type: z.enum(['general', 'birthday', 'referral', 'loyalty', 'first_time']).optional(),
+  promo_type: z.enum(['general', 'birthday', 'campaign', 'loyalty']).optional(),
+  // Service/category applicability
+  applicable_type: z.enum(['all', 'category', 'service']).optional(),
+  applicable_services: z.array(z.number().int().positive()).optional(),
+  applicable_categories: z.array(z.string()).optional(),
   auto_apply: z.boolean().optional(),
   is_global: z.boolean().optional(),
   outlet_ids: z.array(z.number().int().positive()).optional(),
@@ -190,7 +194,7 @@ export const createUserSchema = z.object({
   username: z.string().min(3, 'Username minimal 3 karakter').max(50),
   password: z.string().min(6, 'Password minimal 6 karakter'),
   name: z.string().min(1, 'Nama wajib diisi').max(100),
-  role_code: z.enum(['admin', 'kasir', 'frontline', 'produksi', 'delivery', 'finance', 'owner', 'superadmin']),
+  role_code: z.enum(['admin', 'frontline', 'produksi']),
   outlet_id: z.number().int().positive().optional(),
   is_active: z.boolean().default(true),
 });

@@ -7,10 +7,67 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Input, Textarea, Chip, MoneyInput, useAppRefresh, OutletDropdown, SkeletonList, SearchFilterRow, Avatar, ErrorBoundary } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import { FloatingBubble, Sparkle, GlowOrb } from '../../components/ui/PremiumAnimations';
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
+import soapBubble from '../../assets/Decorative icon/soap-bubble.webp';
+import { useResponsive } from '../../utils/hooks';
+
+// ─── Mini Sparkline ─────────────────────────────────────────────────────────
+function MiniSparkline({ data = [], color = '#10B981', width = 50, height = 28 }) {
+  if (!data || data.length < 2) {
+    return <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <path d={`M0 ${height/2} L${width} ${height/2}`} stroke={color} strokeWidth="2" fill="none" />
+    </svg>;
+  }
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const points = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((d - min) / range) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <polygon points={`0,${height} ${points} ${width},${height}`} fill={`${color}20`} />
+      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <circle cx={width} cy={points.split(' ').pop().split(',')[1]} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+// ─── Premium Stat Card ───────────────────────────────────────────────────────
+function PremiumStatCard({ icon, label, value, color = '#5B005F', sparkline = [] }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      style={{
+        background: 'linear-gradient(145deg, #FFFFFF, #F8F7FC)',
+        borderRadius: 12,
+        padding: '10px 12px',
+        boxShadow: '4px 4px 10px rgba(91, 0, 95, 0.06), -2px -2px 6px rgba(255, 255, 255, 0.95)',
+        border: '1px solid rgba(91, 0, 95, 0.04)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color }}>{label}</span>
+        <MiniSparkline data={sparkline} color={color} width={40} height={24} />
+      </div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: '#1E293B' }}>{value}</div>
+    </motion.div>
+  );
+}
 
 const URGENCY_META = {
   normal:   { label: 'Normal',   color: C.info, icon: '📋' },
@@ -58,6 +115,7 @@ export function PurchaseRequestsPageContent({
   pageTitle = 'Approval Pengadaan Barang',
   filterModalTitle = 'Filter Pengadaan Barang',
 }) {
+  const { isMobile } = useResponsive();
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState([]);
   const [outlets, setOutlets] = useState([]);
@@ -98,10 +156,9 @@ export function PurchaseRequestsPageContent({
         const s = await axios.get('/api/purchase-requests/summary');
         setSummary(s?.data?.data || []);
       } catch (e) {
-        console.warn('[PurchaseRequests] Failed to fetch summary:', e?.message);
+        // Silent fail - summary optional
       }
     } catch (err) {
-      console.error('[fetchData]', err);
       setItems([]);
     } finally {
       setLoading(false);
@@ -276,34 +333,68 @@ export function PurchaseRequestsPageContent({
   }, [summary]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar
-        title={pageTitle}
-        subtitle={pageSubtitle}
-        onBack={goBack}
-      />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8F4FF', overflow: 'hidden' }}>
+      {/* ── Premium Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 20px 20px',
+        position: 'relative',
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}>
+        <GlowOrb color="rgba(140, 76, 143, 0.4)" size={200} top="-60px" left="-30px" blur={50} />
+        <GlowOrb color="rgba(249, 62, 17, 0.25)" size={150} top="40px" right="-40px" blur={40} />
+        <Sparkle top="10%" left="15%" size={8} delay={0} color="#FFD700" />
+        <Sparkle top="20%" left="80%" size={6} delay={0.5} color="#FF6B6B" />
+        <Sparkle top="60%" left="25%" size={7} delay={1} color="#4ECDC4" />
+        <Sparkle top="40%" left="70%" size={5} delay={0.3} color="#FFD700" />
+        <FloatingBubble src={bubbleIcon} size={18} top="15%" left="5%" delay={0} opacity={0.4} />
+        <FloatingBubble src={bubble2Icon} size={14} top="35%" right="8%" delay={0.5} opacity={0.35} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
-        {/* Stats banner */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative' }}>
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: 'white', letterSpacing: '-0.5px' }}
+            >
+              {pageTitle}
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}
+            >
+              {pageSubtitle}
+            </motion.div>
+          </div>
+          {goBack && (
+            <button
+              onClick={goBack}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: 'white',
+              }}
+            >
+              ← Kembali
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 24px', overflowX: 'hidden' }}>
+        {/* Premium Stats Grid */}
         <div style={{
-          background: stats.critical > 0
-            ? `linear-gradient(135deg, ${C.danger}, ${C.dangerDark})`
-            : `linear-gradient(135deg, ${C.warning}, ${C.warningDark})`,
-          borderRadius: 14, padding: '12px 14px', marginBottom: 12,
-          color: C.white, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 10,
+          marginBottom: 14,
         }}>
-          {[
-            { label: 'Kritis', value: stats.critical, icon: '🚨' },
-            { label: 'Pending', value: stats.pending, icon: '⏳' },
-            { label: 'Revisi', value: stats.revised, icon: '↩️' },
-            { label: 'Approved', value: stats.approved, icon: '✅' },
-          ].map((s, i) => (
-            <div key={i} style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 10, padding: '8px 6px', textAlign: 'center' }}>
-              <div style={{ fontSize: 18 }}>{s.icon}</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, marginTop: 2 }}>{s.value}</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.9 }}>{s.label}</div>
-            </div>
-          ))}
+          <PremiumStatCard label="🚨 Kritis" value={stats.critical} color={C.danger} sparkline={[2, 3, 1, stats.critical || 1]} />
+          <PremiumStatCard label="⏳ Pending" value={stats.pending} color={C.warning} sparkline={[5, 8, 6, stats.pending || 1]} />
+          <PremiumStatCard label="↩️ Revisi" value={stats.revised} color={C.info} sparkline={[1, 2, 1, stats.revised || 1]} />
+          <PremiumStatCard label="✅ Approved" value={stats.approved} color={C.success} sparkline={[3, 5, 4, stats.approved || 1]} />
         </div>
 
         {/* Ringkasan filter aktif — mudah diaudit finance */}
@@ -345,39 +436,66 @@ export function PurchaseRequestsPageContent({
         />
 
         {loading ? <SkeletonList count={4} height={90} /> : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 50 }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Tidak ada pengajuan barang.</div>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{
+              textAlign: 'center',
+              padding: '60px 20px',
+              background: 'linear-gradient(145deg, #FFFFFF, #F8F7FC)',
+              borderRadius: 16,
+              boxShadow: '6px 6px 14px rgba(91, 0, 95, 0.06)',
+              border: '1px solid rgba(91, 0, 95, 0.04)',
+            }}
+          >
+            <div style={{ fontSize: 48, marginBottom: 12 }}>✨</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: '#1E293B' }}>Tidak ada pengajuan barang</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#94A3B8', marginTop: 4 }}>Semua request sudah diproses</div>
+          </motion.div>
         ) : null}
 
         {!loading && listGroups.map((group) => (
           <section key={group.outletId} style={{ marginBottom: 14 }}>
             {!outletFilter && listGroups.length > 1 && (
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '8px 12px', marginBottom: 8, borderRadius: 10,
-                background: C.white, border: `1px solid ${C.n200}`,
-              }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 14px', marginBottom: 10, borderRadius: 12,
+                  background: 'linear-gradient(145deg, #FFFFFF, #F8F7FC)',
+                  boxShadow: '4px 4px 10px rgba(91, 0, 95, 0.06)',
+                  border: '1px solid rgba(91, 0, 95, 0.04)',
+                }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: '#1E293B' }}>
                   🏪 {group.outletName}
                 </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n600 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: '#64748B' }}>
                   {group.items.length} pengajuan
                 </span>
-              </div>
+              </motion.div>
             )}
 
             {group.items.map((it) => {
-          const urg = URGENCY_META[it.urgency] || URGENCY_META.normal;
-          const st = STATUS_META[it.status] || STATUS_META.pending;
-          const outletSum = outletSummaryMap.get(Number(it.outletId));
-          return (
-            <div key={it.id} style={{
-              background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 10,
-              boxShadow: SHADOW.md,
-              borderLeft: `4px solid ${it.status === 'revised' ? C.warning : urg.color}`,
-            }}>
+              const urg = URGENCY_META[it.urgency] || URGENCY_META.normal;
+              const st = STATUS_META[it.status] || STATUS_META.pending;
+              const outletSum = outletSummaryMap.get(Number(it.outletId));
+              return (
+                <motion.div
+                  key={it.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ y: -2 }}
+                  style={{
+                    background: 'linear-gradient(145deg, #FFFFFF, #F8F7FC)',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    marginBottom: 10,
+                    boxShadow: '6px 6px 14px rgba(91, 0, 95, 0.08), -3px -3px 10px rgba(255, 255, 255, 0.95)',
+                    border: '1px solid rgba(91, 0, 95, 0.04)',
+                    borderLeft: `4px solid ${it.status === 'revised' ? C.warning : urg.color}`,
+                  }}
+                >
               {/* Outlet identity strip */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <Avatar
@@ -397,15 +515,16 @@ export function PurchaseRequestsPageContent({
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                   <span style={{
-                    fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
-                    padding: '2px 8px', borderRadius: 999,
+                    fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+                    padding: '3px 8px', borderRadius: 999,
                     background: st.bg, color: st.fg,
+                    boxShadow: `0 2px 6px ${st.bg}`,
                   }}>{st.icon} {st.label}</span>
                   {it.status === 'pending' && (
                     <span style={{
-                      fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
-                      padding: '2px 8px', borderRadius: 999,
-                      background: `${urg.color}20`, color: urg.color,
+                      fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+                      padding: '3px 8px', borderRadius: 999,
+                      background: `${urg.color}15`, color: urg.color,
                     }}>{urg.icon} {urg.label}</span>
                   )}
                 </div>
@@ -446,6 +565,24 @@ export function PurchaseRequestsPageContent({
               <div style={{ background: C.n50, borderRadius: 8, padding: '8px 10px', marginTop: 8, fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>
                 💬 {it.reason}
               </div>
+
+              {/* PIC Info */}
+              {it.picName && (
+                <div style={{
+                  background: `${C.primary}08`,
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  marginTop: 8,
+                  fontFamily: 'Poppins',
+                  fontSize: 10,
+                  color: C.primary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  👤 PIC: <strong>{it.picName}</strong>
+                </div>
+              )}
 
               {/* Admin note */}
               {it.adminNote && (
@@ -505,7 +642,7 @@ export function PurchaseRequestsPageContent({
                   {it.fulfillerName && ` oleh ${it.fulfillerName}`}
                 </div>
               )}
-            </div>
+            </motion.div>
           );
         })}
           </section>
@@ -550,7 +687,7 @@ export function PurchaseRequestsPageContent({
                 />
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
               <label style={{ display: 'block' }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginBottom: 4 }}>Dari</div>
                 <input

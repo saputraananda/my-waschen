@@ -12,7 +12,7 @@ const MOOD_THEME = {
   great:   { gradient: `linear-gradient(145deg, ${C.primary}, ${C.primaryDark})`, icon: '🎉', label: 'Luar biasa!', accent: '#c084fc' },
   good:    { gradient: `linear-gradient(145deg, ${C.primary}, #5B21B6)`, icon: '💪', label: 'On track!', accent: '#a78bfa' },
   warning: { gradient: `linear-gradient(145deg, #92400E, #B45309)`, icon: '⚠️', label: 'Hampir sampai', accent: '#fbbf24' },
-  low:     { gradient: `linear-gradient(145deg, #991B1B, #DC2626)`, icon: '📉', label: 'Perlu effort', accent: '#f87171' },
+  low:     { gradient: `linear-gradient(145deg, ${C.dangerDark}, ${C.danger})`, icon: '📉', label: 'Perlu effort', accent: '#f87171' },
   zero:    { gradient: `linear-gradient(145deg, ${C.primary}, ${C.primaryDark})`, icon: '🔥', label: 'Mulai sekarang!', accent: '#E85D00' },
 };
 

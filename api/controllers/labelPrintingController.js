@@ -9,6 +9,7 @@
 
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
+import logger from '../utils/logger.js';
 
 /**
  * GET /api/transactions/:id/labels
@@ -173,7 +174,7 @@ export const getTransactionLabels = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('[getTransactionLabels] Error:', err);
+    logger.error('Gagal generate data label', { error: err.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal generate data label.'
@@ -252,7 +253,7 @@ export const printTransactionLabels = async (req, res) => {
       }
     } catch (logErr) {
       // If table doesn't exist, continue without logging (best-effort)
-      console.warn('[printTransactionLabels] Print log table not available:', logErr.message);
+      // [printTransactionLabels] log table unavailable - optional
     }
 
     // Log to audit trail
@@ -286,7 +287,7 @@ export const printTransactionLabels = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[printTransactionLabels] Error:', err);
+    logger.error('Gagal mencatat print label', { error: err.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mencatat print label.'

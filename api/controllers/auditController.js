@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 // ─── GET /api/audit-log ───────────────────────────────────────────────────────
 // List audit log dengan filter & pagination. Hanya admin/owner/finance.
@@ -75,7 +76,7 @@ export const getAuditLog = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getAuditLog] Error:', err);
+    logger.error('Gagal memuat audit log', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat audit log.' });
   }
 };
@@ -93,7 +94,7 @@ export const getAuditActions = async (req, res) => {
     );
     return res.json({ success: true, data: rows.map((r) => r.action) });
   } catch (err) {
-    console.error('[getAuditActions] Error:', err);
+    logger.error('Gagal memuat daftar action', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat daftar action.' });
   }
 };

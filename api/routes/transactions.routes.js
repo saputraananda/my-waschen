@@ -9,6 +9,9 @@ import {
   getTransactionById,
   recordTransactionPayment,
   getDashboardStats,
+  getRevenueTrend,
+  getPaymentMethods,
+  getTopServices,
   getProductionQueue,
   getProductionHistory,
   updateTransactionStatus,
@@ -36,6 +39,12 @@ import { sendTransactionWhatsapp } from '../controllers/whatsappController.js';
 
 const router = Router();
 
+// Role guards - centralized for consistency
+const FRONTLINER = ['frontline'];
+const ADMIN = ['admin'];
+const PRODUKSI = ['produksi'];
+const FRONTLINER_PRODUKSI = ['frontline', 'produksi'];
+
 // Invalidate cache transactions setiap ada mutasi data.
 // Termasuk production endpoints supaya foto/stage update langsung visible.
 const invalidateTx = (req, res, next) => {
@@ -54,16 +63,25 @@ router.get('/', authenticate, cacheResponse({ ttl: 20_000 }), readLimiter, getTr
 // GET /api/transactions/dashboard/stats — statistik dashboard (cache 30 detik)
 router.get('/dashboard/stats', authenticate, cacheResponse({ ttl: 30_000 }), readLimiter, getDashboardStats);
 
+// GET /api/transactions/dashboard/revenue-trend — tren omset
+router.get('/dashboard/revenue-trend', authenticate, cacheResponse({ ttl: 60_000 }), readLimiter, getRevenueTrend);
+
+// GET /api/transactions/dashboard/payment-methods — breakdown metode bayar
+router.get('/dashboard/payment-methods', authenticate, cacheResponse({ ttl: 60_000 }), readLimiter, getPaymentMethods);
+
+// GET /api/transactions/dashboard/top-services — top 5 layanan terpopuler
+router.get('/dashboard/top-services', authenticate, cacheResponse({ ttl: 60_000 }), readLimiter, getTopServices);
+
 // GET /api/transactions/production/queue — antrian produksi (cache 8 detik fresh, stale 32 detik)
 // Polling-friendly: tab 30s polling masih dapat cache HIT 4x sebelum miss.
-router.get('/production/queue', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance'), cacheResponse({ ttl: 8_000 }), readLimiter, getProductionQueue);
+router.get('/production/queue', authenticate, requireRole('frontline', 'produksi', 'admin'), cacheResponse({ ttl: 8_000 }), readLimiter, getProductionQueue);
 
 // GET /api/transactions/production/history — riwayat produksi (cache 30 detik fresh, stale 2 menit)
-router.get('/production/history', authenticate, requireRole('produksi', 'admin', 'kasir', 'frontline'), cacheResponse({ ttl: 30_000 }), readLimiter, getProductionHistory);
+router.get('/production/history', authenticate, requireRole('produksi', 'admin', 'frontline'), cacheResponse({ ttl: 30_000 }), readLimiter, getProductionHistory);
 
 // GET /api/transactions/production/order/:id — detail riwayat (cache 60 detik)
 // TODO: Temporarily disabled - function not yet implemented
-// router.get('/production/order/:id', authenticate, requireRole('produksi', 'admin', 'kasir', 'frontline'), cacheResponse({ ttl: 60_000 }), readLimiter, getProductionOrderDetail);
+// router.get('/production/order/:id', authenticate, requireRole('produksi', 'admin', 'frontline'), cacheResponse({ ttl: 60_000 }), readLimiter, getProductionOrderDetail);
 
 // GET /api/transactions/:id — detail transaksi (cache 10 detik, sering dilihat saat proses)
 router.get('/:id', authenticate, cacheResponse({ ttl: 10_000 }), readLimiter, getTransactionById);
@@ -71,17 +89,17 @@ router.get('/:id', authenticate, cacheResponse({ ttl: 10_000 }), readLimiter, ge
 // PUT /api/transactions/:id/status — update status transaksi (konfirmasi diambil, dll.)
 // NOTE: tidak pakai requireActiveShift karena endpoint ini juga dipakai oleh role produksi
 // untuk update stage, dan produksi tidak punya shift.
-router.put('/:id/status', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, updateTransactionStatus);
+router.put('/:id/status', authenticate, requireRole('frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, updateTransactionStatus);
 
-// POST /api/transactions/checkout — buat nota (kasir / admin / finance; bukan produksi)
+// POST /api/transactions/checkout — buat nota (kasir / admin; bukan produksi)
 // Validation: Zod schema validates customerId, items[], outletId, payment details
-router.post('/checkout', authenticate, requireRole('kasir', 'frontline', 'admin', 'finance'), requireActiveShift, writeLimiter, invalidateTx, validateCheckout, checkoutTransaction);
+router.post('/checkout', authenticate, requireRole('frontline', 'admin'), requireActiveShift, writeLimiter, invalidateTx, validateCheckout, checkoutTransaction);
 
 // POST /api/transactions/:id/payments — pelunasan / pembayaran lanjutan (kasir & admin)
-router.post('/:id/payments', authenticate, requireRole('kasir', 'frontline', 'admin', 'finance'), requireActiveShift, writeLimiter, invalidateTx, recordTransactionPayment);
+router.post('/:id/payments', authenticate, requireRole('frontline', 'admin'), requireActiveShift, writeLimiter, invalidateTx, recordTransactionPayment);
 
 // PATCH /api/transactions/:id/cancel — batalkan transaksi
-router.patch('/:id/cancel', authenticate, requireRole('kasir', 'frontline', 'admin'), approvalLimiter, invalidateTx, cancelTransaction);
+router.patch('/:id/cancel', authenticate, requireRole('frontline', 'admin'), approvalLimiter, invalidateTx, cancelTransaction);
 
 // PATCH /api/transactions/:id/production-stage — catat progress produksi
 router.patch('/:id/production-stage', authenticate, requireRole('produksi', 'admin'), writeLimiter, invalidateTx, updateProductionStage);
@@ -90,7 +108,7 @@ router.patch('/:id/production-stage', authenticate, requireRole('produksi', 'adm
 router.patch('/:id/production-stage/revert', authenticate, requireRole('produksi', 'admin'), writeLimiter, invalidateTx, revertProductionStage);
 
 // POST /api/transactions/:id/condition — catat kondisi pakaian (auto invalidate cache supaya foto langsung visible)
-router.post('/:id/condition', authenticate, writeLimiter, invalidateTx, saveItemCondition);
+router.post('/:id/condition', authenticate, requireRole('frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, saveItemCondition);
 
 // GET /api/transactions/:id/photos — debug: lihat semua foto yang tersimpan (no cache, debug)
 router.get('/:id/photos', authenticate, readLimiter, getTransactionPhotos);
@@ -102,32 +120,32 @@ router.delete('/:id/photos/:photoId', authenticate, requireRole('produksi', 'adm
 router.patch('/:id/photos/:photoId', authenticate, requireRole('produksi', 'admin'), writeLimiter, invalidateTx, updateItemPhoto);
 
 // POST /api/transactions/:id/review — submit review
-router.post('/:id/review', authenticate, writeLimiter, invalidateTx, saveReview);
+router.post('/:id/review', authenticate, requireRole('frontline', 'admin'), writeLimiter, invalidateTx, saveReview);
 
 // POST /api/transactions/:id/request-approval — ajukan pembatalan/penghapusan via approval
-router.post('/:id/request-approval', authenticate, approvalLimiter, invalidateTx, requestApproval);
+router.post('/:id/request-approval', authenticate, requireRole('frontline', 'admin'), approvalLimiter, invalidateTx, requestApproval);
 
 // PATCH /api/transactions/:id/delivery-type — ubah jenis pengiriman (self/pickup/delivery)
-router.patch('/:id/delivery-type', authenticate, requireRole('kasir', 'frontline', 'admin'), writeLimiter, invalidateTx, updateDeliveryType);
+router.patch('/:id/delivery-type', authenticate, requireRole('frontline', 'admin'), writeLimiter, invalidateTx, updateDeliveryType);
 
 // PATCH /api/transactions/:id/items/:itemId/packing — set packing requirement (kasir) atau update packing_done (produksi)
-router.patch('/:id/items/:itemId/packing', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, updatePackingInfo);
+router.patch('/:id/items/:itemId/packing', authenticate, requireRole('frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, updatePackingInfo);
 
 // PATCH /api/transactions/:id/reschedule — ubah estimasi & jadwal pickup/delivery
-router.patch('/:id/reschedule', authenticate, requireRole('kasir', 'frontline', 'admin'), writeLimiter, invalidateTx, rescheduleTransaction);
+router.patch('/:id/reschedule', authenticate, requireRole('frontline', 'admin'), writeLimiter, invalidateTx, rescheduleTransaction);
 
 // POST /api/transactions/:id/cancellation-requests — ajukan pembatalan
-router.post('/:id/cancellation-requests', authenticate, requireRole('kasir', 'frontline', 'admin'), writeLimiter, invalidateTx, requestCancellation);
+router.post('/:id/cancellation-requests', authenticate, requireRole('frontline', 'admin'), writeLimiter, invalidateTx, requestCancellation);
 
 // GET /api/transactions/:id/labels — data label untuk print nota/item
 // BUG FIX 5: Use dedicated label controller (Requirements 2.7)
-router.get('/:id/labels', authenticate, readLimiter, getLabelsFromLabelController);
+router.get('/:id/labels', authenticate, requireRole('frontline', 'produksi', 'admin'), readLimiter, getLabelsFromLabelController);
 
 // POST /api/transactions/:id/labels/print — log print/reprint action
 // BUG FIX 6: Label print logging (Requirements 2.8)
-router.post('/:id/labels/print', authenticate, writeLimiter, invalidateTx, printTransactionLabels);
+router.post('/:id/labels/print', authenticate, requireRole('frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, printTransactionLabels);
 
 // POST /api/transactions/:id/send-whatsapp — kirim pesan WhatsApp dari transaksi
-router.post('/:id/send-whatsapp', authenticate, requireRole('kasir', 'frontline', 'admin', 'produksi'), writeLimiter, invalidateTx, sendTransactionWhatsapp);
+router.post('/:id/send-whatsapp', authenticate, requireRole('frontline', 'admin', 'produksi'), writeLimiter, invalidateTx, sendTransactionWhatsapp);
 
 export default router;

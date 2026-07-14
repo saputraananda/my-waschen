@@ -103,7 +103,6 @@ export default function CustomerSegmentationWidget({ onViewAll, refreshInterval 
       const res = await axios.get('/api/segmentation/overview', { timeout: 10000 });
       if (res?.data?.data) setData(res.data.data);
     } catch (err) {
-      console.error('[CustomerSegmentationWidget]', err);
       setError(err?.response?.data?.message || 'Gagal memuat data');
     } finally {
       setLoading(false);

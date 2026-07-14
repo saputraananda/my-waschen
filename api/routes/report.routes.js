@@ -19,7 +19,7 @@ import {
 
 const router = Router();
 
-const adminOnly = requireRole('admin', 'superadmin', 'owner', 'finance', 'ga');
+const adminOnly = requireRole('admin');
 
 router.get('/executive-summary',  authenticate, adminOnly, getExecutiveSummary);
 router.get('/outlet-performance', authenticate, adminOnly, getOutletPerformance);
@@ -30,7 +30,7 @@ router.get('/comparison',         authenticate, adminOnly, getComparisonReport);
 router.get('/cohort',             authenticate, adminOnly, getCohortAnalysis);
 router.get('/forecast',           authenticate, adminOnly, getForecast);
 
-// Outlet summary — accessible by all authenticated users (kasir/produksi/finance/admin)
+// Outlet summary — accessible by all authenticated users (kasir/produksi/admin)
 // Default outlet = outlet user. Admin bisa pass outletId untuk lihat outlet lain.
 router.get('/outlet-summary',     authenticate, getOutletSummary);
 

@@ -19,7 +19,6 @@ export const authenticate = (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // Simpan decoded payload ke req.user supaya bisa dipakai di route handler
     req.user = {
       userId: decoded.userId,
       roleCode: decoded.roleCode,
@@ -66,38 +65,30 @@ export const requireRole = (...allowedRoles) => {
   };
 };
 
-// ─── Sentralisasi Role Groups ────────────────────────────────────────────────
-// Semua definisi role-group ada di sini sebagai single source of truth.
-// File routes cukup menggunakan named middleware di bawah ini.
+// ─── Role Groups ────────────────────────────────────────────────────────────
 export const ROLE_GROUPS = {
-  ADMIN: ['admin', 'superadmin', 'owner'],
-  FINANCE: ['admin', 'superadmin', 'owner', 'finance'],
-  CASHIER: ['kasir', 'frontline'],
-  PRODUCTION: ['produksi'],
-  GLOBAL: ['admin', 'superadmin', 'owner', 'finance'],
+  ADMIN: ['admin'],
+  FRONTLINER: ['frontline'],
+  PRODUKSI: ['produksi'],
 };
 
 // ─── Named Role Guards ──────────────────────────────────────────────────────
-// Gunakan ini di route files agar konsisten dan mudah di-maintain.
-export const canManageMasterData = requireRole(...ROLE_GROUPS.ADMIN);
-export const canManageTransactions = requireRole(...ROLE_GROUPS.ADMIN, ...ROLE_GROUPS.CASHIER);
-export const canAccessFinance = requireRole(...ROLE_GROUPS.FINANCE);
-export const canAccessProduction = requireRole(...ROLE_GROUPS.ADMIN, ...ROLE_GROUPS.PRODUCTION);
-
-// ─── Legacy Aliases (backward compat) ────────────────────────────────────────
 export const isAdmin = requireRole(...ROLE_GROUPS.ADMIN);
-export const isCashier = requireRole(...ROLE_GROUPS.CASHIER);
+export const isFrontliner = requireRole(...ROLE_GROUPS.FRONTLINER);
+export const isProduksi = requireRole(...ROLE_GROUPS.PRODUKSI);
 
+// ─── Master Data Guard ──────────────────────────────────────────────────────
+// Master data = layanan, outlet, kategori — hanya admin yang boleh modifikasi
+export const canManageMasterData = requireRole('admin');
 
-// ─── Middleware: outlet guard (user hanya bisa akses data outletnya sendiri) ──
+// ─── Middleware: outlet guard ──────────────────────────────────────────────
 export const requireSameOutlet = (req, res, next) => {
   const targetOutletId = req.params.outletId || req.params.id || req.query.outletId || req.body.outletId;
 
   if (!targetOutletId) return next();
 
-  // Role-role global boleh akses semua outlet
-  const GLOBAL_ROLES = new Set(['admin', 'superadmin', 'owner', 'finance']);
-  if (GLOBAL_ROLES.has(req.user.roleCode)) return next();
+  // Admin bisa akses semua outlet
+  if (req.user.roleCode === 'admin') return next();
 
   if (String(req.user.outletId) !== String(targetOutletId)) {
     return res.status(403).json({
@@ -110,18 +101,18 @@ export const requireSameOutlet = (req, res, next) => {
 };
 
 // ─── Middleware: cek shift aktif ─────────────────────────────────────────────
-// Blokir transaksi keuangan (checkout, payment, topup deposit) jika shift belum buka.
-// Bypass untuk: user tanpa outletId (dev), role non-kasir (produksi).
+// Blokir transaksi keuangan jika shift belum buka.
+// Frontliner butuh shift aktif.
 export const requireActiveShift = async (req, res, next) => {
   const userId = req.user?.userId;
   const outletId = req.user?.outletId;
 
-  // Tanpa outlet = bypass (dev environment atau role tanpa outlet)
+  // Tanpa outlet = bypass (dev environment)
   if (!outletId) return next();
 
-  // Role non-kasir tidak punya shift (produksi, finance read-only, dll.)
-  const CASHIER_ROLES = new Set(['kasir', 'frontline']);
-  if (!CASHIER_ROLES.has(req.user.roleCode)) return next();
+  // Admin & Produksi tidak butuh shift
+  const NON_FRONTLINER = new Set(['admin', 'produksi']);
+  if (NON_FRONTLINER.has(req.user.roleCode)) return next();
 
   try {
     const [rows] = await poolWaschenPos.execute(
@@ -142,7 +133,6 @@ export const requireActiveShift = async (req, res, next) => {
     next();
   } catch (err) {
     console.error('[requireActiveShift] DB error:', err);
-    // Jika gagal cek DB, izinkan saja (fail open — avoid blocking legitimate ops)
     next();
   }
 };

@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { useApp } from '../../context/AppContext';
 import { TopBar, Chip, Modal, Input, SearchBar, MoneyInput } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 export default function KelolaLayananOutletPage({ navigate, goBack, screenParams }) {
+  const isMobile = useIsMobile();
   const { user } = useApp();
 
   const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
@@ -170,6 +172,23 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .service-item-row {
+            flex-direction: column !important;
+            gap: 12px !important;
+          }
+          .service-item-actions {
+            width: 100% !important;
+            justify-content: flex-start !important;
+          }
+          .outlet-stats-grid { grid-template-columns: repeat(3, 1fr) !important; }
+          .outlet-stats-grid-responsive { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+        @media (max-width: 360px) {
+          .outlet-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+      `}</style>
       <TopBar title="Kelola Layanan Outlet" onBack={goBack} />
 
       {/* ── Outlet Selector ── */}
@@ -192,7 +211,7 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
       </div>
 
       {/* ── Stats Grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '12px 16px 0' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '12px 16px 0' }} className="outlet-stats-grid outlet-stats-grid-responsive">
         {[
           { label: 'Total', val: statsTotal, color: C.primary, bg: `${C.primary}10` },
           { label: 'Aktif', val: statsActive, color: C.success, bg: `${C.success}10` },
@@ -321,6 +340,7 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
                     border: isPinned ? `1.5px solid ${C.danger}30` : `1.5px solid ${C.n100}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                     position: 'relative', overflow: 'hidden',
+                    className: 'service-item-row',
                   }}
                 >
                   {isPinned && (
@@ -346,7 +366,7 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
                       </span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} className="service-item-actions">
                     <button
                       onClick={() => handleTogglePin(s)}
                       disabled={!s.active}

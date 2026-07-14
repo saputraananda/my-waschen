@@ -111,7 +111,6 @@ export const getAvatar = async (type, variant = 0) => {
     avatarCache.set(cacheKey, result);
     return result;
   } catch (err) {
-    console.warn(`[Asset] Failed to load avatar ${type}-${variant}:`, err);
     return null;
   }
 };
@@ -143,8 +142,6 @@ export const preloadAvatars = async () => {
     ...decorPromises,
     ...vehiclePromises,
   ]);
-
-  console.debug('[Asset] Critical avatars preloaded');
 };
 
 // ─── Lazy Image Loader ────────────────────────────────────────────────────────
@@ -245,5 +242,4 @@ export const getAvatarCacheSize = () => avatarCache.size;
 
 export const clearAvatarCache = () => {
   avatarCache.clear();
-  console.debug('[Asset] Avatar cache cleared');
 };

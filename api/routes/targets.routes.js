@@ -9,7 +9,7 @@ import {
 
 const router = Router();
 
-const ADMIN = requireRole('admin', 'superadmin', 'finance', 'owner');
+const ADMIN = requireRole('admin');
 
 // Invalidate cache target setiap kali ada mutasi (upsert/delete)
 const invalidateTargets = (req, res, next) => {

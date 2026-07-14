@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useResponsive } from '../../utils/hooks';
 import { TopBar, Btn, Chip, Avatar, SearchBar, Modal } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 import { alertError, alertSuccess } from '../../utils/alert';
 
 export default function VerifikasiPaymentPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
@@ -36,7 +38,7 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
       const res = await axios.get(url);
       setPayments(res?.data?.data || []);
     } catch (err) {
-      console.error('[VerifikasiPayment] Error:', err);
+      // Silent fail, user can retry
     } finally {
       setLoading(false);
     }
@@ -52,7 +54,6 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
       setPayments((prev) => prev.filter((p) => p.id !== id));
       alertSuccess('Pembayaran berhasil diverifikasi.');
     } catch (err) {
-      console.error('[VerifikasiPayment] verify error:', err);
       alertError(err?.response?.data?.message || 'Gagal memverifikasi pembayaran');
     } finally {
       setActionLoading(null);
@@ -86,7 +87,7 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
 
       {/* Filters */}
       <div style={{ padding: '12px 16px 0' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
           <Chip label={`Belum ✋`} active={filter === 'pending'} onClick={() => setFilter('pending')} />
           <Chip label={`Verified ✅`} active={filter === 'verified'} onClick={() => setFilter('verified')} />
           <Chip label="Semua" active={filter === 'all'} onClick={() => setFilter('all')} />
@@ -121,17 +122,18 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowX: 'auto' }}>
             {filtered.map((p) => {
               const methodColor = METHOD_COLOR[p.payMethod] || C.primary;
               return (
                 <div
                   key={p.id}
                   style={{
-                    background: C.white, borderRadius: 14, padding: '12px 14px',
+                    background: C.white, borderRadius: 14, padding: isMobile ? '10px 12px' : '12px 14px',
                     boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
                     borderLeft: `3px solid ${p.verified ? C.success : methodColor}`,
                     transition: 'transform 0.15s',
+                    minWidth: isMobile ? '100%' : 'auto',
                   }}
                 >
                   {/* Top row — customer + amount */}
@@ -202,31 +204,31 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
         title="Konfirmasi Verifikasi"
       >
         {confirmModal && (
-          <div>
+          <div style={{ padding: isMobile ? '8px 8px 18px' : '8px 18px 18px' }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, marginBottom: 16, lineHeight: 1.6 }}>
               Apakah Anda yakin ingin memverifikasi pembayaran ini?
             </div>
             <div style={{ background: C.n50, borderRadius: 12, padding: 14, marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Nota</span>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{confirmModal.transactionNo}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Customer</span>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{confirmModal.customerName}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 4 }}>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Metode</span>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{METHOD_LABEL[confirmModal.payMethod] || confirmModal.payMethod}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
                 <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Total</span>
                 <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.primary }}>{rp(confirmModal.total)}</span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <Btn variant="secondary" fullWidth onClick={() => setConfirmModal(null)}>Batal</Btn>
-              <Btn variant="success" fullWidth loading={actionLoading === confirmModal.id} onClick={() => handleVerify(confirmModal.id)}>Verifikasi</Btn>
+            <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
+              <Btn variant="secondary" fullWidth={isMobile} onClick={() => setConfirmModal(null)}>Batal</Btn>
+              <Btn variant="success" fullWidth={isMobile} loading={actionLoading === confirmModal.id} onClick={() => handleVerify(confirmModal.id)}>Verifikasi</Btn>
             </div>
           </div>
         )}

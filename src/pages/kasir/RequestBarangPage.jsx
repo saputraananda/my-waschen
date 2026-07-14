@@ -7,6 +7,9 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Input, Select, Textarea, useAppRefresh, SearchFilterRow, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import PICSelector from '../../components/PICSelector';
+import { usePICSelector } from '../../hooks/usePIC';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
 
 async function fetchWithRetry(requestFn, maxRetries = 2) {
   let lastErr;
@@ -45,6 +48,7 @@ const fmtDate = (v) => {
 };
 
 export default function RequestBarangPage({ goBack, navigate, preselectedItem }) {
+  const { isMobile } = useResponsive();
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [showFilter, setShowFilter] = useState(false);
@@ -80,7 +84,6 @@ export default function RequestBarangPage({ goBack, navigate, preselectedItem })
         ? 'Terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.'
         : (err?.response?.data?.message || 'Gagal memuat request.');
       setFetchError(msg);
-      console.error('[RequestBarang fetch]', err);
     } finally {
       setLoading(false);
     }
@@ -128,7 +131,7 @@ export default function RequestBarangPage({ goBack, navigate, preselectedItem })
         rightIcon={<span style={{ fontSize: 18 }} title="Lihat Stok">📦</span>}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '10px 10px 100px' : '12px 16px 24px' }}>
         {/* Hero info banner */}
         <div style={{
           background: stats.critical > 0
@@ -223,11 +226,14 @@ export default function RequestBarangPage({ goBack, navigate, preselectedItem })
         )}
 
         {!loading && !fetchError && filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 50 }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>📦</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n700 }}>
-              {search || activeFilterCount > 0 ? 'Tidak ada hasil sesuai filter.' : 'Belum ada pengajuan barang.'}
-            </div>
+          <div style={{ padding: '20px 0' }}>
+            <EmptyState
+              type="orders"
+              title={search || activeFilterCount > 0 ? 'Tidak Ada Hasil' : 'Belum Ada Pengajuan'}
+              message={search || activeFilterCount > 0 ? 'Tidak ada pengajuan sesuai filter' : 'Pengajuan barang akan muncul di sini'}
+              suggestion="Ajukan barang baru jika stok menipis"
+              illustrationSize={100}
+            />
           </div>
         )}
 
@@ -281,11 +287,12 @@ function Stat({ icon, value, label }) {
 }
 
 function RequestCard({ item: it, onEdit }) {
+  const { isMobile } = useResponsive();
   const urg = URGENCY_META[it.urgency] || URGENCY_META.normal;
   const st = STATUS_META[it.status] || STATUS_META.pending;
   return (
     <div style={{
-      background: 'white', borderRadius: 12, padding: '12px 14px', marginBottom: 10,
+      background: 'white', borderRadius: 12, padding: isMobile ? '10px 12px' : '12px 14px', marginBottom: 10,
       boxShadow: it.status === 'revised'
         ? `0 2px 8px ${C.warning}2e`
         : SHADOW.sm,
@@ -293,10 +300,10 @@ function RequestCard({ item: it, onEdit }) {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n900 }}>
             {it.itemName} {it.brand ? <span style={{ color: C.n700, fontWeight: 500 }}>· {it.brand}</span> : null}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginTop: 2 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, color: C.n700, marginTop: 2 }}>
             {it.qty} {it.unit}
             {it.approvedQty != null && it.approvedQty !== it.qty && (
               <span style={{ color: C.primary, fontWeight: 600 }}> · disetujui {it.approvedQty} {it.unit}</span>
@@ -321,6 +328,24 @@ function RequestCard({ item: it, onEdit }) {
       <div style={{ background: C.n50, borderRadius: 8, padding: '6px 10px', marginTop: 8, fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>
         💬 {it.reason}
       </div>
+
+      {/* PIC Info */}
+      {it.picName && (
+        <div style={{
+          background: `${C.primary}08`,
+          borderRadius: 6,
+          padding: '4px 10px',
+          marginTop: 8,
+          fontFamily: 'Poppins',
+          fontSize: 10,
+          color: C.primary,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+        }}>
+          👤 PIC: <strong>{it.picName}</strong>
+        </div>
+      )}
 
       <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 6 }}>
         {fmtDate(it.createdAt)} · {it.requesterName}
@@ -367,6 +392,7 @@ function RequestCard({ item: it, onEdit }) {
 }
 
 function FilterModal({ statusFilter, setStatusFilter, urgencyFilter, setUrgencyFilter, onClose, onReset }) {
+  const { isMobile } = useResponsive();
   const chip = (active, color) => ({
     padding: '8px 10px', borderRadius: 10,
     border: `1.5px solid ${active ? color : C.n200}`,
@@ -381,7 +407,7 @@ function FilterModal({ statusFilter, setStatusFilter, urgencyFilter, setUrgencyF
         <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
           🚨 Tingkat Urgensi
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr', gap: 6, marginBottom: 16 }}>
           <button onClick={() => setUrgencyFilter('all')} style={chip(urgencyFilter === 'all', C.primary)}>Semua</button>
           {Object.entries(URGENCY_META).map(([k, m]) => (
             <button key={k} onClick={() => setUrgencyFilter(k)} style={chip(urgencyFilter === k, m.color)}>
@@ -412,7 +438,23 @@ function FilterModal({ statusFilter, setStatusFilter, urgencyFilter, setUrgencyF
 }
 
 function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, preselectedItem = null }) {
+  const { isMobile, isTablet } = useResponsive();
   const isEditing = !!editing;
+
+  // PIC Selection - track who is responsible for this purchase request
+  const {
+    currentPIC,
+    setCurrentPIC,
+    availableUsers,
+    refreshUsers,
+    isLoading: picLoading,
+  } = usePICSelector();
+
+  // Fetch available users for PIC on mount
+  useEffect(() => {
+    refreshUsers();
+  }, [refreshUsers]);
+
   const [inventoryId, setInventoryId] = useState(editing?.inventoryId ? String(editing.inventoryId) : preselectedItem ? String(preselectedItem.id) : '');
   const [itemName, setItemName] = useState(editing?.itemName || preselectedItem?.name || '');
   const [brand, setBrand] = useState(editing?.brand || '');
@@ -439,6 +481,10 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
 
     setLoading(true);
     try {
+      // Build PIC payload - use currentPIC if selected, otherwise from editing (if exists)
+      const picId = currentPIC?.id || editing?.picId || null;
+      const picName = currentPIC?.name || editing?.picName || null;
+
       if (isEditing) {
         await api.patch(`/api/purchase-requests/${editing.id}/resubmit`, {
           itemName: itemName.trim(),
@@ -448,6 +494,8 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
           estimatedPrice: estimatedPrice ? Number(estimatedPrice) : null,
           urgency,
           reason: reason.trim(),
+          picId,
+          picName,
         });
         await alertSuccess('Pengajuan dikirim ulang ke admin.');
       } else {
@@ -460,6 +508,8 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
           estimatedPrice: estimatedPrice ? Number(estimatedPrice) : null,
           urgency,
           reason: reason.trim(),
+          picId,
+          picName,
         });
         await alertSuccess(urgency === 'critical' ? 'Pengajuan kritis dikirim! Admin akan diberi tahu.' : 'Pengajuan barang berhasil dikirim ke admin.');
       }
@@ -491,6 +541,19 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
           </div>
         )}
 
+        {/* PIC Selector */}
+        {!isEditing && (
+          <>
+            <PICSelector
+              currentPIC={currentPIC}
+              onChange={setCurrentPIC}
+              users={availableUsers}
+              loading={picLoading}
+            />
+            <div style={{ height: 12 }} />
+          </>
+        )}
+
         {!isEditing && (
           <Select
             label="Pilih dari Katalog (opsional)"
@@ -511,8 +574,8 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
         />
         <Input label="Merek / Spec (opsional)" value={brand} onChange={setBrand} placeholder="Mis. Pertamina, Bright" />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
-          <Input label="Qty *" value={qty} onChange={(v) => setQty(v.replace(/[^\d.]/g, ''))} inputMode="decimal" placeholder="1" />
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: 8 }}>
+          <Input label="Qty *" value={qty} onChange={(v) => setQty(v.replace(/[^\d.]/g, ''))} inputMode="decimal" placeholder="1" style={{ width: '100%' }} />
           <Select
             label="Satuan"
             value={unit}
@@ -525,6 +588,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
               { value: 'box', label: 'box' },
               { value: 'set', label: 'set' },
             ]}
+            style={{ width: '100%' }}
           />
         </div>
 
@@ -540,7 +604,7 @@ function RequestForm({ inventoryItems, onClose, onSuccess, editing = null, prese
           <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
             Tingkat Urgensi *
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 6 }}>
             {Object.entries(URGENCY_META).map(([k, m]) => {
               const active = urgency === k;
               return (

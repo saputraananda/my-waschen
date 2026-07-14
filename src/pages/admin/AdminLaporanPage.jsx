@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import axios from 'axios';
 import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Select, DateInput, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, SearchFilterHeader, FilterModal, FilterSection, DatePresets } from '../../components/ui';
+import { TopBar, Btn, Select, DateInput, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, SearchFilterHeader, FilterModal, FilterSection, DatePresets, StatMini } from '../../components/ui';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency, fmtDate } from '../../utils/exportReport';
 import { getDateRangePreset } from '../../utils/filterPresets';
@@ -199,8 +200,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
       try {
         const res = await axios.get('/api/outlets');
         setOutlets(res?.data?.data || []);
-      } catch (e) {
-        console.warn('[AdminLaporan] Failed to fetch outlets:', e?.message);
+      } catch {
         setOutlets([]);
       }
     })();
@@ -215,7 +215,6 @@ export default function AdminLaporanPage({ navigate, goBack }) {
       const res = await axios.get(url);
       if (res?.data?.data) setReport(res.data.data);
     } catch (e) {
-      console.error('[AdminLaporan] fetchReport failed:', e);
       setReport(null);
     } finally {
       setLoading(false);
@@ -244,7 +243,6 @@ export default function AdminLaporanPage({ navigate, goBack }) {
         ],
       });
     } catch (e) {
-      console.error('Export Excel failed:', e);
     }
   };
 
@@ -277,7 +275,6 @@ export default function AdminLaporanPage({ navigate, goBack }) {
         ],
       });
     } catch (e) {
-      console.error('Export PDF failed:', e);
     }
   };
 
@@ -311,7 +308,16 @@ export default function AdminLaporanPage({ navigate, goBack }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <style>{PAGE_STYLES}</style>
+      <style>{`
+        ${PAGE_STYLES}
+        @media (max-width: 480px) {
+          .lap-stats-row { grid-template-columns: repeat(2, 1fr) !important; }
+          .lap-hero-grid { grid-template-columns: 1fr !important; }
+          .lap-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .lap-filter-row { flex-direction: column !important; }
+          .lap-filter-row > * { width: 100% !important; }
+        }
+      `}</style>
       <TopBar title="Laporan Pusat" subtitle="Analitik omset & transaksi terpusat" onBack={goBack} />
 
       {/* Search & Filter Header */}

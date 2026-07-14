@@ -3,6 +3,7 @@
 // FIXED: Uses tr_logistic_order instead of non-existent 'deliveries' table
 // ─────────────────────────────────────────────────────────────────────────────
 import { poolWaschenPos as db } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 // ── Helper: Build address string ─────────────────────────────────────────────
 function buildAddress(logistic, customer) {
@@ -91,10 +92,10 @@ export async function getDriverTasks(req, res) {
       };
     }));
 
-    res.json({ success: true, data: tasks });
+    return res.json({ success: true, data: tasks });
   } catch (error) {
-    console.error('Error getting courier tasks:', error);
-    res.status(500).json({ success: false, message: 'Gagal memuat tugas' });
+    logger.error('Get courier tasks failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal memuat tugas' });
   }
 }
 
@@ -128,10 +129,10 @@ export async function getDriverHistory(req, res) {
       LIMIT ? OFFSET ?
     `, [targetCourierId, parseInt(limit), parseInt(offset)]);
 
-    res.json({ success: true, data: orders });
+    return res.json({ success: true, data: orders });
   } catch (error) {
-    console.error('Error getting courier history:', error);
-    res.status(500).json({ success: false, message: 'Gagal memuat riwayat' });
+    logger.error('Get courier history failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal memuat riwayat' });
   }
 }
 
@@ -165,7 +166,7 @@ export async function updateStatus(req, res) {
     const order = orders[0];
 
     // Check if user is authorized (courier assigned or admin)
-    if (order.courier_id !== user.id && !['admin', 'superadmin'].includes(user.roleCode)) {
+    if (order.courier_id !== user.id && !user.roleCode !== 'admin') {
       return res.status(403).json({ success: false, message: 'Tidak memiliki akses' });
     }
 
@@ -199,14 +200,14 @@ export async function updateStatus(req, res) {
 
       if (tx.length && tx[0].customer_phone) {
         // TODO: Send WhatsApp notification
-        console.log('Sending completion notification to:', tx[0].customer_phone);
+        // [Delivery] Sending completion notification
       }
     }
 
-    res.json({ success: true, message: 'Status berhasil diperbarui' });
+    return res.json({ success: true, message: 'Status berhasil diperbarui' });
   } catch (error) {
-    console.error('Error updating order status:', error);
-    res.status(500).json({ success: false, message: 'Gagal memperbarui status' });
+    logger.error('Update order status failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal memperbarui status' });
   }
 }
 
@@ -218,7 +219,7 @@ export async function assignDriver(req, res) {
     const user = req.user;
 
     // Only admin can assign couriers
-    if (!['admin', 'superadmin'].includes(user.roleCode)) {
+    if (!user.roleCode !== 'admin') {
       return res.status(403).json({ success: false, message: 'Hanya admin yang dapat mengassign courier' });
     }
 
@@ -231,7 +232,7 @@ export async function assignDriver(req, res) {
     // Check if courier exists (role: delivery)
     if (courierId) {
       const [couriers] = await db.query(
-        'SELECT * FROM mst_user WHERE id = ? AND roleCode = ?',
+        'SELECT * FROM mst_user WHERE id = ? AND role_code = ?',
         [courierId, 'delivery']
       );
       if (!couriers.length) {
@@ -250,10 +251,10 @@ export async function assignDriver(req, res) {
       [updateData, id]
     );
 
-    res.json({ success: true, message: 'Courier berhasil diassign' });
+    return res.json({ success: true, message: 'Courier berhasil diassign' });
   } catch (error) {
-    console.error('Error assigning courier:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengassign courier' });
+    logger.error('Assign courier failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal mengassign courier' });
   }
 }
 
@@ -310,14 +311,14 @@ export async function createDelivery(req, res) {
 
     const [result] = await db.query('INSERT INTO tr_logistic_order SET ?', order);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Order berhasil dibuat',
       data: { id: result.insertId, ...order }
     });
   } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(500).json({ success: false, message: 'Gagal membuat order' });
+    logger.error('Create order failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal membuat order' });
   }
 }
 
@@ -367,10 +368,10 @@ export async function getAllDeliveries(req, res) {
 
     const [orders] = await db.query(query, params);
 
-    res.json({ success: true, data: orders });
+    return res.json({ success: true, data: orders });
   } catch (error) {
-    console.error('Error getting all orders:', error);
-    res.status(500).json({ success: false, message: 'Gagal memuat data' });
+    logger.error('Get all orders failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal memuat data' });
   }
 }
 
@@ -411,7 +412,7 @@ export async function getDeliveryById(req, res) {
       WHERE ti.transaction_id = ?
     `, [orders[0].transaction_id]);
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         ...orders[0],
@@ -419,8 +420,8 @@ export async function getDeliveryById(req, res) {
       }
     });
   } catch (error) {
-    console.error('Error getting order by ID:', error);
-    res.status(500).json({ success: false, message: 'Gagal memuat data' });
+    logger.error('Get order by ID failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal memuat data' });
   }
 }
 
@@ -442,7 +443,7 @@ export async function cancelOrder(req, res) {
     if (
       order.courier_id !== user.id &&
       order.created_by !== user.id &&
-      !['admin', 'superadmin'].includes(user.roleCode)
+      !user.roleCode !== 'admin'
     ) {
       return res.status(403).json({ success: false, message: 'Tidak memiliki akses' });
     }
@@ -457,10 +458,10 @@ export async function cancelOrder(req, res) {
       ['cancelled', reason || 'Dibatalkan oleh pengguna', user.id, id]
     );
 
-    res.json({ success: true, message: 'Order berhasil dibatalkan' });
+    return res.json({ success: true, message: 'Order berhasil dibatalkan' });
   } catch (error) {
-    console.error('Error cancelling order:', error);
-    res.status(500).json({ success: false, message: 'Gagal membatalkan order' });
+    logger.error('Cancel order failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal membatalkan order' });
   }
 }
 
@@ -496,10 +497,10 @@ export async function rescheduleOrder(req, res) {
       [newScheduledAt, id]
     );
 
-    res.json({ success: true, message: 'Jadwal berhasil diubah' });
+    return res.json({ success: true, message: 'Jadwal berhasil diubah' });
   } catch (error) {
-    console.error('Error rescheduling order:', error);
-    res.status(500).json({ success: false, message: 'Gagal mengubah jadwal' });
+    logger.error('Reschedule order failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal mengubah jadwal' });
   }
 }
 
@@ -550,9 +551,9 @@ export async function getStats(req, res) {
       result.total += parseInt(s.count);
     });
 
-    res.json({ success: true, data: result });
+    return res.json({ success: true, data: result });
   } catch (error) {
-    console.error('Error getting order stats:', error);
-    res.status(500).json({ success: false, message: 'Gagal memuat statistik' });
+    logger.error('Get order stats failed', { error: error.message });
+    return res.status(500).json({ success: false, message: 'Gagal memuat statistik' });
   }
 }

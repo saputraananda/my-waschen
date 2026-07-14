@@ -81,27 +81,18 @@ const PaymentMethodIcon = ({ type, size = 22 }) => {
 
 const EMPTY_EXCLUDE_IDS = [];
 
-// ─── Definisi grup — unified brand purple for all payment methods ───────────
+// ─── Definisi grup — flat, no tabs for non-tunai ───────────
 const GROUPS = [
   {
-    id: 'manual',
-    label: 'Tunai & Manual',
-    icon: 'manual',
+    id: 'non-tunai',
+    label: 'Non-Tunai',
+    icon: 'transfer',
     color: brand.primary,
     methods: [
-      { id: 'cash',     label: 'Tunai',          icon: 'cash', desc: 'Bayar cash + auto kembalian' },
-      { id: 'transfer', label: 'Transfer Bank',  icon: 'transfer', desc: 'Customer transfer, kasir verifikasi' },
-      { id: 'edc',      label: 'EDC Mesin',      icon: 'edc', desc: 'Gesek di mesin EDC fisik' },
-      { id: 'deposit',  label: 'Saldo Deposit',  icon: 'deposit', desc: 'Pakai saldo member', requireMember: true },
-    ],
-  },
-  {
-    id: 'qris',
-    label: 'QRIS',
-    icon: 'qris',
-    color: brand.primary,
-    methods: [
-      { id: 'qris', label: 'QRIS Static', icon: 'qris', desc: 'Scan QRIS static — semua e-wallet & m-banking' },
+      { id: 'qris',     label: 'QRIS Static',     icon: 'qris',     desc: 'Scan QRIS — semua e-wallet & m-banking' },
+      { id: 'edc',      label: 'EDC Mesin',       icon: 'edc',      desc: 'Gesek kartu di mesin EDC' },
+      { id: 'transfer', label: 'Transfer Bank',    icon: 'transfer', desc: 'Customer transfer, kasir verifikasi' },
+      { id: 'deposit',  label: 'Saldo Deposit',   icon: 'deposit',  desc: 'Pakai saldo member / top up', requireMember: true },
     ],
   },
 ];
@@ -143,7 +134,8 @@ export default function PaymentMethodGrouped({
 
   return (
     <div style={{ marginBottom: 14 }}>
-      {/* Group tabs — horizontal scroll on mobile */}
+      {/* Group tabs — only show if more than 1 group */}
+      {visibleGroups.length > 1 && (
       <div style={{
         display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8,
         scrollbarWidth: 'none', msOverflowStyle: 'none',
@@ -177,6 +169,7 @@ export default function PaymentMethodGrouped({
           );
         })}
       </div>
+      )}
 
       {/* Method cards in selected group */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>

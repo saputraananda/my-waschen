@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Btn, Modal, Chip } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
 const EMPTY_FORM = { name: '', outletCode: '', address: '', phone: '', email: '' };
 
 export default function ManajemenOutletPage({ navigate, goBack }) {
+  const isMobile = useIsMobile();
   const [outlets, setOutlets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all'); // all, active, inactive
@@ -113,12 +115,30 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .outlet-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .outlet-stats-grid > div:last-child { grid-column: span 2 !important; }
+          .outlet-stats-grid > div:first-child + div { grid-column: span 2 !important; }
+          .outlet-modal-inputs { flex-direction: column !important; }
+          .outlet-modal-inputs > div { flex: none !important; width: 100% !important; }
+          .outlet-action-buttons { flex-wrap: wrap !important; }
+          .outlet-action-buttons > button { flex: 1 1 45% !important; }
+          .outlet-card-row { flex-direction: column !important; gap: 10px !important; }
+          .outlet-stats-row { flex-wrap: wrap !important; }
+          .outlet-stats-row > div { flex: 1 1 40% !important; }
+        }
+        @media (max-width: 360px) {
+          .outlet-stats-grid { grid-template-columns: 1fr !important; }
+          .outlet-stats-grid > div:last-child { grid-column: span 1 !important; }
+        }
+      `}</style>
       <TopBar title="Manajemen Outlet" subtitle={`${outlets.length} outlet terdaftar`} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
 
         {/* Summary cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 14 }} className="outlet-stats-grid">
           <div style={{ background: 'white', borderRadius: 12, padding: '10px 12px', textAlign: 'center', boxShadow: SHADOW.sm }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, color: C.primary }}>{outlets.length}</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>TOTAL</div>
@@ -207,7 +227,7 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
               </div>
 
               {/* Stats row */}
-              <div style={{ display: 'flex', gap: 12, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.n100}` }}>
+              <div style={{ display: 'flex', gap: 12, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.n100}`, flexWrap: 'wrap' }} className="outlet-stats-row">
                 <div style={{ flex: 1 }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, fontWeight: 600 }}>TIM</div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>{o.teamCount}</div>
@@ -240,7 +260,7 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
               )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }} className="outlet-action-buttons">
                 <button
                   onClick={() => openEdit(o)}
                   style={{ flex: 1, height: 34, borderRadius: 8, border: `1.5px solid ${C.n200}`, background: 'white', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, cursor: 'pointer' }}
@@ -307,7 +327,7 @@ export default function ManajemenOutletPage({ navigate, goBack }) {
                 style={{ width: '100%', height: 40, borderRadius: 10, border: `1.5px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 13, padding: '0 12px', boxSizing: 'border-box' }}
               />
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10 }} className="outlet-modal-inputs">
               <div style={{ flex: 1 }}>
                 <label style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 4, display: 'block' }}>Telepon</label>
                 <input

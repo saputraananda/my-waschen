@@ -3,6 +3,7 @@ import axios from 'axios';
 import { TopBar, SkeletonList, useAppRefresh, Chip, FilterModal, FilterSection, FilterChipGroup } from '../../components/ui';
 import { C } from '../../utils/theme';
 import { useRealtimeMulti } from '../../utils/realtime';
+import { useResponsive } from '../../utils/hooks';
 import {
   ProductionSearchBar,
   SectionLabel,
@@ -20,13 +21,12 @@ import { STAGE_ICONS } from '../../utils/productionDesign';
 
 const STAGE_DOTS = {
   Diterima: '#a78bfa',
-  Cuci:     '#38bdf8',
-  Setrika:  '#fbbf24',
   Packing:  '#4ade80',
 };
 
 // ─── Enhanced per-item card with avatar and full info ─────────────────────────────────────────
 function AntrianItemCard({ item, nota, onPress }) {
+  const { isMobile } = useResponsive();
   const custName  = nota?.customerName || 'Customer';
   const custPhone = nota?.customerPhone;
   const notaNo    = nota?.id || '-';
@@ -37,7 +37,7 @@ function AntrianItemCard({ item, nota, onPress }) {
   const tag       = STAGE_TAGS[stage] || STAGE_TAGS['Diterima'];
   
   // Progress: calculate filled based on stage index
-  const stageOrder = ['Diterima', 'Cuci', 'Setrika', 'Packing'];
+  const stageOrder = ['Diterima', 'Packing'];
   const stageIdx = stageOrder.indexOf(stage);
   const filled = stageIdx >= 0 ? stageIdx + 1 : 0;
 
@@ -72,17 +72,17 @@ function AntrianItemCard({ item, nota, onPress }) {
     >
       {/* Left accent bar */}
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: tag.accent }} />
-      
-      <div style={{ padding: '12px 12px 10px 16px' }}>
+
+      <div style={{ padding: isMobile ? '10px 10px 8px 14px' : '12px 12px 10px 16px' }}>
 
         {/* Header: Avatar + Customer + Phone */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, marginBottom: isMobile ? 8 : 10 }}>
           {/* Avatar */}
           <div style={{
-            width: 42, height: 42, borderRadius: 21,
+            width: isMobile ? 38 : 42, height: isMobile ? 38 : 42, borderRadius: isMobile ? 19 : 21,
             background: avColor.bg,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+            fontFamily: 'Poppins', fontSize: isMobile ? 12 : 14, fontWeight: 600,
             color: avColor.text, flexShrink: 0,
             boxShadow: `0 2px 6px ${avColor.bg}60`,
           }}>
@@ -92,13 +92,13 @@ function AntrianItemCard({ item, nota, onPress }) {
           {/* Customer info */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+              fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 600,
               color: TEXT_PRIMARY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {custName}
             </div>
             <div style={{
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 400,
+              fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, fontWeight: 400,
               color: TEXT_SECONDARY, marginTop: 1,
             }}>
               {custPhone ? `📞 ${custPhone}` : `📋 ${notaNo}`}
@@ -123,13 +123,13 @@ function AntrianItemCard({ item, nota, onPress }) {
         <div style={{ height: 1, background: 'rgba(0,0,0,0.06)', marginBottom: 10 }} />
 
         {/* Service + Stage Tag */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, marginBottom: 8 }}>
           {/* Service icon */}
           <div style={{
-            width: 34, height: 34, borderRadius: 10,
+            width: isMobile ? 30 : 34, height: isMobile ? 30 : 34, borderRadius: isMobile ? 8 : 10,
             background: `${tag.accent}18`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 15, flexShrink: 0,
+            fontSize: isMobile ? 13 : 15, flexShrink: 0,
           }}>
             {STAGE_ICONS[stage] || '🧺'}
           </div>
@@ -137,13 +137,13 @@ function AntrianItemCard({ item, nota, onPress }) {
           {/* Service name + qty */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+              fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 600,
               color: TEXT_PRIMARY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {item.name || 'Layanan'}
             </div>
             <div style={{
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 500,
+              fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, fontWeight: 500,
               color: TEXT_SECONDARY, marginTop: 1,
             }}>
               {item.qty} {item.unit || 'pcs'}
@@ -154,7 +154,7 @@ function AntrianItemCard({ item, nota, onPress }) {
           <div style={{
             background: tag.bg, color: tag.text,
             padding: '4px 10px', borderRadius: 999,
-            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+            fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
             boxShadow: tag.dotGlow ? `0 0 6px ${tag.dotGlow}` : 'none',
           }}>
@@ -162,7 +162,7 @@ function AntrianItemCard({ item, nota, onPress }) {
               width: 6, height: 6, borderRadius: '50%',
               background: tag.accent, boxShadow: tag.dotGlow || 'none', flexShrink: 0,
             }} />
-            {stage}
+            {isMobile ? STAGE_ICONS[stage] || stage : stage}
           </div>
         </div>
 
@@ -190,7 +190,7 @@ function AntrianItemCard({ item, nota, onPress }) {
         {/* Visual Progress Bar with Icons */}
         <div style={{ marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 0, position: 'relative' }}>
-            {['Diterima', 'Cuci', 'Setrika', 'Packing'].map((s, i) => {
+            {['Diterima', 'Packing'].map((s, i) => {
               const done = i < filled;
               const current = i === filled;
               const dotAccent = STAGE_TAGS[s]?.accent || '#a78bfa';
@@ -231,7 +231,7 @@ function AntrianItemCard({ item, nota, onPress }) {
 
           {/* Stage Labels */}
           <div style={{ display: 'flex', gap: 0, marginTop: 3 }}>
-            {['Diterima', 'Cuci', 'Setrika', 'Packing'].map((s, i) => {
+            {['Diterima', 'Packing'].map((s, i) => {
               const done = i < filled;
               const current = i === filled;
               const dotAccent = STAGE_TAGS[s]?.accent || '#a78bfa';
@@ -283,6 +283,7 @@ function formatSLA(estimatedDoneAt) {
 
 // ─── Main ─────────────────────────────────────────────────────
 export default function AntrianPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [queue, setQueue]         = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
@@ -360,7 +361,7 @@ export default function AntrianPage({ navigate, goBack }) {
 
   // ── stats ───────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const s = { total: 0, Diterima: 0, Cuci: 0, Setrika: 0, Packing: 0 };
+    const s = { total: 0, Diterima: 0, Packing: 0 };
     flatItems.forEach(({ item }) => {
       const stage = item.currentStage || 'Diterima';
       if (s[stage] !== undefined) s[stage] += 1;
@@ -510,14 +511,14 @@ export default function AntrianPage({ navigate, goBack }) {
       )}
 
       {/* Search & Filter Header */}
-      <div style={{ background: 'white', padding: '8px 14px 10px', borderBottom: `1px solid ${C.n100}` }}>
+      <div style={{ background: 'white', padding: isMobile ? '6px 12px 8px' : '8px 14px 10px', borderBottom: `1px solid ${C.n100}` }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <div style={{
             flex: 1,
             background: C.n50,
             borderRadius: 10,
             display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 12px',
+            padding: isMobile ? '6px 10px' : '8px 12px',
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke={C.n400} strokeWidth="2" strokeLinecap="round">
@@ -609,8 +610,6 @@ export default function AntrianPage({ navigate, goBack }) {
           {[
             { key: 'all', label: 'Semua', count: stats.total },
             { key: 'Diterima', label: 'Diterima', count: stats.Diterima },
-            { key: 'Cuci', label: 'Cuci', count: stats.Cuci },
-            { key: 'Setrika', label: 'Setrika', count: stats.Setrika },
             { key: 'Packing', label: 'Packing', count: stats.Packing },
           ].map(p => {
             const active = stageFilter === p.key;
@@ -652,7 +651,7 @@ export default function AntrianPage({ navigate, goBack }) {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px 80px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: `0 ${isMobile ? 12 : 14}px ${isMobile ? 90 : 80}px` }}>
         <SectionLabel label="Antrian Aktif" count={filtered.length} />
 
         {loading ? (
@@ -720,8 +719,6 @@ export default function AntrianPage({ navigate, goBack }) {
             options={[
               { value: 'all', label: 'Semua' },
               { value: 'Diterima', label: 'Diterima' },
-              { value: 'Cuci', label: 'Cuci' },
-              { value: 'Setrika', label: 'Setrika' },
               { value: 'Packing', label: 'Packing' },
             ]}
             selected={stageFilter}

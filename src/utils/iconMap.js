@@ -190,7 +190,7 @@ export async function getAssetUrl(key) {
   // Try to get from ICON_ASSETS
   const loader = ICON_ASSETS[key];
   if (!loader) {
-    console.warn(`[IconMap] No asset found for key: ${key}`);
+    // Silent fail - icon asset not found
     return null;
   }
 
@@ -200,7 +200,6 @@ export async function getAssetUrl(key) {
     assetCache.set(key, url);
     return url;
   } catch (err) {
-    console.error(`[IconMap] Failed to load asset ${key}:`, err);
     return null;
   }
 }
@@ -224,7 +223,7 @@ export async function preloadAllAssets() {
       const module = await ICON_ASSETS[key]();
       assetCache.set(key, module.default);
     } catch (err) {
-      console.warn(`[IconMap] Failed to preload ${key}:`, err);
+      // Silent fail - icon preload optional
     }
   });
   await Promise.all(promises);
@@ -260,7 +259,7 @@ export function AssetIcon({ name, emoji, size = 24, style = {}, className = '', 
           setSrc(url);
         }
       } catch (err) {
-        console.warn(`[AssetIcon] Failed to load ${assetKey}:`, err);
+        // Silent fail - asset icon load optional
       } finally {
         if (!cancelled) setLoading(false);
       }

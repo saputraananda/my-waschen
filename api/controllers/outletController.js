@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 // ─── GET /api/outlets/admin/all ───────────────────────────────────────────────
 // Admin-only: list semua outlet dengan stats (termasuk nonaktif).
@@ -49,7 +50,7 @@ export const getOutletsAdmin = async (req, res) => {
 
     return res.json({ success: true, data: enriched });
   } catch (err) {
-    console.error('[getOutletsAdmin]', err);
+    logger.error('Gagal memuat data outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data outlet.' });
   }
 };
@@ -84,7 +85,7 @@ export const updateOutlet = async (req, res) => {
 
     return res.json({ success: true, message: 'Outlet berhasil diperbarui.' });
   } catch (err) {
-    console.error('[updateOutlet]', err);
+    logger.error('Gagal memperbarui outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memperbarui outlet.' });
   }
 };
@@ -125,7 +126,7 @@ export const toggleOutletActive = async (req, res) => {
       message: `Outlet "${outlet.name}" ${isActive ? 'diaktifkan' : 'dinonaktifkan'}.`,
     });
   } catch (err) {
-    console.error('[toggleOutletActive]', err);
+    logger.error('Gagal mengubah status outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengubah status outlet.' });
   }
 };
@@ -180,7 +181,7 @@ export const deleteOutlet = async (req, res) => {
 
     return res.json({ success: true, message: `Outlet "${outlet.name}" berhasil dihapus.` });
   } catch (err) {
-    console.error('[deleteOutlet]', err);
+    logger.error('Gagal menghapus outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menghapus outlet.' });
   }
 };
@@ -304,7 +305,7 @@ export const createOutlet = async (req, res) => {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ success: false, message: 'Kode outlet sudah digunakan.' });
     }
-    console.error('[createOutlet]', err);
+    logger.error('Gagal membuat outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal membuat outlet.' });
   } finally {
     conn.release();
@@ -353,7 +354,7 @@ export const getOutletDetail = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getOutletDetail] Error:', err);
+    logger.error('Gagal memuat detail outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat detail outlet.' });
   }
 };
@@ -385,7 +386,7 @@ export const getOutletTeam = async (req, res) => {
 
     return res.json({ success: true, data: rows });
   } catch (err) {
-    console.error('[getOutletTeam] Error:', err);
+    logger.error('Gagal memuat tim outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat tim outlet.' });
   }
 };
@@ -477,7 +478,7 @@ export const getOutletKasBalance = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getOutletKasBalance] Error:', err);
+    logger.error('Gagal memuat saldo kas outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat saldo kas outlet.' });
   }
 };

@@ -1,5 +1,6 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
+import logger from '../utils/logger.js';
 
 // ─── GET /api/customer-addresses/:customerId ─────────────────────────────────
 // List all addresses for a customer
@@ -18,7 +19,7 @@ export const getCustomerAddresses = async (req, res) => {
     );
     return res.json({ success: true, data: rows });
   } catch (err) {
-    console.error('[getCustomerAddresses]', err);
+    logger.error('Get addresses failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat alamat.' });
   }
 };
@@ -62,7 +63,7 @@ export const createCustomerAddress = async (req, res) => {
       action: 'create',
       newData: { customerId, label },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[createCustomerAddress] writeAudit gagal:', err));
 
     return res.status(201).json({
       success: true,
@@ -70,7 +71,7 @@ export const createCustomerAddress = async (req, res) => {
       data: { id: result.insertId },
     });
   } catch (err) {
-    console.error('[createCustomerAddress]', err);
+    logger.error('Create address failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menambah alamat.' });
   }
 };
@@ -120,7 +121,7 @@ export const updateCustomerAddress = async (req, res) => {
 
     return res.json({ success: true, message: 'Alamat berhasil diupdate.' });
   } catch (err) {
-    console.error('[updateCustomerAddress]', err);
+    logger.error('Update address failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal update alamat.' });
   }
 };
@@ -136,7 +137,7 @@ export const deleteCustomerAddress = async (req, res) => {
     );
     return res.json({ success: true, message: 'Alamat berhasil dihapus.' });
   } catch (err) {
-    console.error('[deleteCustomerAddress]', err);
+    logger.error('Delete address failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal hapus alamat.' });
   }
 };

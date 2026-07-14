@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 const CATEGORY_ENUM = new Set([
   'modal',
@@ -87,7 +88,7 @@ export const getDrawerEntries = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getDrawerEntries] Error:', err);
+    logger.error('Get drawer entries failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat entri kas laci.' });
   }
 };
@@ -151,7 +152,7 @@ export const addDrawerEntry = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[addDrawerEntry] Error:', err);
+    logger.error('Add drawer entry failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mencatat entri kas.' });
   }
 };
@@ -183,7 +184,7 @@ export const deleteDrawerEntry = async (req, res) => {
     }
 
     const isOwner = entry.recorded_by === userId;
-    const isAdmin = ['admin', 'superadmin', 'finance', 'owner'].includes(roleCode);
+    const isAdmin = ['admin'].includes(roleCode);
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Hanya pencatat atau admin yang bisa menghapus entri ini.' });
     }
@@ -195,7 +196,7 @@ export const deleteDrawerEntry = async (req, res) => {
 
     return res.json({ success: true, message: 'Entri kas berhasil dihapus.' });
   } catch (err) {
-    console.error('[deleteDrawerEntry] Error:', err);
+    logger.error('Delete drawer entry failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menghapus entri kas.' });
   }
 };
@@ -288,7 +289,7 @@ export const getDrawerSummaryBySession = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getDrawerSummaryBySession] Error:', err);
+    logger.error('Get drawer summary failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat ringkasan kas sesi.' });
   }
 };

@@ -18,32 +18,40 @@ import {
   createLowStockAlert,
   getLowStockAlertHistory,
   convertAlertToPurchaseRequest,
+  // Phase 6: Stock History
+  getStockHistory,
 } from '../controllers/inventoryController.js';
 import { validateInventoryCreate } from '../schemas/validationSchemas.js';
 
 const router = Router();
 
-const adminFinance = requireRole('admin', 'finance', 'superadmin', 'owner');
-const productionOrAbove = requireRole('admin', 'finance', 'superadmin', 'owner', 'produksi', 'kasir', 'frontline');
+const adminOnly = requireRole('admin');
+const productionOrAbove = requireRole('admin', 'produksi', 'frontline');
 
-router.get('/categories', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), getInventoryCategories);
-router.get('/items', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), listInventoryItems);
+router.get('/categories', authenticate, requireRole('frontline', 'produksi', 'admin'), getInventoryCategories);
+router.get('/items', authenticate, requireRole('frontline', 'produksi', 'admin'), listInventoryItems);
 // Validation: Zod schema validates category_id, name, unit, item_code
-router.post('/items', authenticate, adminFinance, validateInventoryCreate, createInventoryItem);
-router.patch('/items/:id', authenticate, adminFinance, patchInventoryItem);
-router.get('/service-usage', authenticate, adminFinance, listServiceInventoryUsage);
-router.post('/service-usage', authenticate, adminFinance, upsertServiceInventoryUsage);
-router.delete('/service-usage/:id', authenticate, adminFinance, deleteServiceInventoryUsage);
-router.patch('/outlet-min', authenticate, adminFinance, patchOutletMinStock);
+router.post('/items', authenticate, adminOnly, validateInventoryCreate, createInventoryItem);
+router.patch('/items/:id', authenticate, adminOnly, patchInventoryItem);
+router.get('/service-usage', authenticate, adminOnly, listServiceInventoryUsage);
+router.post('/service-usage', authenticate, adminOnly, upsertServiceInventoryUsage);
+router.delete('/service-usage/:id', authenticate, adminOnly, deleteServiceInventoryUsage);
+router.patch('/outlet-min', authenticate, adminOnly, patchOutletMinStock);
 
-router.get('/stock', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), getOutletStock);
-router.get('/summary-outlets', authenticate, adminFinance, getInventoryOutletSummary);
-router.get('/all-outlet-stocks', authenticate, adminFinance, getAllOutletStocks);
-router.post('/adjust', authenticate, requireRole('kasir', 'frontline', 'produksi', 'admin', 'finance', 'superadmin', 'owner'), adjustInventoryStock);
+router.get('/stock', authenticate, requireRole('frontline', 'produksi', 'admin'), getOutletStock);
+router.get('/summary-outlets', authenticate, adminOnly, getInventoryOutletSummary);
+router.get('/all-outlet-stocks', authenticate, adminOnly, getAllOutletStocks);
+router.post('/adjust', authenticate, requireRole('frontline', 'produksi', 'admin'), adjustInventoryStock);
 
 // Phase 5: Low-Stock Workflow - Production to Frontliner Alert
 router.post('/low-stock-alert', authenticate, productionOrAbove, createLowStockAlert);
-router.get('/low-stock-history', authenticate, adminFinance, getLowStockAlertHistory);
+router.get('/low-stock-history', authenticate, adminOnly, getLowStockAlertHistory);
 router.post('/low-stock-to-pr', authenticate, productionOrAbove, convertAlertToPurchaseRequest);
+
+// GET /api/inventory/low-stock-my-alerts - Kasir sees alerts for their outlet
+router.get('/low-stock-my-alerts', authenticate, requireRole('frontline', 'admin', 'produksi'), getLowStockAlertHistory);
+
+// Phase 6: Stock Movement History
+router.get('/stock-history', authenticate, adminOnly, getStockHistory);
 
 export default router;

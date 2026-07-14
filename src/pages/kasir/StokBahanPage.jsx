@@ -1,46 +1,42 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// StokBahanPage — stok inventaris + status pengajuan barang per outlet
-// Satu halaman untuk kasir/frontline:
-//   Tab Stok: item, level stok, badge pengajuan aktif per barang
-//   Tab Pengajuan: riwayat & status pengadaan outlet (data dari admin)
+// StokBahanPage — Inventaris (Kasir / Frontliner)
+// Read-only monitoring: lihat stok, ajukan pengadaan saat menipis/habis.
+// Design: Glass Morphism — glass header strip, compact cards, minimal chrome.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Modal, Input, Chip, useAppRefresh, SearchFilterRow, SkeletonList } from '../../components/ui';
+import { Modal, Input, useAppRefresh, EmptyState } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 
-const STOCK_STATUS = {
-  safe:     { label: 'Aman',      color: C.success, bg: C.successBg },
-  low:      { label: 'Rendah',    color: C.warning, bg: C.validationWarningBg },
-  empty:    { label: 'Habis',     color: C.danger, bg: C.validationErrorBg },
-  untracked:{ label: 'N/A',       color: C.n500, bg: C.n100 },
+// ─── Design Tokens (mirrors the mockup) ─────────────────────────────────────
+const TOKENS = {
+  purpleDeep:   '#3B0B47',
+  purpleMid:    '#5C1A6B',
+  magenta:      '#C0247D',
+  mintDeep:     '#1F9E75',
+  coralDeep:    '#B82848',
+  goldDeep:     '#B8811A',
+  bg:           '#F3EEF7',
+  glassStrong:  'rgba(255,255,255,0.75)',
+  ink:          '#2B1130',
+  inkSoft:      '#7A6584',
 };
 
-const URGENCY_META = {
-  normal:   { label: 'Normal',   bg: C.infoBg, fg: C.infoDark, color: C.info, icon: '📋' },
-  urgent:   { label: 'Urgent',   bg: C.validationWarningBg, fg: C.validationWarningText, color: C.warning, icon: '⚠️' },
-  critical: { label: 'Kritis',   bg: C.validationErrorBg, fg: C.validationErrorText, color: C.danger, icon: '🚨' },
+const STOCK_META = {
+  aman:    { label: 'Stok aman',    valColor: '#1F9E75', barColor: '#5FD9AE' },
+  menipis: { label: 'Stok menipis', valColor: '#B8811A', barColor: '#E0A93B' },
+  habis:   { label: 'Stok habis',   valColor: '#B82848', barColor: '#F0466B' },
 };
 
-const STATUS_META = {
-  pending:   { label: 'Menunggu Admin', bg: C.validationWarningBg, fg: C.validationWarningText, icon: '⏳' },
-  revised:   { label: 'Perlu Diperbaiki', bg: C.warningBg, fg: C.warningDark, icon: '↩️' },
-  approved:  { label: 'Disetujui', bg: C.infoBg, fg: C.infoDark, icon: '✅' },
-  fulfilled: { label: 'Sudah Dibeli', bg: C.successBg, fg: C.successDark, icon: '🎉' },
-  rejected:  { label: 'Ditolak', bg: C.validationErrorBg, fg: C.validationErrorText, icon: '❌' },
-  cancelled: { label: 'Dibatalkan', bg: C.n100, fg: C.n600, icon: '⊘' },
-};
-
-const STATUS_HELP = {
-  pending: 'Pengajuan sudah terkirim. Tunggu admin menyetujui atau memberi catatan.',
-  revised: 'Admin minta perbaikan. Edit lalu kirim ulang supaya diproses lagi.',
-  approved: 'Sudah disetujui admin. Menunggu pembelian & pengiriman ke outlet Anda.',
-  fulfilled: 'Barang sudah dibeli. Stok outlet otomatis bertambah jika dari katalog.',
-  rejected: 'Pengajuan ditolak admin. Lihat catatan di bawah untuk alasan.',
-  cancelled: 'Pengajuan ini dibatalkan.',
+const REQ_STATUS_META = {
+  pending:   { label: 'Menunggu',    bg: 'rgba(184,129,26,0.15)',  fg: '#B8811A', icon: '⏳' },
+  revised:   { label: 'Revisi',      bg: 'rgba(184,129,26,0.15)',  fg: '#B8811A', icon: '↩️' },
+  approved:  { label: 'Disetujui',   bg: 'rgba(95,217,174,0.15)',  fg: '#1F9E75', icon: '✅' },
+  fulfilled: { label: 'Selesai',      bg: 'rgba(95,217,174,0.15)',  fg: '#1F9E75', icon: '🎉' },
+  rejected:  { label: 'Ditolak',     bg: 'rgba(184,40,72,0.15)',   fg: '#B82848', icon: '❌' },
+  cancelled: { label: 'Batal',       bg: 'rgba(122,101,132,0.12)', fg: '#7A6584',  icon: '⊘' },
 };
 
 const ACTIVE_STATUSES = ['pending', 'revised', 'approved'];
@@ -51,50 +47,35 @@ const fmtDate = (v) => {
   catch { return '-'; }
 };
 
-const PAGE_TABS = [
-  { key: 'stok', label: 'Stok Saya', icon: '📦' },
-  { key: 'pengajuan', label: 'Pengajuan Saya', icon: '📋' },
+const CATEGORIES = [
+  { key: 'all', label: 'Semua' },
+  { key: 'deterjen', label: 'Deterjen' },
+  { key: 'pewangi', label: 'Pewangi' },
+  { key: 'plastik', label: 'Plastik & Packing' },
+  { key: 'peralatan', label: 'Peralatan' },
 ];
 
-const STOCK_LEVEL_FILTERS = [
-  { key: 'all', label: 'Semua Stok', icon: '📋' },
-  { key: 'low', label: 'Stok Rendah', icon: '⚠️' },
-  { key: 'empty', label: 'Stok Habis', icon: '🔴' },
+const TABS = [
+  { key: 'stok', label: 'Stok' },
+  { key: 'pengajuan', label: 'Pengajuan' },
 ];
 
-const REQ_STATUS_FILTERS = [
-  { key: 'aktif', label: 'Sedang Berjalan', icon: '🔄' },
-  { key: 'action', label: 'Perlu Tindakan', icon: '✏️' },
-  { key: 'waiting', label: 'Menunggu Admin', icon: '⏳' },
-  { key: 'approved', label: 'Disetujui', icon: '✅' },
-  { key: 'done', label: 'Sudah Selesai', icon: '🎉' },
-  { key: 'all', label: 'Semua', icon: '📋' },
-];
+const SKELETON_STYLE = { borderRadius: 14, marginBottom: 12, height: 88 };
 
 export default function StokBahanPage({ goBack, navigate, screenParams }) {
   const { user } = useApp();
-  const [pageTab, setPageTab] = useState(screenParams?.tab === 'pengajuan' ? 'pengajuan' : 'stok');
+  const [pageTab, setPageTab] = useState('stok');
   const [rows, setRows] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reqLoading, setReqLoading] = useState(true);
   const [fetchError, setFetchError] = useState(null);
   const [reqError, setReqError] = useState(null);
-  const [stockTab, setStockTab] = useState('all');
   const [search, setSearch] = useState('');
   const [reqSearch, setReqSearch] = useState('');
-  const [reqFilter, setReqFilter] = useState('aktif');
-  const [reqUrgencyFilter, setReqUrgencyFilter] = useState('all');
-  const [showStockFilterModal, setShowStockFilterModal] = useState(false);
-  const [showReqFilterModal, setShowReqFilterModal] = useState(false);
-  const [adjustModal, setAdjustModal] = useState(null);
-  const [qtyStr, setQtyStr] = useState('');
-  const [noteStr, setNoteStr] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [category, setCategory] = useState('all');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [requestItem, setRequestItem] = useState(null);
-  const [editRequest, setEditRequest] = useState(null);
-  const [highlightRequestId, setHighlightRequestId] = useState(screenParams?.highlightRequestId || null);
 
   const outletId = user?.outletId;
 
@@ -108,7 +89,6 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
       setRows(res?.data?.data || []);
     } catch (err) {
       setFetchError(err?.response?.data?.message || 'Gagal memuat stok.');
-      console.error('[StokBahan loadStock]', err);
     } finally {
       setLoading(false);
     }
@@ -125,7 +105,6 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
       setRequests(res?.data?.data || []);
     } catch (err) {
       setReqError(err?.response?.data?.message || 'Gagal memuat pengajuan.');
-      console.error('[StokBahan loadRequests]', err);
     } finally {
       setReqLoading(false);
     }
@@ -138,34 +117,27 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
   useEffect(() => { refreshAll(); }, [refreshAll]);
   useAppRefresh(() => refreshAll(true), [refreshAll]);
 
+  // Broadcast alert count to BottomNav
   useEffect(() => {
-    if (screenParams?.tab === 'pengajuan') setPageTab('pengajuan');
-    if (screenParams?.highlightRequestId) setHighlightRequestId(screenParams.highlightRequestId);
-  }, [screenParams?.tab, screenParams?.highlightRequestId]);
+    const lowCount = rows.filter(r => Number(r.stockQty) <= Number(r.minStock) && Number(r.stockQty) > 0).length;
+    window.dispatchEvent(new CustomEvent('stok:alert-count', { detail: { count: lowCount } }));
+  }, [rows]);
 
-  useEffect(() => {
-    if (!highlightRequestId) return;
-    const t = setTimeout(() => setHighlightRequestId(null), 4000);
-    return () => clearTimeout(t);
-  }, [highlightRequestId]);
-
+  // Stats
   const stats = useMemo(() => {
     const total = rows.length;
-    const lowCount = rows.filter(r => r.stockQty <= r.minStock && r.stockQty > 0).length;
-    const emptyCount = rows.filter(r => r.stockQty === 0).length;
-    const criticalCount = rows.filter(r => r.lowStock).length;
-    return { total, lowCount, emptyCount, criticalCount };
+    const lowCount = rows.filter(r => Number(r.stockQty) <= Number(r.minStock) && Number(r.stockQty) > 0).length;
+    const emptyCount = rows.filter(r => Number(r.stockQty) === 0).length;
+    return { total, lowCount, emptyCount };
   }, [rows]);
 
   const reqStats = useMemo(() => ({
     aktif: requests.filter(r => ACTIVE_STATUSES.includes(r.status)).length,
     action: requests.filter(r => r.status === 'revised').length,
-    waiting: requests.filter(r => r.status === 'pending').length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    done: requests.filter(r => r.status === 'fulfilled').length,
     total: requests.length,
   }), [requests]);
 
+  // Active request map by inventory
   const requestByInventoryId = useMemo(() => {
     const map = new Map();
     const priority = { revised: 0, pending: 1, approved: 2 };
@@ -179,11 +151,9 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
     return map;
   }, [requests]);
 
+  // Filtered rows
   const filtered = useMemo(() => {
     let result = rows;
-    if (stockTab === 'low') result = result.filter(r => r.stockQty <= r.minStock && r.stockQty > 0);
-    if (stockTab === 'empty') result = result.filter(r => r.stockQty === 0);
-
     const q = search.trim().toLowerCase();
     if (q) {
       result = result.filter(r =>
@@ -192,71 +162,34 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
         (r.categoryName || '').toLowerCase().includes(q)
       );
     }
+    if (category !== 'all') {
+      result = result.filter(r => {
+        const cat = (r.categoryName || '').toLowerCase();
+        if (category === 'deterjen') return cat.includes('deterjen');
+        if (category === 'pewangi') return cat.includes('pewangi') || cat.includes('pewang');
+        if (category === 'plastik') return cat.includes('plastik') || cat.includes('packing') || cat.includes('kantong');
+        if (category === 'peralatan') return cat.includes('peralatan') || cat.includes('hanger') || cat.includes('alat');
+        return true;
+      });
+    }
     return result;
-  }, [rows, stockTab, search]);
+  }, [rows, search, category]);
 
   const filteredRequests = useMemo(() => {
     let result = requests;
-    if (reqFilter === 'aktif') result = result.filter(r => ACTIVE_STATUSES.includes(r.status));
-    else if (reqFilter === 'action') result = result.filter(r => r.status === 'revised');
-    else if (reqFilter === 'waiting') result = result.filter(r => r.status === 'pending');
-    else if (reqFilter === 'approved') result = result.filter(r => r.status === 'approved');
-    else     if (reqFilter === 'done') result = result.filter(r => r.status === 'fulfilled');
-    if (reqUrgencyFilter !== 'all') result = result.filter(r => r.urgency === reqUrgencyFilter);
-
     const q = reqSearch.trim().toLowerCase();
     if (q) {
       result = result.filter(r =>
         (r.itemName || '').toLowerCase().includes(q) ||
-        (r.brand || '').toLowerCase().includes(q) ||
-        (r.reason || '').toLowerCase().includes(q)
+        (r.brand || '').toLowerCase().includes(q)
       );
     }
     return result;
-  }, [requests, reqFilter, reqUrgencyFilter, reqSearch]);
-
-  const stockActiveFilterCount = stockTab !== 'all' ? 1 : 0;
-  const reqActiveFilterCount =
-    (reqFilter !== 'aktif' ? 1 : 0)
-    + (reqUrgencyFilter !== 'all' ? 1 : 0);
-
-  const stockFilterLabel = STOCK_LEVEL_FILTERS.find(f => f.key === stockTab)?.label || stockTab;
-  const reqFilterLabel = REQ_STATUS_FILTERS.find(f => f.key === reqFilter)?.label || reqFilter;
-  const reqUrgencyLabel = URGENCY_META[reqUrgencyFilter]?.label;
-
-  const submitAdjust = async () => {
-    if (!adjustModal || !outletId) return;
-    const q = Number(qtyStr);
-    if (!Number.isFinite(q) || q === 0) { alertWarning('Perubahan qty tidak valid.'); return; }
-    setSaving(true);
-    try {
-      await axios.post('/api/inventory/adjust', {
-        inventoryId: adjustModal.id,
-        outletId,
-        qtyDelta: q,
-        notes: noteStr || null,
-      });
-      setAdjustModal(null);
-      setQtyStr('');
-      setNoteStr('');
-      await refreshAll(true);
-      alertSuccess('Stok berhasil disesuaikan.');
-    } catch (e) {
-      alertError(e?.response?.data?.message || 'Gagal menyimpan.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  }, [requests, reqSearch]);
 
   const handleQuickRequest = (item) => {
     setRequestItem(item);
     setShowRequestForm(true);
-  };
-
-  const handleViewRequest = (request) => {
-    setPageTab('pengajuan');
-    setReqFilter(request.status === 'revised' ? 'action' : 'aktif');
-    setHighlightRequestId(request.id);
   };
 
   const closeRequestForm = () => {
@@ -264,222 +197,53 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
     setRequestItem(null);
   };
 
-  const subtitle = pageTab === 'stok'
-    ? `${stats.total} item · ${stats.lowCount} rendah · ${stats.emptyCount} habis`
-    : `${reqStats.aktif} berjalan · ${reqStats.action} perlu tindakan`;
-
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar
-        title="Stok & Pengadaan"
-        subtitle={subtitle}
-        onBack={goBack}
-      />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: TOKENS.bg, overflow: 'hidden', minHeight: '100vh' }}>
 
-      {/* Main tab: Stok vs Pengajuan */}
-      <div style={{
-        display: 'flex', gap: 8, padding: '10px 16px 0',
-        background: C.n50, borderBottom: `1px solid ${C.n200}`,
-      }}>
-        {PAGE_TABS.map(t => {
-          const isActive = pageTab === t.key;
-          const badge = t.key === 'pengajuan' && reqStats.action > 0
-            ? reqStats.action
-            : t.key === 'pengajuan' && reqStats.aktif > 0
-              ? null
-              : null;
-          const showDot = t.key === 'pengajuan' && reqStats.action > 0;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setPageTab(t.key)}
-              style={{
-                flex: 1, padding: '10px 12px', borderRadius: '12px 12px 0 0',
-                border: `1.5px solid ${isActive ? C.primary : 'transparent'}`,
-                borderBottom: isActive ? `2px solid ${C.n50}` : '1.5px solid transparent',
-                background: isActive ? C.white : 'transparent',
-                fontFamily: 'Poppins', fontSize: 12, fontWeight: isActive ? 700 : 500,
-                color: isActive ? C.primary : C.n700,
-                cursor: 'pointer', position: 'relative',
-                marginBottom: -1,
-              }}
-            >
-              {t.icon} {t.label}
-              {showDot && (
-                <span style={{
-                  position: 'absolute', top: 6, right: 8,
-                  minWidth: 18, height: 18, borderRadius: 9,
-                  background: '#F59E0B', color: 'white',
-                  fontFamily: 'Poppins', fontSize: 9, fontWeight: 800,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '0 4px',
-                }}>
-                  {badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* HEADER */}
+      <PageHeader stats={stats} goBack={goBack} pageTab={pageTab} onTabChange={setPageTab} reqActionNeeded={reqStats.action > 0} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
+      {/* SUMMARY STRIP (floats over header) */}
+      <SummaryStrip stats={stats} />
+
+      {/* SEARCH */}
+      <SearchBar stokSearch={search} onStokSearch={setSearch} reqSearch={reqSearch} onReqSearch={setReqSearch} pageTab={pageTab} />
+
+      {/* CATEGORY CHIPS (Stok tab only) */}
+      {pageTab === 'stok' && (
+        <CategoryChips value={category} onChange={setCategory} />
+      )}
+
+      {/* MAIN LIST */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 100px', WebkitOverflowScrolling: 'touch' }}>
         {pageTab === 'stok' ? (
           <>
-            {stats.criticalCount > 0 && (
-              <div style={{
-                background: `linear-gradient(135deg, ${C.danger}, ${C.dangerDark})`,
-                borderRadius: 14, padding: '12px 14px', marginBottom: 10,
-                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                boxShadow: `0 4px 12px ${C.danger}33`,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 22 }}>🚨</span>
-                  <div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 800 }}>{stats.criticalCount} item kritis</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.85 }}>Stok di bawah minimum — ajukan pengadaan!</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setPageTab('pengajuan')}
-                  style={{
-                    background: 'rgba(255,255,255,0.2)', border: '1.5px solid rgba(255,255,255,0.5)',
-                    borderRadius: 10, padding: '8px 14px',
-                    color: 'white', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Lihat Pengajuan
-                </button>
-              </div>
-            )}
-
-            {reqStats.aktif > 0 && (
-              <div style={{
-                background: C.infoBg, border: `1px solid ${C.info}`,
-                borderRadius: 12, padding: '10px 12px', marginBottom: 10,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-              }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.infoDark, lineHeight: 1.4 }}>
-                  📋 <strong>{reqStats.aktif} pengajuan sedang berjalan</strong>
-                  {reqStats.action > 0 && <> · <strong style={{ color: C.warningDark }}>{reqStats.action} perlu diperbaiki</strong></>}
-                </div>
-                <button
-                  onClick={() => setPageTab('pengajuan')}
-                  style={{
-                    flexShrink: 0, padding: '6px 12px', borderRadius: 8,
-                    border: 'none', background: C.primary, color: 'white',
-                    fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  Cek Status →
-                </button>
-              </div>
-            )}
-
-            {stockActiveFilterCount > 0 && (
-              <div style={{
-                display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10,
-                padding: '8px 10px', borderRadius: 10,
-                background: `${C.primary}08`, border: `1px solid ${C.primary}22`,
-              }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, background: 'white', padding: '3px 8px', borderRadius: 999 }}>
-                  {STOCK_LEVEL_FILTERS.find(f => f.key === stockTab)?.icon} {stockFilterLabel}
-                </span>
-              </div>
-            )}
-
-            <SearchFilterRow
-              searchValue={search}
-              onSearchChange={setSearch}
-              searchPlaceholder="Cari nama item, kode, kategori..."
-              onFilterClick={() => setShowStockFilterModal(true)}
-              activeFilterCount={stockActiveFilterCount}
-            />
-
-            {loading && <SkeletonList count={4} height={90} />}
+            {loading && <SkeletonList count={4} height={88} style={SKELETON_STYLE} />}
 
             {!loading && fetchError && (
               <ErrorPanel message={fetchError} onRetry={() => loadStock(true)} />
             )}
 
             {!loading && !fetchError && filtered.length === 0 && (
-              <EmptyState icon="📦" text={search ? 'Tidak ada item sesuai pencarian.' : 'Belum ada data stok.'} />
+              <EmptyState
+                type="inventory"
+                title={search ? 'Tidak Ditemukan' : 'Belum Ada Data'}
+                message={search ? 'Coba kata kunci lain' : 'Data inventaris akan muncul di sini'}
+                suggestion=""
+                illustrationSize={80}
+              />
             )}
 
-            {!loading && !fetchError && filtered.map(r => (
-              <StockCard
-                key={r.id}
-                item={r}
-                activeRequest={requestByInventoryId.get(r.id)}
-                onAdjust={() => { setAdjustModal(r); setQtyStr(''); setNoteStr(''); }}
-                onQuickRequest={() => handleQuickRequest(r)}
-                onViewRequest={handleViewRequest}
-              />
-            ))}
+            {!loading && !fetchError && <StockGroupedView
+              rows={filtered}
+              activeRequestById={requestByInventoryId}
+              onAjukan={handleQuickRequest}
+            />}
+
           </>
         ) : (
           <>
-            {/* Pengajuan summary */}
-            <div style={{
-              background: reqStats.action > 0
-                ? `linear-gradient(135deg, ${C.warning} 0%, ${C.warningDark} 100%)`
-                : `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
-              borderRadius: 16, padding: '14px 16px', marginBottom: 12,
-              color: 'white', boxShadow: `0 4px 12px ${C.warning}2e`,
-            }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, opacity: 0.9 }}>
-                📋 STATUS PENGADAAN OUTLET ANDA
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-                <MiniStat value={reqStats.waiting} label="Menunggu" />
-                <MiniStat value={reqStats.action} label="Perlu Perbaiki" highlight={reqStats.action > 0} />
-                <MiniStat value={reqStats.approved} label="Disetujui" />
-                <MiniStat value={reqStats.done} label="Sudah Dibeli" />
-              </div>
-            </div>
-
-            <button
-              onClick={() => navigate?.('pengadaan_barang')}
-              style={{
-                width: '100%', padding: '14px', borderRadius: 14,
-                border: 'none', background: C.primary, color: 'white',
-                fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
-                cursor: 'pointer', marginBottom: 12,
-                boxShadow: '0 4px 12px rgba(91,0,95,0.18)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 16 }}>+</span> Ajukan Barang Baru
-            </button>
-
-            {reqActiveFilterCount > 0 && (
-              <div style={{
-                display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10,
-                padding: '8px 10px', borderRadius: 10,
-                background: `${C.primary}08`, border: `1px solid ${C.primary}22`,
-              }}>
-                {reqFilter !== 'aktif' && (
-                  <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, background: 'white', padding: '3px 8px', borderRadius: 999 }}>
-                    📌 {reqFilterLabel}
-                  </span>
-                )}
-                {reqUrgencyFilter !== 'all' && (
-                  <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, background: 'white', padding: '3px 8px', borderRadius: 999 }}>
-                    {URGENCY_META[reqUrgencyFilter]?.icon} {reqUrgencyLabel}
-                  </span>
-                )}
-              </div>
-            )}
-
-            <SearchFilterRow
-              searchValue={reqSearch}
-              onSearchChange={setReqSearch}
-              searchPlaceholder="Cari nama barang, merek, alasan..."
-              onFilterClick={() => setShowReqFilterModal(true)}
-              activeFilterCount={reqActiveFilterCount}
-            />
-
-            {reqLoading && <SkeletonList count={3} height={120} />}
+            {reqLoading && <SkeletonList count={3} height={100} style={SKELETON_STYLE} />}
 
             {!reqLoading && reqError && (
               <ErrorPanel message={reqError} onRetry={() => loadRequests(true)} />
@@ -487,46 +251,22 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
 
             {!reqLoading && !reqError && filteredRequests.length === 0 && (
               <EmptyState
-                icon="📋"
-                text={reqSearch || reqActiveFilterCount > 0
-                  ? 'Tidak ada pengajuan sesuai filter.'
-                  : 'Belum ada pengajuan barang. Ketuk tombol di atas untuk mengajukan.'}
+                type="orders"
+                title={reqSearch ? 'Tidak Ditemukan' : 'Belum Ada Pengajuan'}
+                message={reqSearch ? 'Coba kata kunci lain' : 'Pengajuan barang akan muncul di sini'}
+                suggestion=""
+                illustrationSize={80}
               />
             )}
 
-            {!reqLoading && !reqError && filteredRequests.map(it => (
-              <PengajuanCard
-                key={it.id}
-                item={it}
-                highlighted={highlightRequestId === it.id}
-                onEdit={() => setEditRequest(it)}
-              />
+            {!reqLoading && !reqError && filteredRequests.map(r => (
+              <RequestCard key={r.id} item={r} />
             ))}
           </>
         )}
       </div>
 
-      <Modal visible={!!adjustModal} onClose={() => setAdjustModal(null)} title={adjustModal ? `Stok: ${adjustModal.name}` : ''}>
-        <div style={{ padding: '8px 18px 18px' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#3a3a3a', marginBottom: 12 }}>
-            Stok sekarang: <strong>{adjustModal ? Number(adjustModal.stockQty).toLocaleString('id-ID') : ''}</strong> {adjustModal?.unit}.
-            Masukkan perubahan (positif = tambah, negatif = kurang).
-          </div>
-          <Input
-            label="Perubahan qty"
-            value={qtyStr}
-            onChange={(v) => setQtyStr(v.replace(/[^\d.-]/g, ''))}
-            placeholder="Contoh: 5 atau -2"
-            inputMode="decimal"
-          />
-          <Input label="Catatan (opsional)" value={noteStr} onChange={setNoteStr} placeholder="Mis. Penyesuaian stok gudang" />
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setAdjustModal(null)}>Batal</Btn>
-            <Btn variant="primary" style={{ flex: 1 }} loading={saving} onClick={submitAdjust}>Simpan</Btn>
-          </div>
-        </div>
-      </Modal>
-
+      {/* QUICK REQUEST MODAL */}
       {showRequestForm && requestItem && (
         <QuickRequestModal
           item={requestItem}
@@ -534,350 +274,593 @@ export default function StokBahanPage({ goBack, navigate, screenParams }) {
           onSuccess={() => {
             closeRequestForm();
             refreshAll(true);
-            setPageTab('pengajuan');
-            setReqFilter('aktif');
           }}
         />
       )}
+    </div>
+  );
+}
 
-      {editRequest && (
-        <ResubmitModal
-          request={editRequest}
-          onClose={() => setEditRequest(null)}
-          onSuccess={() => {
-            setEditRequest(null);
-            refreshAll(true);
-          }}
-        />
-      )}
+// ─── SKELETON LIST ─────────────────────────────────────────────────────────────
+function SkeletonList({ count = 3, height = 80, style = {} }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} style={{
+          borderRadius: 14,
+          marginBottom: 12,
+          height,
+          background: 'linear-gradient(90deg, rgba(59,11,71,0.06) 25%, rgba(59,11,71,0.1) 50%, rgba(59,11,71,0.06) 75%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.5s infinite',
+          ...style,
+        }} />
+      ))}
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+    </>
+  );
+}
 
-      {showStockFilterModal && (
-        <Modal visible onClose={() => setShowStockFilterModal(false)} title="Filter Stok">
-          <div style={{ padding: '8px 18px 18px' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
-              📦 Level Stok
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-              {STOCK_LEVEL_FILTERS.map(f => (
-                <Chip
-                  key={f.key}
-                  label={`${f.icon} ${f.label}${f.key === 'low' && stats.lowCount ? ` (${stats.lowCount})` : ''}${f.key === 'empty' && stats.emptyCount ? ` (${stats.emptyCount})` : ''}${f.key === 'all' ? ` (${stats.total})` : ''}`}
-                  active={stockTab === f.key}
-                  onClick={() => setStockTab(f.key)}
-                />
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <Btn variant="secondary" onClick={() => setStockTab('all')} style={{ flex: 1 }}>Reset</Btn>
-              <Btn variant="primary" onClick={() => setShowStockFilterModal(false)} style={{ flex: 1 }}>Terapkan</Btn>
+// ─── PAGE HEADER ───────────────────────────────────────────────────────────────
+function PageHeader({ stats, goBack, pageTab, onTabChange, reqActionNeeded }) {
+  return (
+    <div style={{
+      position: 'relative',
+      padding: '24px 16px 56px',
+      background: `radial-gradient(circle at 85% -10%, rgba(232,90,168,0.55) 0%, transparent 55%), radial-gradient(circle at -10% 20%, rgba(95,217,174,0.25) 0%, transparent 45%), linear-gradient(155deg, ${TOKENS.purpleDeep} 0%, ${TOKENS.purpleMid} 55%, #4A1259 100%)`,
+      overflow: 'hidden',
+    }}>
+      {/* Blob decorations */}
+      <div style={{ position: 'absolute', width: 160, height: 160, background: 'radial-gradient(circle, rgba(232,90,168,0.55) 0%, transparent 70%)', top: -50, right: -30, borderRadius: '50%', animation: 'floatB 11s ease-in-out infinite', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', width: 130, height: 130, background: 'radial-gradient(circle, rgba(95,217,174,0.35) 0%, transparent 70%)', bottom: -30, left: -40, borderRadius: '50%', animation: 'floatC 16s ease-in-out infinite', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', width: 80, height: 80, background: 'radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%)', top: 20, left: '55%', borderRadius: '50%', animation: 'floatA 9s ease-in-out infinite', pointerEvents: 'none' }} />
+
+      {/* Sparkles */}
+      <div style={{ position: 'absolute', width: 14, top: 20, right: 60, animation: 'twinkle 3.2s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }}>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="#fff" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.9))' }}>
+          <path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8 Z" />
+        </svg>
+      </div>
+      <div style={{ position: 'absolute', width: 8, top: 55, right: 25, animation: 'twinkle 3.2s ease-in-out 1.1s infinite', pointerEvents: 'none', zIndex: 1 }}>
+        <svg viewBox="0 0 24 24" width="8" height="8" fill="#fff" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.9))' }}>
+          <path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8 Z" />
+        </svg>
+      </div>
+      <div style={{ position: 'absolute', width: 10, top: 12, left: '28%', animation: 'twinkle 3.2s ease-in-out 2s infinite', pointerEvents: 'none', zIndex: 1 }}>
+        <svg viewBox="0 0 24 24" width="10" height="10" fill="#fff" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.9))' }}>
+          <path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8 Z" />
+        </svg>
+      </div>
+
+      {/* Back button + title */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={goBack}
+            style={{
+              width: 36, height: 36, borderRadius: 12,
+              background: 'rgba(255,255,255,0.14)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', backdropFilter: 'blur(6px)',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 5l-7 7 7 7" />
+            </svg>
+          </button>
+          <div>
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 22, color: '#fff' }}>Inventaris</div>
+            <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500, marginTop: 2 }}>
+              Pendataan stok barang outlet
             </div>
           </div>
-        </Modal>
-      )}
+        </div>
 
-      {showReqFilterModal && (
-        <Modal visible onClose={() => setShowReqFilterModal(false)} title="Filter Pengajuan">
-          <div style={{ padding: '8px 18px 18px' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
-              📌 Status Pengajuan
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-              {REQ_STATUS_FILTERS.map(f => (
-                <Chip
-                  key={f.key}
-                  label={`${f.icon} ${f.label}`}
-                  active={reqFilter === f.key}
-                  onClick={() => setReqFilter(f.key)}
-                />
-              ))}
-            </div>
-
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
-              🚨 Tingkat Urgensi
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-              <Chip label="Semua Urgensi" active={reqUrgencyFilter === 'all'} onClick={() => setReqUrgencyFilter('all')} />
-              {Object.entries(URGENCY_META).map(([k, m]) => (
-                <Chip
-                  key={k}
-                  label={`${m.icon} ${m.label}`}
-                  active={reqUrgencyFilter === k}
-                  onClick={() => setReqUrgencyFilter(k)}
-                />
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <Btn
-                variant="secondary"
-                onClick={() => { setReqFilter('aktif'); setReqUrgencyFilter('all'); }}
-                style={{ flex: 1 }}
+        {/* Tab switcher */}
+        <div style={{
+          display: 'flex', gap: 4,
+          background: 'rgba(255,255,255,0.12)',
+          borderRadius: 14,
+          padding: 4,
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          alignSelf: 'center',
+        }}>
+          {TABS.map(t => {
+            const active = pageTab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => onTabChange(t.key)}
+                style={{
+                  padding: '7px 16px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: active ? 'rgba(255,255,255,0.22)' : 'transparent',
+                  color: active ? '#fff' : 'rgba(255,255,255,0.65)',
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontSize: 12,
+                  fontWeight: active ? 700 : 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  position: 'relative',
+                }}
               >
-                Reset
-              </Btn>
-              <Btn variant="primary" onClick={() => setShowReqFilterModal(false)} style={{ flex: 1 }}>Terapkan</Btn>
+                {t.label}
+                {t.key === 'pengajuan' && reqActionNeeded && (
+                  <span style={{
+                    position: 'absolute', top: 2, right: 4,
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: '#F0466B',
+                  }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes floatA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-14px,16px) scale(1.08)} }
+        @keyframes floatB { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(18px,-12px) scale(1.1)} }
+        @keyframes floatC { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(16px,10px) scale(0.95)} }
+        @keyframes twinkle { 0%,100%{opacity:0;transform:scale(0.4) rotate(0deg)} 50%{opacity:1;transform:scale(1) rotate(20deg)} }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── SUMMARY STRIP ─────────────────────────────────────────────────────────────
+function SummaryStrip({ stats }) {
+  return (
+    <div style={{
+      position: 'relative',
+      zIndex: 3,
+      margin: '-36px 16px 0',
+      background: TOKENS.glassStrong,
+      backdropFilter: 'blur(18px) saturate(160%)',
+      WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+      border: '1px solid rgba(255,255,255,0.6)',
+      borderRadius: 20,
+      padding: '14px 12px',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      boxShadow: `0 16px 32px -14px rgba(59,11,71,0.28), inset 0 1px 0 rgba(255,255,255,0.8)`,
+    }}>
+      <div style={{ textAlign: 'center', padding: '0 4px', borderRight: '1px solid rgba(59,11,71,0.08)' }}>
+        <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 17, color: TOKENS.ink }}>{stats.total}</div>
+        <div style={{ fontSize: 9.5, color: TOKENS.inkSoft, fontWeight: 600, marginTop: 2 }}>Total item</div>
+      </div>
+      <div style={{ textAlign: 'center', padding: '0 4px', borderRight: '1px solid rgba(59,11,71,0.08)' }}>
+        <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 17, color: TOKENS.goldDeep }}>{stats.lowCount}</div>
+        <div style={{ fontSize: 9.5, color: TOKENS.inkSoft, fontWeight: 600, marginTop: 2 }}>Stok menipis</div>
+      </div>
+      <div style={{ textAlign: 'center', padding: '0 4px' }}>
+        <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 17, color: TOKENS.coralDeep }}>{stats.emptyCount}</div>
+        <div style={{ fontSize: 9.5, color: TOKENS.inkSoft, fontWeight: 600, marginTop: 2 }}>Stok habis</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SEARCH BAR ───────────────────────────────────────────────────────────────
+function SearchBar({ stokSearch, onStokSearch, reqSearch, onReqSearch, pageTab }) {
+  const value = pageTab === 'stok' ? stokSearch : reqSearch;
+  const onChange = pageTab === 'stok' ? onStokSearch : onReqSearch;
+  const placeholder = pageTab === 'stok' ? 'Cari nama barang...' : 'Cari pengajuan...';
+
+  return (
+    <div style={{
+      margin: '14px 16px 0',
+      background: TOKENS.glassStrong,
+      backdropFilter: 'blur(14px)',
+      WebkitBackdropFilter: 'blur(14px)',
+      border: '1px solid rgba(255,255,255,0.6)',
+      borderRadius: 18,
+      padding: '12px 15px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      boxShadow: `0 10px 22px -12px rgba(59,11,71,0.18), inset 0 1px 0 rgba(255,255,255,0.7)`,
+    }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={TOKENS.inkSoft} strokeWidth="2">
+        <circle cx="11" cy="11" r="7" />
+        <path d="M21 21l-4.3-4.3" />
+      </svg>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          border: 'none',
+          background: 'none',
+          outline: 'none',
+          flex: 1,
+          fontSize: 13,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          color: TOKENS.ink,
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── CATEGORY CHIPS ────────────────────────────────────────────────────────────
+function CategoryChips({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, overflowX: 'auto', margin: '14px 16px 4px', paddingBottom: 2 }}>
+      {CATEGORIES.map(cat => {
+        const active = value === cat.key;
+        return (
+          <button
+            key={cat.key}
+            onClick={() => onChange(cat.key)}
+            style={{
+              flexShrink: 0,
+              fontSize: 11.5,
+              fontWeight: 700,
+              color: active ? '#fff' : TOKENS.inkSoft,
+              background: active ? `linear-gradient(150deg, #C24FE0 0%, #7A1F8F 100%)` : `linear-gradient(145deg, #F7F0FB, #EDE0F5)`,
+              padding: '8px 14px',
+              borderRadius: 999,
+              border: 'none',
+              boxShadow: active ? `-2px -2px 5px rgba(255,255,255,0.25), 2px 4px 9px rgba(122,31,143,0.4)` : `-2px -2px 5px rgba(255,255,255,0.6), 2px 3px 7px rgba(59,11,71,0.1)`,
+              whiteSpace: 'nowrap',
+              cursor: 'pointer',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}
+          >
+            {cat.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── STOCK ITEM CARD ──────────────────────────────────────────────────────────
+function StockGroupedView({ rows, activeRequestById, onAjukan }) {
+  // Grouping: 2 sections to keep list short
+  // Section 1: stok habis/menipis
+  // Section 2: stok aman
+  const low = [];
+  const safe = [];
+
+  for (const r of rows) {
+    const stockQty = Number(r.stockQty);
+    const minStock = Number(r.minStock);
+    const stockKey = stockQty === 0 ? 'habis' : stockQty <= minStock ? 'menipis' : 'aman';
+    if (stockKey === 'aman') safe.push(r);
+    else low.push(r);
+  }
+
+  const Section = ({ title, subtitle, items }) => (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{
+        position: 'sticky', top: 0,
+        zIndex: 1,
+        margin: '0 2px 8px',
+        display: 'flex',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        gap: 10,
+      }}>
+        <div style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: 12,
+          fontWeight: 900,
+          letterSpacing: 0.2,
+          color: '#2B1130',
+          background: 'rgba(255,255,255,0.65)',
+          border: '1px solid rgba(255,255,255,0.85)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          padding: '8px 10px',
+          borderRadius: 14,
+        }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 10, color: TOKENS.inkSoft, fontWeight: 700 }}>{subtitle} · {items.length}</div>
+      </div>
+
+      {items.length === 0 ? (
+        <div style={{ padding: 10 }} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {items.slice(0, 10).map((r) => (
+            <CompactStockItemCard
+              key={r.id}
+              item={r}
+              activeRequest={activeRequestById.get(r.id) || null}
+              onAjukan={() => onAjukan(r)}
+            />
+          ))}
+
+          {items.length > 10 && (
+            <div style={{ textAlign: 'center', fontSize: 11, color: TOKENS.inkSoft, fontWeight: 700, marginTop: 2 }}>
+              + {items.length - 10} lainnya
             </div>
-          </div>
-        </Modal>
+          )}
+        </div>
       )}
     </div>
   );
-}
 
-function MiniStat({ value, label, highlight }) {
   return (
-    <div style={{
-      flex: '1 1 70px', background: highlight ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.12)',
-      borderRadius: 10, padding: '8px 10px',
-      border: highlight ? '1.5px solid rgba(255,255,255,0.5)' : 'none',
-    }}>
-      <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800 }}>{value}</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.9 }}>{label}</div>
-    </div>
+    <>
+      <Section
+        title="⚠️ Perlu perhatian"
+        subtitle="Stok menipis/habis"
+        items={low}
+      />
+      <Section
+        title="✅ Stok aman"
+        subtitle="Lanjut produksi"
+        items={safe}
+      />
+    </>
   );
 }
 
-function ErrorPanel({ message, onRetry }) {
-  return (
-    <div style={{ textAlign: 'center', padding: 24, background: C.validationErrorBg, borderRadius: 12, border: `1px solid ${C.dangerBg}` }}>
-      <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.validationErrorText, marginBottom: 12 }}>{message}</div>
-      <button onClick={onRetry} style={{ padding: '8px 16px', borderRadius: 10, border: 'none', background: C.primary, color: 'white', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Coba Lagi</button>
-    </div>
-  );
-}
+function CompactStockItemCard({ item: r, activeRequest, onAjukan }) {
+  // NOTE: legacy card (kept for potential reuse)
+  // Compact UI below is used by StockGroupedView.
+  
 
-function EmptyState({ icon, text }) {
-  return (
-    <div style={{ textAlign: 'center', padding: 40 }}>
-      <div style={{ fontSize: 36, marginBottom: 8 }}>{icon}</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n700 }}>{text}</div>
-    </div>
-  );
-}
+  const stockQty = Number(r.stockQty);
+  const minStock = Number(r.minStock);
+  const stockPct = minStock > 0 ? Math.min(1, stockQty / minStock) : 1;
 
-function StockCard({ item: r, activeRequest, onAdjust, onQuickRequest, onViewRequest }) {
-  const stockPct = r.minStock > 0 ? Math.min(1, r.stockQty / r.minStock) : 1;
-  const barColor = r.stockQty === 0 ? C.danger : r.stockQty <= r.minStock ? C.warning : C.success;
-  const isLow = r.lowStock;
-  const stDef = STOCK_STATUS[r.stockQty === 0 ? 'empty' : isLow ? 'low' : 'safe'];
-  const barBg = r.stockQty === 0 ? C.validationErrorBg : isLow ? C.validationWarningBg : C.successBg;
-  const reqSt = activeRequest ? (STATUS_META[activeRequest.status] || STATUS_META.pending) : null;
-  const hasPendingRequest = !!activeRequest;
+  const stockKey = stockQty === 0 ? 'habis' : stockQty <= minStock ? 'menipis' : 'aman';
+  const meta = STOCK_META[stockKey];
+  const reqSt = activeRequest ? (REQ_STATUS_META[activeRequest.status] || REQ_STATUS_META.pending) : null;
+  const hasRequest = !!activeRequest;
+  const isLow = stockKey !== 'aman';
 
   return (
     <div style={{
-      background: C.white, borderRadius: 14, padding: '12px 14px', marginBottom: 10,
-      boxShadow: SHADOW.sm,
-      borderLeft: `4px solid ${stDef.color}`,
+      background: TOKENS.glassStrong,
+      backdropFilter: 'blur(14px)',
+      WebkitBackdropFilter: 'blur(14px)',
+      border: '1px solid rgba(255,255,255,0.6)',
+      borderRadius: 20,
+      padding: 14,
+      marginBottom: 12,
+      boxShadow: `0 12px 26px -14px rgba(59,11,71,0.2), inset 0 1px 0 rgba(255,255,255,0.7)`,
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Icon */}
+        <div style={{
+          width: 46, height: 46, borderRadius: 16, flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: `linear-gradient(145deg, #F5E9FB, #E9D3F2)`,
+          boxShadow: `-3px -3px 8px rgba(255,255,255,0.6), 3px 5px 10px rgba(59,11,71,0.16)`,
+        }}>
+          <ItemIcon categoryName={r.categoryName} />
+        </div>
+
+        {/* Body */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700 }}>{r.categoryName}</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: TOKENS.ink }}>
             {r.name}
           </div>
-          {r.itemCode && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 1 }}>📦 {r.itemCode}</div>
-          )}
+          <div style={{ fontSize: 11, color: TOKENS.inkSoft, fontWeight: 500, marginTop: 2 }}>
+            {r.categoryName} · {r.unit}
+          </div>
+
+          {/* Meta row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 7, flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: 10, fontWeight: 800,
+              padding: '3px 10px', borderRadius: 999,
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: stockKey === 'aman' ? 'rgba(31,158,117,0.15)' : stockKey === 'menipis' ? 'rgba(184,129,26,0.15)' : 'rgba(184,40,72,0.15)',
+              color: meta.valColor,
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor' }} />
+              {meta.label}
+            </span>
+            {r.defaultCost && (
+              <span style={{ fontSize: 10.5, color: TOKENS.inkSoft, fontWeight: 500 }}>
+                Rp <b style={{ color: TOKENS.ink }}>{Number(r.defaultCost).toLocaleString('id-ID')}</b> / {r.unit}
+              </span>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ width: '100%', height: 4, borderRadius: 99, marginTop: 8, background: 'rgba(59,11,71,0.08)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${Math.min(100, stockPct * 100)}%`,
+              borderRadius: 99,
+              background: `linear-gradient(90deg, ${meta.barColor}, ${meta.valColor})`,
+              transition: 'width 0.4s',
+            }} />
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0 }}>
-          <span style={{
-            fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
-            padding: '2px 8px', borderRadius: 999,
-            background: stDef.bg, color: stDef.color,
-          }}>
-            {stDef.label}
-          </span>
+
+        {/* Qty right side */}
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 19, color: meta.valColor }}>
+            {stockQty}
+          </div>
+          <div style={{ fontSize: 9.5, color: TOKENS.inkSoft, fontWeight: 600, marginTop: 1 }}>
+            {r.unit}
+          </div>
         </div>
       </div>
 
-      {hasPendingRequest && reqSt && (
-        <button
-          onClick={() => onViewRequest(activeRequest)}
-          style={{
-            width: '100%', marginTop: 8, padding: '8px 10px',
-            borderRadius: 8, border: `1px solid ${reqSt.fg}33`,
-            background: reqSt.bg, cursor: 'pointer', textAlign: 'left',
-          }}
-        >
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: reqSt.fg }}>
-            {reqSt.icon} Pengajuan: {reqSt.label}
+      {/* Request indicator */}
+      {hasRequest && reqSt && (
+        <div style={{
+          marginTop: 10, padding: '8px 12px', borderRadius: 10,
+          background: reqSt.bg, border: `1px solid ${reqSt.fg}33`,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 13 }}>{reqSt.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: reqSt.fg }}>
+              Pengajuan {reqSt.label}
+            </div>
+            <div style={{ fontSize: 10, color: TOKENS.inkSoft, marginTop: 1 }}>
+              {activeRequest.qty} {activeRequest.unit} · Lihat tab Pengajuan
+            </div>
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 2 }}>
-            {activeRequest.qty} {activeRequest.unit} diajukan
-            {activeRequest.approvedQty != null && activeRequest.approvedQty !== activeRequest.qty
-              ? ` · disetujui ${activeRequest.approvedQty} ${activeRequest.unit}`
-              : ''}
-            {' '}· Ketuk untuk detail →
-          </div>
-        </button>
+        </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color: barColor }}>
-              {Number(r.stockQty).toLocaleString('id-ID')}
-            </span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>{r.unit}</span>
-          </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700 }}>
-            Min. {Number(r.minStock).toLocaleString('id-ID')} {r.unit}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Btn
-            size="sm"
-            variant={isLow ? 'warning' : 'secondary'}
-            onClick={onAdjust}
-            style={isLow ? { background: C.warning, color: 'white' } : {}}
-          >
-            ⚙️ Sesuaikan
-          </Btn>
-          {isLow && !hasPendingRequest && (
-            <button
-              onClick={onQuickRequest}
-              style={{
-                padding: '0 12px', height: 36, borderRadius: 10,
-                border: `1.5px solid ${C.warning}`,
-                background: C.validationWarningBg, color: C.validationWarningText,
-                fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-                cursor: 'pointer', whiteSpace: 'nowrap',
-              }}
-            >
-              📦 Ajukan
-            </button>
-          )}
-          {isLow && hasPendingRequest && (
-            <button
-              onClick={() => onViewRequest(activeRequest)}
-              style={{
-                padding: '0 12px', height: 36, borderRadius: 10,
-                border: `1.5px solid ${reqSt.fg}`,
-                background: reqSt.bg, color: reqSt.fg,
-                fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
-                cursor: 'pointer', whiteSpace: 'nowrap',
-              }}
-            >
-              Lihat Status
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div style={{ marginTop: 10, height: 5, background: barBg, borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{
-          height: '100%',
-          width: `${Math.min(100, stockPct * 100)}%`,
-          background: barColor,
-          borderRadius: 3,
-          transition: 'width 0.4s',
-        }} />
-      </div>
+      {/* Ajukan button */}
+      {isLow && !hasRequest && (
+        <button
+          onClick={onAjukan}
+          style={{
+            marginTop: 10,
+            width: '100%',
+            padding: '10px 14px',
+            borderRadius: 14,
+            border: 'none',
+            background: `linear-gradient(150deg, ${TOKENS.magenta} 0%, ${TOKENS.purpleDeep} 100%)`,
+            color: '#fff',
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontSize: 12, fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: `0 4px 14px rgba(91,0,95,0.35)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Ajukan Pengadaan
+        </button>
+      )}
     </div>
   );
 }
 
-function PengajuanCard({ item: it, highlighted, onEdit }) {
-  const urg = URGENCY_META[it.urgency] || URGENCY_META.normal;
-  const st = STATUS_META[it.status] || STATUS_META.pending;
-  const help = STATUS_HELP[it.status] || '';
+// ─── ITEM ICON by category ─────────────────────────────────────────────────────
+function ItemIcon({ categoryName }) {
+  const cat = (categoryName || '').toLowerCase();
+  let d = 'M7 3h10l1 4H6l1-4zM6 7l-2 13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2L18 7M9 12a3 3 0 0 0 6 0';
+  if (cat.includes('deterjen')) {
+    d = 'M4 4h16v4H4zM4 10h16v10H4zM9 14h6';
+  } else if (cat.includes('pewang')) {
+    d = 'M12 2c2 3 5 6 5 10a5 5 0 0 1-10 0c0-4 3-7 5-10z';
+  } else if (cat.includes('plastik') || cat.includes('packing') || cat.includes('kantong')) {
+    d = 'M3 6h18M6 6v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6M10 10v6M14 10v6';
+  } else if (cat.includes('peralatan') || cat.includes('hanger') || cat.includes('alat')) {
+    d = 'M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v10m0 0H5m4 0h10m0-10v10m0 0h-4m4 0v4m-4-4v-4';
+  }
+  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B2B7D" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>;
+}
+
+// ─── REQUEST CARD ─────────────────────────────────────────────────────────────
+function RequestCard({ item: r }) {
+  const st = REQ_STATUS_META[r.status] || REQ_STATUS_META.pending;
+  const urgMap = { normal: null, urgent: { label: 'Urgent', color: '#B8811A' }, critical: { label: 'Kritis', color: '#B82848' } };
+  const urg = urgMap[r.urgency];
 
   return (
     <div style={{
-      background: 'white', borderRadius: 12, padding: '12px 14px', marginBottom: 10,
-      boxShadow: highlighted ? `0 0 0 2px ${C.warning}, 0 4px 12px ${C.warning}33` : SHADOW.sm,
-      borderLeft: `4px solid ${it.status === 'revised' ? C.warning : urg.color}`,
-      transition: 'box-shadow 0.3s',
+      background: TOKENS.glassStrong,
+      backdropFilter: 'blur(14px)',
+      WebkitBackdropFilter: 'blur(14px)',
+      border: '1px solid rgba(255,255,255,0.6)',
+      borderRadius: 20,
+      padding: 14,
+      marginBottom: 12,
+      boxShadow: `0 12px 26px -14px rgba(59,11,71,0.2), inset 0 1px 0 rgba(255,255,255,0.7)`,
+      borderLeft: `4px solid ${st.fg}`,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
-            {it.itemName}
-            {it.brand ? <span style={{ color: C.n700, fontWeight: 500 }}> · {it.brand}</span> : null}
+          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: TOKENS.ink }}>
+            {r.itemName}
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginTop: 2 }}>
-            Diminta: <strong>{it.qty} {it.unit}</strong>
-            {it.approvedQty != null && it.approvedQty !== it.qty && (
-              <span style={{ color: C.primary, fontWeight: 600 }}> · Disetujui: {it.approvedQty} {it.unit}</span>
+          {r.brand && <div style={{ fontSize: 11, color: TOKENS.inkSoft, fontWeight: 500, marginTop: 2 }}>{r.brand}</div>}
+          <div style={{ fontSize: 11, color: TOKENS.inkSoft, marginTop: 4 }}>
+            {r.qty} {r.unit}
+            {r.approvedQty != null && r.approvedQty !== r.qty && (
+              <span style={{ color: '#1F9E75', fontWeight: 600 }}> · Disetujui {r.approvedQty} {r.unit}</span>
             )}
-            {it.estimatedPrice ? ` · Estimasi ${rp(it.estimatedPrice)}` : ''}
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-          <span style={{
-            fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
-            padding: '2px 7px', borderRadius: 999,
-            background: urg.bg, color: urg.fg,
-          }}>{urg.icon} {urg.label}</span>
-          <span style={{
-            fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
-            padding: '2px 7px', borderRadius: 999,
-            background: st.bg, color: st.fg,
-          }}>{st.icon} {st.label}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: st.bg, color: st.fg }}>
+            {st.icon} {st.label}
+          </span>
+          {urg && (
+            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 999, background: 'rgba(122,101,132,0.12)', color: urg.color }}>
+              {urg.label}
+            </span>
+          )}
         </div>
       </div>
 
-      <div style={{
-        background: st.bg, borderRadius: 8, padding: '8px 10px', marginTop: 8,
-        fontFamily: 'Poppins', fontSize: 11, color: st.fg, lineHeight: 1.45,
-      }}>
-        💡 {help}
-      </div>
+      {r.reason && (
+        <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, background: 'rgba(59,11,71,0.05)', fontSize: 11, color: TOKENS.inkSoft, lineHeight: 1.5 }}>
+          {r.reason}
+        </div>
+      )}
 
-      <div style={{ background: C.n50, borderRadius: 8, padding: '6px 10px', marginTop: 8, fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>
-        💬 {it.reason}
-      </div>
-
-      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 6 }}>
-        Diajukan {fmtDate(it.createdAt)}
-        {it.resolvedAt && ` · Diproses ${fmtDate(it.resolvedAt)}`}
-        {it.fulfilledAt && ` · Dibeli ${fmtDate(it.fulfilledAt)}`}
-        {it.approverName && ` · oleh ${it.approverName}`}
-      </div>
-
-      {it.adminNote && (
+      {r.adminNote && (
         <div style={{
-          background: it.status === 'revised' ? C.validationWarningBg : it.status === 'rejected' ? C.validationErrorBg : C.infoBg,
-          borderLeft: `3px solid ${it.status === 'revised' ? C.warning : it.status === 'rejected' ? C.danger : C.info}`,
-          borderRadius: 6, padding: '8px 10px', marginTop: 8,
-          fontFamily: 'Poppins', fontSize: 11, color: C.n800, lineHeight: 1.5,
+          marginTop: 8, padding: '8px 10px', borderRadius: 8,
+          background: r.status === 'revised' ? 'rgba(184,129,26,0.12)' : 'rgba(95,217,174,0.12)',
+          borderLeft: `3px solid ${r.status === 'revised' ? '#B8811A' : '#1F9E75'}`,
+          fontSize: 11, color: TOKENS.ink, lineHeight: 1.5,
         }}>
-          📝 <strong>Catatan admin:</strong> {it.adminNote}
+          📝 <strong>Catatan:</strong> {r.adminNote}
         </div>
       )}
 
-      {it.status === 'fulfilled' && it.fulfilledAmount && (
-        <div style={{ background: C.successBg, borderRadius: 6, padding: '4px 8px', marginTop: 6, fontFamily: 'Poppins', fontSize: 10, color: C.successDark }}>
-          💸 Dibeli senilai {rp(it.fulfilledAmount)}
-        </div>
-      )}
-
-      {it.status === 'revised' && (
-        <button
-          onClick={onEdit}
-          style={{
-            width: '100%', marginTop: 10, padding: '10px',
-            background: C.warning, color: 'white',
-            border: 'none', borderRadius: 10,
-            fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          ✏️ Perbaiki & Kirim Ulang
-        </button>
-      )}
+      <div style={{ fontSize: 10, color: TOKENS.inkSoft, marginTop: 8 }}>
+        Diajukan {fmtDate(r.createdAt)}
+        {r.resolvedAt && ` · Diproses ${fmtDate(r.resolvedAt)}`}
+        {r.approverName && ` · oleh ${r.approverName}`}
+      </div>
     </div>
   );
 }
 
+// ─── ERROR PANEL ───────────────────────────────────────────────────────────────
+function ErrorPanel({ message, onRetry }) {
+  return (
+    <div style={{ textAlign: 'center', padding: 24, background: 'rgba(184,40,72,0.08)', borderRadius: 16, border: '1px solid rgba(184,40,72,0.2)' }}>
+      <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
+      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, color: TOKENS.coralDeep, marginBottom: 12 }}>
+        {message}
+      </div>
+      <button
+        onClick={onRetry}
+        style={{
+          padding: '8px 16px', borderRadius: 10, border: 'none',
+          background: `linear-gradient(150deg, ${TOKENS.magenta}, ${TOKENS.purpleDeep})`,
+          color: 'white', fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        }}
+      >
+        Coba Lagi
+      </button>
+    </div>
+  );
+}
+
+// ─── QUICK REQUEST MODAL ──────────────────────────────────────────────────────
 function QuickRequestModal({ item, onClose, onSuccess }) {
   const [qty, setQty] = useState('');
   const [reason, setReason] = useState('');
   const [urgency, setUrgency] = useState('urgent');
   const [estimatedPrice, setEstimatedPrice] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const URGENCY_OPTS = [
+    { key: 'normal', label: 'Normal', bg: 'rgba(122,101,132,0.12)', fg: TOKENS.inkSoft },
+    { key: 'urgent', label: 'Urgent', bg: 'rgba(184,129,26,0.15)', fg: '#B8811A' },
+    { key: 'critical', label: 'Kritis', bg: 'rgba(184,40,72,0.15)', fg: '#B82848' },
+  ];
 
   const submit = async () => {
     const numQty = Number(qty);
@@ -909,55 +892,65 @@ function QuickRequestModal({ item, onClose, onSuccess }) {
     }
   };
 
-  const suggestedQty = Math.max(1, Math.ceil(2 * Number(item.minStock) - Number(item.stockQty)));
+  const suggestedQty = Math.max(1, Math.ceil(2 * Number(item.minStock || 0) - Number(item.stockQty || 0)));
 
   return (
-    <Modal visible onClose={onClose} title="📦 Ajukan Pengadaan">
-      <div style={{ padding: '8px 18px 18px' }}>
-        <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{item.name}</div>
-          {item.itemCode && (
-            <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, marginTop: 2 }}>📦 {item.itemCode} · {item.categoryName}</div>
-          )}
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700, marginTop: 4 }}>
-            Stok sekarang: <strong style={{ color: C.danger }}>{Number(item.stockQty).toLocaleString('id-ID')} {item.unit}</strong>
-            {' '}· Min: {Number(item.minStock).toLocaleString('id-ID')}
+    <Modal visible onClose={onClose} title="Ajukan Pengadaan">
+      <div style={{ padding: '0 18px 18px' }}>
+        {/* Item info */}
+        <div style={{ background: 'rgba(59,11,71,0.04)', borderRadius: 14, padding: '12px 14px', marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 15, color: TOKENS.ink }}>
+            {item.name}
+          </div>
+          <div style={{ fontSize: 11, color: TOKENS.inkSoft, fontWeight: 500, marginTop: 3 }}>
+            {item.categoryName} · {item.unit}
+          </div>
+          <div style={{ fontSize: 12, color: TOKENS.inkSoft, marginTop: 6 }}>
+            Stok sekarang:{' '}
+            <strong style={{ color: TOKENS.coralDeep }}>
+              {Number(item.stockQty).toLocaleString('id-ID')} {item.unit}
+            </strong>
+            {item.minStock && item.minStock > 0 && <> · Min: {Number(item.minStock).toLocaleString('id-ID')}</>}
           </div>
         </div>
 
-        <div style={{ background: C.validationWarningBg, borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText }}>
+        {/* Suggested qty */}
+        <div style={{ background: 'rgba(184,129,26,0.12)', borderRadius: 10, padding: '8px 12px', marginBottom: 14, fontSize: 11, color: '#B8811A', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
           💡 Rekomendasi: <strong>{suggestedQty} {item.unit}</strong> (2× minimum − stok sekarang)
         </div>
 
         <Input
-          label="Jumlah yang diminta *"
+          label={`Jumlah (${item.unit}) *`}
           value={qty}
           onChange={(v) => setQty(v.replace(/[^\d.]/g, ''))}
-          placeholder={`Min. 1 ${item.unit}`}
+          placeholder={`Contoh: ${suggestedQty}`}
           inputMode="decimal"
         />
 
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
+        {/* Urgency */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ display: 'block', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, fontWeight: 600, color: TOKENS.ink, marginBottom: 8 }}>
             Tingkat Urgensi
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-            {Object.entries(URGENCY_META).map(([key, opt]) => {
-              const active = urgency === key;
+          <div style={{ display: 'flex', gap: 8 }}>
+            {URGENCY_OPTS.map(opt => {
+              const active = urgency === opt.key;
               return (
                 <button
-                  key={key}
-                  onClick={() => setUrgency(key)}
+                  key={opt.key}
+                  onClick={() => setUrgency(opt.key)}
                   style={{
-                    padding: '8px 6px', borderRadius: 10,
-                    border: `1.5px solid ${active ? opt.color : C.n200}`,
+                    flex: 1, padding: '8px 6px',
+                    borderRadius: 12,
+                    border: `1.5px solid ${active ? opt.fg : 'rgba(59,11,71,0.12)'}`,
                     background: active ? opt.bg : 'white',
-                    color: active ? opt.fg : C.n700,
-                    fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 500,
+                    color: active ? opt.fg : TOKENS.inkSoft,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    fontSize: 11, fontWeight: active ? 700 : 500,
                     cursor: 'pointer',
                   }}
                 >
-                  {opt.icon} {opt.label}
+                  {opt.label}
                 </button>
               );
             })}
@@ -972,138 +965,53 @@ function QuickRequestModal({ item, onClose, onSuccess }) {
           inputMode="numeric"
         />
 
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
+        {/* Reason */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, fontWeight: 600, color: TOKENS.ink, marginBottom: 6 }}>
             Alasan / Kebutuhan *
           </label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            placeholder={`Stok ${item.name} tinggal ${item.stockQty} ${item.unit} — minimum ${item.minStock}. Butuh tambahan segera.`}
+            placeholder={`Stok ${item.name} tinggal ${item.stockQty} ${item.unit} — minimum ${item.minStock}. Butuh tambahan.`}
             style={{
-              width: '100%', borderRadius: 10, padding: '10px 12px',
-              border: `1.5px solid ${C.n300}`,
-              fontFamily: 'Poppins', fontSize: 13, color: C.n900,
-              background: C.white, outline: 'none', resize: 'none',
-              boxSizing: 'border-box',
+              width: '100%', borderRadius: 12, padding: '10px 12px',
+              border: `1.5px solid rgba(59,11,71,0.15)`,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 13, color: TOKENS.ink, background: 'white',
+              outline: 'none', resize: 'none', boxSizing: 'border-box',
             }}
           />
         </div>
 
+        {/* Actions */}
         <div style={{ display: 'flex', gap: 8 }}>
-          <Btn variant="secondary" style={{ flex: 1 }} onClick={onClose}>Batal</Btn>
-          <Btn variant="primary" style={{ flex: 1 }} loading={loading} onClick={submit}>Kirim ke Admin</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function ResubmitModal({ request, onClose, onSuccess }) {
-  const [qty, setQty] = useState(String(request.qty ?? ''));
-  const [reason, setReason] = useState(request.reason || '');
-  const [urgency, setUrgency] = useState(request.urgency || 'normal');
-  const [estimatedPrice, setEstimatedPrice] = useState(request.estimatedPrice != null ? String(request.estimatedPrice) : '');
-  const [loading, setLoading] = useState(false);
-
-  const submit = async () => {
-    if (!Number(qty) || Number(qty) <= 0) { alertWarning('Jumlah harus lebih dari 0.'); return; }
-    if (!reason.trim()) { alertWarning('Alasan wajib diisi.'); return; }
-    setLoading(true);
-    try {
-      await axios.patch(`/api/purchase-requests/${request.id}/resubmit`, {
-        itemName: request.itemName,
-        brand: request.brand || null,
-        qty: Number(qty),
-        unit: request.unit,
-        estimatedPrice: estimatedPrice ? Number(estimatedPrice) : null,
-        urgency,
-        reason: reason.trim(),
-      });
-      alertSuccess('Pengajuan dikirim ulang ke admin.');
-      onSuccess();
-    } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal kirim ulang.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Modal visible onClose={onClose} title="✏️ Perbaiki Pengajuan">
-      <div style={{ padding: '8px 18px 18px' }}>
-        {request.adminNote && (
-          <div style={{
-            background: C.validationWarningBg, border: `1px solid ${C.warningBg}`,
-            borderRadius: 10, padding: '10px 12px', marginBottom: 14,
-            fontFamily: 'Poppins', fontSize: 11, color: C.validationWarningText, lineHeight: 1.5,
-          }}>
-            📝 <strong>Catatan admin:</strong><br />{request.adminNote}
-          </div>
-        )}
-
-        <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600 }}>{request.itemName}</div>
-        </div>
-
-        <Input label="Jumlah *" value={qty} onChange={(v) => setQty(v.replace(/[^\d.]/g, ''))} inputMode="decimal" />
-
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
-            Urgensi
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
-            {Object.entries(URGENCY_META).map(([key, opt]) => {
-              const active = urgency === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setUrgency(key)}
-                  style={{
-                    padding: '8px 6px', borderRadius: 10,
-                    border: `1.5px solid ${active ? opt.color : C.n200}`,
-                    background: active ? opt.bg : 'white',
-                    color: active ? opt.fg : C.n700,
-                    fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 500,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {opt.icon} {opt.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <Input
-          label="Estimasi harga (opsional)"
-          value={estimatedPrice}
-          onChange={(v) => setEstimatedPrice(v.replace(/[^\d]/g, ''))}
-          inputMode="numeric"
-        />
-
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ display: 'block', fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: '#3a3a3a', marginBottom: 6 }}>
-            Alasan *
-          </label>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
+          <button
+            onClick={onClose}
             style={{
-              width: '100%', borderRadius: 10, padding: '10px 12px',
-              border: `1.5px solid ${C.n300}`,
-              fontFamily: 'Poppins', fontSize: 13, color: C.n900,
-              background: C.white, outline: 'none', resize: 'none',
-              boxSizing: 'border-box',
+              flex: 1, padding: '12px', borderRadius: 14,
+              border: `1.5px solid rgba(59,11,71,0.15)`, background: 'white',
+              color: TOKENS.inkSoft, fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Btn variant="secondary" style={{ flex: 1 }} onClick={onClose}>Batal</Btn>
-          <Btn variant="primary" style={{ flex: 1 }} loading={loading} onClick={submit}>Kirim Ulang</Btn>
+          >
+            Batal
+          </button>
+          <button
+            onClick={submit}
+            disabled={loading}
+            style={{
+              flex: 1, padding: '12px', borderRadius: 14, border: 'none',
+              background: loading ? TOKENS.inkSoft : `linear-gradient(150deg, ${TOKENS.magenta}, ${TOKENS.purpleDeep})`,
+              color: 'white', fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 13, fontWeight: 700,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: `0 4px 14px rgba(91,0,95,0.35)`,
+            }}
+          >
+            {loading ? 'Mengirim...' : 'Kirim ke Admin'}
+          </button>
         </div>
       </div>
     </Modal>

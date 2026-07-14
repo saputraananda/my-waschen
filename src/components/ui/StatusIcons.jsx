@@ -652,7 +652,6 @@ export const STATUS_ICONS = {
 export const getIcon = (name, { size, color } = {}) => {
   const IconComponent = STATUS_ICONS[name];
   if (!IconComponent) {
-    console.warn(`[StatusIcons] Icon "${name}" not found`);
     return null;
   }
   return <IconComponent size={size} color={color} />;

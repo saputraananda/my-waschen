@@ -1,6 +1,7 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
-const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+const globalRoles = ['admin'];
 
 function buildOutletFilter(req, alias = 't') {
   const userRole = req.user?.roleCode;
@@ -88,7 +89,7 @@ export const getExecutiveSummary = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getExecutiveSummary]', err);
+    logger.error('Gagal memuat executive summary', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat executive summary.' });
   }
 };
@@ -149,7 +150,7 @@ export const getOutletPerformance = async (req, res) => {
 
     return res.json({ success: true, data: { outlets, period: { startDate, endDate, days } } });
   } catch (err) {
-    console.error('[getOutletPerformance]', err);
+    logger.error('Gagal memuat outlet performance', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat outlet performance.' });
   }
 };
@@ -209,7 +210,7 @@ export const getServiceAnalytics = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getServiceAnalytics]', err);
+    logger.error('Gagal memuat service analytics', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat service analytics.' });
   }
 };
@@ -271,7 +272,7 @@ export const getCashierPerformance = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getCashierPerformance]', err);
+    logger.error('Gagal memuat cashier performance', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat cashier performance.' });
   }
 };
@@ -347,7 +348,7 @@ export const getCustomerInsights = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getCustomerInsights]', err);
+    logger.error('Gagal memuat customer insights', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat customer insights.' });
   }
 };
@@ -477,7 +478,7 @@ export const getComparisonReport = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getComparisonReport]', err);
+    logger.error('Gagal memuat comparison report', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat comparison report.' });
   }
 };
@@ -615,7 +616,7 @@ export const getCohortAnalysis = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getCohortAnalysis]', err);
+    logger.error('Gagal memuat cohort analysis', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat cohort analysis.' });
   }
 };
@@ -719,7 +720,7 @@ export const getForecast = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getForecast]', err);
+    logger.error('Gagal membuat forecast', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal membuat forecast.' });
   }
 };
@@ -732,7 +733,7 @@ export const getOutletSummary = async (req, res) => {
   try {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
-    const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+    const isGlobalRole = ['admin'].includes(userRole);
 
     // Tentukan outlet yang dibaca
     let outletId = req.query.outletId || userOutletId;
@@ -1002,7 +1003,7 @@ export const getOutletSummary = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getOutletSummary]', err);
+    logger.error('Gagal memuat laporan outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat laporan outlet.' });
   }
 };
@@ -1044,7 +1045,7 @@ export const exportTransactions = async (req, res) => {
 
     return res.json({ success: true, data: rows, meta: { count: rows.length, startDate, endDate } });
   } catch (err) {
-    console.error('[exportTransactions]', err);
+    logger.error('Gagal mengekspor transaksi', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengekspor transaksi.' });
   }
 };
@@ -1070,7 +1071,7 @@ export const exportCustomers = async (req, res) => {
 
     return res.json({ success: true, data: rows, meta: { count: rows.length } });
   } catch (err) {
-    console.error('[exportCustomers]', err);
+    logger.error('Gagal mengekspor pelanggan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengekspor pelanggan.' });
   }
 };
@@ -1091,7 +1092,7 @@ export const exportServices = async (req, res) => {
 
     return res.json({ success: true, data: rows, meta: { count: rows.length } });
   } catch (err) {
-    console.error('[exportServices]', err);
+    logger.error('Gagal mengekspor layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengekspor layanan.' });
   }
 };
@@ -1118,7 +1119,7 @@ export const exportInventory = async (req, res) => {
 
     return res.json({ success: true, data: rows, meta: { count: rows.length } });
   } catch (err) {
-    console.error('[exportInventory]', err);
+    logger.error('Gagal mengekspor inventori', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengekspor inventori.' });
   }
 };
@@ -1152,7 +1153,7 @@ export const exportFinancialReport = async (req, res) => {
 
     return res.json({ success: true, data: rows, meta: { count: rows.length, startDate, endDate } });
   } catch (err) {
-    console.error('[exportFinancialReport]', err);
+    logger.error('Gagal mengekspor laporan keuangan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengekspor laporan keuangan.' });
   }
 };

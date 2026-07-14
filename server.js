@@ -61,10 +61,17 @@ import adminDashboardRoutes from './api/routes/adminDashboard.routes.js';
 import dashboardIntelligenceRoutes from './api/routes/dashboardIntelligence.routes.js';
 import deliveryRoutes from './api/routes/delivery.routes.js';
 import membershipRoutes from './api/routes/membership.routes.js';
+import membershipHistoryRoutes from './api/routes/membershipHistory.routes.js';
+import productionRoutes from './api/routes/production.routes.js';
 import refundRoutes from './api/routes/refund.routes.js';
 import segmentationRoutes from './api/routes/segmentation.routes.js';
 import birthdayRoutes from './api/routes/birthday.routes.js';
 import errorRoutes from './api/routes/error.routes.js';
+import adjustmentRoutes from './api/routes/adjustment.routes.js';
+import outstandingRoutes from './api/routes/outstanding.routes.js';
+import mergeRoutes from './api/routes/merge.routes.js';
+import dailyReportRoutes from './api/routes/dailyReport.routes.js';
+import pengajuanBelanjaRoutes from './api/routes/pengajuanBelanja.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -187,10 +194,17 @@ app.use('/api/admin-dashboard', adminDashboardRoutes);
 app.use('/api/dashboard-intelligence', dashboardIntelligenceRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/membership', membershipRoutes);
+app.use('/api/membership-history', membershipHistoryRoutes);
+app.use('/api/production', productionRoutes);
 app.use('/api/refunds', refundRoutes);
 app.use('/api/segmentation', segmentationRoutes);
 app.use('/api/birthday', birthdayRoutes);
 app.use('/api/errors', errorRoutes);
+app.use('/api/adjustments', adjustmentRoutes);
+app.use('/api/outstandings', outstandingRoutes);
+app.use('/api/merges', mergeRoutes);
+app.use('/api/daily-reports', dailyReportRoutes);
+app.use('/api/pengajuan-belanja', pengajuanBelanjaRoutes);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (req, res) => {

@@ -13,36 +13,47 @@ import LoginPage from './pages/auth/LoginPage';
 
 // Components
 import ShiftPromptModal from './components/ShiftPromptModal';
+import InstallPrompt from './components/InstallPrompt';
 import { useShiftEnforcement, screenNeedsShift } from './utils/useShiftEnforcement';
 
-// Kasir (frequently used - no lazy)
-import KasirDashboardPage from './pages/kasir/DashboardPage';
-import CustomerListPage from './pages/kasir/CustomerListPage';
-import TambahCustomerPage from './pages/kasir/TambahCustomerPage';
-import NotaStep1Page from './pages/kasir/NotaStep1Page';
-import NotaStep2Page from './pages/kasir/NotaStep2Page';
-import NotaStep3Page from './pages/kasir/NotaStep3Page';
-import NotaBerhasilPage from './pages/kasir/NotaBerhasilPage';
-import TransaksiListPage from './pages/kasir/TransaksiListPage';
-import DetailTransaksiPage from './pages/kasir/DetailTransaksiPage';
-import PelunasanPage from './pages/kasir/PelunasanPage';
-import CetakNotaPage from './pages/kasir/CetakNotaPage';
-import KasOutletPage from './pages/KasOutletPage';
-import KasApprovalPage from './pages/admin/KasApprovalPage';
-import AdminKasOverviewPage from './pages/admin/AdminKasOverviewPage';
-import PurchaseRequestApprovalPage from './pages/admin/PurchaseRequestApprovalPage';
-import RequestBarangPage from './pages/kasir/RequestBarangPage';
-import AllOutletStocksPage from './pages/admin/AllOutletStocksPage';
-import AdminSettingsPage from './pages/admin/AdminSettingsPage';
-import StokBahanPage from './pages/kasir/StokBahanPage';
-import KasirShiftPage from './pages/kasir/ShiftPage';
-import PrinterSettingsPage from './pages/kasir/PrinterSettingsPage';
-import KasirLaporanPage from './pages/kasir/LaporanPage';
-import CashDepositPage from './pages/kasir/CashDepositPage';
-import CashDepositApproval from './pages/admin/CashDepositApproval';
+// Lazy pages
+const KasirDashboardPage = lazy(() => import('./pages/kasir/DashboardPage'));
+const CustomerListPage = lazy(() => import('./pages/kasir/CustomerListPage'));
+const TambahCustomerPage = lazy(() => import('./pages/kasir/TambahCustomerPage'));
+const NotaStep1Page = lazy(() => import('./pages/kasir/NotaStep1Page'));
+const NotaStep2Page = lazy(() => import('./pages/kasir/NotaStep2Page'));
+const NotaStep3Page = lazy(() => import('./pages/kasir/NotaStep3Page'));
+const NotaBerhasilPage = lazy(() => import('./pages/kasir/NotaBerhasilPage'));
+const TransaksiListPage = lazy(() => import('./pages/kasir/TransaksiListPage'));
+const DetailTransaksiPage = lazy(() => import('./pages/kasir/DetailTransaksiPage'));
+const PelunasanPage = lazy(() => import('./pages/kasir/PelunasanPage'));
+const CetakNotaPage = lazy(() => import('./pages/kasir/CetakNotaPage'));
+const KasOutletPage = lazy(() => import('./pages/KasOutletPage'));
+const KasApprovalPage = lazy(() => import('./pages/admin/KasApprovalPage'));
+const AdminKasOverviewPage = lazy(() => import('./pages/admin/AdminKasOverviewPage'));
+const PurchaseRequestApprovalPage = lazy(() => import('./pages/admin/PurchaseRequestApprovalPage'));
+const RequestBarangPage = lazy(() => import('./pages/kasir/RequestBarangPage'));
+const AllOutletStocksPage = lazy(() => import('./pages/admin/AllOutletStocksPage'));
+const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'));
+const SegmentasiPage = lazy(() => import('./pages/admin/SegmentasiPage'));
+const StokBahanPage = lazy(() => import('./pages/kasir/StokBahanPage'));
+const KasirShiftPage = lazy(() => import('./pages/kasir/ShiftPage'));
+const PrinterSettingsPage = lazy(() => import('./pages/kasir/PrinterSettingsPage'));
+const KasirLaporanPage = lazy(() => import('./pages/kasir/LaporanPage'));
+const CashDepositPage = lazy(() => import('./pages/kasir/CashDepositPage'));
+const CashDepositApproval = lazy(() => import('./pages/admin/CashDepositApproval'));
+const KasirRefundPage = lazy(() => import('./pages/kasir/RefundListPage'));
+const KasirSegmentasiPage = lazy(() => import('./pages/kasir/SegmentasiPage'));
+const RefundPage = lazy(() => import('./pages/kasir/RefundPage'));
+const AdjustmentListPage = lazy(() => import('./pages/kasir/AdjustmentListPage'));
+const OutstandingListPage = lazy(() => import('./pages/kasir/OutstandingListPage'));
+const MergeTransactionPage = lazy(() => import('./pages/kasir/MergeTransactionPage'));
+const DailyReportPage = lazy(() => import('./pages/kasir/DailyReportPage'));
+const PengajuanBelanjaPage = lazy(() => import('./pages/kasir/PengajuanBelanjaPage'));
+const TargetPage = lazy(() => import('./pages/kasir/TargetPage'));
 
-// Admin Dashboard (frequently used - no lazy)
-import AdminDashboardPage from './pages/admin/DashboardPage';
+// Admin Dashboard
+const AdminDashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
 
 // Admin pages (lazy loaded for performance)
 const ManajemenUserPage = lazy(() => import('./pages/admin/ManajemenUserPage'));
@@ -50,9 +61,9 @@ const ManajemenOutletPage = lazy(() => import('./pages/admin/ManajemenOutletPage
 const ManajemenLayananPage = lazy(() => import('./pages/admin/ManajemenLayananPage'));
 const KelolaLayananOutletPage = lazy(() => import('./pages/admin/KelolaLayananOutletPage'));
 const AdminLaporanPage = lazy(() => import('./pages/admin/AdminLaporanPage'));
-// ApprovalCenterPage & InventoryMasterPage: non-lazy (frequently used)
-import ApprovalCenterPage from './pages/admin/ApprovalCenterPage';
-import InventoryMasterPage from './pages/admin/InventoryMasterPage';
+// ApprovalCenterPage & InventoryMasterPage
+const ApprovalCenterPage = lazy(() => import('./pages/admin/ApprovalCenterPage'));
+const AdminInventoryPage = lazy(() => import('./pages/admin/AdminInventoryPage'));
 const AdminShiftReportPage = lazy(() => import('./pages/admin/AdminShiftReportPage'));
 const AdminSubSessionPage = lazy(() => import('./pages/admin/AdminSubSessionPage'));
 const AdminPromoSlaStokPage = lazy(() => import('./pages/admin/AdminPromoSlaStokPage'));
@@ -69,35 +80,35 @@ const ForecastPage = lazy(() => import('./pages/admin/ForecastPage'));
 const SetorApprovalPage = lazy(() => import('./pages/admin/SetorApprovalPage'));
 
 // Produksi
-import ProduksiDashboardPage from './pages/produksi/DashboardPage';
-import ProduksiAntrianPage from './pages/produksi/AntrianPage';
-import DetailItemProduksiPage from './pages/produksi/DetailItemPage';
-import FotoKondisiPage from './pages/produksi/FotoKondisiPage';
-import ProduksiQRScanPage from './pages/produksi/QRScanPage';
-import ProduksiRiwayatPage from './pages/produksi/RiwayatPage';
-import DetailRiwayatProduksiPage from './pages/produksi/DetailRiwayatProduksiPage';
-import ProduksiNotifikasiPage from './pages/produksi/NotifikasiPage';
+const ProduksiDashboardPage = lazy(() => import('./pages/produksi/DashboardPage'));
+const ProduksiAntrianPage = lazy(() => import('./pages/produksi/AntrianPage'));
+const DetailItemProduksiPage = lazy(() => import('./pages/produksi/DetailItemPage'));
+const FotoKondisiPage = lazy(() => import('./pages/produksi/FotoKondisiPage'));
+const ProduksiQRScanPage = lazy(() => import('./pages/produksi/QRScanPage'));
+const ProduksiRiwayatPage = lazy(() => import('./pages/produksi/RiwayatPage'));
+const DetailRiwayatProduksiPage = lazy(() => import('./pages/produksi/DetailRiwayatProduksiPage'));
+const ProduksiNotifikasiPage = lazy(() => import('./pages/produksi/NotifikasiPage'));
+const ProduksiStokPage = lazy(() => import('./pages/produksi/StokPage'));
 
 // Finance (lazy loaded for performance)
 const FinanceDashboardPage = lazy(() => import('./pages/finance/DashboardPage'));
 const VerifikasiPaymentPage = lazy(() => import('./pages/finance/VerifikasiPaymentPage'));
 const LaporanKeuanganPage = lazy(() => import('./pages/finance/LaporanKeuanganPage'));
-
 // Member
-import DetailCustomerPage from './pages/member/DetailCustomerPage';
-import TopupDepositPage from './pages/member/TopupDepositPage';
-import DaftarMemberPage from './pages/member/DaftarMemberPage';
-import MembershipRegistrationPage from './pages/member/MembershipRegistrationPage';
+const DetailCustomerPage = lazy(() => import('./pages/member/DetailCustomerPage'));
+const TopupDepositPage = lazy(() => import('./pages/member/TopupDepositPage'));
+const DaftarMemberPage = lazy(() => import('./pages/member/DaftarMemberPage'));
+const MembershipRegistrationPage = lazy(() => import('./pages/member/MembershipRegistrationPage'));
 
 // Delivery
-import DriverDashboardPage from './pages/delivery/DashboardPage';
+const DriverDashboardPage = lazy(() => import('./pages/delivery/DashboardPage'));
 
 // Shared pages
-import SettingsPage from './pages/SettingsPage';
-import KebijakanPrivasiPage from './pages/KebijakanPrivasiPage';
-import NotifikasiPage from './pages/NotifikasiPage';
-import ProfilePage from './pages/ProfilePage';
-import SetorTunaiPage from './pages/kasir/SetorTunaiPage';
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const KebijakanPrivasiPage = lazy(() => import('./pages/KebijakanPrivasiPage'));
+const NotifikasiPage = lazy(() => import('./pages/NotifikasiPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const SetorTunaiPage = lazy(() => import('./pages/kasir/SetorTunaiPage'));
 
 // ── Lazy Loading Fallback ─────────────────────────────────────────────────────
 const PageLoader = () => (
@@ -155,6 +166,8 @@ const LazyAdminPeriodClosePage = withSuspense(AdminPeriodClosePage);
 const LazyComparisonReportPage = withSuspense(ComparisonReportPage);
 const LazyForecastPage = withSuspense(ForecastPage);
 const LazySetorApprovalPage = withSuspense(SetorApprovalPage);
+const AdminRefundPage = lazy(() => import('./pages/admin/RefundListPage'));
+const LazyAdminRefundPage = withSuspense(AdminRefundPage);
 const LazyFinanceDashboardPage = withSuspense(FinanceDashboardPage);
 const LazyVerifikasiPaymentPage = withSuspense(VerifikasiPaymentPage);
 const LazyLaporanKeuanganPage = withSuspense(LaporanKeuanganPage);
@@ -162,14 +175,15 @@ const LazyLaporanKeuanganPage = withSuspense(LaporanKeuanganPage);
 const SCREENS_NO_NAV = new Set([
   'splash', 'login', 'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
   'tambah_customer', 'detail_item_produksi', 'foto_kondisi', 'detail_riwayat_produksi',
-  'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'notifikasi', 'notifikasi_produksi', 'pelunasan',
+  'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'topup', 'notifikasi', 'notifikasi_produksi', 'pelunasan',
   'membership_register',
   'kas_outlet', 'kas_approval', 'admin_kas_overview', 'pengadaan_barang', 'approval_pengadaan_barang', 'daftar_pengadaan_barang',
-  'request_barang', 'admin_purchase_requests', 'admin_all_outlet_stocks', 'admin_settings',
+  'request_barang', 'admin_purchase_requests', 'admin_all_outlet_stocks', 'admin_settings', 'admin_segmentasi',
   'manajemen_user', 'manajemen_layanan', 'kelola_layanan_outlet', 'admin_promo_sla', 'admin_promo', 'admin_stok', 'kasir_stok_bahan', 'birthday', 'error_dashboard',
   'profil', 'buka_shift', 'tutup_shift', 'oper_shift', 'setor_tunai', 'admin_laporan', 'admin_shift', 'setor_approval', 'info_outlet', 'rekap_pendapatan',
   'kasir_antrian', 'kasir_siap_ambil', 'kasir_laporan', 'printer_settings', 'general_report', 'admin_target', 'admin_target_detail', 'admin_period_close',
   'comparison_report', 'forecast', 'laporan_per_outlet', 'manajemen_outlet', 'kebijakan_privasi',
+  'kasir_refund', 'admin_refund', 'adjustment_list', 'adjustment_detail', 'outstanding_list', 'outstanding_detail', 'petty_cash', 'merge_transaction', 'daily_report', 'ap_request', 'target_page', 'pengajuan_belanja',
 ]);
 
 function AppInner() {
@@ -329,6 +343,8 @@ function AppInner() {
         return <AdminKasOverviewPage navigate={navigate} goBack={goBack} />;
       case 'pengadaan_barang':
       case 'request_barang': // alias lama
+        // Only kasir/frontliner and admin can request goods
+        if (!CASHIER_ROLES.has(user.roleCode) && !isAdminUser) return renderUnauthorized();
         return <RequestBarangPage navigate={navigate} goBack={goBack} screenParams={screenParams} preselectedItem={screenParams?.preselectedItem} />;
       case 'approval_pengadaan_barang':
       case 'daftar_pengadaan_barang': // alias — digabung ke approval
@@ -341,6 +357,9 @@ function AppInner() {
       case 'admin_settings':
         if (!isAdminUser) return renderUnauthorized();
         return <AdminSettingsPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'admin_segmentasi':
+        if (!isAdminUser) return renderUnauthorized();
+        return <SegmentasiPage navigate={navigate} goBack={goBack} />;
 
       case 'notifikasi_produksi':
         return <ProduksiNotifikasiPage navigate={navigate} />;
@@ -351,6 +370,9 @@ function AppInner() {
         }
         // Kasir/admin: halaman Antrian & Nota terintegrasi
         return <TransaksiListPage navigate={navigate} screenParams={{ status: 'active', ...screenParams }} />;
+      case 'stok_produksi':
+        if (!isProduksi(user)) return renderUnauthorized();
+        return <ProduksiStokPage navigate={navigate} goBack={goBack} user={user} />;
       case 'detail_item_produksi':
         return <DetailItemProduksiPage navigate={navigate} goBack={goBack} screenParams={screenParams} user={user} />;
       case 'foto_kondisi':
@@ -386,9 +408,14 @@ function AppInner() {
       case 'admin_stok':
       case 'admin_inventory':
         if (!isAdminUser) return renderUnauthorized();
-        return <InventoryMasterPage goBack={goBack} />;
+        return <AdminInventoryPage goBack={goBack} />;
+      case 'inventaris':
+        // Inventaris sudah digabung ke menu fitur inventory
+        // Alihkan ke halaman stok bahan (legacy alias)
+        return <StokBahanPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'kasir_stok_bahan':
         return <StokBahanPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+
       case 'kasir_antrian':
         // Redirect ke halaman Antrian & Nota terintegrasi dengan filter aktif
         return <TransaksiListPage navigate={navigate} screenParams={{ status: 'active', ...screenParams }} />;
@@ -399,6 +426,12 @@ function AppInner() {
         return <KasirShiftPage navigate={navigate} goBack={goBack} />;
       case 'kasir_laporan':
         return <KasirLaporanPage navigate={navigate} goBack={goBack} />;
+      case 'kasir_refund':
+        return <KasirRefundPage navigate={navigate} goBack={goBack} />;
+      case 'kasir_segmentasi':
+        return <KasirSegmentasiPage navigate={navigate} goBack={goBack} />;
+      case 'refund_form':
+        return <RefundPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'printer_settings':
         return <PrinterSettingsPage navigate={navigate} goBack={goBack} />;
       case 'cash_deposit':
@@ -409,6 +442,23 @@ function AppInner() {
       case 'approval':
         if (!isAdminUser) return renderUnauthorized();
         return <ApprovalCenterPage goBack={goBack} />;
+      case 'admin_refund':
+        if (!isAdminUser) return renderUnauthorized();
+        return <LazyAdminRefundPage navigate={navigate} goBack={goBack} />;
+      case 'adjustment_list':
+        return <AdjustmentListPage navigate={navigate} goBack={goBack} />;
+      case 'merge_transaction':
+        return <MergeTransactionPage navigate={navigate} />;
+      case 'outstanding_list':
+        return <OutstandingListPage navigate={navigate} goBack={goBack} />;
+      case 'outstanding_detail':
+        // Detail page belum ada — redirect ke daftar
+        return <OutstandingListPage navigate={navigate} goBack={goBack} />;
+      case 'ap_request':
+      case 'pengajuan_belanja':
+        return <PengajuanBelanjaPage navigate={navigate} goBack={goBack} />;
+      case 'target_page':
+        return <TargetPage navigate={navigate} goBack={goBack} />;
       case 'admin_laporan':
         if (!isAdminUser) return renderUnauthorized();
         return <LazyAdminLaporanPage navigate={navigate} goBack={goBack} />;
@@ -434,7 +484,7 @@ function AppInner() {
         return <LazyAdminTargetPage navigate={navigate} goBack={goBack} />;
       case 'admin_target_detail':
         if (!isAdminUser) return renderUnauthorized();
-        return <LazyAdminTargetDetailPage navigate={navigate} goBack={goBack} screenParams={screenParams} />
+        return <LazyAdminTargetDetailPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'admin_period_close':
         if (!isAdminUser) return renderUnauthorized();
         return <LazyAdminPeriodClosePage navigate={navigate} goBack={goBack} />;
@@ -455,6 +505,9 @@ function AppInner() {
 
       case 'topup_deposit':
         return <TopupDepositPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+
+      case 'topup':
+        return <TopupDepositPage navigate={navigate} goBack={goBack} />;
 
       case 'membership_register':
         return <MembershipRegistrationPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
@@ -551,13 +604,16 @@ function AppInner() {
               }}
               style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
             >
-              {renderScreen()}
+              <Suspense fallback={<PageLoader />}>
+                {renderScreen()}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </GlobalPullToRefresh>
       </ErrorBoundary>
 
       <OfflineIndicator online={online} />
+      <InstallPrompt />
 
       {showNav && (
         <BottomNav role={user.roleCode || user.role} active={navActive} navigate={navigate} />

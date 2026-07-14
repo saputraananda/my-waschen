@@ -4,9 +4,10 @@
 // Integrated with sub-session for multi-user accountability
 // ══════════════════════════════════════════════════════════════════════════════
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 const SHIFT_ENUM = new Set(['pagi', 'siang', 'malam', 'full']);
-const ADMIN_ROLES = new Set(['admin', 'finance', 'superadmin', 'owner']);
+const ADMIN_ROLES = ['admin'];
 
 // ─── Helper: Admin assertion ─────────────────────────────────────────────────
 const assertAdmin = (req, res) => {
@@ -179,7 +180,7 @@ export const getShiftStatus = async (req, res) => {
         : null,
     });
   } catch (err) {
-    console.error('[getShiftStatus] Error:', err);
+    logger.error('Gagal mengecek status shift', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengecek status shift.' });
   }
 };
@@ -263,7 +264,7 @@ export const openShift = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[openShift] Error:', err);
+    logger.error('Gagal membuka shift', { error: err.message });
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({
         success: false,
@@ -385,7 +386,7 @@ export const getShiftCurrentSummary = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getShiftCurrentSummary] Error:', err);
+    logger.error('Gagal memuat ringkasan shift', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat ringkasan shift.' });
   }
 };
@@ -577,7 +578,7 @@ export const closeShift = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[closeShift] Error:', err);
+    logger.error('Gagal menutup shift', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menutup shift.' });
   }
 };
@@ -708,7 +709,7 @@ export const listShiftSessions = async (req, res) => {
 
     return res.json({ success: true, data });
   } catch (err) {
-    console.error('[listShiftSessions]', err);
+    logger.error('Gagal memuat riwayat shift', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat riwayat shift.' });
   }
 };
@@ -764,7 +765,7 @@ export const getShiftOutletSummary = async (req, res) => {
 
     return res.json({ success: true, data, meta: { dateFrom, dateTo } });
   } catch (err) {
-    console.error('[getShiftOutletSummary]', err);
+    logger.error('Gagal ringkasan shift per outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal ringkasan shift per outlet.' });
   }
 };
@@ -851,7 +852,7 @@ export const exportShiftReport = async (req, res) => {
 
     return res.json({ success: true, data, meta: { dateFrom: from, dateTo: to } });
   } catch (err) {
-    console.error('[exportShiftReport]', err);
+    logger.error('Gagal export laporan shift', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal export laporan shift.' });
   }
 };
@@ -962,7 +963,7 @@ export const handoverShift = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[handoverShift]', err);
+    logger.error('Gagal oper shift', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal oper shift.' });
   }
 };
@@ -1043,7 +1044,7 @@ export const acceptHandover = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[acceptHandover]', err);
+    logger.error('Gagal terima operan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal terima operan.' });
   }
 };
@@ -1086,7 +1087,106 @@ export const getPendingHandover = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getPendingHandover]', err);
+    logger.error('Gagal cek operan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal cek operan.' });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/shifts/my-stats
+// Stats for profile page - by period
+// Returns: totalShifts, totalTransactions, totalRevenue
+// ══════════════════════════════════════════════════════════════════════════════
+export const getMyStats = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const { start_date, end_date } = req.query;
+
+    let dateFilter = '';
+    const params = [userId];
+
+    if (start_date) {
+      dateFilter += ' AND cs.opened_at >= ?';
+      params.push(start_date);
+    }
+    if (end_date) {
+      dateFilter += ' AND cs.opened_at <= ?';
+      params.push(end_date);
+    }
+
+    // Get shift count
+    const [shiftRows] = await poolWaschenPos.execute(
+      `SELECT COUNT(*) AS totalShifts
+       FROM tr_cashier_session cs
+       WHERE cs.cashier_id = ? AND cs.status = 'closed' AND cs.deleted_at IS NULL${dateFilter}`,
+      params
+    );
+
+    // Get transaction count and total revenue
+    const [txRows] = await poolWaschenPos.execute(
+      `SELECT COUNT(DISTINCT t.id) AS totalTransactions,
+              COALESCE(SUM(t.total), 0) AS totalRevenue
+       FROM tr_transaction t
+       JOIN tr_cashier_session cs ON cs.id = t.session_id
+       WHERE cs.cashier_id = ? AND t.deleted_at IS NULL
+         AND t.status NOT IN ('cancelled', 'pending')${dateFilter}`,
+      params
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        totalShifts: Number(shiftRows[0]?.totalShifts || 0),
+        totalTransactions: Number(txRows[0]?.totalTransactions || 0),
+        totalRevenue: Number(txRows[0]?.totalRevenue || 0),
+      },
+    });
+  } catch (err) {
+    logger.error('Gagal mengambil statistik shift', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Gagal mengambil statistik.' });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/shifts/my-history
+// Shift history for profile page
+// Returns: list of closed shifts with details
+// ══════════════════════════════════════════════════════════════════════════════
+export const getMyHistory = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    // Clamp limit to safe range and convert to number
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 10));
+
+    // Use query() instead of execute() for LIMIT clause to avoid type issues
+    const [rows] = await poolWaschenPos.query(
+      `SELECT cs.id, cs.session_date, cs.shift, cs.opened_at, cs.closed_at,
+              cs.opening_cash, cs.closing_cash, cs.system_cash, cs.cash_diff,
+              cs.status, u.name AS cashierName
+       FROM tr_cashier_session cs
+       JOIN mst_user u ON u.id = cs.cashier_id
+       WHERE cs.cashier_id = ? AND cs.deleted_at IS NULL
+       ORDER BY cs.closed_at DESC
+       LIMIT ?`,
+      [userId, limit]
+    );
+
+    const data = rows.map(r => ({
+      id: r.id,
+      openedAt: r.opened_at,
+      closedAt: r.closed_at,
+      shiftType: r.shift || 'Regular',
+      cashierName: r.cashierName,
+      openingCash: Number(r.opening_cash || 0),
+      closingCash: Number(r.closing_cash || 0),
+      systemCash: Number(r.system_cash || 0),
+      cashDiff: Number(r.cash_diff || 0),
+      status: r.status,
+    }));
+
+    return res.json({ success: true, data });
+  } catch (err) {
+    logger.error('Gagal mengambil riwayat shift', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Gagal mengambil riwayat shift.' });
   }
 };

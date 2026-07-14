@@ -65,7 +65,7 @@ export const parseRupiah = (value) => {
 };
 
 
-export const STAGES = ['Diterima', 'Cuci', 'Setrika', 'Packing', 'Selesai'];
+export const STAGES = ['Diterima', 'Packing', 'Selesai'];
 
 // Status colors — Design System v1.0 (Juni 2026)
 // Single source of truth untuk warna status badge di seluruh app.

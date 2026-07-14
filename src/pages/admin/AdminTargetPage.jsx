@@ -4,6 +4,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Input, Select, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertConfirm } from '../../utils/alert';
+import { useResponsive } from '../../utils/hooks';
 
 const MONTHS = [
   { value: 1, label: 'Januari' },  { value: 2, label: 'Februari' },
@@ -40,6 +41,7 @@ function ProgressBar({ pct, color }) {
 }
 
 export default function AdminTargetPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const now = new Date();
   const [year, setYear]         = useState(now.getFullYear());
   const [month, setMonth]       = useState(now.getMonth() + 1);
@@ -141,8 +143,8 @@ export default function AdminTargetPage({ navigate, goBack }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 80px' }}>
 
         {/* Filter bar */}
-        <div style={{ background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12, boxShadow: SHADOW.md }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+        <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? '12px' : '14px 16px', marginBottom: 12, boxShadow: SHADOW.md }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <Select label="Tahun" value={year} onChange={v => setYear(Number(v))} options={YEAR_RANGE} />
             <Select label="Bulan" value={month} onChange={v => setMonth(v ? Number(v) : '')} options={monthOptions} />
           </div>
@@ -265,11 +267,11 @@ export default function AdminTargetPage({ navigate, goBack }) {
                   )}
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                     <Btn
                       variant="primary"
                       onClick={() => navigate('admin_target_detail', { outletId: row.outletId, year: row.year, month: row.month })}
-                      style={{ flex: 1.5, padding: '8px 0', fontSize: 12 }}
+                      style={{ flex: isMobile ? 1 : 1.5, padding: '8px 0', fontSize: 12 }}
                     >📊 Lihat Detail Harian</Btn>
                     <Btn variant="secondary" onClick={() => openEdit(row)} style={{ flex: 1, padding: '8px 0', fontSize: 12 }}>✏️ Edit</Btn>
                     <Btn variant="danger" onClick={() => handleDelete(row)} style={{ flex: 1, padding: '8px 0', fontSize: 12 }}>🗑️</Btn>
@@ -305,7 +307,7 @@ export default function AdminTargetPage({ navigate, goBack }) {
       <Modal visible={!!modal} onClose={() => setModal(false)} title={modal === 'add' ? '🎯 Tambah Target' : '✏️ Edit Target'}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 4px 0' }}>
           <Select label="Outlet" value={formOutlet} onChange={setFormOutlet} options={outletFormOptions} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8 }}>
             <Select label="Bulan" value={formMonth} onChange={v => setFormMonth(Number(v))} options={monthFormOptions} />
             <Select label="Tahun" value={formYear} onChange={v => setFormYear(Number(v))} options={YEAR_RANGE} />
           </div>

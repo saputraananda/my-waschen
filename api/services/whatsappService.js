@@ -37,7 +37,8 @@ async function getOutletInfo(outletId) {
   return { name: 'Outlet Kami', address: '', phone: '' };
 }
 
-// Helper: Send WhatsApp notification (placeholder for real API integration)
+// Helper: Send WhatsApp notification via wa.me clickable links
+// Returns a wa.me URL that can be opened by the user
 export const sendWhatsAppNotification = async ({
   toPhone,
   template,
@@ -47,30 +48,94 @@ export const sendWhatsAppNotification = async ({
     const formattedPhone = formatPhoneNumber(toPhone);
     if (!formattedPhone) {
       console.warn('[whatsappService] Invalid phone number:', toPhone);
-      return { success: false, message: 'Invalid phone number' };
+      return { success: false, message: 'Invalid phone number', waMeUrl: null };
     }
 
-    // TODO: Replace with actual WhatsApp Business API / webhook integration
-    // Examples:
-    // - WhatsApp Business API
-    // - Wati
-    // - Twilio
-    // - ChatAPI
+    // Build wa.me URL with pre-filled message
+    const message = buildTemplateMessage(template, variables);
+    const encodedMessage = encodeURIComponent(message);
+    const waMeUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
 
-    // For now, log the notification as a placeholder
-    console.log('[whatsappService] Sending WhatsApp notification:', {
+    console.log('[whatsappService] Generated wa.me link:', {
       to: formattedPhone,
       template,
-      variables,
+      waMeUrl,
     });
 
-    // Return success for now
-    return { success: true, message: 'Notification sent (placeholder)' };
+    // Return success with wa.me URL
+    return {
+      success: true,
+      message: 'wa.me link generated',
+      waMeUrl,
+      phone: formattedPhone,
+    };
   } catch (error) {
-    console.error('[whatsappService] Error sending notification:', error);
-    return { success: false, message: error.message };
+    console.error('[whatsappService] Error generating wa.me link:', error);
+    return { success: false, message: error.message, waMeUrl: null };
   }
 };
+
+// Build message from template and variables
+function buildTemplateMessage(template, variables) {
+  const { customerName, transactionNo, totalAmount, newStatus, outletName, outletPhone, pickupType } = variables;
+
+  const templates = {
+    order_created: `Halo ${customerName}! Terima kasih sudah order di Wäschen.
+
+📋 No. Nota: ${transactionNo}
+💰 Total: ${totalAmount}
+
+Pesanan Anda sedang diproses. Kami akan informasikan saat selesai!`,
+
+    order_status_updated: `Halo ${customerName}!
+
+📋 No. Nota: ${transactionNo}
+📦 Status: ${newStatus}
+
+Terima kasih sudah mempercayakan laundry ke Wäschen! 🙏`,
+
+    order_ready: `Halo ${customerName}! 🎉
+
+📋 No. Nota: ${transactionNo}
+✅ Pesanan Anda sudah SELESAI dan siap diambil!
+
+📍 ${outletName}
+📞 ${outletPhone}
+
+Terima kasih! 💐`,
+
+    production_ready: `Halo ${customerName}! 🎉
+
+📋 No. Nota: ${transactionNo}
+✅ Pesanan sudah selesai dan ${pickupType === 'delivery' ? 'siap diantar!' : 'siap diambil!'}
+
+${pickupType === 'delivery' ? `Driver akan segera mengantar ke alamat Anda.` : `Silakan datang ke outlet kami. Terima kasih! 🙏`}`,
+
+    pickup_reminder: `Halo ${customerName}! 👋
+
+📋 No. Nota: ${transactionNo}
+📦 Pesanan sudah selesai dan siap diambil.
+
+Mohon diambil dalam 7 hari ya. Terima kasih! 🙏`,
+
+    delay_warning: `Halo ${customerName},
+
+Mohon maaf atas keterlambatan pemrosesan pesanan Anda.
+
+📋 No. Nota: ${transactionNo}
+⏰ Kami sedang berusaha menyelesaikan secepat mungkin.
+
+Terima kasih atas kesabarannya! 🙏`,
+
+    default: `Halo ${customerName}!
+
+📋 No. Nota: ${transactionNo}
+
+Terima kasih sudah order di Wäschen! 💐`,
+  };
+
+  return templates[template] || templates.default;
+}
 
 // Template: Order created
 export const sendOrderCreatedNotification = async (customer, transaction) => {

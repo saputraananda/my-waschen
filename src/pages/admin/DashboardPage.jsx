@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { Avatar, useAppRefresh } from '../../components/ui';
+import { useResponsive } from '../../utils/hooks';
+import { Avatar, useAppRefresh, StatCard, StatCardGrid, ChartCard, ChartCardGrid } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -68,6 +69,7 @@ const GlowOrb = ({ color = 'rgba(91, 0, 95, 0.08)', size = 200, top, left, right
 // ─── Collapsible Section Component ─────────────────────────────────────────────
 function CollapsibleSection({ title, icon, defaultOpen = false, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const { isMobile } = useResponsive();
 
   return (
     <motion.div
@@ -75,7 +77,7 @@ function CollapsibleSection({ title, icon, defaultOpen = false, children }) {
       animate={{ opacity: 1, y: 0 }}
       style={{
         background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-        borderRadius: 22,
+        borderRadius: isMobile ? 16 : 22,
         marginBottom: 14,
         overflow: 'hidden',
         boxShadow: '12px 12px 28px rgba(60, 10, 99, 0.12), -6px -6px 16px rgba(255, 255, 255, 0.95)',
@@ -92,7 +94,7 @@ function CollapsibleSection({ title, icon, defaultOpen = false, children }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '16px 20px',
+          padding: isMobile ? '14px 16px' : '16px 20px',
           background: 'transparent',
           border: 'none',
           cursor: 'pointer',
@@ -101,7 +103,7 @@ function CollapsibleSection({ title, icon, defaultOpen = false, children }) {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 18 }}>{icon}</span>
-          <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, color: C.n800 }}>
+          <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: isMobile ? 13 : 14, fontWeight: 700, color: C.n800 }}>
             {title}
           </span>
         </div>
@@ -123,7 +125,7 @@ function CollapsibleSection({ title, icon, defaultOpen = false, children }) {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             style={{ overflow: 'hidden' }}
           >
-            <div style={{ padding: '0 20px 18px' }}>
+            <div style={{ padding: isMobile ? '0 16px 14px' : '0 20px 18px' }}>
               {children}
             </div>
           </motion.div>
@@ -135,6 +137,7 @@ function CollapsibleSection({ title, icon, defaultOpen = false, children }) {
 
 export default function AdminDashboardPage({ user, navigate }) {
   const { adminOutletId, setAdminOutletId } = useApp();
+  const { isMobile, isTablet, isDesktop, md, lg } = useResponsive();
   const [outlets, setOutlets] = useState([]);
   const [period, setPeriod] = useState('today');
   const [stats, setStats] = useState({
@@ -156,6 +159,19 @@ export default function AdminDashboardPage({ user, navigate }) {
   const [metricsPeriod, setMetricsPeriod] = useState('today');
   const [targetDaily, setTargetDaily] = useState(null);
   const [loadingDailyTarget, setLoadingDailyTarget] = useState(false);
+
+  // Responsive spacing values
+  const headerPadding = isMobile ? '14px 14px 36px' : '18px 20px 40px';
+  const contentPadding = isMobile ? '0 12px' : '0 16px';
+  const cardPadding = isMobile ? '16px 14px' : '20px 18px';
+  const cardRadius = isMobile ? 18 : 22;
+  const sectionCardRadius = isMobile ? 16 : 20;
+  const fontSize = {
+    hero: isMobile ? 18 : 22,
+    section: isMobile ? 12 : 13,
+    label: isMobile ? 10 : 11,
+    stat: isMobile ? 18 : 22,
+  };
 
   useEffect(() => {
     axios.get('/api/master/outlets').then((r) => {
@@ -199,7 +215,7 @@ export default function AdminDashboardPage({ user, navigate }) {
       setCashDepositStatus(depositRes?.data?.data || []);
       setPaymentTrend(paymentRes?.data?.data || []);
     } catch (err) {
-      console.error('Failed to fetch charts:', err);
+      // Error handled silently
     } finally {
       setLoadingCharts(false);
     }
@@ -216,7 +232,7 @@ export default function AdminDashboardPage({ user, navigate }) {
       const res = await axios.get('/api/dashboard-intelligence/target-daily');
       if (res?.data?.data) setTargetDaily(res.data.data);
     } catch (err) {
-      console.error('Failed to fetch daily target:', err);
+      // Error handled silently
     } finally {
       setLoadingDailyTarget(false);
     }
@@ -250,12 +266,17 @@ export default function AdminDashboardPage({ user, navigate }) {
   const periodLabel = period === 'today' ? 'Hari Ini' : period === 'month' ? 'Bulan Ini' : 'Akumulasi';
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'linear-gradient(180deg, #F8F4FF 0%, #F1F5F9 50%, #E8EEF5 100%)' }}>
+    <div style={{
+      flex: 1,
+      overflowY: 'auto',
+      paddingBottom: isMobile ? 80 : 100,
+      background: 'linear-gradient(180deg, #F8F4FF 0%, #F1F5F9 50%, #E8EEF5 100%)'
+    }}>
 
       {/* ── HEADER — glassmorphism gradient with animated blobs ── */}
       <div style={{
         background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
-        padding: '18px 20px 40px',
+        padding: headerPadding,
         position: 'relative',
         overflow: 'hidden',
       }}>
@@ -284,7 +305,7 @@ export default function AdminDashboardPage({ user, navigate }) {
 
         {/* Sparkles */}
         <div style={{
-          position: 'absolute', top: 25, right: 140,
+          position: 'absolute', top: 25, right: isMobile ? 100 : 140,
           fontSize: 14, animation: 'twinkle 2s ease-in-out infinite',
         }}>✨</div>
         <div style={{
@@ -292,28 +313,58 @@ export default function AdminDashboardPage({ user, navigate }) {
           fontSize: 12, animation: 'twinkle 2.5s ease-in-out infinite 0.5s',
         }}>⭐</div>
 
+        {/* Responsive header layout */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', position: 'relative', paddingLeft: 16 }}
+          style={{
+            display: 'flex',
+            alignItems: isMobile ? 'center' : 'flex-start',
+            justifyContent: 'space-between',
+            position: 'relative',
+            paddingLeft: isMobile ? 8 : 16,
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? 16 : 0,
+          }}
         >
-          <div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 }}>Selamat datang,</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: 'white', marginTop: 4, letterSpacing: '-0.3px', textShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+          {/* User info - on mobile center-aligned */}
+          <div style={{
+            textAlign: isMobile ? 'center' : 'left',
+            width: isMobile ? '100%' : 'auto',
+          }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 }}>Selamat datang,</div>
+            <div style={{
+              fontFamily: 'Poppins',
+              fontSize: fontSize.hero,
+              fontWeight: 800,
+              color: 'white',
+              marginTop: 4,
+              letterSpacing: '-0.3px',
+              textShadow: '0 2px 8px rgba(0,0,0,0.15)'
+            }}>
               {user.name.split(' ')[0]} 👋
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
               Admin{outletId && outletId !== '_all' ? ` · ${outlets.find(o => o.id === outletId)?.name || ''}` : ' · Semua outlet'}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+
+          {/* Action buttons */}
+          <div style={{
+            display: 'flex',
+            gap: isMobile ? 8 : 10,
+            alignItems: 'center',
+            justifyContent: isMobile ? 'center' : 'flex-end',
+          }}>
             <motion.button
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('notifikasi')}
               style={{
-                width: 42, height: 42, borderRadius: 21,
+                width: isMobile ? 38 : 42,
+                height: isMobile ? 38 : 42,
+                borderRadius: isMobile ? 12 : 21,
                 background: 'rgba(255,255,255,0.2)',
                 border: '1px solid rgba(255,255,255,0.3)',
                 cursor: 'pointer',
@@ -326,9 +377,9 @@ export default function AdminDashboardPage({ user, navigate }) {
                 boxShadow: '0 4px 16px rgba(91,0,95,0.2)',
               }}
             >
-              <Bell size={18} />
+              <Bell size={isMobile ? 16 : 18} />
               <div style={{
-                position: 'absolute', top: 8, right: 8,
+                position: 'absolute', top: isMobile ? 6 : 8, right: isMobile ? 6 : 8,
                 width: 8, height: 8, borderRadius: 4,
                 background: '#F93E11',
                 border: '2px solid white',
@@ -340,7 +391,9 @@ export default function AdminDashboardPage({ user, navigate }) {
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('profil')}
               style={{
-                width: 42, height: 42, borderRadius: 14,
+                width: isMobile ? 38 : 42,
+                height: isMobile ? 38 : 42,
+                borderRadius: isMobile ? 10 : 14,
                 background: 'linear-gradient(145deg, rgba(255,255,255,0.35), rgba(255,255,255,0.15))',
                 backdropFilter: 'blur(10px)',
                 border: '1px solid rgba(255,255,255,0.3)',
@@ -351,7 +404,7 @@ export default function AdminDashboardPage({ user, navigate }) {
                 cursor: 'pointer',
               }}
             >
-              <Avatar photo={user.photo} initials={user.avatar} size={34} />
+              <Avatar photo={user.photo} initials={user.avatar} size={isMobile ? 30 : 34} />
             </motion.div>
           </div>
         </motion.div>
@@ -370,7 +423,13 @@ export default function AdminDashboardPage({ user, navigate }) {
         `}} />
       </div>
 
-      <div style={{ padding: '0 16px', marginTop: -12, paddingBottom: 20, position: 'relative', zIndex: 2 }}>
+      <div style={{
+        padding: contentPadding,
+        marginTop: -12,
+        paddingBottom: 20,
+        position: 'relative',
+        zIndex: 2
+      }}>
 
         {/* Outlet selector + Period pill — claymorphism card */}
         <motion.div
@@ -379,8 +438,8 @@ export default function AdminDashboardPage({ user, navigate }) {
           transition={{ delay: 0.1 }}
           style={{
             background: 'linear-gradient(145deg, #FFFFFF, #F4EDF4)',
-            borderRadius: 20,
-            padding: '16px 18px',
+            borderRadius: isMobile ? 16 : 20,
+            padding: isMobile ? '14px 14px' : cardPadding,
             marginBottom: 14,
             boxShadow: '10px 10px 24px rgba(91, 0, 95, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
             border: '1px solid rgba(91, 0, 95, 0.06)',
@@ -397,16 +456,42 @@ export default function AdminDashboardPage({ user, navigate }) {
             pointerEvents: 'none',
           }} />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, position: 'relative' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 12, background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)' }}>
-              <Home size={16} color={C.primaryDark} />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 12,
+            position: 'relative',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{
+              width: isMobile ? 30 : 34,
+              height: isMobile ? 30 : 34,
+              borderRadius: isMobile ? 10 : 12,
+              background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)'
+            }}>
+              <Home size={isMobile ? 14 : 16} color={C.primaryDark} />
             </div>
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n800 }}>
+            <span style={{
+              fontFamily: 'Poppins',
+              fontSize: isMobile ? 12 : 13,
+              fontWeight: 700,
+              color: C.n800
+            }}>
               {outletId && outletId !== '_all' ? outlets.find(o => o.id === outletId)?.name || 'Pilih Outlet' : '📊 Semua Outlet'}
             </span>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+          <div style={{
+            display: 'flex',
+            gap: 8,
+            position: 'relative'
+          }}>
             {['today', 'month', 'all'].map((p, idx) => {
               const active = period === p;
               const label = p === 'today' ? 'Hari ini' : p === 'month' ? 'Bulan ini' : 'Akumulasi';
@@ -417,13 +502,17 @@ export default function AdminDashboardPage({ user, navigate }) {
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.97 }}
                   style={{
-                    flex: 1, padding: '10px 0', borderRadius: 12,
+                    flex: 1,
+                    padding: isMobile ? '8px 4px' : '10px 0',
+                    borderRadius: isMobile ? 10 : 12,
                     border: 'none',
                     background: active
                       ? 'linear-gradient(145deg, #5B005F, #8C4C8F)'
                       : 'linear-gradient(145deg, #F4EDF4, #E6D9E7)',
                     color: active ? C.white : C.primaryDark,
-                    fontFamily: 'Poppins', fontSize: 12, fontWeight: active ? 700 : 600,
+                    fontFamily: 'Poppins',
+                    fontSize: isMobile ? 10 : 12,
+                    fontWeight: active ? 700 : 600,
                     cursor: 'pointer',
                     boxShadow: active
                       ? '0 4px 14px rgba(110, 46, 120, 0.35), inset 0 1px 0 rgba(255,255,255,0.2)'
@@ -440,7 +529,17 @@ export default function AdminDashboardPage({ user, navigate }) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            style={{ background: C.validationErrorBg, color: C.danger, padding: '12px 16px', borderRadius: 14, fontFamily: 'Poppins', fontSize: 12, marginBottom: 12, border: `1.5px solid ${C.validationErrorBorder}`, fontWeight: 600 }}
+            style={{
+              background: C.validationErrorBg,
+              color: C.danger,
+              padding: '12px 16px',
+              borderRadius: 14,
+              fontFamily: 'Poppins',
+              fontSize: isMobile ? 11 : 12,
+              marginBottom: 12,
+              border: `1.5px solid ${C.validationErrorBorder}`,
+              fontWeight: 600
+            }}
           >{statsError}</motion.div>
         )}
 
@@ -451,8 +550,8 @@ export default function AdminDashboardPage({ user, navigate }) {
           transition={{ delay: 0.15 }}
           style={{
             background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-            borderRadius: 22,
-            padding: '20px 18px 16px',
+            borderRadius: cardRadius,
+            padding: cardPadding,
             boxShadow: '12px 12px 28px rgba(60, 10, 99, 0.12), -6px -6px 16px rgba(255, 255, 255, 0.95)',
             marginBottom: 14,
             border: '1px solid rgba(139, 92, 246, 0.08)',
@@ -469,35 +568,74 @@ export default function AdminDashboardPage({ user, navigate }) {
             pointerEvents: 'none',
           }} />
 
-          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: 12, position: 'relative' }}>
-            <div style={{ flex: 1, paddingRight: 14 }}>
+          {/* Stats row - responsive layout */}
+          <div style={{
+            display: 'flex',
+            alignItems: isMobile ? 'flex-start' : 'stretch',
+            gap: 0,
+            marginBottom: 12,
+            position: 'relative',
+            flexDirection: isMobile ? 'column' : 'row',
+          }}>
+            {/* Omset */}
+            <div style={{
+              flex: 1,
+              paddingRight: isMobile ? 0 : 14,
+              marginBottom: isMobile ? 12 : 0,
+              borderRight: isMobile ? 'none' : '1.5px solid rgba(139, 92, 246, 0.2)',
+              borderBottom: isMobile ? '1.5px solid rgba(139, 92, 246, 0.2)' : 'none',
+              paddingBottom: isMobile ? 12 : 0,
+            }}>
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}
               >
-                <div style={{ width: 28, height: 28, borderRadius: 10, background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)' }}>
-                  <FileText size={14} color={C.primaryDark} strokeWidth={2.5} />
+                <div style={{
+                  width: isMobile ? 24 : 28,
+                  height: isMobile ? 24 : 28,
+                  borderRadius: isMobile ? 8 : 10,
+                  background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)'
+                }}>
+                  <FileText size={isMobile ? 12 : 14} color={C.primaryDark} strokeWidth={2.5} />
                 </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primaryDark }}>Omset {periodLabel}</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: fontSize.label, fontWeight: 600, color: C.primaryDark }}>Omset {periodLabel}</span>
               </motion.div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: C.primaryDark, letterSpacing: '-0.5px' }}>{rp(omset)}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: fontSize.stat, fontWeight: 800, color: C.primaryDark, letterSpacing: '-0.5px' }}>{rp(omset)}</div>
             </div>
-            <div style={{ width: 1.5, background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05))', flexShrink: 0, alignSelf: 'stretch', borderRadius: 1 }} />
-            <div style={{ flex: 1, paddingLeft: 14 }}>
+
+            {/* Pelunasan */}
+            <div style={{
+              flex: 1,
+              paddingLeft: isMobile ? 0 : 14,
+              paddingTop: isMobile ? 12 : 0,
+            }}>
               <motion.div
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}
               >
-                <div style={{ width: 28, height: 28, borderRadius: 10, background: 'linear-gradient(145deg, #D1FAE5, #A7F3D0)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '4px 4px 10px rgba(5, 150, 105, 0.15)' }}>
-                  <DollarSign size={14} color={C.success} strokeWidth={2.5} />
+                <div style={{
+                  width: isMobile ? 24 : 28,
+                  height: isMobile ? 24 : 28,
+                  borderRadius: isMobile ? 8 : 10,
+                  background: 'linear-gradient(145deg, #D1FAE5, #A7F3D0)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '4px 4px 10px rgba(5, 150, 105, 0.15)'
+                }}>
+                  <DollarSign size={isMobile ? 12 : 14} color={C.success} strokeWidth={2.5} />
                 </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.success }}>Pelunasan</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: fontSize.label, fontWeight: 600, color: C.success }}>Pelunasan</span>
               </motion.div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 800, color: C.success, letterSpacing: '-0.5px' }}>{rp(pelunasan)}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: fontSize.stat, fontWeight: 800, color: C.success, letterSpacing: '-0.5px' }}>{rp(pelunasan)}</div>
             </div>
           </div>
 
@@ -505,10 +643,27 @@ export default function AdminDashboardPage({ user, navigate }) {
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
-              style={{ background: C.warningBg, borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}
+              style={{
+                background: C.warningBg,
+                borderRadius: 12,
+                padding: '10px 14px',
+                marginBottom: 12,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 22, height: 22, borderRadius: 8, background: C.warningBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: 8,
+                  background: C.warningBg,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
                   <AlertCircle size={12} color={C.warning} strokeWidth={2.5} />
                 </div>
                 <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.warningDark }}>Piutang</span>
@@ -518,7 +673,13 @@ export default function AdminDashboardPage({ user, navigate }) {
           )}
 
           {/* Stat row */}
-          <div style={{ display: 'flex', gap: 0, borderTop: '1px solid rgba(139, 92, 246, 0.08)', paddingTop: 12 }}>
+          <div style={{
+            display: 'flex',
+            gap: 0,
+            borderTop: '1px solid rgba(139, 92, 246, 0.08)',
+            paddingTop: 12,
+            flexWrap: 'wrap',
+          }}>
             {[
               { label: 'Nota', val: transaksi, color: C.info, icon: <LayoutGrid size={12} strokeWidth={2.5} /> },
               { label: 'Proses', val: stats.pending_transactions, color: C.info, icon: <Clock size={12} strokeWidth={2.5} /> },
@@ -530,18 +691,26 @@ export default function AdminDashboardPage({ user, navigate }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 + i * 0.05 }}
                 style={{
-                  flex: 1, textAlign: 'center',
-                  borderRight: i < 2 ? '1px solid rgba(139, 92, 246, 0.08)' : 'none',
-                  padding: '6px 4px 4px',
+                  flex: 1,
+                  textAlign: 'center',
+                  borderRight: i < 2 && !isMobile ? '1px solid rgba(139, 92, 246, 0.08)' : 'none',
+                  padding: isMobile ? '8px 4px' : '6px 4px 4px',
+                  minWidth: isMobile ? '33.33%' : 'auto',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 4 }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 8, background: `${s.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: 8,
+                    background: `${s.color}15`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
                     <span style={{ color: s.color }}>{s.icon}</span>
                   </div>
                   <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: s.color }}>{s.label}</span>
                 </div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n800 }}>{s.val}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 16 : 18, fontWeight: 700, color: C.n800 }}>{s.val}</div>
               </motion.div>
             ))}
           </div>
@@ -570,26 +739,37 @@ export default function AdminDashboardPage({ user, navigate }) {
             transition={{ delay: 0.28 }}
             style={{
               background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-              borderRadius: 20,
-              padding: '16px 18px',
+              borderRadius: sectionCardRadius,
+              padding: isMobile ? '14px 14px' : '16px 18px',
               marginBottom: 14,
               boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
               border: '1px solid rgba(139, 92, 246, 0.08)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 14,
+              flexWrap: 'wrap',
+              gap: 10,
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
-                  width: 40, height: 40, borderRadius: 12,
+                  width: isMobile ? 36 : 40,
+                  height: isMobile ? 36 : 40,
+                  borderRadius: isMobile ? 10 : 12,
                   background: 'linear-gradient(145deg, #FFEDD5, #FED7AA)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   boxShadow: '4px 4px 10px rgba(234, 88, 12, 0.15)',
                   flexShrink: 0,
                 }}>
-                  <span style={{ fontSize: 20 }}>🎯</span>
+                  <span style={{ fontSize: isMobile ? 18 : 20 }}>🎯</span>
                 </div>
                 <div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n800 }}>📈 Target & Capaian</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 700, color: C.n800 }}>📈 Target & Capaian</div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>
                     {targetDaily.monthName} {targetDaily.year}
                   </div>
@@ -601,20 +781,46 @@ export default function AdminDashboardPage({ user, navigate }) {
             </div>
 
             {/* Summary stats */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <div style={{ flex: 1, background: C.successBg, borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+            <div style={{
+              display: 'flex',
+              gap: 8,
+              marginBottom: 12,
+              flexWrap: 'wrap',
+            }}>
+              <div style={{
+                flex: 1,
+                minWidth: isMobile ? 'calc(50% - 4px)' : 'auto',
+                background: C.successBg,
+                borderRadius: 10,
+                padding: '8px 10px',
+                textAlign: 'center'
+              }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: C.success }}>
                   {targetDaily.summary.onTrackCount}
                 </div>
                 <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>On Track</div>
               </div>
-              <div style={{ flex: 1, background: C.warningBg, borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{
+                flex: 1,
+                minWidth: isMobile ? 'calc(50% - 4px)' : 'auto',
+                background: C.warningBg,
+                borderRadius: 10,
+                padding: '8px 10px',
+                textAlign: 'center'
+              }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: C.warning }}>
                   {targetDaily.summary.achievedCount}
                 </div>
                 <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>Terpenuhi</div>
               </div>
-              <div style={{ flex: 1, background: C.primaryTint, borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+              <div style={{
+                flex: 1,
+                minWidth: isMobile ? '100%' : 'auto',
+                background: C.primaryTint,
+                borderRadius: 10,
+                padding: '8px 10px',
+                textAlign: 'center'
+              }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: C.primaryDark }}>
                   {rp(targetDaily.summary.totalActual)}
                 </div>
@@ -622,17 +828,31 @@ export default function AdminDashboardPage({ user, navigate }) {
               </div>
             </div>
 
-            {/* Outlet target list */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Outlet target list - scrollable on mobile */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              overflowX: isMobile ? 'auto' : 'visible',
+              paddingBottom: 4,
+            }}>
               {targetDaily.targets.slice(0, 4).map((t, idx) => {
                 const statusColor = t.status === 'achieved' ? C.success :
                   t.status === 'on_track' ? C.success :
                   t.status === 'behind' ? C.warning : C.danger;
                 return (
                   <div key={t.outletId} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n800 }}>{t.outletName}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, flexWrap: 'wrap', gap: 4 }}>
+                        <span style={{
+                          fontFamily: 'Poppins',
+                          fontSize: isMobile ? 10 : 11,
+                          fontWeight: 600,
+                          color: C.n800,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>{t.outletName}</span>
                         <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: statusColor }}>{t.percentage}%</span>
                       </div>
                       <div style={{ background: C.n200, borderRadius: 4, height: 6, overflow: 'hidden' }}>
@@ -654,11 +874,17 @@ export default function AdminDashboardPage({ user, navigate }) {
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
               style={{
-                width: '100%', marginTop: 12, padding: '10px',
+                width: '100%',
+                marginTop: 12,
+                padding: isMobile ? '8px' : '10px',
                 background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
                 border: '1px solid rgba(139, 92, 246, 0.15)',
-                borderRadius: 12, cursor: 'pointer',
-                fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primaryDark,
+                borderRadius: 12,
+                cursor: 'pointer',
+                fontFamily: 'Poppins',
+                fontSize: isMobile ? 11 : 12,
+                fontWeight: 600,
+                color: C.primaryDark,
               }}
             >
               Kelola Target →
@@ -681,15 +907,21 @@ export default function AdminDashboardPage({ user, navigate }) {
           transition={{ delay: 0.25 }}
           style={{
             background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-            borderRadius: 16,
-            padding: '14px 18px',
+            borderRadius: isMobile ? 14 : 16,
+            padding: isMobile ? '12px 14px' : '14px 18px',
             marginBottom: 14,
             boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.95)',
             border: '1px solid rgba(139, 92, 246, 0.06)',
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n800 }}>Periode Grafik</div>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 10,
+          }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 700, color: C.n800 }}>Periode Grafik</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {['7d', '30d', '90d'].map((p) => {
                 const active = chartPeriod === p;
@@ -700,12 +932,16 @@ export default function AdminDashboardPage({ user, navigate }) {
                     onClick={() => setChartPeriod(p)}
                     whileTap={{ scale: 0.95 }}
                     style={{
-                      padding: '6px 14px', borderRadius: 10, border: 'none',
+                      padding: isMobile ? '5px 10px' : '6px 14px',
+                      borderRadius: isMobile ? 8 : 10,
+                      border: 'none',
                       background: active
                         ? 'linear-gradient(145deg, #8B5CF6, #6e2e78)'
                         : 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
                       color: active ? C.white : C.primaryDark,
-                      fontFamily: 'Poppins', fontSize: 11, fontWeight: active ? 700 : 600,
+                      fontFamily: 'Poppins',
+                      fontSize: isMobile ? 10 : 11,
+                      fontWeight: active ? 700 : 600,
                       cursor: 'pointer',
                       boxShadow: active
                         ? '0 4px 12px rgba(110, 46, 120, 0.3)'
@@ -725,14 +961,22 @@ export default function AdminDashboardPage({ user, navigate }) {
           transition={{ delay: 0.3 }}
           style={{
             background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-            borderRadius: 20,
-            padding: '14px 16px',
+            borderRadius: sectionCardRadius,
+            padding: isMobile ? '12px 12px' : '14px 16px',
             marginBottom: 14,
             boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
             border: '1px solid rgba(139, 92, 246, 0.08)',
+            overflowX: 'auto',
           }}
         >
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n800, marginBottom: 12 }}>
+          <div style={{
+            fontFamily: 'Poppins',
+            fontSize: isMobile ? 12 : 13,
+            fontWeight: 700,
+            color: C.n800,
+            marginBottom: 12,
+            whiteSpace: 'nowrap'
+          }}>
             🏪 Performa Omzet per Outlet
           </div>
           {loadingCharts ? (
@@ -754,16 +998,16 @@ export default function AdminDashboardPage({ user, navigate }) {
           ) : (
             <>
               {outletPerformance.filter(o => o.isActive).length > 0 && (
-                <div style={{ marginBottom: 14 }}>
+                <div style={{ marginBottom: 14, minWidth: isMobile ? 300 : 'auto' }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.success, marginBottom: 6 }}>Aktif</div>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={outletPerformance.filter(o => o.isActive)}>
+                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 180}>
+                    <BarChart data={outletPerformance.filter(o => o.isActive)} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : {}}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.08)" />
-                      <XAxis dataKey="outletName" tick={{ fontSize: 10, fontFamily: 'Poppins' }} />
-                      <YAxis tick={{ fontSize: 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} />
+                      <XAxis dataKey="outletName" tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} interval={isMobile ? 'preserveStartEnd' : 0} />
+                      <YAxis tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} width={isMobile ? 40 : 60} />
                       <Tooltip
                         formatter={(value) => rp(value)}
-                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)' }}
+                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)', fontSize: 11 }}
                       />
                       <Bar dataKey="totalRevenue" fill={C.primary} radius={[8, 8, 0, 0]} />
                     </BarChart>
@@ -771,16 +1015,16 @@ export default function AdminDashboardPage({ user, navigate }) {
                 </div>
               )}
               {outletPerformance.filter(o => !o.isActive).length > 0 && (
-                <div>
+                <div style={{ minWidth: isMobile ? 300 : 'auto' }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, marginBottom: 6 }}>Non Aktif</div>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={outletPerformance.filter(o => !o.isActive)}>
+                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 180}>
+                    <BarChart data={outletPerformance.filter(o => !o.isActive)} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : {}}>
                       <CartesianGrid strokeDasharray="3 3" stroke={C.n200} />
-                      <XAxis dataKey="outletName" tick={{ fontSize: 10, fontFamily: 'Poppins' }} />
-                      <YAxis tick={{ fontSize: 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} />
+                      <XAxis dataKey="outletName" tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} interval={isMobile ? 'preserveStartEnd' : 0} />
+                      <YAxis tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} width={isMobile ? 40 : 60} />
                       <Tooltip
                         formatter={(value) => rp(value)}
-                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)' }}
+                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)', fontSize: 11 }}
                       />
                       <Bar dataKey="totalRevenue" fill={C.n500} radius={[8, 8, 0, 0]} />
                     </BarChart>
@@ -798,14 +1042,22 @@ export default function AdminDashboardPage({ user, navigate }) {
           transition={{ delay: 0.35 }}
           style={{
             background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-            borderRadius: 20,
-            padding: '14px 16px',
+            borderRadius: sectionCardRadius,
+            padding: isMobile ? '12px 12px' : '14px 16px',
             marginBottom: 14,
             boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
             border: '1px solid rgba(139, 92, 246, 0.08)',
+            overflowX: 'auto',
           }}
         >
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n800, marginBottom: 12 }}>
+          <div style={{
+            fontFamily: 'Poppins',
+            fontSize: isMobile ? 12 : 13,
+            fontWeight: 700,
+            color: C.n800,
+            marginBottom: 12,
+            whiteSpace: 'nowrap'
+          }}>
             💵 Status Setoran Kas per Outlet
           </div>
           {loadingCharts ? (
@@ -815,18 +1067,18 @@ export default function AdminDashboardPage({ user, navigate }) {
           ) : (
             <>
               {cashDepositStatus.filter(o => o.isActive).length > 0 && (
-                <div style={{ marginBottom: 14 }}>
+                <div style={{ marginBottom: 14, minWidth: isMobile ? 300 : 'auto' }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.success, marginBottom: 6 }}>Aktif</div>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={cashDepositStatus.filter(o => o.isActive)}>
+                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 180}>
+                    <BarChart data={cashDepositStatus.filter(o => o.isActive)} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : {}}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.08)" />
-                      <XAxis dataKey="outletName" tick={{ fontSize: 10, fontFamily: 'Poppins' }} />
-                      <YAxis tick={{ fontSize: 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} />
+                      <XAxis dataKey="outletName" tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} interval={isMobile ? 'preserveStartEnd' : 0} />
+                      <YAxis tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} width={isMobile ? 40 : 60} />
                       <Tooltip
                         formatter={(value) => rp(value)}
-                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)' }}
+                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)', fontSize: 11 }}
                       />
-                      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 10 }} />
+                      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: isMobile ? 8 : 10 }} />
                       <Bar dataKey="approvedAmount" stackId="a" name="Disetujui" fill={C.success} radius={[0, 0, 8, 8]} />
                       <Bar dataKey="pendingAmount" stackId="a" name="Menunggu" fill={C.warning} />
                       <Bar dataKey="rejectedAmount" stackId="a" name="Ditolak" fill={C.danger} />
@@ -835,18 +1087,18 @@ export default function AdminDashboardPage({ user, navigate }) {
                 </div>
               )}
               {cashDepositStatus.filter(o => !o.isActive).length > 0 && (
-                <div>
+                <div style={{ minWidth: isMobile ? 300 : 'auto' }}>
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, marginBottom: 6 }}>Non Aktif</div>
-                  <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={cashDepositStatus.filter(o => !o.isActive)}>
+                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 180}>
+                    <BarChart data={cashDepositStatus.filter(o => !o.isActive)} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : {}}>
                       <CartesianGrid strokeDasharray="3 3" stroke={C.n200} />
-                      <XAxis dataKey="outletName" tick={{ fontSize: 10, fontFamily: 'Poppins' }} />
-                      <YAxis tick={{ fontSize: 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} />
+                      <XAxis dataKey="outletName" tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} interval={isMobile ? 'preserveStartEnd' : 0} />
+                      <YAxis tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} width={isMobile ? 40 : 60} />
                       <Tooltip
                         formatter={(value) => rp(value)}
-                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)' }}
+                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)', fontSize: 11 }}
                       />
-                      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: 10 }} />
+                      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: isMobile ? 8 : 10 }} />
                       <Bar dataKey="approvedAmount" stackId="a" name="Disetujui" fill={C.successBg} radius={[0, 0, 8, 8]} />
                       <Bar dataKey="pendingAmount" stackId="a" name="Menunggu" fill={C.warningBg} />
                       <Bar dataKey="rejectedAmount" stackId="a" name="Ditolak" fill={C.dangerBg} />
@@ -859,11 +1111,15 @@ export default function AdminDashboardPage({ user, navigate }) {
         </motion.div>
 
         {/* Payment Trend Chart — Phase 4 */}
-        <PaymentTrendChart days={14} height={200} />
+        <PaymentTrendChart days={14} height={isMobile ? 180 : 200} />
 
-        {/* ═══ MANAJEMEN ═══ — claymorphism cards */}
+        {/* ═══ MANAJEMEN ═══ — claymorphism cards - responsive grid */}
         <CollapsibleSection title="Manajemen" icon="⚙️" defaultOpen={true}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : (isTablet ? '1fr 1fr' : '1fr 1fr'),
+            gap: isMobile ? 10 : 12
+          }}>
             {[
               { label: 'User & Pegawai', screen: 'manajemen_user', icon: '👥', color: C.primary },
               { label: 'Layanan & Harga', screen: 'manajemen_layanan', icon: '🧺', color: C.info },
@@ -881,21 +1137,31 @@ export default function AdminDashboardPage({ user, navigate }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 + idx * 0.03 }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '16px 14px', borderRadius: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: isMobile ? 10 : 12,
+                  padding: isMobile ? '14px 12px' : '16px 14px',
+                  borderRadius: isMobile ? 14 : 18,
                   background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
                   border: '1.5px solid rgba(139, 92, 246, 0.08)',
-                  cursor: 'pointer', textAlign: 'left',
+                  cursor: 'pointer',
+                  textAlign: 'left',
                   boxShadow: '6px 6px 16px rgba(60, 10, 99, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.95)',
                 }}
               >
                 <div style={{
-                  width: 46, height: 46, borderRadius: 14,
+                  width: isMobile ? 40 : 46,
+                  height: isMobile ? 40 : 46,
+                  borderRadius: isMobile ? 12 : 14,
                   background: `linear-gradient(145deg, ${item.color}18, ${item.color}08)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20, flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: isMobile ? 18 : 20,
+                  flexShrink: 0,
                   boxShadow: `6px 6px 14px ${item.color}20, -3px -3px 8px rgba(255, 255, 255, 0.9)`,
                 }}>{item.icon}</div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n800 }}>{item.label}</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, fontWeight: 600, color: C.n800 }}>{item.label}</span>
               </motion.button>
             ))}
           </div>
@@ -920,25 +1186,44 @@ export default function AdminDashboardPage({ user, navigate }) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.6 + idx * 0.03 }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: isMobile ? 12 : 14,
+                  padding: isMobile ? '12px 14px' : '14px 16px',
+                  borderRadius: isMobile ? 14 : 16,
                   background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
                   border: '1.5px solid rgba(139, 92, 246, 0.08)',
-                  cursor: 'pointer', textAlign: 'left', width: '100%',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  width: '100%',
                   boxShadow: '6px 6px 16px rgba(60, 10, 99, 0.1), -3px -3px 10px rgba(255, 255, 255, 0.95)',
                 }}
               >
                 <div style={{
-                  width: 44, height: 44, borderRadius: 14,
+                  width: isMobile ? 38 : 44,
+                  height: isMobile ? 38 : 44,
+                  borderRadius: isMobile ? 12 : 14,
                   background: `linear-gradient(145deg, ${item.color}18, ${item.color}08)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20, flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: isMobile ? 18 : 20,
+                  flexShrink: 0,
                   boxShadow: `6px 6px 14px ${item.color}20, -3px -3px 8px rgba(255, 255, 255, 0.9)`,
                 }}>{item.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800 }}>{item.label}</div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>{item.desc}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n800 }}>{item.label}</div>
+                  <div style={{
+                    fontFamily: 'Poppins',
+                    fontSize: isMobile ? 10 : 11,
+                    color: C.n500,
+                    marginTop: 2,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: isMobile ? 'nowrap' : 'normal',
+                  }}>{item.desc}</div>
                 </div>
-                <ChevronRight size={18} color={item.color} strokeWidth={2.5} />
+                <ChevronRight size={isMobile ? 16 : 18} color={item.color} strokeWidth={2.5} />
               </motion.button>
             ))}
           </div>
@@ -946,7 +1231,11 @@ export default function AdminDashboardPage({ user, navigate }) {
 
         {/* ═══ OPERASIONAL ═══ */}
         <CollapsibleSection title="Operasional" icon="⚡" defaultOpen={false}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr 1fr' : (isTablet ? '1fr 1fr 1fr' : '1fr 1fr 1fr'),
+            gap: isMobile ? 8 : 10
+          }}>
             {[
               { label: 'Approval', screen: 'approval', icon: '✅', color: C.primary },
               { label: 'Approval Setor', screen: 'setor_approval', icon: '💵', color: C.success },
@@ -965,7 +1254,12 @@ export default function AdminDashboardPage({ user, navigate }) {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.7 + idx * 0.02 }}
                 style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 8px', borderRadius: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: isMobile ? 6 : 8,
+                  padding: isMobile ? '14px 6px' : '16px 8px',
+                  borderRadius: isMobile ? 14 : 16,
                   background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
                   border: '1.5px solid rgba(139, 92, 246, 0.08)',
                   cursor: 'pointer',
@@ -973,13 +1267,25 @@ export default function AdminDashboardPage({ user, navigate }) {
                 }}
               >
                 <div style={{
-                  width: 44, height: 44, borderRadius: 14,
+                  width: isMobile ? 38 : 44,
+                  height: isMobile ? 38 : 44,
+                  borderRadius: isMobile ? 12 : 14,
                   background: `linear-gradient(145deg, ${item.color}18, ${item.color}08)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20, flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: isMobile ? 18 : 20,
+                  flexShrink: 0,
                   boxShadow: `5px 5px 12px ${item.color}18, -2px -2px 6px rgba(255, 255, 255, 0.9)`,
                 }}>{item.icon}</div>
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, fontWeight: 600, color: C.n800, textAlign: 'center', lineHeight: 1.3 }}>{item.label}</span>
+                <span style={{
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: isMobile ? 9 : 10,
+                  fontWeight: 600,
+                  color: C.n800,
+                  textAlign: 'center',
+                  lineHeight: 1.3
+                }}>{item.label}</span>
               </motion.button>
             ))}
           </div>

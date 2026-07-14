@@ -104,7 +104,6 @@ export function useInfiniteList({
     } catch (err) {
       if (requestGen !== generationRef.current) return;
       if (!isAbortError(err)) {
-        console.error('[useInfiniteList] fetch error:', err);
         setError(err?.response?.data?.message || err.message || 'Gagal memuat data.');
         setHasMore(false);
       }

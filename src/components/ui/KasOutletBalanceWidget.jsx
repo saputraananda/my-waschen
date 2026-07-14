@@ -87,7 +87,6 @@ export default function KasOutletBalanceWidget({
       onRefresh?.(result);
 
     } catch (err) {
-      console.error('[KasOutletBalanceWidget] Error:', err);
       setError(err?.response?.data?.message || 'Gagal memuat data kas');
     } finally {
       setLoading(false);

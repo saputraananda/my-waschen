@@ -14,18 +14,18 @@ import {
 
 const router = Router();
 
-const ADMIN = requireRole('admin', 'superadmin', 'owner', 'finance');
+const ADMIN = requireRole('admin');
 
-// GET /api/dashboard/low-stock — Low stock alerts
+// GET /api/dashboard-intelligence/low-stock — Low stock alerts
 router.get('/low-stock', authenticate, cacheResponse({ ttl: 60_000 }), readLimiter, getLowStockAlerts);
 
-// GET /api/dashboard/outlet-comparison — Outlet comparison data
+// GET /api/dashboard-intelligence/outlet-comparison — Outlet comparison data
 router.get('/outlet-comparison', authenticate, ADMIN, cacheResponse({ ttl: 60_000 }), readLimiter, getOutletComparison);
 
-// GET /api/dashboard/target-daily — Daily target progress per outlet
+// GET /api/dashboard-intelligence/target-daily — Daily target progress per outlet
 router.get('/target-daily', authenticate, ADMIN, cacheResponse({ ttl: 60_000 }), readLimiter, getDailyTargetProgress);
 
-// GET /api/dashboard/metrics — Transaction metrics summary
+// GET /api/dashboard-intelligence/metrics — Transaction metrics summary
 router.get('/metrics', authenticate, cacheResponse({ ttl: 30_000 }), readLimiter, getDashboardMetrics);
 
 export default router;

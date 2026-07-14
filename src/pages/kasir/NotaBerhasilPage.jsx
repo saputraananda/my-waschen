@@ -6,6 +6,7 @@ import { rp } from '../../utils/helpers';
 
 import { Btn } from '../../components/ui';
 
+import { useResponsive, useWindowSize } from '../../utils/hooks';
 import { hapticSuccess } from '../../utils/haptic';
 
 // ─── Payment Status Auto-Detection ──────────────────────────────────────────────
@@ -104,7 +105,7 @@ const sendWhatsApp = (nota) => {
 
 
 export default function NotaBerhasilPage({ navigate, screenParams }) {
-
+  const { isMobile } = useResponsive();
   const nota = screenParams;
 
   // Compute payment status from nota data
@@ -149,26 +150,23 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
 
 
   return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C.n50, padding: isMobile ? 16 : 24 }}>
 
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C.n50, padding: 24 }}>
+      <div style={{ width: isMobile ? 72 : 88, height: isMobile ? 72 : 88, borderRadius: isMobile ? 36 : 44, background: `linear-gradient(135deg, ${C.success}, ${C.success}CC)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, boxShadow: `0 8px 24px ${C.success}44` }}>
 
-      <div style={{ width: 88, height: 88, borderRadius: 44, background: `linear-gradient(135deg, ${C.success}, ${C.success}CC)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, boxShadow: `0 8px 24px ${C.success}44` }}>
-
-        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+        <svg width={isMobile ? 36 : 44} height={isMobile ? 36 : 44} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
 
       </div>
 
+      <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 18 : 22, fontWeight: 600, color: C.n900, marginBottom: 6, textAlign: 'center' }}>Nota Berhasil Dibuat!</div>
 
-
-      <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 600, color: C.n900, marginBottom: 6 }}>Nota Berhasil Dibuat!</div>
-
-      <div style={{ fontFamily: 'Poppins', fontSize: 14, color: 'C.n600', marginBottom: 24, textAlign: 'center' }}>Nota laundry telah berhasil disimpan</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 14, color: C.n600, marginBottom: 24, textAlign: 'center' }}>Nota laundry telah berhasil disimpan</div>
 
 
 
       {nota && (
 
-        <div style={{ width: '100%', background: C.white, borderRadius: 16, padding: '16px 20px', boxShadow: SHADOW.md, marginBottom: 24 }}>
+        <div style={{ width: '100%', maxWidth: 400, background: C.white, borderRadius: 16, padding: isMobile ? '12px 14px' : '16px 20px', boxShadow: SHADOW.md, marginBottom: 24 }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
 
@@ -250,7 +248,7 @@ export default function NotaBerhasilPage({ navigate, screenParams }) {
 
 
 
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 10, marginBottom: isMobile ? 80 : 0 }}>
 
         {nota && (
 

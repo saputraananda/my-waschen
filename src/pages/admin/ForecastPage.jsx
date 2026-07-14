@@ -4,6 +4,7 @@ import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Select, SkeletonList } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import { useResponsive } from '../../utils/hooks';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
@@ -32,6 +33,7 @@ const ConfidenceBadge = ({ level }) => {
 };
 
 export default function ForecastPage({ goBack }) {
+  const { isMobile } = useResponsive();
   const { adminOutletId } = useApp();
   const [outlets, setOutlets] = useState([]);
   const [outletId, setOutletId] = useState(adminOutletId && adminOutletId !== '_all' ? adminOutletId : '');
@@ -51,8 +53,7 @@ export default function ForecastPage({ goBack }) {
       if (outletId) params.set('outletId', outletId);
       const res = await axios.get(`/api/reports/forecast?${params.toString()}`);
       setData(res?.data?.data || null);
-    } catch (e) {
-      console.error(e);
+    } catch {
       setData(null);
     } finally {
       setLoading(false);
@@ -89,8 +90,8 @@ export default function ForecastPage({ goBack }) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 14, boxShadow: SHADOW.md }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        <div style={{ background: C.white, borderRadius: 14, padding: isMobile ? 12 : 14, marginBottom: 14, boxShadow: SHADOW.md }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 8 }}>
             <Select label="Outlet" value={outletId} onChange={setOutletId}
               options={[{ value: '', label: '🏪 Semua' }, ...outlets.map(o => ({ value: o.id, label: o.name }))]} />
             <Select label="Data Historis" value={histMonths} onChange={setHistMonths}
@@ -132,11 +133,11 @@ export default function ForecastPage({ goBack }) {
             )}
 
             {/* Chart */}
-            <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.md }}>
+            <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.md, overflowX: 'auto' }}>
               <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
                 Historis + Prediksi
               </div>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={220} minWidth={300}>
                 <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
@@ -170,20 +171,22 @@ export default function ForecastPage({ goBack }) {
 
             {/* Forecast table */}
             {data.forecast.length > 0 && (
-              <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.md }}>
+              <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.md, overflowX: 'auto' }}>
                 <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Detail Prediksi</div>
-                {data.forecast.map((f, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < data.forecast.length - 1 ? `1px solid ${C.n100}` : 'none' }}>
-                    <div>
-                      <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>{fmtMonth(f.month)}</div>
-                      <div style={{ ...F, fontSize: 10, color: C.n700 }}>Range: {rp(f.low)} – {rp(f.high)}</div>
+                <div style={{ minWidth: 300 }}>
+                  {data.forecast.map((f, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < data.forecast.length - 1 ? `1px solid ${C.n100}` : 'none' }}>
+                      <div>
+                        <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>{fmtMonth(f.month)}</div>
+                        <div style={{ ...F, fontSize: 10, color: C.n700 }}>Range: {rp(f.low)} – {rp(f.high)}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ ...F, fontSize: 16, fontWeight: 600, color: C.warning }}>{rp(f.predicted)}</div>
+                        <div style={{ ...F, fontSize: 9, color: C.n700 }}>prediksi</div>
+                      </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ ...F, fontSize: 16, fontWeight: 600, color: C.warning }}>{rp(f.predicted)}</div>
-                      <div style={{ ...F, fontSize: 9, color: C.n700 }}>prediksi</div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
 

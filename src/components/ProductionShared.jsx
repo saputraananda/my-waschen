@@ -16,8 +16,6 @@ const PRIMARY_SOFT   = '#c4b5fd';
 
 const STAGE_TAGS = {
   'Diterima': { bg: '#f3effe', text: '#5b21b6', accent: '#7c3aed', dotGlow: 'rgba(124,58,237,0.5)' },
-  'Cuci':     { bg: '#e0f2fe', text: '#0369a1', accent: '#38bdf8', dotGlow: 'rgba(56,189,248,0.55)' },
-  'Setrika':  { bg: '#fef3c7', text: '#b45309', accent: '#fbbf24', dotGlow: 'rgba(251,191,36,0.55)' },
   'Packing':  { bg: '#dcfce7', text: '#15803d', accent: '#4ade80', dotGlow: 'rgba(74,222,128,0.55)' },
   'Selesai':  { bg: '#f0fdf4', text: '#166534', accent: '#86efac', dotGlow: 'rgba(134,239,172,0.55)' },
 };

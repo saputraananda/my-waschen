@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Btn, Chip, Select, DateTimeInput } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 
@@ -26,6 +27,7 @@ const fmtDateOnly = (v) => {
 const PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
 export default function RekapPendapatanPage({ navigate, goBack }) {
+  const isMobile = useIsMobile();
   const { adminOutletId } = useApp();
   const [outlets, setOutlets] = useState([]);
   const [outletId, setOutletId] = useState(adminOutletId && adminOutletId !== '_all' ? adminOutletId : '');
@@ -57,7 +59,6 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
       const res = await axios.get(url);
       setData(res?.data?.data || null);
     } catch (e) {
-      console.error(e);
       setData(null);
     } finally {
       setLoading(false);
@@ -101,6 +102,20 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .rekap-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .rekap-payment-grid { grid-template-columns: 1fr !important; }
+          .rekap-method-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .rekap-expanded-grid { grid-template-columns: 1fr !important; }
+          .rekap-filter-row { flex-direction: column !important; gap: 8px !important; }
+          .rekap-filter-row > * { width: 100% !important; }
+          .rekap-tx-header { flex-direction: column !important; gap: 8px !important; }
+          .rekap-tx-header > * { width: 100% !important; }
+          .rekap-tx-row { flex-direction: column !important; gap: 8px !important; }
+          .rekap-pagination { flex-wrap: wrap !important; justify-content: center !important; }
+        }
+      `}</style>
       <TopBar title="Rekap Pendapatan" subtitle="Detail transaksi tercatat per periode" onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
@@ -151,7 +166,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                   <h3 style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, margin: 0 }}>Komposisi Pembayaran</h3>
                 </div>
 
-                <div style={{ display: 'flex', height: 24, borderRadius: 8, overflow: 'hidden', marginBottom: 12, background: C.n100 }}>
+                <div style={{ display: 'flex', height: 24, borderRadius: 8, overflow: 'hidden', marginBottom: 12, background: C.n100 }} className="rekap-payment-grid">
                   {methodSummary.map((m) => {
                     const pct = (m.amount / methodTotal) * 100;
                     return (
@@ -161,7 +176,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                   })}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }} className="rekap-method-grid">
                   {methodSummary.map((m) => {
                     const pct = (m.amount / methodTotal) * 100;
                     return (
@@ -267,7 +282,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
 
               {isExpanded && (
                 <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: C.n50 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 12, marginBottom: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 12, marginBottom: 12 }} className="rekap-expanded-grid">
                     {[
                       ['🏪 Outlet', tx.outletName || '—'],
                       ['👤 Kasir', tx.cashierName || '—'],

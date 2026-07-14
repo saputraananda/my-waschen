@@ -8,6 +8,7 @@ import axios from 'axios';
 import { TopBar, Select, Btn } from '../../components/ui';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useResponsive } from '../../utils/hooks';
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -24,6 +25,7 @@ const STATUS_META = {
 };
 
 export default function AdminTargetDetailPage({ navigate, goBack, screenParams }) {
+  const { isMobile } = useResponsive();
   const now = new Date();
   const [year, setYear] = useState(screenParams?.year || now.getFullYear());
   const [month, setMonth] = useState(screenParams?.month || (now.getMonth() + 1));
@@ -54,8 +56,7 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
         params: { outletId, year, month },
       });
       setData(res?.data?.data || null);
-    } catch (err) {
-      console.error('[fetchProgress]', err);
+    } catch {
       setData(null);
     } finally {
       setLoading(false);
@@ -76,8 +77,8 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: 'white', borderRadius: 12, padding: 12, marginBottom: 14, boxShadow: SHADOW.sm }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+        <div style={{ background: 'white', borderRadius: 12, padding: isMobile ? 10 : 12, marginBottom: 14, boxShadow: SHADOW.sm }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <Select
               label="Tahun"
               value={year}
@@ -190,11 +191,11 @@ function HeroCard({ data }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 16 }}>
           <div>
             <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8 }}>Sudah Masuk</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600 }}>{rp(totalActual)}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 14 : 16, fontWeight: 600 }}>{rp(totalActual)}</div>
           </div>
           <div>
             <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8 }}>Target Bulan Ini</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600 }}>{rp(monthlyTarget)}</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 14 : 16, fontWeight: 600 }}>{rp(monthlyTarget)}</div>
           </div>
         </div>
 
@@ -245,7 +246,7 @@ function TodayCard({ today, summary }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
         <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800, fontWeight: 600 }}>TARGET HARI INI</div>
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{rp(today.target)}</div>
@@ -375,7 +376,7 @@ function SummaryStats({ summary }) {
       <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
         📈 Ringkasan Hari
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 8 }}>
         {[
           { label: 'Tercapai', value: summary.safeDays, color: C.success, icon: '✅' },
           { label: 'Hampir', value: summary.warningDays, color: C.warning, icon: '⚠️' },

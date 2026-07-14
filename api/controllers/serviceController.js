@@ -1,5 +1,6 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { notDeleted, softDeleteRecord } from '../utils/softDelete.js';
+import logger from '../utils/logger.js';
 
 // Helper: Get default outlet
 const getDefaultOutlet = async () => {
@@ -75,7 +76,7 @@ export const getServices = async (req, res) => {
     const sort = req.query?.sort; // 'popular' | 'alphabetical' (default)
 
     // Admin, finance, owner bisa lihat semua outlet (atau filter via query)
-    const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+    const globalRoles = ['admin'];
     const isGlobalRole = globalRoles.includes(userRole) || globalRoles.includes(req.user?.originalRoleCode);
 
     let outletFilter = '';
@@ -124,21 +125,21 @@ export const getServices = async (req, res) => {
           for (const ms of masterServices) {
             if (hasSla) {
               await poolWaschenPos.execute(
-                `INSERT INTO mst_service 
-                  (outlet_id, category_id, service_code, legacy_smartlink_no, name, unit_type, price, min_qty, 
-                   express_multiplier, is_express_eligible, is_requires_unit_detail, sort_order, sla_regular_hours, sla_express_hours, is_active)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+                `INSERT INTO mst_service
+                  (outlet_id, category_id, service_code, legacy_smartlink_no, name, unit_type, price, min_qty,
+                   express_multiplier, is_express_eligible, is_requires_unit_detail, sort_order, sla_regular_hours, sla_express_hours, durasi_hari, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
                 [targetOutletId, ms.category_id, ms.service_code, ms.legacy_smartlink_no, ms.name, ms.unit_type, ms.price, ms.min_qty,
-                 ms.express_multiplier, ms.is_express_eligible, ms.is_requires_unit_detail, ms.sort_order, ms.sla_regular_hours, ms.sla_express_hours]
+                 ms.express_multiplier, ms.is_express_eligible, ms.is_requires_unit_detail, ms.sort_order, ms.sla_regular_hours, ms.sla_express_hours, ms.durasi_hari || 2]
               );
             } else {
               await poolWaschenPos.execute(
-                `INSERT INTO mst_service 
-                  (outlet_id, category_id, service_code, legacy_smartlink_no, name, unit_type, price, min_qty, 
-                   express_multiplier, is_express_eligible, is_requires_unit_detail, sort_order, is_active)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+                `INSERT INTO mst_service
+                  (outlet_id, category_id, service_code, legacy_smartlink_no, name, unit_type, price, min_qty,
+                   express_multiplier, is_express_eligible, is_requires_unit_detail, sort_order, durasi_hari, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
                 [targetOutletId, ms.category_id, ms.service_code, ms.legacy_smartlink_no, ms.name, ms.unit_type, ms.price, ms.min_qty,
-                 ms.express_multiplier, ms.is_express_eligible, ms.is_requires_unit_detail, ms.sort_order]
+                 ms.express_multiplier, ms.is_express_eligible, ms.is_requires_unit_detail, ms.sort_order, ms.durasi_hari || 2]
               );
             }
           }
@@ -230,6 +231,7 @@ export const getServices = async (req, res) => {
         ${pinSelect}
         ${favSelect},
         ${popularSelect},
+        s.durasi_hari AS durationDays,
         s.created_at AS createdAt,
         s.updated_at AS updatedAt
       FROM mst_service s
@@ -272,7 +274,7 @@ export const getServices = async (req, res) => {
 
     return res.status(200).json({ success: true, data: sortedRows });
   } catch (err) {
-    console.error('[getServices] Error:', err);
+    logger.error('Gagal memuat data layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data layanan.' });
   }
 };
@@ -280,7 +282,7 @@ export const getServices = async (req, res) => {
 // ─── POST /api/services
 export const createService = async (req, res) => {
   try {
-    const { name, category, price, unit, expressExtra, active, expressEligible, minQty, slaRegular, slaExpress, outletId: bodyOutletId } = req.body;
+    const { name, category, price, unit, expressExtra, active, expressEligible, minQty, slaRegular, slaExpress, durasiHari, outletId: bodyOutletId } = req.body;
 
     if (!name || !price || !unit) {
       return res.status(400).json({ success: false, message: 'Nama, harga, dan satuan wajib diisi' });
@@ -288,7 +290,7 @@ export const createService = async (req, res) => {
 
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+    const globalRoles = ['admin'];
     const isGlobalRole = globalRoles.includes(userRole);
 
     let targetOutletId;
@@ -330,22 +332,22 @@ export const createService = async (req, res) => {
       } else {
         if (hasSlaColumns) {
           await poolWaschenPos.execute(
-            `UPDATE mst_service 
+            `UPDATE mst_service
              SET category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_express_eligible = ?,
-                 min_qty = ?, sla_regular_hours = ?, sla_express_hours = ?, is_active = ?, updated_at = NOW() 
+                 min_qty = ?, sla_regular_hours = ?, sla_express_hours = ?, durasi_hari = ?, is_active = ?, updated_at = NOW()
              WHERE id = ?`,
-            [categoryId, unit, basePrice, expressMul, isExpressEligible ? 1 : 0, minQ, slaReg, slaExp, isActive ? 1 : 0, existing.id]
+            [categoryId, unit, basePrice, expressMul, isExpressEligible ? 1 : 0, minQ, slaReg, slaExp, durasiHari || 2, isActive ? 1 : 0, existing.id]
           );
         } else {
           await poolWaschenPos.execute(
-            `UPDATE mst_service 
+            `UPDATE mst_service
              SET category_id = ?, unit_type = ?, price = ?, express_multiplier = ?, is_express_eligible = ?,
-                 min_qty = ?, is_active = ?, updated_at = NOW() 
+                 min_qty = ?, durasi_hari = ?, is_active = ?, updated_at = NOW()
              WHERE id = ?`,
-            [categoryId, unit, basePrice, expressMul, isExpressEligible ? 1 : 0, minQ, isActive ? 1 : 0, existing.id]
+            [categoryId, unit, basePrice, expressMul, isExpressEligible ? 1 : 0, minQ, durasiHari || 2, isActive ? 1 : 0, existing.id]
           );
         }
-        const updService = { id: existing.id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp };
+        const updService = { id: existing.id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp, durationDays: durasiHari || 2 };
         return res.status(201).json({ success: true, message: 'Layanan yang sempat terhapus berhasil diaktifkan kembali.', data: updService });
       }
     }
@@ -355,29 +357,29 @@ export const createService = async (req, res) => {
     let newId;
     if (hasSlaColumns) {
       const [insertResult] = await poolWaschenPos.execute(
-        `INSERT INTO mst_service 
-          (outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, sla_regular_hours, sla_express_hours, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [targetOutletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, slaReg, slaExp, isActive ? 1 : 0]
+        `INSERT INTO mst_service
+          (outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, sla_regular_hours, sla_express_hours, durasi_hari, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [targetOutletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, slaReg, slaExp, durasiHari || 2, isActive ? 1 : 0]
       );
       newId = insertResult.insertId;
     } else {
       const [insertResult] = await poolWaschenPos.execute(
-        `INSERT INTO mst_service 
-          (outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, is_active, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [targetOutletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, isActive ? 1 : 0]
+        `INSERT INTO mst_service
+          (outlet_id, category_id, service_code, name, unit_type, price, min_qty, express_multiplier, is_express_eligible, durasi_hari, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [targetOutletId, categoryId, serviceCode, name.trim(), unit, basePrice, minQ, expressMul, isExpressEligible ? 1 : 0, durasiHari || 2, isActive ? 1 : 0]
       );
       newId = insertResult.insertId;
     }
 
-    const newService = { id: newId, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp };
+    const newService = { id: newId, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp, durationDays: durasiHari || 2 };
     return res.status(201).json({ success: true, message: 'Layanan berhasil ditambahkan', data: newService });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ success: false, message: 'Layanan dengan nama tersebut sudah ada (duplikat)' });
     }
-    console.error('[createService] Error:', err);
+    logger.error('Gagal menambahkan layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menambahkan layanan.' });
   }
 };
@@ -397,7 +399,7 @@ export const updateService = async (req, res) => {
 
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+    const globalRoles = ['admin'];
     const isGlobalRole = globalRoles.includes(userRole);
 
     if (!isGlobalRole && service.outlet_id !== userOutletId) {
@@ -445,7 +447,7 @@ export const updateService = async (req, res) => {
     const updatedService = { id, name: name.trim(), category, price: basePrice, unit, expressExtra: expressNominal, active: isActive, expressEligible: isExpressEligible, minQty: minQ, slaRegular: slaReg, slaExpress: slaExp };
     return res.status(200).json({ success: true, message: 'Layanan berhasil diupdate', data: updatedService });
   } catch (err) {
-    console.error('[updateService] Error:', err);
+    logger.error('Gagal mengupdate layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengupdate layanan.' });
   }
 };
@@ -461,7 +463,7 @@ export const deleteService = async (req, res) => {
 
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+    const isGlobalRole = ['admin'].includes(userRole);
 
     if (!isGlobalRole && service.outlet_id !== userOutletId) {
       return res.status(403).json({ success: false, message: 'Akses ditolak. Anda tidak berhak menghapus layanan ini.' });
@@ -485,7 +487,7 @@ export const deleteService = async (req, res) => {
     }
     return res.status(200).json({ success: true, message: 'Layanan berhasil dihapus.' });
   } catch (err) {
-    console.error('[deleteService] Error:', err);
+    logger.error('Gagal menghapus layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menghapus layanan.' });
   }
 };
@@ -501,7 +503,7 @@ export const toggleService = async (req, res) => {
 
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+    const isGlobalRole = ['admin'].includes(userRole);
 
     if (!isGlobalRole && service.outlet_id !== userOutletId) {
       return res.status(403).json({ success: false, message: 'Akses ditolak. Anda tidak berhak mengubah layanan ini.' });
@@ -510,7 +512,7 @@ export const toggleService = async (req, res) => {
     await poolWaschenPos.execute(`UPDATE mst_service SET is_active = ?, updated_at = NOW() WHERE id = ?`, [active ? 1 : 0, id]);
     return res.status(200).json({ success: true, message: 'Status layanan berhasil diubah' });
   } catch (err) {
-    console.error('[toggleService] Error:', err);
+    logger.error('Gagal mengubah status layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengubah status layanan.' });
   }
 };
@@ -523,7 +525,7 @@ export const togglePinService = async (req, res) => {
     const pinnedBy = req.user?.userId || 'system';
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner'].includes(userRole);
+    const isGlobalRole = ['admin'].includes(userRole);
 
     if (!outletId) {
       return res.status(400).json({ success: false, message: 'outletId wajib diisi' });
@@ -568,7 +570,7 @@ export const togglePinService = async (req, res) => {
       return res.json({ success: true, pinned: true, message: 'Layanan berhasil disematkan.' });
     }
   } catch (err) {
-    console.error('[togglePinService] Error:', err);
+    logger.error('Gagal mengubah status sematan layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengubah status sematan layanan.' });
   }
 };
@@ -613,7 +615,7 @@ export const toggleFavoriteService = async (req, res) => {
       return res.json({ success: true, favorite: true, message: 'Layanan ditambahkan ke favorit.' });
     }
   } catch (err) {
-    console.error('[toggleFavoriteService] Error:', err);
+    logger.error('Gagal mengubah status favorit layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengubah status favorit layanan.' });
   }
 };

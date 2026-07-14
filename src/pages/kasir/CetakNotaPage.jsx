@@ -3,6 +3,7 @@ import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, EmptyState, QRCodeView } from '../../components/ui';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
 
 // ─── Payment Status Helper ───────────────────────────────────────────────────────
 function getPaymentStatus(paidAmount, total) {
@@ -53,6 +54,10 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
   const cfg = loadPrinterCfg();
   const pageSize = getPageSize(cfg);
 
+  // Responsive hooks
+  const { isMobile, isTablet } = useResponsive();
+  const windowSize = useWindowSize();
+
   const fetchTrx = useCallback(async () => {
     if (!screenParams?.id) return;
     setError(null);
@@ -61,7 +66,6 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
       const res = await axios.get(`/api/transactions/${screenParams.id}`);
       setData(res.data.data);
     } catch (err) {
-      console.error(err);
       setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
@@ -115,23 +119,23 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
 
       <div className="no-print">
         <TopBar title="Cetak Nota & Label" onBack={goBack} />
-        <div style={{ padding: 12, background: C.white, borderBottom: `1px solid ${C.n200}`, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Btn variant="primary" onClick={() => window.print()} style={{ flex: 1 }}>🖨️ Cetak Sekarang</Btn>
+        <div style={{ padding: isMobile ? '8px 12px' : 12, background: C.white, borderBottom: `1px solid ${C.n200}`, display: 'flex', gap: isMobile ? 6 : 8, alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+          <Btn variant="primary" onClick={() => window.print()} style={{ flex: isMobile ? 1 : 'initial', minWidth: isMobile ? '100%' : 'auto' }}>🖨️ Cetak Sekarang</Btn>
           <button
             onClick={() => navigate('printer_settings')}
-            style={{ padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}
+            style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}
           >
             ⚙️ Printer
           </button>
           <button
             onClick={() => navigate('dashboard')}
-            style={{ padding: '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}
+            style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}
           >
             🏠 Beranda
           </button>
         </div>
         {/* Config badge */}
-        <div style={{ padding: '6px 16px', background: C.infoBg, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ padding: isMobile ? '4px 12px' : '6px 16px', background: C.infoBg, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
             cfg.printerType === 'thermal_58' ? '📄 58mm' : cfg.printerType === 'thermal_80' ? '📄 80mm' : cfg.printerType === 'a4' ? '📄 A4' : `📄 ${cfg.customWidthMm}mm`,
             cfg.barcodeEnabled ? `🔲 ${cfg.barcodeType.toUpperCase()}` : null,
@@ -142,10 +146,21 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 20, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
         {/* === HALAMAN 1: STRUK NOTA CUSTOMER === */}
-        <div className="print-container" style={{ width: '100%', maxWidth: 380, background: C.white, padding: 24, borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: 24, fontFamily: 'monospace', color: '#000', fontSize: 12 }}>
+        <div className="print-container" style={{
+          width: '100%',
+          maxWidth: isMobile ? 340 : 380,
+          background: C.white,
+          padding: isMobile ? 16 : 24,
+          borderRadius: isMobile ? 10 : 12,
+          boxShadow: SHADOW.sm,
+          marginBottom: 24,
+          fontFamily: 'monospace',
+          color: '#000',
+          fontSize: isMobile ? 11 : 12
+        }}>
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <h2 style={{ margin: '0 0 4px 0', fontSize: 18 }}>{cfg.outletName || 'MY WASCHEN'}</h2>
@@ -240,28 +255,38 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
 
         {/* === HALAMAN 2: LABEL PRODUKSI === */}
         {cfg.printLabel && data.units && data.units.length > 0 && (
-          <div className="page-break" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div className="page-break" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? 12 : 16 }}>
             {data.units.map((unit, idx) => (
-              <div key={idx} className="print-container" style={{ width: '100%', maxWidth: 300, background: C.white, padding: 16, borderRadius: 8, border: '2px solid #000', fontFamily: 'monospace', color: '#000', textAlign: 'center' }}>
-                <div style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 6 }}>{cfg.outletName || 'MY WASCHEN'}</div>
-                <div style={{ fontSize: 14, marginBottom: 2 }}>{data.customerName}</div>
-                <div style={{ fontSize: 11, marginBottom: 10, opacity: 0.75 }}>{data.customerPhone}</div>
-                <div style={{ padding: '6px 0', borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '6px 0', letterSpacing: 3, fontSize: 15, fontWeight: 'bold' }}>
+              <div key={idx} className="print-container" style={{
+                width: '100%',
+                maxWidth: isMobile ? 280 : 300,
+                background: C.white,
+                padding: isMobile ? 12 : 16,
+                borderRadius: isMobile ? 6 : 8,
+                border: '2px solid #000',
+                fontFamily: 'monospace',
+                color: '#000',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontWeight: 'bold', fontSize: isMobile ? 14 : 16, marginBottom: 6 }}>{cfg.outletName || 'MY WASCHEN'}</div>
+                <div style={{ fontSize: isMobile ? 12 : 14, marginBottom: 2 }}>{data.customerName}</div>
+                <div style={{ fontSize: isMobile ? 10 : 11, marginBottom: 10, opacity: 0.75 }}>{data.customerPhone}</div>
+                <div style={{ padding: '6px 0', borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '6px 0', letterSpacing: 3, fontSize: isMobile ? 13 : 15, fontWeight: 'bold' }}>
                   {unit.unitNo}
                 </div>
 
                 {/* QR Code untuk scan di produksi — encode unit_no atau transaction_no */}
                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-                  <QRCodeView value={unit.unitNo || data.transactionNo || data.id} size={88} level="M" />
+                  <QRCodeView value={unit.unitNo || data.transactionNo || data.id} size={isMobile ? 72 : 88} level="M" />
                 </div>
 
-                <div style={{ fontSize: 9, marginTop: 6, opacity: 0.75 }}>
+                <div style={{ fontSize: isMobile ? 8 : 9, marginTop: 6, opacity: 0.75 }}>
                   Masuk: {data.createdAt ? new Date(data.createdAt).toLocaleDateString('id-ID') : '-'}<br />
                   Item {idx + 1} dari {data.units.length}
                 </div>
               </div>
             ))}
-   
+
          </div>
         )}
 

@@ -5,6 +5,7 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Select, DateTimeInput, ErrorBoundary } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF } from '../../utils/exportReport';
+import { useResponsive } from '../../utils/hooks';
 
 const F = { fontFamily: 'Poppins' };
 
@@ -121,6 +122,7 @@ const StatBlock = ({ label, value, color = C.n900, hint }) => (
 );
 
 export function AdminShiftReportPageContent({ navigate, goBack }) {
+  const { isMobile, isTablet } = useResponsive();
   const { adminOutletId } = useApp();
   const [tab, setTab] = useState('sessions');
   const [outlets, setOutlets] = useState([]);
@@ -337,8 +339,8 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 24px' }}>
         {/* ===== KPI Summary — Clean horizontal strip ===== */}
-        <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 0, textAlign: 'center' }}>
+        <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm, overflowX: 'auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, textAlign: 'center', minWidth: 400 }}>
             {[
               { label: 'Total', value: aggregateTotals.totalShift, color: C.n900 },
               { label: 'Tutup', value: aggregateTotals.totalClosed, color: C.success },
@@ -523,10 +525,10 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                           </button>
 
                           {expanded && (
-                            <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: C.n50 }}>
+                            <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: C.n50, overflowX: 'auto' }}>
                               {/* Timeline */}
                               <div style={{
-                                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+                                display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8,
                                 marginTop: 12, marginBottom: 10,
                               }}>
                                 <div style={{ background: C.white, padding: '10px 12px', borderRadius: 10 }}>
@@ -542,9 +544,9 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                               </div>
 
                               {/* Cash Reconciliation Section */}
-                              <div style={{ background: C.white, padding: 12, borderRadius: 10, marginBottom: 8 }}>
+                              <div style={{ background: C.white, padding: 12, borderRadius: 10, marginBottom: 8, overflowX: 'auto' }}>
                                 <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 8, letterSpacing: 0.3 }}>💰 REKONSILIASI KAS</div>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', ...F, fontSize: 12 }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', ...F, fontSize: 12, minWidth: 300 }}>
                                   <tbody>
                                     <tr style={{ borderBottom: `1px solid ${C.n100}` }}>
                                       <td style={{ padding: '6px 0', color: C.n700 }}>Modal awal</td>
@@ -703,7 +705,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                       </div>
 
                       {/* Status counts */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)', gap: 6, marginBottom: 10 }}>
                         <div style={{ background: C.n50, padding: '8px 10px', borderRadius: 8, textAlign: 'center' }}>
                           <div style={{ ...F, fontSize: 16, fontWeight: 600, color: C.n900 }}>{o.sessionCount}</div>
                           <div style={{ ...F, fontSize: 9, color: C.n700, fontWeight: 600 }}>Total</div>
@@ -719,7 +721,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                       </div>
 
                       {/* Discipline metrics */}
-                      <table style={{ width: '100%', borderCollapse: 'collapse', ...F, fontSize: 12 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', ...F, fontSize: 12, minWidth: 300 }}>
                         <tbody>
                           <tr style={{ borderBottom: `1px solid ${C.n100}` }}>
                             <td style={{ padding: '8px 0', color: C.n700 }}>Rata-rata |selisih kas|</td>

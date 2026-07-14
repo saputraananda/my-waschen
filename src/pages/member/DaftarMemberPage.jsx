@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, SearchBar, Avatar, Chip, Btn } from '../../components/ui';
+import { useResponsive } from '../../utils/hooks';
 
 // ─── Premium Animation Assets ───────────────────────────────────────────────
 import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp'
@@ -41,6 +42,7 @@ export default function DaftarMemberPage({ navigate, goBack }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all'); // all | active | expired | gold | diamond
   const [refreshing, setRefreshing] = useState(false);
+  const { isMobile } = useResponsive();
 
   const fetchMemberships = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -63,7 +65,6 @@ export default function DaftarMemberPage({ navigate, goBack }) {
 
       setMemberships(combined);
     } catch (err) {
-      console.error('[DaftarMember] Error:', err);
       setMemberships([]);
     } finally {
       setLoading(false);
@@ -115,37 +116,37 @@ export default function DaftarMemberPage({ navigate, goBack }) {
         rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '10px 12px' : '12px 16px' }}>
 
         {/* ── Stats Banner ────────────────────────────────────────── */}
         {!loading && memberships.length > 0 && (
           <div style={{
-            background: `linear-gradient(135deg, #5B005F, #4D0051)`,
-            borderRadius: 16, padding: '16px 18px', marginBottom: 14, color: 'white',
+            background: `linear-gradient(135deg, ${C.primaryStrong}, ${C.primaryDark})`,
+            borderRadius: isMobile ? 12 : 16, padding: isMobile ? '12px 10px' : '16px 18px', marginBottom: 14, color: 'white',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center', marginBottom: 12, flexWrap: 'wrap', gap: isMobile ? 8 : 0 }}>
               <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 700 }}>{activeCount}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.85 }}>Aktif</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>{activeCount}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, opacity: 0.85 }}>Aktif</div>
               </div>
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.15)' }} />
+              <div style={{ width: 1, background: 'rgba(255,255,255,0.15)', display: isMobile ? 'none' : 'block' }} />
               <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 700, color: '#FDE68A' }}>{goldCount}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.85 }}>🥇 Gold</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 18 : 22, fontWeight: 700, color: '#FDE68A' }}>{goldCount}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, opacity: 0.85 }}>Gold</div>
               </div>
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.15)' }} />
+              <div style={{ width: 1, background: 'rgba(255,255,255,0.15)', display: isMobile ? 'none' : 'block' }} />
               <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 700, color: '#C4B5FD' }}>{diamondCount}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.85 }}>💎 Diamond</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 18 : 22, fontWeight: 700, color: '#C4B5FD' }}>{diamondCount}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, opacity: 0.85 }}>Diamond</div>
               </div>
-              <div style={{ width: 1, background: 'rgba(255,255,255,0.15)' }} />
+              <div style={{ width: 1, background: 'rgba(255,255,255,0.15)', display: isMobile ? 'none' : 'block' }} />
               <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: '#FCA5A5' }}>{expiredCount}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.85 }}>Expired</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 14, fontWeight: 700, color: '#FCA5A5' }}>{expiredCount}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, opacity: 0.85 }}>Expired</div>
               </div>
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, textAlign: 'center', opacity: 0.85 }}>
-              💰 Total Deposit Member: {rp(totalDeposit)}
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, textAlign: 'center', opacity: 0.85 }}>
+              Total Deposit: {rp(totalDeposit)}
             </div>
           </div>
         )}
@@ -156,8 +157,8 @@ export default function DaftarMemberPage({ navigate, goBack }) {
           <Chip label={`Semua (${memberships.length})`} active={filter === 'all'} onClick={() => setFilter('all')} />
           <Chip label={`Aktif (${activeCount})`} active={filter === 'active'} onClick={() => setFilter('active')} color={C.success} />
           <Chip label={`Expired (${expiredCount})`} active={filter === 'expired'} onClick={() => setFilter('expired')} color={C.danger} />
-          <Chip label={`🥇 Gold (${goldCount})`} active={filter === 'gold'} onClick={() => setFilter('gold')} color="#F59E0B" />
-          <Chip label={`💎 Diamond (${diamondCount})`} active={filter === 'diamond'} onClick={() => setFilter('diamond')} color="#8B5CF6" />
+          <Chip label={`Gold (${goldCount})`} active={filter === 'gold'} onClick={() => setFilter('gold')} color="#F59E0B" />
+          <Chip label={`Diamond (${diamondCount})`} active={filter === 'diamond'} onClick={() => setFilter('diamond')} color="#8B5CF6" />
         </div>
 
         {/* Info Banner */}
@@ -210,27 +211,27 @@ export default function DaftarMemberPage({ navigate, goBack }) {
                   key={m.id}
                   onClick={() => navigate('detail_customer', { id: m.customer_id, name: m.customer_name })}
                   style={{
-                    background: C.white, borderRadius: 14, padding: '12px 14px',
+                    background: C.white, borderRadius: isMobile ? 10 : 14, padding: isMobile ? '10px 12px' : '12px 14px',
                     boxShadow: '0 2px 8px rgba(15,23,42,0.05)',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12,
                     borderLeft: `4px solid ${expired ? C.danger : tierInfo.color}`,
                     transition: 'transform 0.15s',
                   }}
                 >
                   {/* Tier Badge */}
                   <div style={{
-                    width: 48, height: 48, borderRadius: 12,
+                    width: isMobile ? 40 : 48, height: isMobile ? 40 : 48, borderRadius: isMobile ? 10 : 12,
                     background: expired ? C.validationErrorBg : `${tierInfo.color}20`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 24,
+                    fontSize: isMobile ? 20 : 24, flexShrink: 0,
                   }}>
                     {tierInfo.icon}
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
                       <div style={{
-                        fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900,
+                        fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 600, color: C.n900,
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                       }}>
                         {m.customer_name}
@@ -249,7 +250,7 @@ export default function DaftarMemberPage({ navigate, goBack }) {
                           fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
                           padding: '2px 6px', borderRadius: 999,
                         }}>
-                          ⚠️ EXPIRY SOON
+                          EXPIRY SOON
                         </span>
                       ) : (
                         <span style={{
@@ -262,11 +263,11 @@ export default function DaftarMemberPage({ navigate, goBack }) {
                       )}
                     </div>
 
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginBottom: 4 }}>
-                      {m.customer_phone} • {m.member_no}
+                    <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, color: C.n600, marginBottom: isMobile ? 2 : 4 }}>
+                      {m.customer_phone} - {m.member_no}
                     </div>
 
-                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: isMobile ? 8 : 12, flexWrap: 'wrap' }}>
                       <span style={{
                         fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
                         color: C.success, display: 'flex', alignItems: 'center', gap: 2,

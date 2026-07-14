@@ -1,5 +1,6 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
+import logger from '../utils/logger.js';
 
 // ─── GET /api/whatsapp-templates ─────────────────────────────────────────────
 export const getWhatsappTemplates = async (req, res) => {
@@ -16,7 +17,7 @@ export const getWhatsappTemplates = async (req, res) => {
 
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
-    console.error('[getWhatsappTemplates]', err);
+    logger.error('Gagal memuat template WhatsApp', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat template WhatsApp.' });
   }
 };
@@ -32,7 +33,7 @@ export const getWhatsappTemplateById = async (req, res) => {
     if (!row) return res.status(404).json({ success: false, message: 'Template tidak ditemukan.' });
     return res.status(200).json({ success: true, data: row });
   } catch (err) {
-    console.error('[getWhatsappTemplateById]', err);
+    logger.error('Gagal memuat template', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat template.' });
   }
 };
@@ -66,7 +67,7 @@ export const createWhatsappTemplate = async (req, res) => {
       action: 'create_whatsapp_template',
       newData: { code, name, type },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[createWhatsappTemplate] writeAudit gagal:', err));
 
     return res.status(201).json({
       success: true,
@@ -74,7 +75,7 @@ export const createWhatsappTemplate = async (req, res) => {
       data: { id: result.insertId, code, name, type },
     });
   } catch (err) {
-    console.error('[createWhatsappTemplate]', err);
+    logger.error('Gagal membuat template', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal membuat template.' });
   }
 };
@@ -115,11 +116,11 @@ export const updateWhatsappTemplate = async (req, res) => {
       entityId: Number(id),
       action: 'update_whatsapp_template',
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[updateWhatsappTemplate] writeAudit gagal:', err));
 
     return res.status(200).json({ success: true, message: 'Template berhasil diupdate.' });
   } catch (err) {
-    console.error('[updateWhatsappTemplate]', err);
+    logger.error('Gagal update template', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal update template.' });
   }
 };
@@ -146,11 +147,11 @@ export const deleteWhatsappTemplate = async (req, res) => {
       action: 'delete_whatsapp_template',
       newData: { code: existing.code },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[deleteWhatsappTemplate] writeAudit gagal:', err));
 
     return res.status(200).json({ success: true, message: 'Template berhasil dihapus.' });
   } catch (err) {
-    console.error('[deleteWhatsappTemplate]', err);
+    logger.error('Gagal hapus template', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal hapus template.' });
   }
 };
@@ -236,7 +237,7 @@ export const sendTransactionWhatsapp = async (req, res) => {
     try {
       const { emitWhatsappSent } = await import('../services/eventBus.js');
       emitWhatsappSent({ transactionId: tx.id, customerId: tx.custId, templateCode: tmpl.code });
-    } catch {}
+    } catch (err) { logger.warn('[sendTransactionWhatsapp] Emit WhatsApp sent gagal:', err?.message); }
 
     return res.status(200).json({
       success: true,
@@ -249,7 +250,7 @@ export const sendTransactionWhatsapp = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[sendTransactionWhatsapp]', err);
+    logger.error('Gagal mengirim WhatsApp', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengirim WhatsApp.' });
   }
 };
@@ -289,7 +290,7 @@ export const getTemplateLog = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getTemplateLog]', err);
+    logger.error('Gagal memuat log template', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat log template.' });
   }
 };

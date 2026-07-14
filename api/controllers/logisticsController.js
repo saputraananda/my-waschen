@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 // ─── POST /api/logistics ────────────────────────────────────────────────────
 // Buat logistic order (dipanggil otomatis saat checkout atau manual)
@@ -57,7 +58,7 @@ export const createLogisticOrder = async (req, res) => {
       data: { id: newOrderId, type, deliveryFee, scheduledAt, status: 'pending' },
     });
   } catch (err) {
-    console.error('[createLogisticOrder] Error:', err);
+    logger.error('Gagal membuat order logistik', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal membuat order logistik.' });
   }
 };
@@ -101,7 +102,7 @@ export const getLogisticOrders = async (req, res) => {
 
     return res.json({ success: true, data });
   } catch (err) {
-    console.error('[getLogisticOrders] Error:', err);
+    logger.error('Gagal memuat data logistik', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data logistik.' });
   }
 };
@@ -154,7 +155,7 @@ export const rescheduleLogistic = async (req, res) => {
       data: { id, oldScheduledAt, newScheduledAt: new_scheduled_at },
     });
   } catch (err) {
-    console.error('[rescheduleLogistic] Error:', err);
+    logger.error('Gagal mengubah jadwal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengubah jadwal.' });
   }
 };

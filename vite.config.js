@@ -54,9 +54,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
-          'chart-vendor': ['recharts'],
+          'ui-vendor': ['framer-motion', 'sonner', 'lucide-react', 'recharts'],
           'pdf-xlsx-vendor': ['jspdf', 'jspdf-autotable', 'xlsx'],
-          'ui-vendor': ['framer-motion', 'sonner', 'lucide-react'],
         }
       }
     },

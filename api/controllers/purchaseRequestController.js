@@ -16,14 +16,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
+import logger from '../utils/logger.js';
 
 const URGENCIES = ['normal', 'urgent', 'critical'];
 const STATUSES = ['pending', 'approved', 'rejected', 'revised', 'fulfilled', 'cancelled'];
-const ADMIN_ROLES = ['admin', 'superadmin', 'owner', 'finance'];
-const KASIR_ROLES = ['kasir', 'frontline'];
+const ADMIN_ROLES = ['admin'];
+const FRONTLINER_ROLES = ['frontline'];
 
 const isAdminRole = (role) => ADMIN_ROLES.includes(role);
-const isKasirRole = (role) => KASIR_ROLES.includes(role);
+const isKasirRole = (role) => FRONTLINER_ROLES.includes(role);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: tambah stok outlet + tulis ledger movement (1 trx, atomic)
@@ -77,7 +78,7 @@ async function addStockOnApprove(conn, { outletId, inventoryId, qty, requestId, 
 
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/purchase-requests — kasir submit
-// Body: { inventoryId?, itemName, brand?, category?, qty, unit?, estimatedPrice?, urgency, reason }
+// Body: { inventoryId?, itemName, brand?, category?, qty, unit?, estimatedPrice?, urgency, reason, picId?, picName? }
 // ════════════════════════════════════════════════════════════════════════════
 export const submitRequest = async (req, res) => {
   try {
@@ -85,11 +86,17 @@ export const submitRequest = async (req, res) => {
       inventoryId = null, itemName, brand = null, category = null,
       qty, unit = 'pcs', estimatedPrice = null,
       urgency = 'normal', reason,
+      // ── PIC (Penanggung Jawab) ───────────────────────────────────────────────
+      picId, picName,
     } = req.body || {};
 
     const userId = req.user?.userId;
     const userRole = req.user?.roleCode;
     const outletId = req.user?.outletId;
+
+    // Fallback PIC to current user if not provided
+    const resolvedPicId = picId || userId;
+    const resolvedPicName = picName || req.user?.name || req.user?.fullName || 'Unknown';
 
     if (!userId) return res.status(401).json({ success: false, message: 'Auth required.' });
     if (!isKasirRole(userRole)) {
@@ -154,11 +161,11 @@ export const submitRequest = async (req, res) => {
     const [insertRes] = await poolWaschenPos.execute(
       `INSERT INTO tr_purchase_request
         (outlet_id, inventory_id, item_name, brand, category, qty, unit,
-         estimated_price, urgency, reason, requested_by, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+         estimated_price, urgency, reason, requested_by, pic_id, pic_name, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [outletId, inventoryId, String(itemName).trim(), brand, category,
        numQty, unit, estimatedPrice != null ? Number(estimatedPrice) : null,
-       urgency, String(reason).trim(), userId]
+       urgency, String(reason).trim(), userId, resolvedPicId, resolvedPicName]
     );
 
     await writeAudit(poolWaschenPos, {
@@ -168,6 +175,8 @@ export const submitRequest = async (req, res) => {
       action: 'submit',
       newData: { itemName, qty: numQty, urgency, inventoryId },
       req,
+      picId: resolvedPicId,
+      picName: resolvedPicName,
     });
 
     return res.json({
@@ -175,7 +184,7 @@ export const submitRequest = async (req, res) => {
       data: { requestId: insertRes.insertId, status: 'pending', urgency },
     });
   } catch (err) {
-    console.error('[submitRequest] Error:', err);
+    logger.error('Gagal submit request', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal submit request.' });
   }
 };
@@ -254,7 +263,7 @@ export const resubmitRequest = async (req, res) => {
 
     return res.json({ success: true, data: { id, status: 'pending' } });
   } catch (err) {
-    console.error('[resubmitRequest] Error:', err);
+    logger.error('Gagal resubmit request', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal resubmit request.' });
   }
 };
@@ -318,6 +327,7 @@ export const getRequests = async (req, res) => {
               p.created_at AS createdAt, p.resolved_at AS resolvedAt,
               p.fulfilled_at AS fulfilledAt, p.revised_at AS revisedAt,
               p.resubmitted_at AS resubmittedAt,
+              p.pic_id AS picId, p.pic_name AS picName,
               o.name AS outletName,
               u.name AS requesterName,
               ru.name AS approverName,
@@ -350,7 +360,12 @@ export const getRequests = async (req, res) => {
       pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) || 1 },
     });
   } catch (err) {
-    console.error('[getRequests] Error:', err);
+    logger.error('Gagal memuat request', {
+      error: err.message,
+      code: err.code,
+      sqlMessage: err.sqlMessage,
+      sqlState: err.sqlState
+    });
     return res.status(500).json({ success: false, message: 'Gagal memuat request.' });
   }
 };
@@ -530,7 +545,7 @@ export const resolveRequest = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Action tidak dikenal.' });
   } catch (err) {
     try { await conn.rollback(); } catch {}
-    console.error('[resolveRequest] Error:', err);
+    logger.error('Gagal proses request', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal proses request.' });
   } finally {
     conn.release();
@@ -573,7 +588,7 @@ export const getSummary = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('[getSummary purchase-requests] Error:', err);
+    logger.error('Gagal memuat summary', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat summary.' });
   }
 };

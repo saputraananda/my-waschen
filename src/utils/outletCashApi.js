@@ -76,6 +76,7 @@ export async function cancelExpense(id) {
 }
 
 // ── Low Balance Check ────────────────────────────────────────────────────────
+// Backend handles role-based filtering: admin sees all, kasir sees only their outlet
 export async function checkLowBalance() {
   const res = await axios.get('/api/outlet-cash/low-balance-check');
   return res?.data?.data;

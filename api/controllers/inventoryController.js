@@ -4,8 +4,8 @@ import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('Inventory');
 
-const canManageStock = (role) => ['kasir', 'frontline', 'admin', 'produksi', 'finance', 'superadmin', 'owner'].includes(role);
-const canAdminInventory = (role) => ['admin', 'finance', 'superadmin', 'owner'].includes(role);
+const canManageStock = (role) => ['frontline', 'admin', 'produksi'].includes(role);
+const canAdminInventory = (role) => ['admin'].includes(role);
 
 const parseOutletId = (v) => {
   const n = Number(v);
@@ -16,7 +16,7 @@ const canAccessOutlet = (userOutlet, role, targetOutletId) => {
   const target = parseOutletId(targetOutletId);
   if (!target) return { ok: false, status: 400, message: 'Outlet tidak ditemukan.' };
   const own = parseOutletId(userOutlet);
-  const isGlobal = ['admin', 'finance', 'superadmin', 'owner'].includes(role);
+  const isGlobal = ['admin'].includes(role);
   if (own && !isGlobal && own !== target) {
     return { ok: false, status: 403, message: 'Akses outlet ditolak.' };
   }
@@ -696,6 +696,53 @@ export const deleteServiceInventoryUsage = async (req, res) => {
   }
 };
 
+// ─── GET /api/inventory/stock-history — movement ledger per item (admin) ────
+export const getStockHistory = async (req, res) => {
+  try {
+    const { inventoryId, outletId, page = 1, limit = 50 } = req.query;
+    const params = [];
+    let where = '1=1';
+
+    if (inventoryId) { where += ' AND m.inventory_id = ?'; params.push(Number(inventoryId)); }
+    if (outletId)    { where += ' AND m.outlet_id = ?';   params.push(Number(outletId)); }
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
+    const offset = (pageNum - 1) * limitNum;
+
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT m.id, m.outlet_id, m.inventory_id, m.movement_type, m.qty,
+              m.notes, m.created_by, m.created_at,
+              i.name AS itemName, i.unit,
+              o.name AS outletName,
+              u.name AS createdByName
+       FROM tr_inventory_movement m
+       LEFT JOIN mst_inventory_item i ON i.id = m.inventory_id
+       LEFT JOIN mst_outlet o ON o.id = m.outlet_id
+       LEFT JOIN mst_user u ON u.id = m.created_by
+       WHERE ${where}
+       ORDER BY m.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limitNum, offset]
+    );
+
+    const [countRows] = await poolWaschenPos.execute(
+      `SELECT COUNT(*) AS total FROM tr_inventory_movement m WHERE ${where}`,
+      params
+    );
+    const total = Number(countRows[0]?.total || 0);
+
+    return res.json({
+      success: true,
+      data: rows.map(r => ({ ...r, qty: Number(r.qty) })),
+      pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) || 1 },
+    });
+  } catch (err) {
+    logger.error('[getStockHistory]', err);
+    return res.status(500).json({ success: false, message: 'Gagal memuat riwayat stok.' });
+  }
+};
+
 // ════════════════════════════════════════════════════════════════════════════════
 // PHASE 5: LOW-STOCK WORKFLOW - PRODUCTION TO FRONTLINER ALERT
 // ════════════════════════════════════════════════════════════════════════════════
@@ -733,7 +780,7 @@ export const createLowStockAlert = async (req, res) => {
     const userId = req.user?.userId;
     const userRole = req.user?.roleCode;
     const userOutlet = req.user?.outletId;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     // Validation
     if (!inventoryId) {
@@ -851,7 +898,7 @@ export const getLowStockAlertHistory = async (req, res) => {
     const { outletId, page = 1, limit = 50 } = req.query;
     const userRole = req.user?.roleCode;
     const userOutlet = req.user?.outletId;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     let outletFilter = '';
     const params = [];
@@ -926,7 +973,7 @@ export const convertAlertToPurchaseRequest = async (req, res) => {
     const userId = req.user?.userId;
     const userRole = req.user?.roleCode;
     const userOutlet = req.user?.outletId;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     if (!alertId) {
       conn.release();

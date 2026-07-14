@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { poolWaschenPos as db } from '../db/connection.js';
 import { canCheckInventory } from '../utils/productionRolePermission.js';
+import logger from '../utils/logger.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/inventory/check
@@ -32,7 +33,7 @@ export async function getInventoryStock(req, res) {
     const qOutletId = req.query?.outletId;
     const qCategory = req.query?.category;
     const qFilter = req.query?.filter || 'all'; // all, low, out
-    const isGlobal = ['admin', 'superadmin'].includes(req.user?.roleCode);
+    const isGlobal = ['admin'].includes(req.user?.roleCode);
 
     // Determine outlet filter
     let outletCondition = '';
@@ -160,7 +161,7 @@ export async function getInventoryStock(req, res) {
     });
 
   } catch (error) {
-    console.error('[getInventoryStock] Error:', error);
+    logger.error('Gagal mengambil data inventory', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil data inventory.',
@@ -182,7 +183,7 @@ export async function getInventorySummary(req, res) {
     }
 
     const userOutletId = req.user?.outletId;
-    const isGlobal = ['admin', 'superadmin'].includes(req.user?.roleCode);
+    const isGlobal = ['admin'].includes(req.user?.roleCode);
 
     let condition = '';
     let params = [];
@@ -218,7 +219,7 @@ export async function getInventorySummary(req, res) {
     });
 
   } catch (error) {
-    console.error('[getInventorySummary] Error:', error);
+    logger.error('Gagal mengambil ringkasan inventory', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil ringkasan inventory.',
@@ -289,7 +290,7 @@ export async function sendLowStockAlert(req, res) {
     const [frontliners] = await conn.execute(`
       SELECT u.id, u.name FROM mst_user u
       WHERE u.outlet_id = ?
-        AND u.role_code IN ('kasir', 'frontline')
+        AND u.role_code IN ('frontline')
         AND u.is_active = 1
         AND u.deleted_at IS NULL
     `, [stock.outlet_id]);
@@ -325,7 +326,7 @@ export async function sendLowStockAlert(req, res) {
 
   } catch (error) {
     await conn.rollback();
-    console.error('[sendLowStockAlert] Error:', error);
+    logger.error('Gagal mengirim alert', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengirim alert.',

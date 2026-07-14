@@ -4,10 +4,11 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import { useResponsive } from '../../utils/hooks';
 
 const ROLE_LABEL = {
-  kasir: 'Frontline',
-  frontline: 'Frontline',
+  kasir: 'Frontliner',
+  frontline: 'Frontliner',
   admin: 'Admin',
   produksi: 'Produksi',
   finance: 'Finance',
@@ -107,6 +108,7 @@ const SectionTab = ({ label, active, onClick }) => (
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function InfoOutletPage({ navigate, goBack, screenParams }) {
+  const { isMobile } = useResponsive();
   const { user } = useApp();
   const outletId = screenParams?.outletId ?? user?.outletId;
 
@@ -133,9 +135,7 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
       if (teamRes?.data?.data) setTeam(teamRes.data.data);
       if (kasRes?.data?.data) setKas(kasRes.data.data);
       if (svcRes?.data?.data) setServices(svcRes.data.data);
-    } catch (err) {
-      console.error('[InfoOutletPage] fetch error:', err);
-    } finally {
+    } catch {
       setLoading(false);
     }
   }, [outletId]);
@@ -213,9 +213,10 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
 
           {/* ── Balance Display ────────────────────────────────── */}
           <div style={{
-            marginTop: 12, padding: '14px 16px', borderRadius: 12,
+            marginTop: 12, padding: isMobile ? '12px' : '14px 16px', borderRadius: 12,
             border: `1.5px solid ${C.n200}`, background: C.n50,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexWrap: 'wrap', gap: 12,
           }}>
             {balanceTab === 'kas' ? (
               <>
@@ -290,7 +291,7 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
 
         {/* ── Section Tabs ────────────────────────────────────── */}
         <div style={{ background: C.white, marginTop: 8 }}>
-          <div style={{ display: 'flex', borderBottom: `1px solid ${C.n100}`, overflowX: 'auto' }}>
+          <div style={{ display: 'flex', borderBottom: `1px solid ${C.n100}`, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <SectionTab label="INFORMASI OUTLET" active={sectionTab === 'info'} onClick={() => setSectionTab('info')} />
             <SectionTab label="DAFTAR LAYANAN" active={sectionTab === 'layanan'} onClick={() => setSectionTab('layanan')} />
             <SectionTab label="DAFTAR TIM" active={sectionTab === 'tim'} onClick={() => setSectionTab('tim')} />

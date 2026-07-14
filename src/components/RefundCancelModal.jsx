@@ -204,7 +204,6 @@ export default function RefundCancelModal({
           setRefundAmount(Number(data.paidAmount || 0));
         }
       } catch (err) {
-        console.error('Failed to fetch transaction:', err);
         setError('Gagal memuat detail transaksi.');
       } finally {
         setLoading(false);
@@ -268,7 +267,6 @@ export default function RefundCancelModal({
         setError(res?.data?.message || 'Gagal memproses refund.');
       }
     } catch (err) {
-      console.error('Refund failed:', err);
       setError(err?.response?.data?.message || 'Terjadi kesalahan saat memproses refund.');
     } finally {
       setSubmitting(false);

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Btn, Chip, Modal, Input, Select, SearchBar, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
 
@@ -32,6 +33,7 @@ const PlusIcon = () => (
 );
 
 export default function ManajemenLayananPage({ navigate, goBack }) {
+  const isMobile = useIsMobile();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -53,9 +55,7 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
       try {
         const res = await axios.get('/api/services');
         setServices(res?.data?.data || []);
-      } catch (error) {
-        console.error('Failed to fetch services:', error);
-      } finally {
+      } catch {
         setLoading(false);
       }
     };
@@ -142,9 +142,7 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
       setServices(resList?.data?.data || []);
       setModalAdd(false);
       alertSuccess(editingId ? 'Layanan berhasil diupdate.' : 'Layanan berhasil ditambahkan.');
-    } catch (error) {
-      console.error('Failed to save service:', error);
-      const msg = error?.response?.data?.message || 'Gagal menyimpan layanan. Silakan coba lagi.';
+    } catch {
       alertError(msg);
     } finally {
       setSubmitting(false);
@@ -158,9 +156,8 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
       await axios.delete(`/api/services/${id}`);
       setServices((prev) => prev.filter((s) => s.id !== id));
       alertSuccess('Layanan berhasil dihapus.');
-    } catch (error) {
-      console.error('Failed to delete service:', error);
-      const msg = error?.response?.data?.message || 'Gagal menghapus layanan.';
+    } catch {
+      const msg = 'Gagal menghapus layanan.';
       alertError(msg);
     }
   };
@@ -176,14 +173,39 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
       } else {
         setServices((prev) => prev.map((s) => (s.id === id ? { ...s, active: !s.active } : s)));
       }
-    } catch (error) {
-      console.error('Failed to toggle service:', error);
-      alertError(error?.response?.data?.message || 'Gagal mengubah status layanan.');
+    } catch {
+      alertError('Gagal mengubah status layanan.');
     }
   };
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .service-card-content {
+            flex-direction: column !important;
+            gap: 12px !important;
+          }
+          .service-card-actions {
+            width: 100% !important;
+            flex-direction: row !important;
+          }
+          .service-modal-row {
+            flex-direction: column !important;
+          }
+          .service-modal-row > div {
+            width: 100% !important;
+          }
+          .service-card-body {
+            flex-direction: column !important;
+          }
+        }
+        @media (max-width: 360px) {
+          .service-card-actions > button {
+            flex: 1 !important;
+          }
+        }
+      `}</style>
 
       {/* ── TOP BAR ── */}
       <TopBar
@@ -316,8 +338,8 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
                   transition: 'all 0.2s ease',
                   borderLeft: `4px solid ${hasExpress ? C.warning : C.primary}`,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }} className="service-card-body">
+                    <div style={{ flex: 1, minWidth: 0 }} className="service-card-content">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{s.name}</span>
                         {hasExpress && (
@@ -350,7 +372,7 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, marginLeft: 10 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, marginLeft: 10 }} className="service-card-actions">
                       <button
                         onClick={() => toggleActive(s.id)}
                         style={{
@@ -434,7 +456,7 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
 
           {/* SLA */}
           <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Estimasi Waktu Pengerjaan (Jam)</div>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }} className="service-modal-row">
             <div style={{ flex: 1 }}>
               <Input label="Reguler" value={form.slaRegular} onChange={(v) => setForm((f) => ({ ...f, slaRegular: v }))} type="number" placeholder="cth: 48" />
             </div>

@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Btn, useAppRefresh } from '../../components/ui';
 import { alertError, alertSuccess } from '../../utils/alert';
 import { getAllBalances, getCashSummary, topupCash, reconcileBalance, getCashConfig, exportCashCsv } from '../../utils/outletCashApi';
@@ -38,7 +39,6 @@ export default function AdminKasOverviewPage({ goBack, navigate }) {
       const data = await getAllBalances();
       setBalances(data);
     } catch (err) {
-      console.error('[AdminKasOverview]', err);
     } finally {
       setLoading(false);
     }
@@ -110,11 +110,18 @@ export default function AdminKasOverviewPage({ goBack, navigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .kas-overview-stats { grid-template-columns: repeat(2, 1fr) !important; }
+          .kas-overview-card { flex-direction: column !important; gap: 10px !important; }
+          .kas-modal-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
       <TopBar title="Kas Semua Outlet" subtitle="Overview saldo kas operasional" onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Summary cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }} className="kas-overview-stats">
           <div style={{ background: 'white', borderRadius: 14, padding: '14px 16px', boxShadow: SHADOW.sm, textAlign: 'center' }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n600, letterSpacing: 0.3 }}>TOTAL SALDO</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: C.success, marginTop: 4 }}>{rp(totalBalance)}</div>

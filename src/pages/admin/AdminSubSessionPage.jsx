@@ -5,6 +5,7 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Badge, SearchBar, EmptyState, SkeletonList } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError } from '../../utils/alert';
+import { useResponsive } from '../../utils/hooks';
 
 const F = { fontFamily: 'Poppins' };
 
@@ -115,7 +116,7 @@ const SubSessionRow = ({ subSession, onClick }) => {
       </div>
 
       {/* Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
         <div style={{ background: C.infoBg, borderRadius: 10, padding: '8px 10px' }}>
           <div style={{ ...F, fontSize: 9, color: C.n600, marginBottom: 2 }}>Transaksi</div>
           <div style={{ ...F, fontSize: 16, fontWeight: 800, color: C.info }}>
@@ -172,6 +173,7 @@ const SubSessionRow = ({ subSession, onClick }) => {
 };
 
 export default function AdminSubSessionPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const { user } = useApp();
   const [mainSessions, setMainSessions] = useState([]);
   const [selectedMainSession, setSelectedMainSession] = useState(null);
@@ -190,7 +192,7 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
         setSelectedMainSession(sessions[0]);
       }
     } catch (e) {
-      console.warn('[AdminSubSession] Failed to load sessions:', e?.message);
+      // Silent fail - sessions list optional
     } finally {
       setLoading(false);
     }
@@ -206,7 +208,7 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
       const res = await axios.get(`/api/shifts/sub-session/${sessionId}/all`);
       setSubSessions(res?.data?.data || []);
     } catch (e) {
-      console.warn('[AdminSubSession] Failed to load sub-sessions:', e?.message);
+      // Silent fail - sub-sessions optional
       setSubSessions([]);
     } finally {
       setSubSessionsLoading(false);
@@ -305,7 +307,7 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
 
         {/* Summary Stats */}
         {summaryStats && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 16 }}>
             <Card>
               <div style={{ ...F, fontSize: 10, color: C.n600, marginBottom: 4 }}>Total Transaksi</div>
               <div style={{ ...F, fontSize: 20, fontWeight: 800, color: C.n900 }}>{summaryStats.totalTransactions}</div>
@@ -370,8 +372,7 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
                 key={ss.id}
                 subSession={ss}
                 onClick={() => {
-                  // Could navigate to detail view
-                  console.log('Sub-session clicked:', ss.id);
+                  // Navigate to sub-session detail if needed
                 }}
               />
             ))}

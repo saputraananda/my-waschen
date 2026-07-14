@@ -3,6 +3,7 @@ import axios from 'axios';
 import { TopBar, SkeletonList } from '../../components/ui';
 import { C } from '../../utils/theme';
 import { useRealtime } from '../../utils/realtime';
+import { useResponsive } from '../../utils/hooks';
 
 const TYPE_STYLE = {
   selesai: { icon: '✅', bg: C.successBg, color: C.successDark },
@@ -28,6 +29,7 @@ function timeAgo(dateStr) {
 }
 
 export default function ProduksiNotifikasiPage({ navigate }) {
+  const { isMobile } = useResponsive();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
@@ -41,7 +43,6 @@ export default function ProduksiNotifikasiPage({ navigate }) {
       const produksi = all.filter(n => n.category === 'produksi');
       setNotifications(produksi);
     } catch (err) {
-      console.error('[ProduksiNotifikasi]', err);
       setError('Gagal memuat notifikasi.');
     } finally {
       setLoading(false);
@@ -68,7 +69,7 @@ export default function ProduksiNotifikasiPage({ navigate }) {
         onBack={() => navigate('dashboard')}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px 80px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: `${isMobile ? 10 : 12}px ${isMobile ? 12 : 14}px ${isMobile ? 90 : 80}px` }}>
         {loading ? (
           <SkeletonList count={4} />
         ) : error ? (
@@ -97,7 +98,7 @@ export default function ProduksiNotifikasiPage({ navigate }) {
                 style={{
                   background: '#ffffff',
                   borderRadius: 14,
-                  padding: '12px 14px',
+                  padding: isMobile ? '10px 12px' : '12px 14px',
                   marginBottom: 8,
                   border: `0.5px solid ${notif.read ? 'rgba(0,0,0,0.07)' : style.color}30`,
                   boxShadow: notif.read
@@ -117,19 +118,19 @@ export default function ProduksiNotifikasiPage({ navigate }) {
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
               >
                 {/* Header: icon + title + time */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? 8 : 10 }}>
                   <div style={{
-                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                    width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: isMobile ? 8 : 10, flexShrink: 0,
                     background: style.bg,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18,
+                    fontSize: isMobile ? 16 : 18,
                   }}>
                     {style.icon}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                       <span style={{
-                        fontFamily: 'Inter, system-ui', fontSize: 12, fontWeight: 500,
+                        fontFamily: 'Inter, system-ui', fontSize: isMobile ? 11 : 12, fontWeight: 500,
                         color: C.n800, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
                         {notif.title}
@@ -141,7 +142,7 @@ export default function ProduksiNotifikasiPage({ navigate }) {
                       </span>
                     </div>
                     <div style={{
-                      fontFamily: 'Inter, system-ui', fontSize: 11, color: C.n500,
+                      fontFamily: 'Inter, system-ui', fontSize: isMobile ? 10 : 11, color: C.n500,
                       marginTop: 3, lineHeight: 1.4,
                     }}>
                       {notif.message}

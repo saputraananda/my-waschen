@@ -1,4 +1,4 @@
-import express from 'express';
+import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import {
   getProvinces,
@@ -14,7 +14,7 @@ import {
   getAreaZones,
 } from '../controllers/masterController.js';
 
-const router = express.Router();
+const router = Router();
 // Fixed import: authenticate (not authenticateToken)
 
 // ═══════════════════════════════════════════════════════════════════════════

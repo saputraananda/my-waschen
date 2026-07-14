@@ -2,6 +2,118 @@
 // Reusable React Hooks
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
+
+/**
+ * useWindowSize — returns current window dimensions.
+ * Updates on resize.
+ */
+export function useWindowSize() {
+  const [size, setSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  });
+
+  useEffect(() => {
+    let timeout;
+    const handle = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        setSize({ width: window.innerWidth, height: window.innerHeight });
+      }, 100);
+    };
+    window.addEventListener('resize', handle);
+    return () => {
+      window.removeEventListener('resize', handle);
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  return size;
+}
+
+/**
+ * useResponsive — returns responsive breakpoints state.
+ *
+ * Usage:
+ *   const { isMobile, isTablet, isDesktop, isLargeDesktop } = useResponsive();
+ *   const padding = isMobile ? 12 : isTablet ? 16 : 24;
+ */
+export function useResponsive() {
+  const { width } = useWindowSize();
+
+  const isMobile = width < 640;       // Mobile S/M/L (< 640px)
+  const isTablet = width >= 640 && width < 1024;  // Tablet (640-1023px)
+  const isDesktop = width >= 1024 && width < 1280; // Desktop (1024-1279px)
+  const isLargeDesktop = width >= 1280; // Large Desktop (>= 1280px)
+
+  // Common breakpoints
+  const sm = width >= 640;
+  const md = width >= 768;
+  const lg = width >= 1024;
+  const xl = width >= 1280;
+
+  // Grid columns
+  const gridCols = isMobile ? 2 : isTablet ? 3 : isDesktop ? 4 : 6;
+
+  return {
+    width,
+    isMobile,
+    isTablet,
+    isDesktop,
+    isLargeDesktop,
+    sm,
+    md,
+    lg,
+    xl,
+    gridCols,
+    // Helper: get value based on breakpoint
+    bp: (valueByBp) => {
+      if (isMobile) return valueByBp.mobile ?? valueByBp.base ?? valueByBp.tablet ?? valueByBp.desktop;
+      if (isTablet) return valueByBp.tablet ?? valueByBp.base ?? valueByBp.desktop;
+      if (isDesktop) return valueByBp.desktop ?? valueByBp.base;
+      return valueByBp.base;
+    },
+  };
+}
+
+/**
+ * useIsMobile — compatibility helper for pages that only need the mobile flag.
+ */
+export function useIsMobile() {
+  return useResponsive().isMobile;
+}
+
+/**
+ * useSafeArea — returns safe area insets for notched devices.
+ * Includes padding for notch, home indicator, etc.
+ */
+export function useSafeArea() {
+  const [safeArea, setSafeArea] = useState({
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+  });
+
+  useEffect(() => {
+    const compute = () => {
+      const style = getComputedStyle(document.documentElement);
+      setSafeArea({
+        top: parseInt(style.getPropertyValue('--sat') || '0') || 0,
+        bottom: parseInt(style.getPropertyValue('--sab') || '0') || 0,
+        left: parseInt(style.getPropertyValue('--sal') || '0') || 0,
+        right: parseInt(style.getPropertyValue('--sar') || '0') || 0,
+      });
+    };
+    compute();
+    // Re-compute on resize (orientation change)
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, []);
+
+  return safeArea;
+}
 
 /**
  * useDebounce — returns a debounced value that only updates after `delay` ms of inactivity.
@@ -59,7 +171,6 @@ export function useCachedFetch(url, { ttl = 5 * 60 * 1000, enabled = true } = {}
     }
     setState((s) => ({ ...s, loading: true }));
     try {
-      const axios = (await import('axios')).default;
       const res = await axios.get(url);
       const data = res?.data?.data ?? res?.data;
       _cache.set(url, { data, timestamp: Date.now() });

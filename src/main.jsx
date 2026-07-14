@@ -22,11 +22,9 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     navigator.serviceWorker
       .register('/sw.js')
       .then((reg) => {
-        console.log('[SW] Registered:', reg.scope);
         setInterval(() => reg.update(), 30 * 60 * 1000);
       })
       .catch((err) => {
-        console.warn('[SW] Registration failed:', err);
       });
   });
 }
@@ -36,7 +34,6 @@ if ('serviceWorker' in navigator && !import.meta.env.PROD) {
   navigator.serviceWorker.getRegistrations().then((registrations) => {
     for (const registration of registrations) {
       registration.unregister();
-      console.log('[SW] Unregistered dev service worker');
     }
   });
 }

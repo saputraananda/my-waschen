@@ -1,15 +1,36 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// LoginPage.jsx — Premium Desktop Redesign with Glassmorphism & Claymorphism
-// Laundrix-inspired design with stagger entrance + shake on error
-// Focus: Desktop/Landscape POV
+// LoginPage.jsx — Login with Smooth 3D Blur Slide Carousel
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AppContext';
 
-// ─── Assets ───────────────────────────────────────────────────────────────────
-import loginIllustration from '../../assets/login-illustration.webp';
+// ─── Static Asset Imports ─────────────────────────────────────────────────────
+import loginSlide1 from '../../assets/login-slide-1.webp';
+import loginSlide2 from '../../assets/login-slide-2.webp';
+import loginSlide3 from '../../assets/login-slide-3.webp';
+
+// ─── Carousel Slides Data ─────────────────────────────────────────────────────
+const CAROUSEL_SLIDES = [
+  {
+    id: 'slide-1',
+    image: loginSlide1,
+    quote: 'Selamat datang di Wäschen!',
+    subquote: 'Laundry profesional untuk baju kesayanganmu',
+  },
+  {
+    id: 'slide-2',
+    image: loginSlide2,
+    quote: 'Layanan Express 24 Jam',
+    subquote: 'Baju bersih dalam waktu singkat',
+  },
+  {
+    id: 'slide-3',
+    image: loginSlide3,
+    quote: 'Perawatan Premium',
+    subquote: 'Bahan sensitif ditangani dengan hati-hati',
+  },
+];
 
 const APP_VERSION = 'My Waschen v2.0.0';
 
@@ -21,61 +42,155 @@ const BRAND = {
   deepLighter: '#9C3AA0',
   deepPale: '#F3E3F5',
   deepSoft: '#AD80AF',
-  deepTint: '#E6D9E7',
-  deepWash: '#F4EDF4',
   accent: '#F93E11',
   accentLight: '#FF7A4D',
   foam: '#FFFFFF',
   danger: '#E4664A',
 };
 
-// ─── CSS Keyframes (injected once) ───────────────────────────────────────────
-const injectKeyframes = () => {
-  if (document.getElementById('login-page-keyframes')) return;
-  const style = document.createElement('style');
-  style.id = 'login-page-keyframes';
-  style.textContent = `
-    @keyframes float-up {
-      0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
-      10%  { opacity: 0.35; }
-      90%  { opacity: 0.2; }
-      100% { transform: translateY(-115vh) translateX(var(--drift, 30px)) scale(0.85); opacity: 0; }
-    }
-    @keyframes drift {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      50% { transform: translate(24px, -18px) scale(1.06); }
-    }
-    @keyframes mesh-shift {
-      0%, 100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0% 0%, 0 0; }
-      50% { background-position: 12% 8%, -8% 6%, 10% -8%, -6% 6%, 0% 0%, 0 0; }
-    }
-    @keyframes sparkle {
-      0%, 100% { transform: scale(0.8) rotate(0deg); opacity: 0.3; }
-      50% { transform: scale(1.3) rotate(180deg); opacity: 1; }
-    }
-    @keyframes sparkle-pulse {
-      0%, 100% { transform: scale(1); opacity: 0.25; }
-      50% { transform: scale(1.6); opacity: 0.7; }
-    }
-    @keyframes field-shake {
-      0%, 100% { transform: translateX(0); }
-      15%       { transform: translateX(-7px); }
-      30%       { transform: translateX(7px); }
-      45%       { transform: translateX(-5px); }
-      60%       { transform: translateX(5px); }
-      75%       { transform: translateX(-2px); }
-      90%       { transform: translateX(2px); }
-    }
-    @keyframes error-in {
-      from { opacity: 0; transform: translateY(-4px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .is-shaking {
-      animation: field-shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
-    }
-  `;
-  document.head.appendChild(style);
-};
+// ─── Blob Animations ─────────────────────────────────────────────────────────
+const BLOB_ANIMATIONS = `
+  @keyframes blobFloatA {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-15px, 18px) scale(1.08); }
+  }
+  @keyframes blobFloatB {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(20px, -14px) scale(1.12); }
+  }
+  @keyframes blobFloatC {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(12px, 10px) scale(0.92); }
+  }
+  @keyframes sparkle {
+    0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+    10% { opacity: 1; transform: scale(1) rotate(45deg); }
+    30% { opacity: 1; transform: scale(1.2) rotate(90deg); }
+    50% { opacity: 0.8; transform: scale(0.9) rotate(135deg); }
+    70% { opacity: 1; transform: scale(1.1) rotate(180deg); }
+    90% { opacity: 0.5; transform: scale(0.8) rotate(225deg); }
+  }
+  @keyframes bubbleRise1 {
+    0% { transform: translateY(0) translateX(0) scale(0); opacity: 0; }
+    10% { opacity: 0.6; transform: translateY(-10vh) translateX(5px) scale(1); }
+    40% { transform: translateY(-40vh) translateX(-8px) scale(1); }
+    70% { transform: translateY(-70vh) translateX(10px) scale(0.9); }
+    95% { opacity: 0.4; }
+    100% { transform: translateY(-110vh) translateX(-5px) scale(0.8); opacity: 0; }
+  }
+  @keyframes bubbleRise2 {
+    0% { transform: translateY(0) translateX(0) scale(0); opacity: 0; }
+    10% { opacity: 0.5; transform: translateY(-10vh) translateX(-8px) scale(1); }
+    40% { transform: translateY(-40vh) translateX(12px) scale(1); }
+    70% { transform: translateY(-70vh) translateX(-6px) scale(0.85); }
+    95% { opacity: 0.3; }
+    100% { transform: translateY(-110vh) translateX(8px) scale(0.75); opacity: 0; }
+  }
+  @keyframes bubbleRise3 {
+    0% { transform: translateY(0) translateX(0) scale(0); opacity: 0; }
+    10% { opacity: 0.55; transform: translateY(-10vh) translateX(10px) scale(1); }
+    40% { transform: translateY(-40vh) translateX(-5px) scale(0.95); }
+    70% { transform: translateY(-70vh) translateX(8px) scale(0.9); }
+    95% { opacity: 0.35; }
+    100% { transform: translateY(-110vh) translateX(-10px) scale(0.7); opacity: 0; }
+  }
+  @keyframes meshShift {
+    0%, 100% { transform: translate(0%, 0%) scale(1); }
+    25% { transform: translate(3%, -2%) scale(1.05); }
+    50% { transform: translate(-2%, 3%) scale(0.98); }
+    75% { transform: translate(2%, 1%) scale(1.02); }
+  }
+  @keyframes meshShift2 {
+    0%, 100% { transform: translate(0%, 0%) scale(1); }
+    33% { transform: translate(-3%, 2%) scale(0.97); }
+    66% { transform: translate(2%, -2%) scale(1.04); }
+  }
+`;
+
+// ─── 4-Pointed Sparkle Star Component ──────────────────────────────────────────
+function SparkleStars() {
+  const sparkles = [
+    { left: '15%', top: '20%', delay: '0s', duration: '3s', size: 18 },
+    { left: '85%', top: '15%', delay: '0.8s', duration: '3.5s', size: 14 },
+    { left: '25%', top: '60%', delay: '1.2s', duration: '2.8s', size: 16 },
+    { left: '75%', top: '70%', delay: '0.4s', duration: '3.2s', size: 20 },
+    { left: '50%', top: '35%', delay: '1.8s', duration: '2.5s', size: 12 },
+    { left: '10%', top: '80%', delay: '0.6s', duration: '3.3s', size: 15 },
+    { left: '90%', top: '45%', delay: '1.5s', duration: '2.9s', size: 18 },
+    { left: '35%', top: '90%', delay: '0.3s', duration: '3.1s', size: 14 },
+    { left: '60%', top: '12%', delay: '2s', duration: '2.7s', size: 16 },
+    { left: '40%', top: '75%', delay: '1s', duration: '3.4s', size: 13 },
+  ];
+
+  return (
+    <>
+      {sparkles.map((sparkle, idx) => (
+        <div
+          key={idx}
+          style={{
+            position: 'absolute',
+            left: sparkle.left,
+            top: sparkle.top,
+            animation: `sparkle ${sparkle.duration} ease-in-out infinite ${sparkle.delay}`,
+            pointerEvents: 'none',
+          }}
+        >
+          {/* 4-pointed star SVG */}
+          <svg
+            width={sparkle.size}
+            height={sparkle.size}
+            viewBox="0 0 24 24"
+            fill="rgba(255,255,255,0.85)"
+            style={{
+              filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.6))',
+            }}
+          >
+            <path d="M12 0 L13.5 9 L24 12 L13.5 13.5 L12 24 L10.5 13.5 L0 12 L10.5 9 Z" />
+          </svg>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// ─── Floating Bubbles Component (Performance Optimized) ──────────────────────
+function FloatingBubbles() {
+  // Reduced bubble count for better performance
+  const bubbles = [
+    { left: '10%', size: 40, delay: '0s', duration: '15s', animation: 'bubbleRise1' },
+    { left: '25%', size: 25, delay: '3s', duration: '18s', animation: 'bubbleRise2' },
+    { left: '45%', size: 35, delay: '6s', duration: '16s', animation: 'bubbleRise3' },
+    { left: '65%', size: 30, delay: '2s', duration: '17s', animation: 'bubbleRise1' },
+    { left: '80%', size: 45, delay: '8s', duration: '19s', animation: 'bubbleRise2' },
+    { left: '15%', size: 20, delay: '5s', duration: '14s', animation: 'bubbleRise3' },
+    { left: '55%', size: 28, delay: '9s', duration: '16s', animation: 'bubbleRise1' },
+    { left: '75%', size: 38, delay: '4s', duration: '18s', animation: 'bubbleRise2' },
+  ];
+
+  return (
+    <>
+      {bubbles.map((bubble, idx) => (
+        <div
+          key={idx}
+          style={{
+            position: 'absolute',
+            left: bubble.left,
+            bottom: '-60px',
+            width: bubble.size,
+            height: bubble.size,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0) 100%)',
+            backdropFilter: 'blur(3px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            animation: `${bubble.animation} ${bubble.duration} ease-in-out infinite ${bubble.delay}`,
+            pointerEvents: 'none',
+            willChange: 'transform, opacity',
+          }}
+        />
+      ))}
+    </>
+  );
+}
 
 // ─── Responsive Hook ───────────────────────────────────────────────────────────
 const useResponsive = () => {
@@ -91,52 +206,232 @@ const useResponsive = () => {
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const IconEye = ({ size = 18, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z" />
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
     <circle cx="12" cy="12" r="3" />
   </svg>
 );
 
 const IconEyeOff = ({ size = 18, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17.94 17.94A10.07 10.07 0 0 1-5 12c0-7 4-11 11-11a10.07 10.07 0 0 1 5.94 2.06M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.45 18.45 0 0 1-5.06 5.94M9.9 4.24A9.12 9.12 0 0 0 5 12c0 .7.1 1.37.3 2M1 1l22 22" />
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+    <line x1="1" y1="1" x2="23" y2="23" />
   </svg>
 );
 
-// ─── Floating Bubble Component ────────────────────────────────────────────────
-const FloatingBubble = ({ size = 36, delay = 0, drift = 30, left = '50%', bottom = '-40px', opacity = 0.15 }) => {
-  const duration = 10 + Math.random() * 8;
+// ─── Blur Slide Character Carousel (FIXED - smooth in & out, no jump) ────────
+function CharacterCarousel() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [phase, setPhase] = useState('visible'); // 'visible' | 'exiting' | 'entering'
+  const [instant, setInstant] = useState(false);  // matikan transition sesaat pas snap posisi awal
+  const [direction, setDirection] = useState('next');
+  const busyRef = useRef(false);
+
+  const goToSlide = (idx, dir = 'next') => {
+    if (busyRef.current || idx === currentIndex) return;
+    busyRef.current = true;
+    setDirection(dir);
+    setPhase('exiting'); // 1) slide lama geser+blur keluar
+
+    setTimeout(() => {
+      // 2) ganti gambar SAAT posisi opacity masih 0 (nggak kelihatan)
+      setCurrentIndex(idx);
+      setInstant(true);
+      setPhase('entering'); // taruh slide baru di sisi berlawanan, tanpa transisi (snap)
+
+      // 3) di frame berikutnya, nyalakan lagi transition & animasikan ke posisi visible
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setInstant(false);
+          setPhase('visible');
+        });
+      });
+    }, 350);
+
+    // lepas kunci setelah seluruh transisi selesai
+    setTimeout(() => {
+      busyRef.current = false;
+    }, 750);
+  };
+
+  // Auto-advance every 5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      goToSlide((currentIndex + 1) % CAROUSEL_SLIDES.length, 'next');
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [currentIndex]);
+
+  const handleDotClick = (idx) => {
+    const dir = idx > currentIndex ? 'next' : 'prev';
+    goToSlide(idx, dir);
+  };
+
+  const slide = CAROUSEL_SLIDES[currentIndex];
+
+  // Hitung style transform/opacity/blur berdasarkan phase — INI KUNCINYA
+  const getImageStyle = () => {
+    const offset = direction === 'next' ? 60 : -60;
+
+    if (phase === 'exiting') {
+      return { transform: `translateX(${-offset}px) scale(1.05)`, opacity: 0, filter: 'blur(8px)' };
+    }
+    if (phase === 'entering') {
+      return { transform: `translateX(${offset}px) scale(1.05)`, opacity: 0, filter: 'blur(8px)' };
+    }
+    // visible
+    return { transform: 'translateX(0) scale(1)', opacity: 1, filter: 'blur(0px)' };
+  };
+
+  const imgStyle = getImageStyle();
+
   return (
-    <div
-      style={{
-        position: 'absolute',
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        border: '1px solid rgba(255, 255, 255, 0.25)',
-        background: `radial-gradient(circle at 32% 28%, rgba(255,255,255,${opacity * 0.8}) 0%, rgba(255,255,255,${opacity * 0.15}) 50%, rgba(255,255,255,${opacity * 0.05}) 70%)`,
-        bottom,
-        left,
-        transform: 'translateX(-50%)',
-        animation: `float-up ${duration}s ease-in infinite`,
-        animationDelay: `${delay}s`,
-        ['--drift']: `${drift}px`,
-        pointerEvents: 'none',
-        zIndex: 2,
-      }}
-    />
+    <div style={{
+      position: 'relative',
+      zIndex: 2,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+      width: '100%',
+      padding: '32px 48px',
+      boxSizing: 'border-box',
+    }}>
+      {/* Image Container */}
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        maxWidth: 560,
+        flex: '0 0 auto',
+        minHeight: 320,
+        maxHeight: 400,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        marginTop: 16,
+      }}>
+        {/* Background glow */}
+        <div style={{
+          position: 'absolute',
+          width: '90%',
+          height: '90%',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(249, 62, 17, 0.35) 0%, transparent 70%)',
+          filter: 'blur(60px)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }} />
+
+        <img
+          src={slide.image}
+          alt=""
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            width: 'auto',
+            height: 'auto',
+            objectFit: 'contain',
+            filter: `drop-shadow(0 30px 60px rgba(30, 0, 32, 0.4)) ${imgStyle.filter}`,
+            transform: imgStyle.transform,
+            opacity: imgStyle.opacity,
+            transition: instant
+              ? 'none'
+              : 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), filter 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+            position: 'relative',
+            zIndex: 1,
+          }}
+        />
+      </div>
+
+      {/* Quote Text with Blur Fade */}
+      <div
+        key={`quote-${currentIndex}`}
+        className="quote-fade"
+        style={{
+          textAlign: 'center',
+          marginTop: '24px',
+          maxWidth: 480,
+          minHeight: 90,
+          width: '100%',
+        }}
+      >
+        <h3 style={{
+          fontFamily: "'Poppins', sans-serif",
+          fontSize: 24,
+          fontWeight: 700,
+          color: '#fff',
+          margin: '0 0 10px',
+          textShadow: '0 2px 20px rgba(0,0,0,0.3)',
+          lineHeight: 1.3,
+        }}>
+          {slide.quote}
+        </h3>
+        <p style={{
+          fontFamily: "'Poppins', sans-serif",
+          fontSize: 15,
+          color: 'rgba(255,255,255,0.85)',
+          margin: 0,
+          lineHeight: 1.6,
+        }}>
+          {slide.subquote}
+        </p>
+      </div>
+
+      {/* Dot indicators */}
+      <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
+        {CAROUSEL_SLIDES.map((_, idx) => (
+          <div
+            key={idx}
+            onClick={() => handleDotClick(idx)}
+            style={{
+              width: idx === currentIndex ? 28 : 8,
+              height: 8,
+              borderRadius: 4,
+              background: idx === currentIndex
+                ? 'linear-gradient(90deg, #F93E11, #FF7A4D)'
+                : 'rgba(255,255,255,0.35)',
+              cursor: 'pointer',
+              transition: 'width 0.3s ease, background 0.3s ease',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Cuma sisain animasi quote fade, animasi slide udah dihandle via inline style di atas */}
+      <style>{`
+        .quote-fade {
+          animation: quoteFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes quoteFadeIn {
+          0% { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+          100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+      `}</style>
+    </div>
   );
-};
+}
 
 // ─── LEFT SIDE: Hero Panel ────────────────────────────────────────────────────
 function HeroPanel() {
   useEffect(() => {
-    injectKeyframes();
+    const styleId = 'login-page-blobs';
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = BLOB_ANIMATIONS;
+    document.head.appendChild(style);
+    return () => {
+      const el = document.getElementById(styleId);
+      if (el) el.remove();
+    };
   }, []);
 
   return (
     <div style={{
-      width: '54%',
-      height: '100vh',
+      width: '56%',
+      height: '100%',
       position: 'relative',
       overflow: 'hidden',
       background: `
@@ -144,109 +439,90 @@ function HeroPanel() {
       `,
       isolation: 'isolate',
     }}>
-      {/* Subtle background blobs - more transparent */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+      {/* Mesh Background - behind everything */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: 'none',
+      }}>
         <div style={{
           position: 'absolute',
-          width: 340,
-          height: 340,
-          borderRadius: '50%',
-          filter: 'blur(8px)',
-          opacity: 0.12,
-          background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0) 70%)',
-          top: -80,
-          left: -100,
-          animation: 'drift 16s ease-in-out infinite',
+          width: '160%',
+          height: '160%',
+          top: '-30%',
+          left: '-30%',
+          background: `
+            radial-gradient(ellipse 50% 50% at 25% 30%, rgba(232, 90, 168, 0.35) 0%, transparent 55%),
+            radial-gradient(ellipse 40% 60% at 75% 65%, rgba(139, 92, 246, 0.25) 0%, transparent 50%)
+          `,
+          filter: 'blur(60px)',
+          animation: 'meshShift 20s ease-in-out infinite',
         }} />
         <div style={{
           position: 'absolute',
-          width: 260,
-          height: 260,
-          borderRadius: '50%',
-          filter: 'blur(8px)',
-          opacity: 0.08,
-          background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0) 70%)',
-          bottom: -60,
-          right: -60,
-          animation: 'drift 16s ease-in-out infinite',
-          animationDelay: '-5s',
+          width: '140%',
+          height: '140%',
+          top: '-20%',
+          left: '-20%',
+          background: `
+            radial-gradient(ellipse 45% 55% at 60% 25%, rgba(95, 217, 174, 0.3) 0%, transparent 50%),
+            radial-gradient(ellipse 50% 40% at 30% 75%, rgba(59, 130, 246, 0.2) 0%, transparent 55%)
+          `,
+          filter: 'blur(80px)',
+          animation: 'meshShift2 25s ease-in-out infinite',
         }} />
       </div>
 
-      {/* Large transparent bubbles - left panel only */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 1, overflow: 'hidden', pointerEvents: 'none' }}>
-        {Array.from({ length: 12 }).map((_, i) => (
-          <FloatingBubble
-            key={i}
-            size={20 + Math.random() * 50}
-            delay={Math.random() * 6}
-            drift={(Math.random() * 150 - 75).toFixed(0)}
-            left={`${Math.random() * 100}%`}
-            bottom={`${-80 - Math.random() * 80}px`}
-            opacity={0.35 + Math.random() * 0.3}
-          />
-        ))}
+      {/* Sparkle Stars - above mesh */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        <SparkleStars />
       </div>
 
-      {/* Sparkle effects */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 3, overflow: 'hidden', pointerEvents: 'none' }}>
-        <div style={{ position: 'absolute', width: 20, height: 20, top: '8%', left: '15%', animation: 'sparkle 2.8s ease-in-out infinite' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.95)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 16, height: 16, top: '12%', left: '35%', animation: 'sparkle 3.2s ease-in-out infinite', animationDelay: '0.3s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,200,100,0.9)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 14, height: 14, top: '5%', left: '55%', animation: 'sparkle 2.5s ease-in-out infinite', animationDelay: '0.7s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.9)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 18, height: 18, top: '18%', right: '20%', animation: 'sparkle 3s ease-in-out infinite', animationDelay: '0.5s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,220,150,0.95)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 12, height: 12, top: '30%', left: '8%', animation: 'sparkle 2.7s ease-in-out infinite', animationDelay: '1s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.85)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 22, height: 22, top: '25%', left: '25%', animation: 'sparkle 3.5s ease-in-out infinite', animationDelay: '1.2s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,200,100,0.95)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 10, height: 10, top: '40%', left: '20%', animation: 'sparkle-pulse 3.8s ease-in-out infinite', animationDelay: '0.8s' }}>
-          <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'rgba(255,255,255,0.95)' }} />
-        </div>
-        <div style={{ position: 'absolute', width: 24, height: 24, bottom: '35%', left: '12%', animation: 'sparkle 2.4s ease-in-out infinite', animationDelay: '0.2s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.9)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 15, height: 15, bottom: '28%', left: '30%', animation: 'sparkle 3.3s ease-in-out infinite', animationDelay: '1.5s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,220,150,0.9)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 8, height: 8, bottom: '40%', left: '18%', animation: 'sparkle-pulse 4s ease-in-out infinite', animationDelay: '1.8s' }}>
-          <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'rgba(255,200,100,0.9)' }} />
-        </div>
-        <div style={{ position: 'absolute', width: 19, height: 19, bottom: '22%', right: '25%', animation: 'sparkle 2.9s ease-in-out infinite', animationDelay: '1.1s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.95)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 13, height: 13, top: '50%', left: '5%', animation: 'sparkle 3.6s ease-in-out infinite', animationDelay: '0.6s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,200,100,0.85)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-        <div style={{ position: 'absolute', width: 11, height: 11, bottom: '18%', left: '40%', animation: 'sparkle-pulse 3.5s ease-in-out infinite', animationDelay: '2s' }}>
-          <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'rgba(255,255,255,0.9)' }} />
-        </div>
-        <div style={{ position: 'absolute', width: 17, height: 17, top: '35%', right: '15%', animation: 'sparkle 2.6s ease-in-out infinite', animationDelay: '0.9s' }}>
-          <svg viewBox="0 0 24 24" fill="rgba(255,255,255,0.9)"><path d="M12 1.5L14.9 9.1L22.5 12L14.9 14.9L12 22.5L9.1 14.9L1.5 12L9.1 9.1L12 1.5Z" /></svg>
-        </div>
-      </div>
+      {/* Decorative blobs - above mesh */}
+      <div style={{
+        position: 'absolute',
+        width: 280,
+        height: 280,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(232,90,168,0.4) 0%, transparent 70%)',
+        top: '-60px',
+        right: '-40px',
+        filter: 'blur(50px)',
+        animation: 'blobFloatB 14s ease-in-out infinite',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }} />
+      <div style={{
+        position: 'absolute',
+        width: 200,
+        height: 200,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(95,217,174,0.35) 0%, transparent 70%)',
+        bottom: '15%',
+        left: '-50px',
+        filter: 'blur(40px)',
+        animation: 'blobFloatC 16s ease-in-out infinite',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }} />
+      <div style={{
+        position: 'absolute',
+        width: 120,
+        height: 120,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+        top: '30%',
+        right: '8%',
+        filter: 'blur(30px)',
+        animation: 'blobFloatA 11s ease-in-out infinite',
+        pointerEvents: 'none',
+        zIndex: 1,
+      }} />
 
-      {/* Centered Illustration */}
-      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
-        {/* Glow effect behind illustration */}
-        <div style={{ position: 'absolute', width: '60%', height: '60%', borderRadius: '50%', background: 'radial-gradient(circle, rgba(249, 62, 17, 0.45) 0%, rgba(255, 122, 77, 0.3) 30%, transparent 70%)', filter: 'blur(60px)', top: '20%', left: '20%' }} />
-        {/* Login Illustration */}
-        <motion.img
-          src={loginIllustration}
-          alt="Wäschen Laundry Service"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          style={{ width: 'auto', height: '65vh', maxWidth: '95%', objectFit: 'contain', objectPosition: 'center', filter: 'drop-shadow(0 30px 60px rgba(30, 0, 32, 0.5))', zIndex: 1 }}
-        />
+      {/* Floating Bubbles - above blobs */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
+        <FloatingBubbles />
       </div>
 
       {/* Floor gradient */}
@@ -255,214 +531,148 @@ function HeroPanel() {
         left: 0,
         right: 0,
         bottom: 0,
-        height: 90,
-        background: 'linear-gradient(to top, rgba(58, 0, 64, 0.35), rgba(58, 0, 64, 0))',
-        zIndex: 1,
+        height: 120,
+        background: 'linear-gradient(to top, rgba(58, 0, 64, 0.5), rgba(58, 0, 64, 0.15), transparent)',
+        zIndex: 3,
+        pointerEvents: 'none',
       }} />
+
+      {/* Character Carousel - centered overlay */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 4,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <CharacterCarousel />
+      </div>
     </div>
   );
 }
 
 // ─── RIGHT SIDE: Login Form ───────────────────────────────────────────────────
-function FormPanel({ username, setUsername, password, setPassword, showPass, setShowPass, loading, errors, globalError, handleLogin, handleKeyDown, shakeFields }) {
-  // Field refs for shake animation
-  const usernameRef = useRef(null);
-  const passwordRef = useRef(null);
-
-  // Trigger shake when validation fails
-  useEffect(() => {
-    if (shakeFields?.username && usernameRef.current) {
-      usernameRef.current.classList.remove('is-shaking');
-      void usernameRef.current.offsetWidth;
-      usernameRef.current.classList.add('is-shaking');
-    }
-    if (shakeFields?.password && passwordRef.current) {
-      passwordRef.current.classList.remove('is-shaking');
-      void passwordRef.current.offsetWidth;
-      passwordRef.current.classList.add('is-shaking');
-    }
-  }, [shakeFields]);
-
-  // Stagger animation variants for desktop
-  const staggerVariants = {
-    hidden: { opacity: 0, y: 14 },
-    visible: (i) => ({
-      opacity: 1,
-      y: 0,
-      transition: {
-        delay: 0.2 + i * 0.08,
-        duration: 0.55,
-        ease: [0.2, 0.8, 0.2, 1],
-      },
-    }),
-  };
-
-  // CSS variables for consistent styling
-  const cssVars = {
-    glassFill: 'rgba(255, 255, 255, 0.46)',
-    glassBorder: 'rgba(255, 255, 255, 0.65)',
-    clayOut: '10px 10px 22px rgba(77, 0, 81, 0.14), -10px -10px 20px rgba(255, 255, 255, 0.75)',
-    clayOutSm: '6px 6px 14px rgba(77, 0, 81, 0.12), -6px -6px 12px rgba(255, 255, 255, 0.7)',
-    clayIn: 'inset 4px 4px 10px rgba(77, 0, 81, 0.08), inset -4px -4px 10px rgba(255, 255, 255, 0.65)',
-    clayPress: 'inset 3px 3px 8px rgba(77, 0, 81, 0.18), inset -3px -3px 8px rgba(255, 255, 255, 0.5)',
-    fontDisplay: "'Poppins', sans-serif",
-  };
-
+function FormPanel({ username, setUsername, password, setPassword, showPass, setShowPass, loading, errors, globalError, handleLogin, handleKeyDown }) {
   return (
     <div style={{
-      width: '46%',
-      height: '100vh',
+      width: '44%',
+      height: '100%',
       position: 'relative',
       overflow: 'hidden',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: `
-        radial-gradient(ellipse 80% 70% at 15% 15%, rgba(91, 0, 95, 0.12) 0%, transparent 50%),
-        radial-gradient(ellipse 70% 60% at 85% 85%, rgba(249, 62, 17, 0.08) 0%, transparent 45%),
-        radial-gradient(ellipse 60% 50% at 50% 50%, rgba(244, 237, 244, 0.98) 0%, transparent 55%),
-        linear-gradient(135deg, #FDFBFE 0%, #F8F4F9 50%, #FDFBFE 100%)
-      `,
-      backgroundSize: '200% 200%',
+      background: '#F8F4F9',
     }}>
-      {/* Subtle mesh blobs for depth */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-        <div style={{ position: 'absolute', width: 300, height: 300, borderRadius: '50%', filter: 'blur(80px)', opacity: 0.15, background: 'radial-gradient(circle, rgba(91, 0, 95, 0.25) 0%, transparent 70%)', top: '-5%', left: '-5%' }} />
-        <div style={{ position: 'absolute', width: 250, height: 250, borderRadius: '50%', filter: 'blur(70px)', opacity: 0.12, background: 'radial-gradient(circle, rgba(249, 62, 17, 0.2) 0%, transparent 70%)', bottom: '0%', right: '0%' }} />
-      </div>
+      {/* Mesh gradient background */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 0,
+        pointerEvents: 'none',
+        background: `
+          radial-gradient(ellipse 60% 50% at 20% 30%, rgba(192, 36, 125, 0.08) 0%, transparent 60%),
+          radial-gradient(ellipse 50% 60% at 80% 70%, rgba(95, 217, 174, 0.1) 0%, transparent 55%),
+          radial-gradient(ellipse 70% 40% at 50% 10%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+          radial-gradient(ellipse 40% 50% at 10% 80%, rgba(232, 90, 168, 0.07) 0%, transparent 55%),
+          radial-gradient(ellipse 55% 45% at 90% 20%, rgba(249, 62, 17, 0.05) 0%, transparent 50%)
+        `,
+        animation: 'meshShift 18s ease-in-out infinite',
+      }} />
 
-      {/* Login card - Glassmorphism shell + Claymorphism depth */}
-      <motion.div
-        initial={{ opacity: 0, y: 18, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
-        style={{
-          width: 'min(440px, calc(100% - 84px))',
-          padding: '40px 36px 34px',
-          borderRadius: 32,
-          background: cssVars.glassFill,
-          border: `1px solid ${cssVars.glassBorder}`,
-          boxShadow: cssVars.clayOut,
-          backdropFilter: 'blur(20px) saturate(160%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-          position: 'relative',
-          zIndex: 2,
-        }}
-      >
-        {/* Eyebrow - Stagger: 0.2s */}
-        <motion.span
-          custom={0}
-          variants={staggerVariants}
-          initial="hidden"
-          animate="visible"
-          style={{
-            display: 'inline-block',
-            fontSize: 12,
-            fontWeight: 700,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            color: BRAND.deepDark,
-            background: BRAND.deepPale,
-            padding: '5px 12px',
-            borderRadius: 999,
-            marginBottom: 12,
-          }}
-        >
-          Selamat datang kembali
-        </motion.span>
+      {/* Login card - Glassmorphism form */}
+      <div style={{
+        width: '100%',
+        maxWidth: 400,
+        background: 'rgba(255, 255, 255, 0.8)',
+        backdropFilter: 'blur(18px) saturate(160%)',
+        WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+        border: '1px solid rgba(255, 255, 255, 0.6)',
+        borderRadius: 24,
+        padding: '30px 28px',
+        boxShadow: '0 24px 50px -18px rgba(59, 11, 71, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
+        position: 'relative',
+        zIndex: 2,
+      }}>
+        {/* Badge */}
+        <span style={{
+          display: 'inline-block',
+          fontSize: 10.5,
+          fontWeight: 800,
+          letterSpacing: '0.5px',
+          color: '#C0247D',
+          background: 'rgba(192, 36, 125, 0.12)',
+          padding: '6px 14px',
+          borderRadius: 999,
+        }}>
+          SELAMAT DATANG KEMBALI
+        </span>
 
-        {/* Header - Stagger: 0.28s */}
-        <motion.div
-          custom={1}
-          variants={staggerVariants}
-          initial="hidden"
-          animate="visible"
-          style={{ marginBottom: 26 }}
-        >
+        {/* Header */}
+        <div style={{ marginTop: 14 }}>
           <h2 style={{
-            fontFamily: cssVars.fontDisplay,
-            fontSize: 26,
+            fontFamily: "'Poppins', 'Outfit', sans-serif",
             fontWeight: 700,
-            margin: '0 0 8px',
-            color: BRAND.deep,
+            fontSize: 24,
+            color: '#3B0B47',
+            margin: 0,
           }}>
             Masuk ke akun Anda
           </h2>
           <p style={{
-            margin: 0,
-            fontSize: 14,
-            color: BRAND.deepSoft,
+            fontSize: 13,
+            color: '#7A6584',
+            marginTop: 8,
             lineHeight: 1.5,
           }}>
             Kelola pesanan laundry Anda dengan mudah dan cepat.
           </p>
-        </motion.div>
+        </div>
 
         {/* Global error message */}
-        <AnimatePresence>
-          {globalError && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              style={{
-                background: 'rgba(228, 102, 74, 0.08)',
-                border: '1px solid rgba(228, 102, 74, 0.22)',
-                borderRadius: 16,
-                padding: '12px 16px',
-                marginBottom: 18,
-              }}
-            >
-              <p style={{ fontSize: 13, color: BRAND.danger, margin: 0, fontWeight: 500 }}>
-                {globalError}
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {globalError && (
+          <div style={{
+            background: 'rgba(228, 102, 74, 0.08)',
+            border: '1px solid rgba(228, 102, 74, 0.22)',
+            borderRadius: 16,
+            padding: '12px 16px',
+            marginTop: 20,
+          }}>
+            <p style={{ fontSize: 13, color: '#E4664A', margin: 0, fontWeight: 500 }}>
+              {globalError}
+            </p>
+          </div>
+        )}
 
         <div onKeyDown={handleKeyDown}>
-          {/* Username field - Stagger: 0.36s */}
-          <motion.div
-            custom={2}
-            variants={staggerVariants}
-            initial="hidden"
-            animate="visible"
-            style={{ marginBottom: 18 }}
-          >
+          {/* Username field */}
+          <div style={{ marginTop: 20 }}>
             <label style={{
               display: 'block',
-              fontSize: 13,
-              fontWeight: 600,
-              color: BRAND.deep,
-              marginBottom: 8,
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: '#3B0B47',
             }}>
               Username
             </label>
-            <div
-              ref={usernameRef}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(255, 255, 255, 0.55)',
-                borderRadius: 16,
-                border: `1.5px solid ${errors.username ? BRAND.danger : 'rgba(255, 255, 255, 0.7)'}`,
-                boxShadow: errors.username
-                  ? `${cssVars.clayIn}, 0 0 0 3px rgba(228, 102, 74, 0.18)`
-                  : cssVars.clayIn,
-                transition: 'box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease',
-              }}
-            >
-              <span style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingLeft: 14,
-                color: BRAND.deepDark,
-                opacity: 0.75,
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 8,
+              background: 'linear-gradient(145deg, #F0EAF6, #F7F2FA)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              boxShadow: 'inset 2px 2px 6px rgba(59, 11, 71, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.7)',
+            }}>
+              <span style={{ color: '#C0247D', flexShrink: 0, display: 'flex' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="8" r="4" />
-                  <path d="M5 20c0-3.314 3.134-6 7-6s7 2.686 7 6" />
+                  <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
                 </svg>
               </span>
               <input
@@ -472,31 +682,15 @@ function FormPanel({ username, setUsername, password, setPassword, showPass, set
                 placeholder="Masukkan username"
                 autoComplete="username"
                 style={{
-                  flex: 1,
                   border: 'none',
-                  background: 'transparent',
+                  background: 'none',
                   outline: 'none',
-                  padding: '13px 12px',
-                  fontSize: 14.5,
-                  fontFamily: "'Poppins', sans-serif",
-                  color: BRAND.deep,
-                }}
-                onFocus={(e) => {
-                  if (!errors.username) {
-                    e.target.parentElement.style.borderColor = BRAND.deep;
-                    e.target.parentElement.style.boxShadow = `${cssVars.clayIn}, 0 0 0 3px rgba(91, 0, 95, 0.18)`;
-                    e.target.parentElement.style.transform = 'translateY(-1px)';
-                  }
-                }}
-                onBlur={(e) => {
-                  e.target.parentElement.style.borderColor = errors.username ? BRAND.danger : 'rgba(255, 255, 255, 0.7)';
-                  e.target.parentElement.style.boxShadow = errors.username
-                    ? `${cssVars.clayIn}, 0 0 0 3px rgba(228, 102, 74, 0.18)`
-                    : cssVars.clayIn;
-                  e.target.parentElement.style.transform = 'translateY(0)';
+                  flex: 1,
+                  fontSize: 13.5,
+                  fontFamily: "'Poppins', 'Plus Jakarta Sans', sans-serif",
+                  color: '#2B1130',
                 }}
               />
-              {/* Clear username button */}
               {username && (
                 <button
                   type="button"
@@ -504,22 +698,11 @@ function FormPanel({ username, setUsername, password, setPassword, showPass, set
                   style={{
                     border: 'none',
                     background: 'transparent',
-                    padding: '8px',
-                    marginRight: 4,
+                    padding: 0,
                     display: 'flex',
                     alignItems: 'center',
-                    color: BRAND.deepSoft,
+                    color: '#9ca3af',
                     cursor: 'pointer',
-                    borderRadius: 8,
-                    transition: 'color 0.2s ease, background 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = BRAND.danger;
-                    e.currentTarget.style.background = 'rgba(228, 102, 74, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = BRAND.deepSoft;
-                    e.currentTarget.style.background = 'transparent';
                   }}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -530,60 +713,36 @@ function FormPanel({ username, setUsername, password, setPassword, showPass, set
               )}
             </div>
             {errors.username && (
-              <p style={{
-                fontSize: 12.5,
-                color: BRAND.danger,
-                margin: '6px 0 0',
-                paddingLeft: 2,
-                animation: 'error-in 0.3s ease both',
-              }}>
+              <p style={{ fontSize: 12.5, color: '#E4664A', margin: '6px 0 0' }}>
                 {errors.username}
               </p>
             )}
-          </motion.div>
+          </div>
 
-          {/* Password field - Stagger: 0.44s */}
-          <motion.div
-            custom={3}
-            variants={staggerVariants}
-            initial="hidden"
-            animate="visible"
-            style={{ marginBottom: 32 }}
-          >
+          {/* Password field */}
+          <div style={{ marginTop: 20 }}>
             <label style={{
               display: 'block',
-              fontSize: 13,
-              fontWeight: 600,
-              color: BRAND.deep,
-              marginBottom: 8,
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: '#3B0B47',
             }}>
               Kata sandi
             </label>
-            <div
-              ref={passwordRef}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(255, 255, 255, 0.55)',
-                borderRadius: 16,
-                border: `1.5px solid ${errors.password ? BRAND.danger : 'rgba(255, 255, 255, 0.7)'}`,
-                boxShadow: errors.password
-                  ? `${cssVars.clayIn}, 0 0 0 3px rgba(228, 102, 74, 0.18)`
-                  : cssVars.clayIn,
-                transition: 'box-shadow 0.25s ease, border-color 0.25s ease, transform 0.15s ease',
-              }}
-            >
-              <span style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                paddingLeft: 14,
-                color: BRAND.deepDark,
-                opacity: 0.75,
-              }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                  <path d="M8 10.5V7.8a4 4 0 1 1 8 0v2.7" />
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 8,
+              background: 'linear-gradient(145deg, #F0EAF6, #F7F2FA)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              boxShadow: 'inset 2px 2px 6px rgba(59, 11, 71, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.7)',
+            }}>
+              <span style={{ color: '#C0247D', flexShrink: 0, display: 'flex' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="10" width="16" height="10" rx="2" />
+                  <path d="M8 10V7a4 4 0 0 1 8 0v3" />
                 </svg>
               </span>
               <input
@@ -593,28 +752,13 @@ function FormPanel({ username, setUsername, password, setPassword, showPass, set
                 placeholder="Masukkan kata sandi"
                 autoComplete="current-password"
                 style={{
-                  flex: 1,
                   border: 'none',
-                  background: 'transparent',
+                  background: 'none',
                   outline: 'none',
-                  padding: '13px 12px',
-                  fontSize: 14.5,
-                  fontFamily: "'Poppins', sans-serif",
-                  color: BRAND.deep,
-                }}
-                onFocus={(e) => {
-                  if (!errors.password) {
-                    e.target.parentElement.style.borderColor = BRAND.deep;
-                    e.target.parentElement.style.boxShadow = `${cssVars.clayIn}, 0 0 0 3px rgba(91, 0, 95, 0.18)`;
-                    e.target.parentElement.style.transform = 'translateY(-1px)';
-                  }
-                }}
-                onBlur={(e) => {
-                  e.target.parentElement.style.borderColor = errors.password ? BRAND.danger : 'rgba(255, 255, 255, 0.7)';
-                  e.target.parentElement.style.boxShadow = errors.password
-                    ? `${cssVars.clayIn}, 0 0 0 3px rgba(228, 102, 74, 0.18)`
-                    : cssVars.clayIn;
-                  e.target.parentElement.style.transform = 'translateY(0)';
+                  flex: 1,
+                  fontSize: 13.5,
+                  fontFamily: "'Poppins', 'Plus Jakarta Sans', sans-serif",
+                  color: '#2B1130',
                 }}
               />
               <button
@@ -623,112 +767,71 @@ function FormPanel({ username, setUsername, password, setPassword, showPass, set
                 style={{
                   border: 'none',
                   background: 'transparent',
-                  padding: '8px 12px',
-                  marginRight: 4,
+                  padding: 0,
                   display: 'flex',
                   alignItems: 'center',
-                  color: BRAND.deepSoft,
+                  color: '#7A6584',
                   cursor: 'pointer',
-                  borderRadius: 8,
-                  transition: 'color 0.2s ease, background 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = BRAND.deep;
-                  e.currentTarget.style.background = 'rgba(91, 0, 95, 0.08)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = BRAND.deepSoft;
-                  e.currentTarget.style.background = 'transparent';
                 }}
               >
-                {showPass ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                {showPass ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
               </button>
             </div>
             {errors.password && (
-              <p style={{
-                fontSize: 12.5,
-                color: BRAND.danger,
-                margin: '6px 0 0',
-                paddingLeft: 2,
-                animation: 'error-in 0.3s ease both',
-              }}>
+              <p style={{ fontSize: 12.5, color: '#E4664A', margin: '6px 0 0' }}>
                 {errors.password}
               </p>
             )}
-          </motion.div>
+          </div>
 
-          {/* Submit button - Stagger: 0.52s */}
-          <motion.button
-            custom={4}
-            variants={staggerVariants}
-            initial="hidden"
-            animate="visible"
+          {/* Submit button */}
+          <button
             onClick={handleLogin}
             disabled={loading}
             style={{
               width: '100%',
-              padding: '14px 18px',
+              marginTop: 24,
+              background: loading
+                ? '#9ca3af'
+                : 'linear-gradient(150deg, #8A3FA0 0%, #3B0B47 100%)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 14.5,
+              padding: 15,
               border: 'none',
               borderRadius: 16,
-              background: `linear-gradient(155deg, ${BRAND.deep} 0%, ${BRAND.deepDark} 100%)`,
-              color: '#fff',
-              fontFamily: "'Poppins', sans-serif",
-              fontWeight: 600,
-              fontSize: 16,
-              letterSpacing: '0.01em',
+              boxShadow: '-4px -4px 10px rgba(255, 255, 255, 0.1), 6px 10px 20px rgba(59, 11, 71, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.25)',
               cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: `${cssVars.clayOutSm}, 0 10px 20px rgba(77, 0, 81, 0.35)`,
-              transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, opacity 0.15s ease',
-              opacity: loading ? 0.75 : 1,
+              transition: 'transform 0.12s ease',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 10,
-              marginTop: 6,
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.background = `linear-gradient(155deg, ${BRAND.deepLight} 0%, ${BRAND.deep} 100%)`;
-                e.currentTarget.style.boxShadow = `${cssVars.clayOutSm}, 0 14px 24px rgba(77, 0, 81, 0.42)`;
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.background = `linear-gradient(155deg, ${BRAND.deep} 0%, ${BRAND.deepDark} 100%)`;
-              e.currentTarget.style.boxShadow = `${cssVars.clayOutSm}, 0 10px 20px rgba(77, 0, 81, 0.35)`;
             }}
             onMouseDown={(e) => {
-              if (!loading) {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = cssVars.clayPress;
-              }
+              if (!loading) e.currentTarget.style.transform = 'translateY(1px) scale(0.99)';
             }}
             onMouseUp={(e) => {
-              if (!loading) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = `${cssVars.clayOutSm}, 0 14px 24px rgba(77, 0, 81, 0.42)`;
-              }
+              if (!loading) e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0) scale(1)';
             }}
           >
-            {loading ? (
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                style={{
-                  width: 16,
-                  height: 16,
-                  border: '2.5px solid rgba(255,255,255,0.4)',
-                  borderTopColor: '#fff',
-                  borderRadius: '50%',
-                }}
-              />
-            ) : (
-              <span style={{ opacity: loading ? 0.75 : 1 }}>Masuk</span>
-            )}
-          </motion.button>
+            {loading ? 'Memproses...' : 'Masuk'}
+          </button>
         </div>
-      </motion.div>
+      </div>
 
       {/* Version */}
       <p style={{
@@ -760,7 +863,6 @@ export default function LoginPage({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [globalError, setGlobalError] = useState('');
-  const [shakeFields, setShakeFields] = useState({ username: false, password: false });
   const { handleLogin: doLoginContext } = useApp();
 
   const validate = () => {
@@ -781,15 +883,9 @@ export default function LoginPage({ onLogin }) {
     const errs = validate();
     if (Object.keys(errs).length) {
       setErrors(errs);
-      // Trigger shake animation on error
-      setShakeFields({
-        username: !!errs.username,
-        password: !!errs.password,
-      });
       return;
     }
     setErrors({});
-    setShakeFields({ username: false, password: false });
     setLoading(true);
 
     try {
@@ -817,7 +913,7 @@ export default function LoginPage({ onLogin }) {
     }
   };
 
-  // Mobile view (keep as simple version)
+  // Mobile / Portrait view
   if (isMobile) {
     return (
       <div style={{
@@ -831,102 +927,327 @@ export default function LoginPage({ onLogin }) {
         position: 'relative',
         overflow: 'hidden',
       }}>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{ textAlign: 'center', marginBottom: 24, zIndex: 1 }}
-        >
-          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 700, color: '#fff', margin: 0 }}>
-            Perawatan Ekstra untuk Baju Kesayanganmu.
-          </h1>
-        </motion.div>
+        {/* ── Animated Mesh Background (mobile) ── */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          zIndex: 0,
+          pointerEvents: 'none',
+        }}>
+          {/* Mesh layer 1 */}
+          <div style={{
+            position: 'absolute',
+            width: '180%',
+            height: '180%',
+            top: '-40%',
+            left: '-40%',
+            background: `
+              radial-gradient(ellipse 50% 50% at 30% 30%, rgba(232, 90, 168, 0.35) 0%, transparent 55%),
+              radial-gradient(ellipse 40% 60% at 70% 70%, rgba(139, 92, 246, 0.25) 0%, transparent 50%)
+            `,
+            filter: 'blur(50px)',
+            animation: 'meshShift 18s ease-in-out infinite',
+          }} />
+          {/* Mesh layer 2 */}
+          <div style={{
+            position: 'absolute',
+            width: '160%',
+            height: '160%',
+            top: '-30%',
+            left: '-30%',
+            background: `
+              radial-gradient(ellipse 45% 55% at 60% 25%, rgba(95, 217, 174, 0.3) 0%, transparent 50%),
+              radial-gradient(ellipse 50% 40% at 35% 75%, rgba(59, 130, 246, 0.2) 0%, transparent 55%)
+            `,
+            filter: 'blur(70px)',
+            animation: 'meshShift2 22s ease-in-out infinite',
+          }} />
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{
-            width: '100%',
-            maxWidth: 360,
-            background: 'rgba(255,255,255,0.9)',
-            backdropFilter: 'blur(20px)',
-            borderRadius: 24,
-            padding: '28px 24px',
-            zIndex: 1,
-          }}
-        >
-          <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 22, fontWeight: 700, color: '#1a1a2e', margin: '0 0 6px' }}>
-            Selamat Datang 👋
-          </h2>
-          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: '#6b7280', margin: '0 0 20px' }}>
-            Ayo masukan email dan password...
-          </p>
+        {/* Sparkle stars for mobile */}
+        <SparkleStars />
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-              Email
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Masukan email"
-              style={{
-                width: '100%',
-                height: 48,
-                padding: '0 16px',
-                fontSize: 14,
-                fontFamily: "'Poppins', sans-serif",
-                border: '1.5px solid #e5e7eb',
-                borderRadius: 12,
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
+        {/* Floating bubbles for mobile */}
+        <FloatingBubbles />
+
+        {/* Animated glowing orbs */}
+        <div style={{
+          position: 'absolute',
+          width: 200,
+          height: 200,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)',
+          top: '10%',
+          right: '-50px',
+          filter: 'blur(40px)',
+          animation: 'blobFloatA 12s ease-in-out infinite',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }} />
+        <div style={{
+          position: 'absolute',
+          width: 150,
+          height: 150,
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(249,62,17,0.2) 0%, transparent 70%)',
+          bottom: '20%',
+          left: '-40px',
+          filter: 'blur(35px)',
+          animation: 'blobFloatB 14s ease-in-out infinite',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }} />
+
+        {/* Login form card - same style as desktop */}
+        <div style={{
+          width: '100%',
+          maxWidth: 380,
+          background: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(18px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+          border: '1px solid rgba(255, 255, 255, 0.6)',
+          borderRadius: 24,
+          padding: '28px 24px',
+          boxShadow: '0 24px 50px -18px rgba(59, 11, 71, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
+          position: 'relative',
+          zIndex: 10,
+        }}>
+          {/* Badge */}
+          <span style={{
+            display: 'inline-block',
+            fontSize: 10.5,
+            fontWeight: 800,
+            letterSpacing: '0.5px',
+            color: '#C0247D',
+            background: 'rgba(192, 36, 125, 0.12)',
+            padding: '6px 14px',
+            borderRadius: 999,
+          }}>
+            SELAMAT DATANG KEMBALI
+          </span>
+
+          {/* Header */}
+          <div style={{ marginTop: 14 }}>
+            <h2 style={{
+              fontFamily: "'Poppins', 'Outfit', sans-serif",
+              fontSize: 22,
+              fontWeight: 700,
+              color: '#3B0B47',
+              margin: 0,
+            }}>
+              Masuk ke akun Anda
+            </h2>
+            <p style={{
+              fontSize: 13,
+              color: '#7A6584',
+              marginTop: 8,
+              lineHeight: 1.5,
+            }}>
+              Kelola pesanan laundry Anda dengan mudah dan cepat.
+            </p>
           </div>
 
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-              Kata Sandi
+          {/* Global error message */}
+          {globalError && (
+            <div style={{
+              background: 'rgba(228, 102, 74, 0.08)',
+              border: '1px solid rgba(228, 102, 74, 0.22)',
+              borderRadius: 16,
+              padding: '12px 16px',
+              marginTop: 20,
+            }}>
+              <p style={{ fontSize: 13, color: '#E4664A', margin: 0, fontWeight: 500 }}>
+                {globalError}
+              </p>
+            </div>
+          )}
+
+          {/* Username field */}
+          <div style={{ marginTop: 20 }}>
+            <label style={{
+              display: 'block',
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: '#3B0B47',
+            }}>
+              Username
             </label>
-            <input
-              type={showPass ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Masukan kata sandi"
-              style={{
-                width: '100%',
-                height: 48,
-                padding: '0 16px',
-                fontSize: 14,
-                fontFamily: "'Poppins', sans-serif",
-                border: '1.5px solid #e5e7eb',
-                borderRadius: 12,
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 8,
+              background: 'linear-gradient(145deg, #F0EAF6, #F7F2FA)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              boxShadow: 'inset 2px 2px 6px rgba(59, 11, 71, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.7)',
+            }}>
+              <span style={{ color: '#C0247D', flexShrink: 0, display: 'flex' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Masukkan username"
+                autoComplete="username"
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  outline: 'none',
+                  flex: 1,
+                  fontSize: 13.5,
+                  fontFamily: "'Poppins', 'Plus Jakarta Sans', sans-serif",
+                  color: '#2B1130',
+                }}
+              />
+              {username && (
+                <button
+                  type="button"
+                  onClick={() => setUsername('')}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: '#9ca3af',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            {errors.username && (
+              <p style={{ fontSize: 12.5, color: '#E4664A', margin: '6px 0 0' }}>
+                {errors.username}
+              </p>
+            )}
           </div>
 
+          {/* Password field */}
+          <div style={{ marginTop: 20 }}>
+            <label style={{
+              display: 'block',
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: '#3B0B47',
+            }}>
+              Kata sandi
+            </label>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 8,
+              background: 'linear-gradient(145deg, #F0EAF6, #F7F2FA)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              boxShadow: 'inset 2px 2px 6px rgba(59, 11, 71, 0.08), inset -2px -2px 5px rgba(255, 255, 255, 0.7)',
+            }}>
+              <span style={{ color: '#C0247D', flexShrink: 0, display: 'flex' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="10" width="16" height="10" rx="2" />
+                  <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                </svg>
+              </span>
+              <input
+                type={showPass ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Masukkan kata sandi"
+                autoComplete="current-password"
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  outline: 'none',
+                  flex: 1,
+                  fontSize: 13.5,
+                  fontFamily: "'Poppins', 'Plus Jakarta Sans', sans-serif",
+                  color: '#2B1130',
+                }}
+              />
+              <button
+                onClick={() => setShowPass(!showPass)}
+                type="button"
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: '#7A6584',
+                  cursor: 'pointer',
+                }}
+              >
+                {showPass ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            {errors.password && (
+              <p style={{ fontSize: 12.5, color: '#E4664A', margin: '6px 0 0' }}>
+                {errors.password}
+              </p>
+            )}
+          </div>
+
+          {/* Submit button */}
           <button
             onClick={handleLogin}
+            disabled={loading}
             style={{
               width: '100%',
-              height: 50,
-              borderRadius: 12,
-              border: 'none',
-              background: `linear-gradient(135deg, ${BRAND.deep} 0%, ${BRAND.deepLighter} 100%)`,
+              marginTop: 24,
+              background: loading
+                ? '#9ca3af'
+                : 'linear-gradient(150deg, #8A3FA0 0%, #3B0B47 100%)',
               color: '#fff',
-              fontSize: 15,
               fontWeight: 700,
-              fontFamily: "'Poppins', sans-serif",
-              cursor: 'pointer',
+              fontSize: 14.5,
+              padding: 15,
+              border: 'none',
+              borderRadius: 16,
+              boxShadow: '-4px -4px 10px rgba(255, 255, 255, 0.1), 6px 10px 20px rgba(59, 11, 71, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.25)',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'transform 0.12s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseDown={(e) => {
+              if (!loading) e.currentTarget.style.transform = 'translateY(1px) scale(0.99)';
+            }}
+            onMouseUp={(e) => {
+              if (!loading) e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0) scale(1)';
             }}
           >
-            Masuk
+            {loading ? 'Memproses...' : 'Masuk'}
           </button>
 
+          {/* Version */}
           <p style={{
-            margin: '16px 0 0',
+            margin: '20px 0 0',
             fontFamily: "'Poppins', sans-serif",
             fontSize: 11,
             color: 'rgba(91, 0, 95, 0.55)',
@@ -937,7 +1258,7 @@ export default function LoginPage({ onLogin }) {
           }}>
             {APP_VERSION}
           </p>
-        </motion.div>
+        </div>
       </div>
     );
   }
@@ -957,7 +1278,6 @@ export default function LoginPage({ onLogin }) {
         globalError={globalError}
         handleLogin={handleLogin}
         handleKeyDown={handleKeyDown}
-        shakeFields={shakeFields}
       />
     </div>
   );

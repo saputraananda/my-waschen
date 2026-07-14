@@ -7,7 +7,7 @@
 //   - Client buka EventSource('/api/realtime/events?token=...')
 //   - Server kirim event JSON tiap kali ada publish dari eventBus
 //   - Filter per outlet: user cuma terima event yang outletId-nya match
-//     (admin/finance/owner terima semua)
+//     (admin terima semua)
 //   - Heartbeat tiap 30 detik (comment line ':') supaya Cloudflare/proxy ga close
 //   - Cleanup listener saat client disconnect
 //
@@ -20,8 +20,11 @@ import bus from '../services/eventBus.js';
 
 const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me';
-const GLOBAL_ROLES = ['admin', 'superadmin', 'finance', 'owner'];
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+const GLOBAL_ROLES = ['admin'];
 
 // Verify token dari query param (SSE limitation: ga bisa custom headers)
 function verifyTokenQuery(req) {

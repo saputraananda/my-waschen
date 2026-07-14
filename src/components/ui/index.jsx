@@ -13,6 +13,7 @@ import {
   Bell, Settings, LogOut, ShoppingCart, Package, TrendingUp,
   RefreshCw, Edit, Trash2, Eye, Download, Upload, Calendar,
   MoreVertical, Info, MapPin, Phone, Mail, Truck, Map,
+  Boxes, Warehouse,
 } from 'lucide-react';
 
 // ── useToast ─────────────────────────────────────────────
@@ -59,17 +60,26 @@ const NAV_ICONS = {
   history: <RotateCcw size={22} />,
   delivery_tasks: <Truck size={22} />,
   delivery_history: <Map size={22} />,
+  inventory: <Warehouse size={22} />,
 };
 
 // ── BottomNav ─────────────────────────────────────────────
-export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCount = 0 }) => {
+export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCount = 0, stokAlertCount: propStokAlertCount = 0 }) => {
   const [overdueCount, setOverdueCount] = useState(propOverdueCount);
+  const [stokAlertCount, setStokAlertCount] = useState(propStokAlertCount);
 
   // Listen to production dashboard broadcast
   useEffect(() => {
     const handler = (e) => setOverdueCount(e.detail.count);
     window.addEventListener('produksi:overdue-count', handler);
     return () => window.removeEventListener('produksi:overdue-count', handler);
+  }, []);
+
+  // Listen to stok alert broadcast
+  useEffect(() => {
+    const handler = (e) => setStokAlertCount(e.detail.count);
+    window.addEventListener('stok:alert-count', handler);
+    return () => window.removeEventListener('stok:alert-count', handler);
   }, []);
   // 'frontline' adalah sinonim 'kasir' — perlakukan sama
   const isKasir = role === 'kasir' || role === 'frontline';
@@ -86,6 +96,7 @@ export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCou
       ? [
           { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
           { id: 'antrian', label: 'Antrian', icon: NAV_ICONS.queue },
+          { id: 'stok_produksi', label: 'Stok', icon: NAV_ICONS.inventory },
           { id: '_fab', label: '', icon: null },
           { id: 'history_produksi', label: 'Riwayat', icon: NAV_ICONS.history },
           { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
@@ -259,6 +270,31 @@ export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCou
                   {overdueCount}
                 </motion.span>
               )}
+              {tab.id === 'stok_produksi' && stokAlertCount > 0 && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: 4,
+                    minWidth: 16,
+                    height: 16,
+                    padding: '0 4px',
+                    borderRadius: 8,
+                    background: '#f59e0b',
+                    color: '#ffffff',
+                    fontFamily: 'Poppins',
+                    fontSize: 8,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {stokAlertCount}
+                </motion.span>
+              )}
               {/* Active dot below icon */}
               {isActive && (
                 <div style={{
@@ -381,7 +417,7 @@ const _dateInputStyles = `
 
 /* Day names row */
 .wdp .react-datepicker__day-names{margin-top:4px;margin-bottom:0;padding:0 4px}
-.wdp .react-datepicker__day-name{color:#64748B;font-size:9px;font-weight:600;width:1.7rem;line-height:1.7rem;text-align:center}
+.wdp .react-datepicker__day-name{color:#8699C5;font-size:9px;font-weight:600;width:1.7rem;line-height:1.7rem;text-align:center}
 
 /* Day cells — compact */
 .wdp .react-datepicker__month{padding:2px 4px 6px}
@@ -904,10 +940,11 @@ export const Select = ({ label, value, onChange, options, error, placeholder, co
 // ── Badge ─────────────────────────────────────────────────
 export const Badge = ({ status, label, small }) => {
   const s = STATUS_COLORS[status] || { bg: C.n100, text: '#3a3a3a' };
+  const displayLabel = label || (status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown');
   return (
     <span style={{ background: s.bg, color: s.text, fontFamily: 'Poppins', fontSize: small ? 10 : 11, fontWeight: 600, padding: small ? '2px 8px' : '3px 10px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', border: `1px solid ${s.border || s.bg}` }}>
       {status === 'proses' && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#3a3a3a' }} />}
-      {label || status.charAt(0).toUpperCase() + status.slice(1)}
+      {displayLabel}
     </span>
   );
 };
@@ -916,11 +953,11 @@ export const Badge = ({ status, label, small }) => {
 export const Avatar = ({ initials, size = 40, photo, onClick }) => (
   <div
     onClick={onClick}
-    style={{ width: size, height: size, borderRadius: size / 2, background: `linear-gradient(135deg, ${C.primaryHover}, ${C.primary})`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default', position: 'relative', boxShadow: `0 2px 8px rgba(110,46,120,0.25)` }}
+    style={{ width: size, height: size, borderRadius: size / 2, background: `linear-gradient(145deg, #FFFFFF, #E8EEF5)`, border: '2px solid rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: onClick ? 'pointer' : 'default', position: 'relative', boxShadow: `0 2px 8px rgba(0,0,0,0.15)` }}
   >
     {photo
       ? <img src={photo} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: size / 2 }} />
-      : <span style={{ fontFamily: 'Poppins', fontSize: size * 0.35, fontWeight: 700, color: C.white }}>{initials}</span>
+      : <span style={{ fontFamily: 'Poppins', fontSize: size * 0.35, fontWeight: 700, color: C.primary }}>{initials}</span>
     }
   </div>
 );
@@ -956,31 +993,7 @@ export const Modal = ({ visible, onClose, title, children }) => (
   </>
 );
 
-// ── StatCard ──────────────────────────────────────────────
-export const StatCard = ({ label, value, sub, icon, color = C.primary, onClick }) => (
-  <div
-    onClick={onClick}
-    style={{
-      background: C.white,
-      borderRadius: 14,
-      padding: '12px 14px',
-      boxShadow: SHADOW.sm,
-      cursor: onClick ? 'pointer' : 'default',
-      width: '100%',
-      boxSizing: 'border-box',
-      transition: 'box-shadow 0.22s ease, transform 0.22s ease',
-    }}
-    onMouseEnter={(e) => { if (onClick) { e.currentTarget.style.boxShadow = SHADOW.md; e.currentTarget.style.transform = 'translateY(-2px)'; } }}
-    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = SHADOW.sm; e.currentTarget.style.transform = 'translateY(0)'; }}
-  >
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-      <div style={{ width: 30, height: 30, borderRadius: 9, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color }}>{icon}</div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', lineHeight: 1.3 }}>{label}</div>
-    </div>
-    <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n900, lineHeight: 1 }}>{value}</div>
-    {sub && <div style={{ fontFamily: 'Poppins', fontSize: 10, color, marginTop: 4, fontWeight: 500 }}>{sub}</div>}
-  </div>
-);
+// ── StatCard (exported from ./StatCard) ──────────────────────────────────────────
 
 // ── Chip ──────────────────────────────────────────────────
 export const Chip = ({ label, active, onClick, color = C.primary }) => (
@@ -1126,20 +1139,7 @@ export const SearchFilterRow = ({
   </div>
 );
 
-// ── EmptyState ────────────────────────────────────────────
-export const EmptyState = ({ title, subtitle, action, actionLabel, icon, secondaryAction, secondaryLabel }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 12, textAlign: 'center' }}>
-    <div style={{ width: 72, height: 72, borderRadius: 36, background: C.primaryLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: icon ? 32 : 28 }}>
-      {icon || <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.primarySoft} strokeWidth="1.5" strokeLinecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>}
-    </div>
-    <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900 }}>{title}</div>
-    {subtitle && <div style={{ fontFamily: 'Poppins', fontSize: 13, color: '#3a3a3a', maxWidth: 280, lineHeight: 1.6 }}>{subtitle}</div>}
-    <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
-      {action && <Btn variant="secondary" onClick={action} size="sm">{actionLabel || 'Tambah'}</Btn>}
-      {secondaryAction && <Btn variant="ghost" onClick={secondaryAction} size="sm">{secondaryLabel || 'Lihat Semua'}</Btn>}
-    </div>
-  </div>
-);
+// ── EmptyState (exported from ./EmptyState) ─────────────────────────────────────
 
 // ── FAB ───────────────────────────────────────────────────
 export const FAB = ({ onClick, icon }) => (
@@ -1148,15 +1148,7 @@ export const FAB = ({ onClick, icon }) => (
   </button>
 );
 
-// ── SectionHeader ─────────────────────────────────────────
-export const SectionHeader = ({ title, action, actionLabel }) => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-    <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{title}</div>
-    {action && <button onClick={action} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary }}>{actionLabel || 'Lihat semua →'}</button>}
-  </div>
-);
-
-// ── ProgressTimeline ──────────────────────────────────────
+// ── SectionHeader (from PageHeader) ────────────────────────────────────
 export const ProgressTimeline = ({ progress }) => {
   const doneStages = (progress || []).map((p) => p.stage);
   return (
@@ -1216,7 +1208,7 @@ export class ErrorBoundary extends Component {
     return { hasError: true, error };
   }
   componentDidCatch(error, info) {
-    console.error('[ErrorBoundary]', error, info);
+    // Error sent to backend via onError callback
     this.setState({ errorInfo: info });
     // Optional: send to error tracking service
     if (typeof this.props.onError === 'function') {
@@ -1510,6 +1502,9 @@ export { default as OutletDropdown } from './OutletDropdown';
 export { AnimatedNumber, useAnimatedNumber, ProgressRing, PulseDot } from './AnimatedNumber';
 export { SubSessionBadge } from './SubSessionBadge';
 
+// ── EmptyState with Illustrations ──────────────────────────────────────────────
+// EmptyState exported below in Compact UI System v2.0 section
+
 // ── Phase 4: Dashboard Intelligence Widgets ─────────────────────────────────
 export { default as LowStockAlertWidget } from '../LowStockAlertWidget';
 export { default as TransactionMetricsWidget } from '../TransactionMetricsWidget';
@@ -1541,3 +1536,20 @@ export { PaymentStatusBadge, PaymentStatusBadgeSimple, getPaymentStatus } from '
 
 // ── Unified Filter Components ──────────────────────────────────────────────
 export { default as FilterModal, FilterSection, FilterChipGroup, DatePresets, StatusChips, SearchFilterHeader, QuickFilterChips, CheckboxList } from './FilterModal';
+
+// ── Compact UI System v2.0 Components ──────────────────────────────────────────────
+export { default as StatCard, StatCardGrid, StatCardSkeleton, StatCardGridSkeleton, StatMini } from './StatCard';
+export { default as ChartCard, ChartCardGrid, ChartSkeleton, ChartCardSkeleton, ChartGridSkeleton } from './ChartCard';
+export { default as ListCard, ListCardGroup, ListCardSkeleton, ListCardGridSkeleton, StatusBadge } from './ListCard';
+export { default as AlertCard, AlertCardGroup, AlertCardSkeleton, AlertCardGridSkeleton, AlertIcon, SeverityBadge, StockIndicator } from './AlertCard';
+export { default as FilterBar, FilterBarSkeleton, DateRangePicker, SearchInput, StatusDropdown, ExportButton } from './FilterBar';
+export { default as PageHeader, PageHeaderSkeleton, SectionHeader } from './PageHeader';
+export { default as EmptyState, EmptyIllustration, EmptyStateList, EmptyStateCard, EmptyStateInline, EMPTY_STATE_CONFIG } from './EmptyState';
+
+// ── Glassmorphism Components (P2 Design System) ───────────────────────────────────
+export { default as GlassModal, ConfirmModal, AlertModal, SuccessModal, ErrorModal } from './GlassModal';
+export { default as GlassButton, GlassButtonGroup, GlassIconButton } from './GlassButton';
+
+// ── Layout Components ─────────────────────────────────────────────────────────────
+export { PageWrapper, Card, CardHeader, Grid, Stack, Row, Spacer, LAYOUT, getPagePadding, getBottomNavPadding } from '../layout/PageWrapper';
+// Note: Divider already exported above at line 1009

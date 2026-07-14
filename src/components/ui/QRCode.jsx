@@ -30,7 +30,7 @@ export const QRCodeView = ({ value, size = 96, level = 'M', margin = 1, color, s
       },
     }, (err) => {
       if (err) {
-        console.warn('[QRCodeView]', err);
+        // Silent fail - QR code generation optional
         setError(true);
       }
     });
@@ -75,7 +75,7 @@ export async function generateQRDataURL(value, options = {}) {
       },
     });
   } catch (err) {
-    console.warn('[generateQRDataURL]', err);
+    // Silent fail - QR generation optional
     return null;
   }
 }

@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 // ─── GET /api/finance/stats ─────────────────────────────────────────────────
 // Ringkasan keuangan: omset hari ini, minggu ini, bulan ini, pending verification
@@ -81,7 +82,7 @@ export const getFinanceStats = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getFinanceStats] Error:', err);
+    logger.error('Gagal memuat statistik keuangan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat statistik keuangan.' });
   }
 };
@@ -131,6 +132,10 @@ export const getPayments = async (req, res) => {
 
     const orderCol = useVerifiedCol ? 't.payment_verified ASC,' : '';
 
+    // LIMIT/OFFSET must be integers for mysql2 execute()
+    const safeLimit = Math.max(1, Math.min(Number(limit), 100));
+    const safeOffset = Math.max(0, Number(offset));
+
     const [rows] = await poolWaschenPos.execute(
       `SELECT
         t.id,
@@ -151,7 +156,7 @@ export const getPayments = async (req, res) => {
       ${verifierJoin}
       WHERE ${where}
       ORDER BY ${orderCol} t.created_at DESC
-      LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+      LIMIT ${safeLimit} OFFSET ${safeOffset}`,
       params
     );
 
@@ -165,7 +170,7 @@ export const getPayments = async (req, res) => {
 
     return res.json({ success: true, data });
   } catch (err) {
-    console.error('[getPayments] Error:', err);
+    logger.error('Gagal memuat daftar pembayaran', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat daftar pembayaran.' });
   }
 };
@@ -202,7 +207,7 @@ export const verifyPayment = async (req, res) => {
 
     return res.json({ success: true, message: 'Pembayaran berhasil diverifikasi.' });
   } catch (err) {
-    console.error('[verifyPayment] Error:', err);
+    logger.error('Gagal memverifikasi pembayaran', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memverifikasi pembayaran.' });
   }
 };
@@ -265,7 +270,7 @@ export const bulkVerifyPayments = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[bulkVerifyPayments] Error:', err);
+    logger.error('Gagal memverifikasi pembayaran (bulk)', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memverifikasi pembayaran (bulk).' });
   } finally {
     conn.release();
@@ -397,7 +402,7 @@ export const getRevenueRecap = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getRevenueRecap] Error:', err);
+    logger.error('Gagal memuat rekap pendapatan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat rekap pendapatan.' });
   }
 };
@@ -530,7 +535,7 @@ export const getFinanceReport = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getFinanceReport] Error:', err);
+    logger.error('Gagal memuat laporan keuangan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat laporan keuangan.' });
   }
 };

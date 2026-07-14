@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../utils/theme';
+import { useResponsive } from '../utils/hooks';
 import { TopBar, Btn } from '../components/ui';
 import { useRealtime } from '../utils/realtime';
 import { checkLowBalance } from '../utils/outletCashApi';
@@ -16,6 +17,7 @@ const TYPE_ICONS = {
 };
 
 export default function NotifikasiPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const { user, token } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +25,13 @@ export default function NotifikasiPage({ navigate, goBack }) {
   const [periodAlerts, setPeriodAlerts] = useState([]);
   const [lowBalanceAlert, setLowBalanceAlert] = useState(null);
   const [poolData, setPoolData] = useState([]);
+
+  // Helper: check if user is admin/owner/finance (global roles)
+  const isGlobalRole = ['admin', 'superadmin', 'owner', 'finance'].includes(user?.roleCode);
+  // Helper: check if user is kasir/frontline
+  const isKasir = ['kasir', 'frontline'].includes(user?.roleCode);
+  // Helper: check if user is produksi
+  const isProduksi = user?.roleCode === 'produksi';
 
   const fetchNotifications = useCallback(async () => {
     if (!token) return;
@@ -32,7 +41,6 @@ export default function NotifikasiPage({ navigate, goBack }) {
       const res = await axios.get('/api/notifications');
       setNotifications(res?.data?.data || []);
     } catch (err) {
-      console.error('[NotifikasiPage] Error:', err);
       setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
@@ -42,25 +50,44 @@ export default function NotifikasiPage({ navigate, goBack }) {
   const fetchDashboardAlerts = useCallback(async () => {
     if (!token) return;
     try {
-      // Get period alerts
-      const outletsRes = await axios.get('/api/master/outlets');
-      const outlets = outletsRes?.data?.data || [];
+      // For global roles (admin/owner/finance), show all outlets
+      // For outlet-scoped roles (kasir/produksi), only show their outlet
+      let outletsToFetch = [];
+
+      if (isGlobalRole) {
+        // Admin/owner/finance: get all outlets
+        const outletsRes = await axios.get('/api/master/outlets');
+        outletsToFetch = outletsRes?.data?.data || [];
+      } else if (user?.outletId) {
+        // Kasir/produksi: only their outlet
+        outletsToFetch = [{ id: user.outletId, name: user.outlet?.name || 'Outlet Saya' }];
+      }
+
+      // Get period alerts for relevant outlets only
       const periodResults = await Promise.all(
-        outlets.map(o => axios.get(`/api/periods/current?outletId=${o.id}`).then(r => ({ outlet: o, data: r?.data?.data })).catch(() => null))
+        outletsToFetch.map(o => axios.get(`/api/periods/current?outletId=${o.id}`).then(r => ({ outlet: o, data: r?.data?.data })).catch(() => null))
       );
       setPeriodAlerts(periodResults.filter(r => r && r.data && !r.data.alreadyClosed && r.data.daysLeft <= 3));
-      
-      // Get low balance alert
+
+      // Get low balance alert - scoped by backend based on user role
       const lowBalance = await checkLowBalance();
       setLowBalanceAlert(lowBalance);
 
-      // Get pool data
-      const poolRes = await axios.get('/api/cash-deposits/pool-summary');
-      setPoolData(poolRes?.data?.data || []);
+      // Get pool data - only for admin/owner/finance roles
+      if (isGlobalRole) {
+        try {
+          const poolRes = await axios.get('/api/cash-deposits/pool-summary');
+          setPoolData(poolRes?.data?.data || []);
+        } catch {
+          setPoolData([]);
+        }
+      } else {
+        setPoolData([]);
+      }
     } catch (err) {
-      console.error('[NotifikasiPage] Error fetching dashboard alerts:', err);
+      // Silent fail for dashboard alerts
     }
-  }, [token]);
+  }, [token, user?.roleCode, user?.outletId, isGlobalRole]);
 
   useEffect(() => {
     if (token) {
@@ -144,7 +171,7 @@ export default function NotifikasiPage({ navigate, goBack }) {
         onBack={goBack}
       />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px' : '12px 16px' }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 0' }}>
             {[1, 2, 3, 4].map((i) => (
@@ -182,11 +209,12 @@ export default function NotifikasiPage({ navigate, goBack }) {
                     return (
                       <div key={n.id} style={{
                         background: `linear-gradient(135deg, ${t.bg}80, ${C.white})`,
-                        borderRadius: 14, padding: '12px 14px',
+                        borderRadius: 14, padding: isMobile ? '10px 12px' : '12px 14px',
                         boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
                         display: 'flex', gap: 12, alignItems: 'flex-start',
                         borderLeft: `3px solid ${t.color}`,
                         transition: 'transform 0.2s',
+                        flexWrap: 'wrap',
                       }}>
                         <div style={{ width: 42, height: 42, borderRadius: 12, background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{t.icon}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -214,11 +242,12 @@ export default function NotifikasiPage({ navigate, goBack }) {
                 return (
                   <div key={n.id} style={{
                     background: `linear-gradient(135deg, ${t.bg}80, ${C.white})`,
-                    borderRadius: 14, padding: '12px 14px',
+                    borderRadius: 14, padding: isMobile ? '10px 12px' : '12px 14px',
                     boxShadow: '0 2px 8px rgba(15,23,42,0.06)',
                     display: 'flex', gap: 12, alignItems: 'flex-start',
                     borderLeft: `3px solid ${t.color}`,
                     transition: 'transform 0.2s',
+                    flexWrap: 'wrap',
                   }}>
                     <div style={{ width: 42, height: 42, borderRadius: 12, background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{t.icon}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -243,9 +272,10 @@ export default function NotifikasiPage({ navigate, goBack }) {
                     const t = TYPE_ICONS[n.type] || TYPE_ICONS.info;
                     return (
                       <div key={n.id} style={{
-                        background: C.white, borderRadius: 14, padding: '12px 14px',
+                        background: C.white, borderRadius: 14, padding: isMobile ? '10px 12px' : '12px 14px',
                         boxShadow: '0 1px 4px rgba(15,23,42,0.04)',
                         display: 'flex', gap: 12, alignItems: 'flex-start', opacity: 0.85,
+                        flexWrap: 'wrap',
                       }}>
                         <div style={{ width: 40, height: 40, borderRadius: 12, background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{t.icon}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>

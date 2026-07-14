@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 const MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -57,7 +58,7 @@ export const listTargets = async (req, res) => {
     if (err.code === 'ER_NO_SUCH_TABLE') {
       return res.json({ success: true, data: [], _note: 'Tabel target belum dibuat. Jalankan migration_target_period_tables.sql' });
     }
-    console.error('[listTargets] Error:', err);
+    logger.error('Gagal memuat data target', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data target.' });
   }
 };
@@ -105,7 +106,7 @@ export const getTargetProgress = async (req, res) => {
     if (err.code === 'ER_NO_SUCH_TABLE') {
       return res.json({ success: true, data: null });
     }
-    console.error('[getTargetProgress] Error:', err);
+    logger.error('Gagal memuat capaian target', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat capaian target.' });
   }
 };
@@ -157,7 +158,7 @@ export const upsertTarget = async (req, res) => {
     if (err.code === 'ER_NO_SUCH_TABLE') {
       return res.status(503).json({ success: false, message: 'Tabel target belum tersedia. Jalankan migration_target_period_tables.sql terlebih dahulu.' });
     }
-    console.error('[upsertTarget] Error:', err);
+    logger.error('Gagal menyimpan target', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menyimpan target.' });
   }
 };
@@ -195,7 +196,7 @@ export const deleteTarget = async (req, res) => {
     if (err.code === 'ER_NO_SUCH_TABLE') {
       return res.status(404).json({ success: false, message: 'Target tidak ditemukan.' });
     }
-    console.error('[deleteTarget] Error:', err);
+    logger.error('Gagal menghapus target', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menghapus target.' });
   }
 };
@@ -216,7 +217,7 @@ export const getDailyProgress = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = userRole !== 'admin';
 
     const targetOutletId = isGlobal && req.query.outletId
       ? Number(req.query.outletId)
@@ -358,7 +359,7 @@ export const getDailyProgress = async (req, res) => {
     if (err.code === 'ER_NO_SUCH_TABLE') {
       return res.json({ success: true, data: null });
     }
-    console.error('[getDailyProgress] Error:', err);
+    logger.error('Gagal memuat progress harian', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat progress harian.' });
   }
 };
@@ -478,7 +479,7 @@ export const getTodaySummary = async (req, res) => {
     });
   } catch (err) {
     if (err.code === 'ER_NO_SUCH_TABLE') return res.json({ success: true, data: null });
-    console.error('[getTodaySummary] Error:', err);
+    logger.error('Gagal memuat target hari ini', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat target hari ini.' });
   }
 };

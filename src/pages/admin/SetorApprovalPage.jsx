@@ -4,6 +4,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Select } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import { useResponsive } from '../../utils/hooks';
 
 const TABS = [
   { value: 'pending', label: '⏳ Pending' },
@@ -12,6 +13,7 @@ const TABS = [
 ];
 
 function SetorApprovalPage({ goBack }) {
+  const { isMobile } = useResponsive();
   const { user } = useApp();
   const [activeTab, setActiveTab] = useState('pending');
   const [deposits, setDeposits] = useState([]);
@@ -28,7 +30,8 @@ function SetorApprovalPage({ goBack }) {
       if (outletFilter) params.outlet_id = outletFilter;
       const res = await api.get('/api/cash-deposits/pending', { params });
       setDeposits(res?.data?.data || []);
-    } catch {} finally { setLoading(false); }
+    } catch (err) { console.error('Error loading data:', err); }
+    finally { setLoading(false); }
   }, [activeTab, outletFilter]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -37,7 +40,7 @@ function SetorApprovalPage({ goBack }) {
   useEffect(() => {
     api.get('/api/master/outlets').then(r => {
       setOutlets([{ value: '', label: 'Semua Outlet' }, ...(r?.data?.data || []).map(o => ({ value: String(o.id), label: o.name }))]);
-    }).catch(() => {});
+    }).catch((err) => { console.error('Error loading outlets:', err); });
   }, []);
 
   const handleApprove = async (id) => {
@@ -82,7 +85,7 @@ function SetorApprovalPage({ goBack }) {
       <TopBar title="Approval Setor Tunai" subtitle="Verifikasi penyetoran kas kasir" onBack={goBack} />
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, padding: '0 16px', background: C.white, borderBottom: `1px solid ${C.n200}` }}>
+      <div style={{ display: 'flex', gap: 0, padding: '0 16px', background: C.white, borderBottom: `1px solid ${C.n200}`, overflowX: 'auto' }}>
         {TABS.map(tab => (
           <button
             key={tab.value}
@@ -112,7 +115,7 @@ function SetorApprovalPage({ goBack }) {
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, overflowX: 'hidden' }}>
         <div style={{ maxWidth: 540, margin: '0 auto' }}>
 
           {loading ? (
@@ -148,6 +151,24 @@ function SetorApprovalPage({ goBack }) {
                   </div>
                 )}
 
+                {/* PIC Info */}
+                {d.picName && (
+                  <div style={{
+                    background: `${C.primary}08`,
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    marginBottom: 10,
+                    fontFamily: 'Poppins',
+                    fontSize: 10,
+                    color: C.primary,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}>
+                    👤 PIC: <strong>{d.picName}</strong>
+                  </div>
+                )}
+
                 {/* Proof photo */}
                 {d.proofPhotoUrl && (
                   <div style={{ marginBottom: 10, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.n200}`, maxHeight: 200 }}>
@@ -171,7 +192,7 @@ function SetorApprovalPage({ goBack }) {
 
                 {/* Action buttons (pending only) */}
                 {d.status === 'pending' && (
-                  <div>
+                  <div style={{ marginTop: 12 }}>
                     {rejectingId === d.id ? (
                       <div>
                         <textarea
@@ -185,13 +206,13 @@ function SetorApprovalPage({ goBack }) {
                             fontFamily: 'Poppins', fontSize: 12, marginBottom: 8, resize: 'vertical',
                           }}
                         />
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           <Btn variant="outline" size="sm" style={{ flex: 1 }} onClick={() => { setRejectingId(null); setRejectReason(''); }}>Batal</Btn>
                           <Btn variant="primary" size="sm" style={{ flex: 1, background: C.danger }} onClick={() => handleReject(d.id)}>Konfirmasi Tolak</Btn>
                         </div>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <Btn variant="outline" size="sm" style={{ flex: 1, color: C.danger, borderColor: C.danger }} onClick={() => setRejectingId(d.id)}>
                           ❌ Tolak
                         </Btn>

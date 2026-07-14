@@ -182,7 +182,6 @@ export default function LowStockAlertWidget({ compact = false, maxItems = 5, onV
         setLastFetch(new Date());
       }
     } catch (err) {
-      console.error('[LowStockAlertWidget] Fetch error:', err);
       setError(err?.response?.data?.message || 'Gagal memuat data');
     } finally {
       setLoading(false);

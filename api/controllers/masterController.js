@@ -1,4 +1,5 @@
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 /**
  * Master Data Controller
@@ -24,7 +25,7 @@ export const getProvinces = async (req, res) => {
       data: rows
     });
   } catch (err) {
-    console.error('[getProvinces] Error:', err);
+    logger.error('Gagal memuat data provinsi', { error: err.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal memuat data provinsi'
@@ -57,7 +58,7 @@ export const getCities = async (req, res) => {
       data: rows
     });
   } catch (err) {
-    console.error('[getCities] Error:', err);
+    logger.error('Gagal memuat data kota/kabupaten', { error: err.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal memuat data kota/kabupaten'
@@ -90,7 +91,7 @@ export const getDistricts = async (req, res) => {
       data: rows
     });
   } catch (err) {
-    console.error('[getDistricts] Error:', err);
+    logger.error('Gagal memuat data kecamatan', { error: err.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal memuat data kecamatan'
@@ -126,7 +127,7 @@ export const getSubDistricts = async (req, res) => {
       data: rows
     });
   } catch (err) {
-    console.error('[getSubDistricts] Error:', err);
+    logger.error('Gagal memuat data kelurahan/desa', { error: err.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal memuat data kelurahan/desa'
@@ -183,7 +184,7 @@ export const getMaterials = async (req, res) => {
       data: formattedRows
     });
   } catch (err) {
-    console.error('[getMaterials] Error:', err);
+    logger.error('Gagal memuat data materials', { error: err.message });
     // Return fallback materials if there's an error
     const fallbackMaterials = [
       { id: 1, material_id: 1, material_name: 'Sutra', name: 'Sutra', description: 'Bahan sutra halus, memerlukan penanganan khusus' },
@@ -234,7 +235,7 @@ export const getOutlets = async (req, res) => {
       data: rows
     });
   } catch (err) {
-    console.error('[getOutlets] Error:', err);
+    logger.error('Gagal memuat data outlet', { error: err.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal memuat data outlet'
@@ -302,7 +303,7 @@ export const getServices = async (req, res) => {
       }))
     });
   } catch (err) {
-    console.error('[getServices] Error:', err);
+    logger.error('Gagal memuat data layanan', { error: err.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal memuat data layanan'
@@ -325,7 +326,7 @@ export const getFragrances = async (req, res) => {
     );
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
-    console.error('[getFragrances] Error:', err);
+    logger.error('Gagal memuat data parfum', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data parfum.' });
   }
 };
@@ -356,7 +357,7 @@ export const getDepositPackages = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('[getDepositPackages] Error:', err);
+    logger.error('Gagal memuat paket deposit', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat paket deposit.' });
   }
 };
@@ -382,7 +383,7 @@ export const getAwarenessSources = async (req, res) => {
       data: fallbackSources
     });
   } catch (err) {
-    console.error('[getAwarenessSources] Error:', err);
+    logger.error('Gagal memuat data awareness sources', { error: err.message });
     // Fallback on error
     const fallbackSources = [
       { id: 1, name: 'Instagram', is_other: false },
@@ -417,7 +418,7 @@ export const getAreaZones = async (req, res) => {
       data: fallbackZones
     });
   } catch (err) {
-    console.error('[getAreaZones] Error:', err);
+    logger.error('Gagal memuat data area zones', { error: err.message });
     // Fallback on error
     const fallbackZones = [
       { id: 1, name: 'Setiabudi', is_other: false },

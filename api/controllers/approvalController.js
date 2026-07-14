@@ -1,5 +1,6 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
+import logger from '../utils/logger.js';
 
 const schemaColumnCache = new Map();
 const hasColumn = async (tableName, columnName) => {
@@ -30,15 +31,18 @@ export const getApprovals = async (req, res) => {
     const hasApprovalActiveFlag = await hasColumn('tr_transaction_approval', 'is_active');
 
     const wheres = [];
+    const params = [];
     if (hasApprovalActiveFlag) wheres.push('a.is_active = 1');
     if (['pending', 'approved', 'rejected'].includes(statusFilter)) {
-      wheres.push(`a.status = '${statusFilter}'`);
+      wheres.push('a.status = ?');
+      params.push(statusFilter);
     }
     const whereSql = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
 
     // Total count
     const [countRows] = await poolWaschenPos.execute(
-      `SELECT COUNT(*) AS total FROM tr_transaction_approval a ${whereSql}`
+      `SELECT COUNT(*) AS total FROM tr_transaction_approval a ${whereSql}`,
+      params
     );
     const total = Number(countRows[0]?.total || 0);
 
@@ -68,7 +72,8 @@ export const getApprovals = async (req, res) => {
       ORDER BY
         FIELD(a.status, 'pending', 'approved', 'rejected'),
         a.requested_at DESC
-      LIMIT ${limitNum} OFFSET ${offset}`
+      LIMIT ${limitNum} OFFSET ${offset}`,
+      params
     );
 
     const data = rows.map((a) => {
@@ -77,7 +82,9 @@ export const getApprovals = async (req, res) => {
       if (a.type === 'diskon' && a.description) {
         try {
           extra = JSON.parse(a.description);
-        } catch {}
+        } catch (err) {
+          logger.warn('[getApprovals] Gagal parse diskon JSON:', err?.message);
+        }
       }
       return {
         ...a,
@@ -100,7 +107,7 @@ export const getApprovals = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getApprovals] Error:', err);
+    logger.error('Get approvals gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data approval.' });
   }
 };
@@ -196,7 +203,7 @@ export const resolveApproval = async (req, res) => {
             );
           }
         } catch (e) {
-          console.warn('[approval diskon] parse gagal:', e.message);
+          logger.warn('[resolveApproval] Gagal parse diskon JSON:', e?.message);
         }
       }
     }
@@ -213,7 +220,7 @@ export const resolveApproval = async (req, res) => {
       action: status === 'approved' ? `approved_${check[0].type}` : `rejected_${check[0].type}`,
       newData: { status, type: check[0].type },
       req,
-    }).catch(() => {});
+    }).catch(err => logger.error('[resolveApproval] writeAudit gagal:', err));
 
     return res.status(200).json({
       success: true,
@@ -221,7 +228,7 @@ export const resolveApproval = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[resolveApproval] Error:', err);
+    logger.error('Resolve approval gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memproses approval.' });
   } finally {
     conn.release();
@@ -324,7 +331,7 @@ export const bulkResolveApprovals = async (req, res) => {
         action: status === 'approved' ? `bulk_approved_${row.type}` : `bulk_rejected_${row.type}`,
         newData: { status, type: row.type, isBulk: true },
         req,
-      }).catch(() => {});
+      }).catch(err => logger.error('[bulkResolveApprovals] writeAudit gagal:', err));
     });
 
     return res.json({
@@ -338,7 +345,7 @@ export const bulkResolveApprovals = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[bulkResolveApprovals] Error:', err);
+    logger.error('Bulk resolve approvals gagal', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memproses approval (bulk).' });
   } finally {
     conn.release();

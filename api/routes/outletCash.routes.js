@@ -16,8 +16,8 @@ import {
 
 const router = Router();
 
-const ADMIN_ROLES = ['admin', 'superadmin', 'owner'];
-const KASIR_ROLES = ['kasir', 'frontline'];
+const ADMIN_ROLES = ['admin'];
+const FRONTLINER_ROLES = ['frontline'];
 
 // Invalidate cache outlet-cash setelah mutasi
 const invalidateCash = (req, res, next) => {
@@ -41,12 +41,12 @@ router.post('/topup', authenticate, requireRole(...ADMIN_ROLES), writeLimiter, i
 router.get('/topups', authenticate, cacheResponse({ ttl: 30_000 }), readLimiter, getTopups);
 
 // Expense (kasir only untuk submit — butuh shift aktif)
-router.post('/expense', authenticate, requireRole(...KASIR_ROLES), requireActiveShift, writeLimiter, invalidateCash, submitExpense);
+router.post('/expense', authenticate, requireRole(...FRONTLINER_ROLES), requireActiveShift, writeLimiter, invalidateCash, submitExpense);
 router.get('/expenses', authenticate, cacheResponse({ ttl: 20_000 }), readLimiter, getExpenses);
-router.patch('/expense/:id/cancel', authenticate, writeLimiter, invalidateCash, cancelExpense);
+router.patch('/expense/:id/cancel', authenticate, requireRole(...ADMIN_ROLES), writeLimiter, invalidateCash, cancelExpense);
 
-// Low balance check
-router.get('/low-balance-check', authenticate, readLimiter, checkLowBalance);
+// Low balance check (admin only)
+router.get('/low-balance-check', authenticate, requireRole(...ADMIN_ROLES), readLimiter, checkLowBalance);
 
 // Approval (admin only)
 router.get('/approvals', authenticate, requireRole(...ADMIN_ROLES), cacheResponse({ ttl: 10_000 }), readLimiter, getApprovals);
@@ -55,11 +55,11 @@ router.patch('/approval/:id', authenticate, requireRole(...ADMIN_ROLES), approva
 // Rekonsiliasi (admin only)
 router.post('/reconcile', authenticate, requireRole(...ADMIN_ROLES), writeLimiter, invalidateCash, reconcileBalance);
 
-// Audit ledger
-router.get('/ledger', authenticate, cacheResponse({ ttl: 30_000 }), readLimiter, getLedger);
+// Audit ledger (admin only)
+router.get('/ledger', authenticate, requireRole(...ADMIN_ROLES), cacheResponse({ ttl: 30_000 }), readLimiter, getLedger);
 
-// Summary report
-router.get('/summary', authenticate, cacheResponse({ ttl: 60_000 }), readLimiter, getSummary);
+// Summary report (admin only)
+router.get('/summary', authenticate, requireRole(...ADMIN_ROLES), cacheResponse({ ttl: 60_000 }), readLimiter, getSummary);
 
 // Export CSV (admin) — no cache
 router.get('/transactions/export', authenticate, requireRole(...ADMIN_ROLES), readLimiter, exportTransactionsCsv);

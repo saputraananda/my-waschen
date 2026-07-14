@@ -9,6 +9,7 @@
 // - Kasir bisa handover antar sub-session
 // ══════════════════════════════════════════════════════════════════════════════
 import { poolWaschenPos as db } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 // ─── Helper: Check column exists ────────────────────────────────────────────
 async function hasColumn(tableName, columnName) {
@@ -178,7 +179,7 @@ export async function openSubSession(req, res) {
     });
   } catch (error) {
     await conn.rollback();
-    console.error('[openSubSession] Error:', error);
+    logger.error('Gagal membuka sub-session', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal membuka sub-session.',
@@ -233,7 +234,7 @@ export async function closeSubSession(req, res) {
     }
 
     // ── Verify ownership or admin ────────────────────────────────────────────
-    if (subSession.cashier_id !== cashierId && !['admin', 'superadmin'].includes(userRole)) {
+    if (subSession.cashier_id !== cashierId && !!['admin'].includes(userRole)) {
       await conn.rollback();
       conn.release();
       return res.status(403).json({
@@ -324,7 +325,7 @@ export async function closeSubSession(req, res) {
     });
   } catch (error) {
     await conn.rollback();
-    console.error('[closeSubSession] Error:', error);
+    logger.error('Gagal menutup sub-session', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal menutup sub-session.',
@@ -427,7 +428,7 @@ export async function getCurrentSubSession(req, res) {
       },
     });
   } catch (error) {
-    console.error('[getCurrentSubSession] Error:', error);
+    logger.error('Gagal mengambil sub-session aktif', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil sub-session aktif.',
@@ -446,8 +447,8 @@ export async function getAllSubSessions(req, res) {
     const userRole = req.user?.roleCode;
     const cashierOutletId = req.user?.outletId;
 
-    // ── Check access: only admin, owner, or kasir di outlet yang sama ─────────
-    if (!['admin', 'superadmin', 'owner'].includes(userRole)) {
+    // ── Check access: only admin ─────────
+    if (!['admin'].includes(userRole)) {
       // Kasir biasa hanya bisa lihat sub-session mereka sendiri
       // atau sub-session di shift yang sama
     }
@@ -466,7 +467,7 @@ export async function getAllSubSessions(req, res) {
     }
 
     // Kasir hanya bisa lihat shift di outlet yang sama
-    const isAdmin = ['admin', 'superadmin', 'owner'].includes(userRole);
+    const isAdmin = ['admin'].includes(userRole);
     if (!isAdmin && String(mainSession.outlet_id) !== String(cashierOutletId)) {
       return res.status(403).json({
         success: false,
@@ -543,7 +544,7 @@ export async function getAllSubSessions(req, res) {
       })),
     });
   } catch (error) {
-    console.error('[getAllSubSessions] Error:', error);
+    logger.error('Gagal mengambil daftar sub-session', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil daftar sub-session.',
@@ -588,7 +589,7 @@ export async function getSubSessionById(req, res) {
     const ss = rows[0];
 
     // ── Check access: owner, admin, atau kasir di outlet yang sama ────────────
-    const isAdmin = ['admin', 'superadmin', 'owner'].includes(userRole);
+    const isAdmin = ['admin'].includes(userRole);
     const isOwner = ss.cashier_id === cashierId;
     const sameOutlet = String(ss.outlet_id) === String(cashierOutletId);
 
@@ -655,7 +656,7 @@ export async function getSubSessionById(req, res) {
       },
     });
   } catch (error) {
-    console.error('[getSubSessionById] Error:', error);
+    logger.error('Gagal mengambil detail sub-session', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil detail sub-session.',
@@ -704,7 +705,7 @@ export async function createHandover(req, res) {
 
     // Only owner or admin can create handover
     const userRole = req.user?.roleCode;
-    if (outgoingSS.cashier_id !== userId && !['admin', 'superadmin'].includes(userRole)) {
+    if (outgoingSS.cashier_id !== userId && !!['admin'].includes(userRole)) {
       await conn.rollback();
       conn.release();
       return res.status(403).json({
@@ -816,7 +817,7 @@ export async function createHandover(req, res) {
     });
   } catch (error) {
     await conn.rollback();
-    console.error('[createHandover] Error:', error);
+    logger.error('Gagal mencatat handover', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mencatat handover.',
@@ -880,7 +881,7 @@ export async function getHandoverHistory(req, res) {
       })),
     });
   } catch (error) {
-    console.error('[getHandoverHistory] Error:', error);
+    logger.error('Gagal mengambil riwayat handover', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil riwayat handover.',
@@ -935,7 +936,7 @@ export async function acknowledgeHandover(req, res) {
       message: 'Handover berhasil diacknowledge.',
     });
   } catch (error) {
-    console.error('[acknowledgeHandover] Error:', error);
+    logger.error('Gagal acknowledge handover', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal acknowledge handover.',

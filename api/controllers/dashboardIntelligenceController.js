@@ -3,13 +3,14 @@
 // Phase 4: Dashboard Intelligence - Additional endpoints
 // ─────────────────────────────────────────────────────────────────────────────
 import { poolWaschenPos } from '../db/connection.js';
+import logger from '../utils/logger.js';
 
 // ─── GET /api/dashboard/low-stock ────────────────────────────────────────────────
 // Proactive low stock alerts for admin dashboard
 export const getLowStockAlerts = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
     const userOutletId = req.user?.outletId;
 
     // Build outlet filter
@@ -103,7 +104,7 @@ export const getLowStockAlerts = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getLowStockAlerts] Error:', err);
+    logger.error('Gagal memuat low stock alerts', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat low stock alerts.' });
   }
 };
@@ -113,7 +114,7 @@ export const getLowStockAlerts = async (req, res) => {
 export const getOutletComparison = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     if (!isGlobal) {
       return res.status(403).json({ success: false, message: 'Admin access required.' });
@@ -181,7 +182,7 @@ export const getOutletComparison = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getOutletComparison] Error:', err);
+    logger.error('Gagal memuat perbandingan outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat perbandingan outlet.' });
   }
 };
@@ -191,7 +192,7 @@ export const getOutletComparison = async (req, res) => {
 export const getDailyTargetProgress = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
 
     if (!isGlobal) {
       return res.status(403).json({ success: false, message: 'Admin access required.' });
@@ -289,7 +290,7 @@ export const getDailyTargetProgress = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getDailyTargetProgress] Error:', err);
+    logger.error('Gagal memuat progress target', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat progress target.' });
   }
 };
@@ -299,7 +300,7 @@ export const getDailyTargetProgress = async (req, res) => {
 export const getDashboardMetrics = async (req, res) => {
   try {
     const userRole = req.user?.roleCode;
-    const isGlobal = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobal = ['admin'].includes(userRole);
     const userOutletId = req.user?.outletId;
 
     let outletFilter = '';
@@ -378,7 +379,7 @@ export const getDashboardMetrics = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getDashboardMetrics] Error:', err);
+    logger.error('Gagal memuat metrics', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat metrics.' });
   }
 };

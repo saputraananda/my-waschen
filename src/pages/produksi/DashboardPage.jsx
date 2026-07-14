@@ -4,8 +4,9 @@ import { motion } from 'framer-motion';
 import { C } from '../../utils/theme';
 import { STAGES } from '../../utils/helpers';
 import { Avatar, Btn, ErrorBoundary, SkeletonList, useAppRefresh } from '../../components/ui';
-import { alertInfo } from '../../utils/alert';
+import { alertInfo, alertSuccess, alertWarning, alertError } from '../../utils/alert';
 import { useRealtimeMulti } from '../../utils/realtime';
+import { useResponsive } from '../../utils/hooks';
 import {
   STAGE_STYLE, STAGE_ICONS, STAGE_TAG, SLA_STYLES,
   LAYOUT, PROD_SHADOW, HEADER, BOTTOM_NAV, URGENT_BAR, CARD,
@@ -16,6 +17,288 @@ import {
 import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp'
 import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp'
 import soapBubble from '../../assets/Decorative icon/soap-bubble.webp'
+
+// ─── Production Stats Cards ───────────────────────────────────────────────
+function ProductionStatsCard({ label, value, icon, color, onClick }) {
+  const { isMobile } = useResponsive();
+  return (
+    <motion.button
+      onClick={onClick}
+      whileTap={{ scale: 0.97 }}
+      style={{
+        flex: 1,
+        background: 'rgba(255, 255, 255, 0.72)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.4)',
+        borderRadius: 14,
+        padding: isMobile ? '10px 8px' : '12px 10px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+        cursor: 'pointer',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 4,
+        minWidth: 0,
+      }}
+    >
+      <span style={{ fontSize: isMobile ? 16 : 18 }}>{icon}</span>
+      <span style={{
+        fontFamily: 'Poppins',
+        fontSize: isMobile ? 18 : 22,
+        fontWeight: 700,
+        color: color || C.primary,
+        lineHeight: 1,
+      }}>
+        {value}
+      </span>
+      <span style={{
+        fontFamily: 'Poppins',
+        fontSize: isMobile ? 9 : 10,
+        fontWeight: 500,
+        color: '#6B7280',
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+      }}>
+        {label}
+      </span>
+    </motion.button>
+  );
+}
+
+// ─── Inventory Alert Card ───────────────────────────────────────────────
+function InventoryAlertCard({ item, onSendAlert }) {
+  const stockPct = item.minStock > 0 ? Math.min(100, (item.stockQty / item.minStock) * 100) : 0;
+  const isCritical = item.stockQty === 0 || stockPct < 25;
+  const isWarning = !isCritical && stockPct < 50;
+  const barColor = isCritical ? C.danger : isWarning ? C.warning : C.success;
+
+  return (
+    <div style={{
+      background: 'rgba(255, 255, 255, 0.72)',
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      border: `1px solid rgba(255, 255, 255, 0.4)`,
+      borderLeft: `4px solid ${barColor}`,
+      borderRadius: 12,
+      padding: '10px 12px',
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+      marginBottom: 8,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: 'Poppins',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#111827',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {item.name}
+          </div>
+          <div style={{
+            fontFamily: 'Poppins',
+            fontSize: 11,
+            color: '#6B7280',
+            marginTop: 2,
+          }}>
+            Sisa: <strong style={{ color: barColor }}>{Number(item.stockQty).toLocaleString('id-ID')} {item.unit}</strong>
+            {' '} / Min: {Number(item.minStock).toLocaleString('id-ID')} {item.unit}
+          </div>
+        </div>
+        <motion.button
+          onClick={() => onSendAlert(item)}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            padding: '6px 12px',
+            background: 'rgba(110, 46, 120, 0.85)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: 8,
+            color: 'white',
+            fontFamily: 'Poppins',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(110, 46, 120, 0.25)',
+          }}
+        >
+          <span>📤</span>
+          <span>Alert</span>
+        </motion.button>
+      </div>
+      <div style={{
+        marginTop: 8,
+        height: 4,
+        background: '#E5E7EB',
+        borderRadius: 2,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${stockPct}%`,
+          height: '100%',
+          background: barColor,
+          borderRadius: 2,
+          transition: 'width 0.3s ease',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Inventory Check Section ───────────────────────────────────────────────
+function InventoryCheckSection({ outletId, onSendAlert, onViewAll }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [sendingId, setSendingId] = useState(null);
+
+  const fetchLowStock = useCallback(async () => {
+    if (!outletId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.get(`/api/inventory/stock?outletId=${outletId}`);
+      const allItems = res?.data?.data || [];
+      // Filter: hanya yang di bawah minimum
+      const lowItems = allItems.filter(item =>
+        item.stockQty <= item.minStock
+      ).slice(0, 5); // Max 5 items
+      setItems(lowItems);
+    } catch (err) {
+      setError('Gagal memuat stok');
+    } finally {
+      setLoading(false);
+    }
+  }, [outletId]);
+
+  useEffect(() => {
+    fetchLowStock();
+  }, [fetchLowStock]);
+
+  const handleSendAlert = async (item) => {
+    setSendingId(item.id);
+    try {
+      await axios.post('/api/inventory/low-stock-alert', {
+        inventoryId: item.id,
+        outletId,
+        stockQty: item.stockQty,
+        minStock: item.minStock,
+        itemName: item.name,
+        unit: item.unit,
+      });
+      alertSuccess(`Alert stok ${item.name} sudah dikirim ke kasir!`);
+    } catch (err) {
+      alertError(err?.response?.data?.message || 'Gagal kirim alert');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: '0 16px' }}>
+        <div className="skeleton" style={{ height: 80, borderRadius: 12, marginBottom: 8 }} />
+        <div className="skeleton" style={{ height: 60, borderRadius: 12, marginBottom: 8 }} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{
+        padding: '12px 16px',
+        background: C.validationErrorBg,
+        borderRadius: 12,
+        margin: '0 16px',
+        textAlign: 'center',
+      }}>
+        <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger }}>
+          ⚠️ {error}
+        </span>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div style={{
+        padding: '12px 16px',
+        background: C.successBg,
+        borderRadius: 12,
+        margin: '0 16px',
+        textAlign: 'center',
+      }}>
+        <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.success }}>
+          ✅ Semua stok dalam kondisi aman
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 16px',
+        marginBottom: 8,
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+        }}>
+          <span style={{ fontSize: 14 }}>📦</span>
+          <span style={{
+            fontFamily: 'Poppins',
+            fontSize: 11,
+            fontWeight: 600,
+            color: C.danger,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}>
+            Stok Menipis ({items.length})
+          </span>
+        </div>
+        {onViewAll && (
+          <button
+            onClick={onViewAll}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontFamily: 'Poppins',
+              fontSize: 11,
+              fontWeight: 600,
+              color: C.primary,
+              cursor: 'pointer',
+              padding: '4px 8px',
+            }}
+          >
+            Lihat Semua →
+          </button>
+        )}
+      </div>
+      <div style={{ padding: '0 16px' }}>
+        {items.map(item => (
+          <InventoryAlertCard
+            key={item.id}
+            item={item}
+            onSendAlert={handleSendAlert}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ─── Premium Animation Components ──────────────────────────────────────────────
 const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.4 }) => (
@@ -38,11 +321,15 @@ const Sparkle = ({ top, left, size = 5, delay = 0 }) => (
 
 // ─── Hero Header — Header Gelap dengan Stats Filter Tabs ────────
 function HeroHeader({ user, allActive, allDone, activeItemCount, overdueCount, onRefresh, onProfileClick, activeTab, onTabChange }) {
+  const { isMobile } = useResponsive();
   const stats = useMemo(() => {
-    let proses = 0, selesai = 0;
+    let proses = 0, selesai = 0, packing = 0;
     allActive.forEach(tx => {
       (tx.items || []).forEach(item => {
-        if (!item.isDone) proses++;
+        if (!item.isDone) {
+          proses++;
+          if (item.currentStage === 'Packing') packing++;
+        }
       });
     });
     allDone.forEach(tx => {
@@ -53,6 +340,7 @@ function HeroHeader({ user, allActive, allDone, activeItemCount, overdueCount, o
     return {
       semua: activeItemCount,
       proses,
+      packing,
       telat: overdueCount,
       selesai,
     };
@@ -68,7 +356,7 @@ function HeroHeader({ user, allActive, allDone, activeItemCount, overdueCount, o
   return (
     <div style={{
       background: HEADER.bg,
-      padding: '10px 16px 12px',
+      padding: isMobile ? '8px 12px 10px' : '10px 16px 12px',
       flexShrink: 0,
       position: 'relative',
       overflow: 'hidden',
@@ -82,22 +370,22 @@ function HeroHeader({ user, allActive, allDone, activeItemCount, overdueCount, o
       }} />
 
       {/* Top row: greeting + avatar */}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: isMobile ? 6 : 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontFamily: 'Poppins', fontSize: 9, color: HEADER.textMuted,
+            fontFamily: 'Poppins', fontSize: isMobile ? 8 : 9, color: HEADER.textMuted,
             letterSpacing: HEADER.letterSpacingUpper, fontWeight: 600,
           }}>
             🏭 {user?.outlet?.name || user?.outletName || 'Outlet'}
           </div>
           <div style={{
-            fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: HEADER.textWhite,
+            fontFamily: 'Poppins', fontSize: isMobile ? 13 : 15, fontWeight: 600, color: HEADER.textWhite,
             marginTop: 1, lineHeight: 1.15,
           }}>
             Hai, {user?.name?.split(' ')[0] || 'Tim'}
-            <span style={{ fontSize: 13 }}> 👋</span>
+            <span style={{ fontSize: isMobile ? 11 : 13 }}> 👋</span>
             <span style={{
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 500,
+              fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, fontWeight: 500,
               color: HEADER.textSub, marginLeft: 6,
             }}>
               · {activeItemCount} layanan
@@ -123,6 +411,17 @@ function HeroHeader({ user, allActive, allDone, activeItemCount, overdueCount, o
           </button>
           <Avatar photo={user?.photo} initials={user?.avatar} size={32} onClick={onProfileClick} />
         </div>
+      </div>
+
+      {/* Stats row */}
+      <div style={{
+        display: 'flex',
+        gap: isMobile ? 6 : 8,
+        marginBottom: isMobile ? 8 : 10,
+      }}>
+        <ProductionStatsCard label="Masuk" value={stats.semua} icon="📥" color={C.primary} />
+        <ProductionStatsCard label="Diproses" value={stats.proses} icon="🧺" color="#38bdf8" />
+        <ProductionStatsCard label="Selesai" value={stats.selesai} icon="✅" color={C.success} />
       </div>
 
       {/* Stats filter tabs */}
@@ -206,7 +505,7 @@ function UrgentBar({ count }) {
 
 // ─── Stage Filter Bar (Pill Chips) ──────────────────────────────
 function StageFilterBar({ workstation, workstationCounts, onChange }) {
-  const options = ['Semua', 'Cuci', 'Setrika', 'Packing'];
+  const options = ['Semua', 'Diterima', 'Packing'];
   return (
     <div style={{
       padding: '8px 16px 0',
@@ -260,6 +559,7 @@ function StageFilterBar({ workstation, workstationCounts, onChange }) {
 
 // ─── Item Card — Enhanced with Avatar + Better Progress ───────────────────────────
 function ItemCard({ tx, item, onPress }) {
+  const { isMobile } = useResponsive();
   const isDone = item.isDone;
   const stage = item.currentStage || 'Diterima';
   const stageStyle = getStageStyle(stage);
@@ -268,7 +568,7 @@ function ItemCard({ tx, item, onPress }) {
 
   // Progress data
   const progress = item.progress || [];
-  const ACTIVE_STAGES = ['Diterima', 'Cuci', 'Setrika', 'Packing'];
+  const ACTIVE_STAGES = ['Diterima', 'Packing'];
   
   // Avatar initials
   const customerName = tx.customerName || 'U';
@@ -281,7 +581,7 @@ function ItemCard({ tx, item, onPress }) {
         width: '100%', textAlign: 'left',
         background: C.white,
         borderRadius: CARD.borderRadius,
-        padding: '12px',
+        padding: isMobile ? '10px' : '12px',
         border: `1px solid ${sla === 'overdue' ? C.validationErrorBg : C.n200}`,
         boxShadow: sla === 'overdue' ? PROD_SHADOW.urgent : PROD_SHADOW.card,
         cursor: 'pointer',
@@ -303,13 +603,13 @@ function ItemCard({ tx, item, onPress }) {
       }} />
 
       {/* Header: Avatar + Customer Info + Badges */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, paddingLeft: 5 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, marginBottom: 10, paddingLeft: 5 }}>
         {/* Avatar */}
         <div style={{
-          width: 40, height: 40, borderRadius: 20,
+          width: isMobile ? 36 : 40, height: isMobile ? 36 : 40, borderRadius: isMobile ? 18 : 20,
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+          fontFamily: 'Poppins', fontSize: isMobile ? 11 : 13, fontWeight: 600,
           color: '#ffffff', flexShrink: 0,
           boxShadow: '0 2px 8px rgba(102,126,234,0.25)',
         }}>
@@ -319,13 +619,13 @@ function ItemCard({ tx, item, onPress }) {
         {/* Customer Info */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+            fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600,
             color: C.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {tx.customerName || 'Customer'}
           </div>
           <div style={{
-            fontFamily: 'Poppins', fontSize: 11, fontWeight: 400,
+            fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, fontWeight: 400,
             color: C.n500, marginTop: 1,
           }}>
             {tx.customerPhone ? `📞 ${tx.customerPhone}` : `📋 ${tx.id}`}
@@ -368,13 +668,13 @@ function ItemCard({ tx, item, onPress }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
-              fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
+              fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 600,
               color: C.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {item.name}
             </div>
             <div style={{
-              fontFamily: 'Poppins', fontSize: 11, fontWeight: 500,
+              fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, fontWeight: 500,
               color: C.n500, marginTop: 1,
             }}>
               {item.qty} {item.unit}
@@ -384,14 +684,14 @@ function ItemCard({ tx, item, onPress }) {
           {/* Stage tag */}
           <div style={{
             background: stageStyle.bg, color: stageStyle.text,
-            padding: '4px 10px', borderRadius: 999,
-            fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+            padding: isMobile ? '3px 8px' : '4px 10px', borderRadius: 999,
+            fontFamily: 'Poppins', fontSize: isMobile ? 9 : 10, fontWeight: 600,
             display: 'flex', alignItems: 'center', gap: 5,
             boxShadow: stageStyle.dotShadow ? `0 0 6px ${stageStyle.dotShadow}` : 'none',
             flexShrink: 0,
           }}>
-            <span style={{ fontSize: 12 }}>{STAGE_ICONS[stage]}</span>
-            {stage}
+            <span style={{ fontSize: isMobile ? 10 : 12 }}>{STAGE_ICONS[stage]}</span>
+            {isMobile ? '' : stage}
           </div>
         </div>
 
@@ -586,6 +886,7 @@ function EmptyState({ lastRefresh, activeTab, workstation, overdueCount }) {
 
 // ─── Main Dashboard ──────────────────────────────────────────────
 export function ProduksiDashboardPage({ user, navigate }) {
+  const { isMobile } = useResponsive();
   const [activeTab, setActiveTab] = useState('semua');
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -625,7 +926,6 @@ export function ProduksiDashboardPage({ user, navigate }) {
       setTransactions(data);
       setLastRefresh(new Date());
     } catch (err) {
-      console.error('Failed to fetch production queue:', err);
       if (!silent) setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
       setLoading(false);
@@ -688,7 +988,7 @@ export function ProduksiDashboardPage({ user, navigate }) {
 
   // Workstation counts yang mempertimbangkan activeTab
   const workstationCounts = useMemo(() => {
-    const counts = { Semua: 0, Cuci: 0, Setrika: 0, Packing: 0 };
+    const counts = { Semua: 0, Diterima: 0, Packing: 0 };
     
     // Untuk tab "Selesai", tidak perlu hitung workstation (workstation filter di-disable)
     if (activeTab === 'selesai') {
@@ -879,8 +1179,17 @@ export function ProduksiDashboardPage({ user, navigate }) {
         onChange={handleWorkstationChange}
       />
 
-<div style={{ flex: 1, overflowY: 'auto', paddingBottom: 90 }}>
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: isMobile ? 100 : 90 }}>
         {renderList()}
+
+        {/* Inventory Check Section - Jobdesk 2 */}
+        <div style={{ marginTop: 16 }}>
+          <InventoryCheckSection
+            outletId={user?.outletId}
+            onSendAlert={() => {}}
+            onViewAll={() => navigate('stok_bahan')}
+          />
+        </div>
 
         {lastRefresh && flatItems.length > 0 && (
           <div style={{

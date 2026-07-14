@@ -351,7 +351,7 @@ describe('EmptyState', () => {
 
   it('renders action button', () => {
     const action = vi.fn();
-    render(<EmptyState title="Empty" action={action} actionLabel="Add Item" />);
+    render(<EmptyState title="Empty" action={{ label: "Add Item", onClick: action }} />);
     expect(screen.getByText('Add Item')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Add Item'));
     expect(action).toHaveBeenCalled();

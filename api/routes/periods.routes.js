@@ -12,6 +12,6 @@ router.get('/current', authenticate, getCurrentPeriod);
 router.get('/history', authenticate, getPeriodHistory);
 
 // POST /api/periods/close — eksekusi tutup buku (admin only)
-router.post('/close', authenticate, requireRole('admin', 'superadmin', 'finance', 'owner'), closePeriod);
+router.post('/close', authenticate, requireRole('admin'), closePeriod);
 
 export default router;

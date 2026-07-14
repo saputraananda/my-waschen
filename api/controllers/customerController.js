@@ -1,6 +1,7 @@
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
 import { notDeleted, softDeleteRecord } from '../utils/softDelete.js';
+import logger from '../utils/logger.js';
 
 // ─── Controller: POST /api/customers/:id/topup ─────────────────────────────
 export const topupDeposit = async (req, res) => {
@@ -61,36 +62,14 @@ export const topupDeposit = async (req, res) => {
       [id]
     );
 
-    // BUG FIX: Membership Auto-Extend Logic (Requirements 2.14, 2.15)
-    // Top up >= minDeposit should:
-    // - Active member: extend from OLD end_date (not from today)
-    // - Expired member: reactivate with end_date = today + 6 months
-    // - Non-member: automatically upgrade to premium!
+    // Membership Extension Logic (only for EXISTING members)
+    // BR-MEM-01: Top up BUKAN otomatis jadi member
+    // Non-members can top up deposit WITHOUT becoming a member
     let membershipExtended = false;
     let membershipExtendedTo = null;
-    let membershipUpgraded = false;
 
-    if (!custRows[0].is_member) {
-      // Case: Non-member → auto-upgrade to premium!
-      try {
-        const memberNo = 'MBR-' + Date.now().toString().slice(-6);
-        await conn.execute(
-          `INSERT INTO mst_membership (
-            customer_id, member_no, status, discount_pct, 
-            topup_count, started_at, expired_at, registered_by, created_at, updated_at
-          ) VALUES (?, ?, 'active', 20.00, 1, NOW(), DATE_ADD(NOW(), INTERVAL 6 MONTH), ?, NOW(), NOW())`,
-          [id, memberNo, req.user?.userId || id]
-        );
-        await conn.execute('UPDATE mst_customer SET is_member = 1, updated_at = NOW() WHERE id = ?', [id]);
-        membershipUpgraded = true;
-        membershipExtended = true;
-        const [[newMemb]] = await conn.execute('SELECT expired_at FROM mst_membership WHERE customer_id = ? ORDER BY id DESC LIMIT 1', [id]);
-        membershipExtendedTo = newMemb.expired_at;
-        console.log(`[topupDeposit] Customer ${id} automatically upgraded to premium member!`);
-      } catch (mErr) {
-        console.warn('[topupDeposit] gagal auto-upgrade membership:', mErr?.message);
-      }
-    } else {
+    if (custRows[0].is_member) {
+      // Case: Existing member only - extend or reactivate membership
       try {
         const [[memb]] = await conn.execute(
           `SELECT id, status, expired_at FROM mst_membership
@@ -98,7 +77,7 @@ export const topupDeposit = async (req, res) => {
            ORDER BY expired_at DESC LIMIT 1`,
           [id]
         );
-        
+
         if (memb) {
           const now = new Date();
           const expiredAt = new Date(memb.expired_at);
@@ -116,14 +95,12 @@ export const topupDeposit = async (req, res) => {
                WHERE id = ?`,
               [memb.id]
             );
-            
             const [[newMemb]] = await conn.execute(
               'SELECT expired_at FROM mst_membership WHERE id = ?',
               [memb.id]
             );
             membershipExtendedTo = newMemb.expired_at;
             membershipExtended = true;
-            console.log(`[topupDeposit] Membership reactivated for customer ${id}, new end_date: ${membershipExtendedTo}`);
           } else {
             // Case: Active member - extend from OLD end_date (not from today)
             await conn.execute(
@@ -135,21 +112,19 @@ export const topupDeposit = async (req, res) => {
                WHERE id = ?`,
               [memb.expired_at, memb.id]
             );
-            
             const [[newMemb]] = await conn.execute(
               'SELECT expired_at FROM mst_membership WHERE id = ?',
               [memb.id]
             );
             membershipExtendedTo = newMemb.expired_at;
             membershipExtended = true;
-            console.log(`[topupDeposit] Membership extended for customer ${id} from ${memb.expired_at} to ${membershipExtendedTo}`);
           }
         }
       } catch (mErr) {
-        console.warn('[topupDeposit] gagal perpanjang membership:', mErr?.message || mErr);
+        // [topupDeposit] membership extend failed - continue with deposit only
       }
     }
-
+    // Non-members: just add deposit, NO auto-upgrade to membership
     // 3. Catat riwayat top-up
     try {
       await conn.execute(
@@ -179,17 +154,16 @@ export const topupDeposit = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Top up Rp ${Number(amount).toLocaleString('id-ID')} berhasil${membershipUpgraded ? '. Selamat, customer berhasil menjadi Premium Member!' : membershipExtended ? '. Membership diperpanjang 6 bulan!' : '.'}`,
+      message: `Top up Rp ${Number(amount).toLocaleString('id-ID')} berhasil${membershipExtended ? '. Membership diperpanjang 6 bulan!' : '.'}`,
       data: {
         newBalance: Number(wallet.balance),
         membershipExtended,
-        membershipUpgraded,
         membershipExtendedTo: membershipExtendedTo ? membershipExtendedTo.toISOString().slice(0, 10) : null,
       },
     });
   } catch (err) {
     await conn.rollback();
-    console.error('[topupDeposit] Error:', err);
+    logger.error('Topup deposit failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal melakukan top up deposit.' });
   } finally {
     conn.release();
@@ -205,8 +179,11 @@ export const upgradeToPremium = async (req, res) => {
 
     await conn.beginTransaction();
 
-    // 1. Cek customer
-    const [custRows] = await conn.execute('SELECT id, is_member FROM mst_customer WHERE id = ?', [id]);
+    // 1. Cek customer (with soft delete filter)
+    const [custRows] = await conn.execute(
+      'SELECT id, is_member FROM mst_customer WHERE id = ? AND is_active = 1 AND deleted_at IS NULL LIMIT 1',
+      [id]
+    );
     if (custRows.length === 0) {
       await conn.rollback();
       return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
@@ -236,7 +213,7 @@ export const upgradeToPremium = async (req, res) => {
     return res.status(200).json({ success: true, message: 'Customer berhasil diupgrade menjadi Premium!' });
   } catch (error) {
     await conn.rollback();
-    console.error('[upgradeToPremium] Error:', error);
+    logger.error('Upgrade to premium failed', { error: error.message });
     return res.status(500).json({ success: false, message: 'Gagal meng-upgrade customer.' });
   } finally {
     conn.release();
@@ -251,7 +228,10 @@ export const downgradeFromPremium = async (req, res) => {
 
     await conn.beginTransaction();
 
-    const [custRows] = await conn.execute('SELECT id, is_member FROM mst_customer WHERE id = ?', [id]);
+    const [custRows] = await conn.execute(
+      'SELECT id, is_member FROM mst_customer WHERE id = ? AND is_active = 1 AND deleted_at IS NULL LIMIT 1',
+      [id]
+    );
     if (custRows.length === 0) {
       await conn.rollback();
       return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
@@ -267,13 +247,16 @@ export const downgradeFromPremium = async (req, res) => {
       [id]
     );
 
-    await conn.execute('UPDATE mst_customer SET is_member = 0, updated_at = NOW() WHERE id = ?', [id]);
+    await conn.execute(
+      'UPDATE mst_customer SET is_member = 0, updated_at = NOW() WHERE id = ? AND is_active = 1',
+      [id]
+    );
 
     await conn.commit();
     return res.status(200).json({ success: true, message: 'Customer berhasil diturunkan menjadi member biasa.' });
   } catch (error) {
     await conn.rollback();
-    console.error('[downgradeFromPremium] Error:', error);
+    logger.error('Downgrade from premium failed', { error: error.message });
     return res.status(500).json({ success: false, message: 'Gagal menurunkan status member.' });
   } finally {
     conn.release();
@@ -349,6 +332,7 @@ const CUSTOMER_SELECT = `
     c.phone,
     c.email,
     c.gender,
+    c.photo,
     c.greeting,
     c.awareness_source_id AS awareness_source_id,
     c.awareness_other_text AS awareness_other_text,
@@ -366,8 +350,8 @@ const CUSTOMER_SELECT = `
     az.name AS areaZoneName,
     o.name AS registeredOutletName,
     COALESCE(w.balance, 0) AS deposit,
-    COALESCE(tx.total_tx, 0) AS totalTx,
-    COALESCE(tx.last_tx_date, NULL) AS lastTxDate,
+    COALESCE(tx.totalTx, 0) AS totalTx,
+    COALESCE(tx.lastTxDate, NULL) AS lastTxDate,
     m.status AS membershipStatus,
     m.discount_pct AS membershipDiscountPct,
     m.expired_at AS membershipExpiredAt,
@@ -385,7 +369,7 @@ const CUSTOMER_SELECT = `
   LEFT JOIN mst_outlet o ON o.id = c.registered_outlet_id
   LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
   LEFT JOIN (
-    SELECT customer_id, COUNT(*) AS total_tx, MAX(created_at) AS last_tx_date
+    SELECT customer_id, COUNT(*) AS totalTx, MAX(created_at) AS lastTxDate, COALESCE(SUM(total), 0) AS totalSpendAmount
     FROM tr_transaction
     WHERE deleted_at IS NULL AND status != 'cancelled'
     GROUP BY customer_id
@@ -432,6 +416,9 @@ const mapCustomerRow = (c) => {
     isPremium: c.isMember === 1 || c.isMember === true,
     deposit: Number(c.deposit) || 0,
     totalTx,
+    totalSpend: Number(c.totalSpendAmount) || 0,
+    lastSpendDate: c.lastTxDate || null,
+    membershipTier: c.membershipTier || null,
     loyaltyCategory,
     registeredOutletId: c.registeredOutletId || null,
     registeredOutletName: c.registeredOutletName || null,
@@ -448,7 +435,7 @@ export const getCustomers = async (req, res) => {
 
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobalRole = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobalRole = ['admin'].includes(userRole);
 
     let where = 'c.is_active = 1 AND c.deleted_at IS NULL';
     const params = [];
@@ -515,7 +502,7 @@ export const getCustomers = async (req, res) => {
     const sortSql = {
       name_asc: 'c.name ASC',
       newest: 'c.created_at DESC',
-      frequent: 'COALESCE(tx.total_tx, 0) DESC, c.name ASC',
+      frequent: 'COALESCE(tx.totalTx, 0) DESC, c.name ASC',
     };
     const orderBy = sortSql[sortKey] || sortSql.name_asc;
 
@@ -535,7 +522,7 @@ export const getCustomers = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getCustomers] Error:', err);
+    logger.error('Get customers failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data pelanggan.' });
   }
 };
@@ -552,7 +539,7 @@ export const lookupCustomers = async (req, res) => {
 
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
-    const isGlobalRole = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+    const isGlobalRole = ['admin'].includes(userRole);
 
     const searchPattern = `%${query}%`;
     const phoneClean = query.replace(/\D/g, '');
@@ -563,16 +550,25 @@ export const lookupCustomers = async (req, res) => {
     const outletParam = [];
 
     const [rows] = await poolWaschenPos.execute(
-      `SELECT c.id, c.name, c.phone, c.is_member, c.gender,
+      `SELECT c.id, c.name, c.phone, c.is_member, c.gender, c.photo,
               c.registered_outlet_id AS registeredOutletId,
               o.name AS registeredOutletName,
               c.address_housing AS addressHousing,
               c.address_block AS addressBlock,
               c.address_no AS addressNo,
-              w.balance AS depositBalance
+              w.balance AS depositBalance,
+              COALESCE(tx.totalTx, 0) AS totalTx,
+              COALESCE(tx.lastTxDate, NULL) AS lastTxDate,
+              COALESCE(tx.totalSpendAmount, 0) AS totalSpendAmount
        FROM mst_customer c
        LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
        LEFT JOIN mst_outlet o ON o.id = c.registered_outlet_id
+       LEFT JOIN (
+         SELECT customer_id, COUNT(*) AS totalTx, MAX(created_at) AS lastTxDate, COALESCE(SUM(total), 0) AS totalSpendAmount
+         FROM tr_transaction
+         WHERE deleted_at IS NULL AND status != 'cancelled'
+         GROUP BY customer_id
+       ) tx ON tx.customer_id = c.id
        WHERE c.is_active = 1 AND c.deleted_at IS NULL
          ${outletFilter}
          AND (c.name LIKE ? OR c.phone LIKE ?
@@ -597,17 +593,21 @@ export const lookupCustomers = async (req, res) => {
       phone: r.phone,
       isMember: r.is_member === 1,
       gender: r.gender,
+      photo: r.photo || null,
       registeredOutletId: r.registeredOutletId,
       registeredOutletName: r.registeredOutletName || null,
       addressHousing: r.addressHousing || null,
       addressBlock: r.addressBlock || null,
       addressNo: r.addressNo || null,
-      depositBalance: r.depositBalance != null ? Number(r.depositBalance) : 0,
+      deposit: r.depositBalance != null ? Number(r.depositBalance) : 0,
+      totalTx: Number(r.totalTx) || 0,
+      lastTxDate: r.lastTxDate || null,
+      totalSpendAmount: Number(r.totalSpendAmount) || 0,
     }));
 
     return res.json({ success: true, data });
   } catch (err) {
-    console.error('[lookupCustomers] Error:', err);
+    logger.error('Lookup customers failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mencari customer.' });
   }
 };
@@ -661,14 +661,14 @@ export const getCustomerById = async (req, res) => {
         base.loyaltyPoints = 0;
       }
     } catch (mErr) {
-      console.warn('[getCustomerById] gagal ambil membership/loyalty:', mErr?.message || mErr);
+      // [getCustomerById] membership fetch failed - silent
       base.membership = null;
       base.loyaltyPoints = 0;
     }
 
     return res.status(200).json({ success: true, data: base });
   } catch (err) {
-    console.error('[getCustomerById] Error:', err);
+    logger.error('Get customer by id failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data pelanggan.' });
   }
 };
@@ -756,7 +756,12 @@ export const createCustomer = async (req, res) => {
     const finalNotes = notes || null;
     const finalAwarenessOther = awareness_other_text || null;
     const finalGreeting = normalizeGreeting(greeting || 'Other');
-    const finalGender = ['male', 'female', 'other'].includes(gender) ? gender : 'other';
+    // Auto-infer gender from greeting if gender is empty/invalid
+    // Bapak, Mas → male | Ibu, Mbak → female | Kak, Other → other
+    const greetingToGender = { Bapak: 'male', Mas: 'male', Kak: 'other', Ibu: 'female', Mbak: 'female', Other: 'other' };
+    const finalGender = ['male', 'female', 'other'].includes(gender)
+      ? gender
+      : (greetingToGender[finalGreeting] || 'other');
 
     // BUG FIX: Awareness Source "Lainnya" Validation (Requirements 2.2)
     // If awareness source has is_other=true, awareness_other_text MUST NOT be empty
@@ -781,7 +786,7 @@ export const createCustomer = async (req, res) => {
 
     const [insertResult] = await poolWaschenPos.execute(
       `INSERT INTO mst_customer (
-        customer_no, name, phone, gender, greeting, email,
+        customer_no, name, phone, gender, greeting, email, photo,
         awareness_source_id, awareness_other_text, area_zone_id,
         registered_outlet_id,
         province_id, city_id, district_id, sub_district_id, address_detail, address_other,
@@ -790,7 +795,7 @@ export const createCustomer = async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, TRUE, NOW(), NOW())`,
       [
         customerNo, name.trim(), phone.trim(), finalGender, finalGreeting,
-        finalEmail, finalAwarenessId, finalAwarenessOther, finalAreaZoneId,
+        finalEmail, req.body.photo || null, finalAwarenessId, finalAwarenessOther, finalAreaZoneId,
         req.user?.outletId || null,
         province_id || null,
         city_id || null,
@@ -847,7 +852,7 @@ export const createCustomer = async (req, res) => {
       data: newCustomer,
     });
   } catch (err) {
-    console.error('[createCustomer] Error:', err);
+    logger.error('Create customer failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menambahkan pelanggan.' });
   }
 };
@@ -893,6 +898,10 @@ export const updateCustomer = async (req, res) => {
     const defaultAwareness = awarenessSourceId || awareness_source_id || await getDefaultAwarenessSource();
     const defaultAreaZone = areaZoneId || area_zone_id || await getDefaultAreaZone();
     const finalGreeting = normalizeGreeting(greeting);
+    const greetingToGender = { Bapak: 'male', Mas: 'male', Kak: 'other', Ibu: 'female', Mbak: 'female', Other: 'other' };
+    const finalGender = ['male', 'female', 'other'].includes(gender)
+      ? gender
+      : (greetingToGender[finalGreeting] || 'other');
     const finalEmail = email ? email.trim() : null;
     const finalAddressHousing = typeof (addressHousing ?? address_housing) === 'string'
       ? (addressHousing ?? address_housing).trim()
@@ -936,8 +945,8 @@ export const updateCustomer = async (req, res) => {
     }
 
     await poolWaschenPos.execute(
-      `UPDATE mst_customer SET 
-        name = ?, phone = ?, gender = ?, greeting = ?, email = ?,
+      `UPDATE mst_customer SET
+        name = ?, phone = ?, gender = ?, greeting = ?, email = ?, photo = ?,
         awareness_source_id = ?, area_zone_id = ?,
         province_id = ?, city_id = ?, district_id = ?, sub_district_id = ?,
         address_detail = ?, address_other = ?,
@@ -945,7 +954,8 @@ export const updateCustomer = async (req, res) => {
         notes = ?, updated_at = NOW()
        WHERE id = ?`,
       [
-        name.trim(), phone.trim(), gender || 'other', finalGreeting, finalEmail,
+        name.trim(), phone.trim(), finalGender, finalGreeting, finalEmail,
+        req.body.photo || null,
         defaultAwareness, defaultAreaZone,
         province_id || null,
         city_id || null,
@@ -960,7 +970,7 @@ export const updateCustomer = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Pelanggan berhasil diupdate' });
   } catch (err) {
-    console.error('[updateCustomer] Error:', err);
+    logger.error('Update customer failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengupdate pelanggan.' });
   }
 };
@@ -976,7 +986,7 @@ export const deleteCustomer = async (req, res) => {
     );
     return res.status(200).json({ success: true, message: 'Pelanggan berhasil dihapus.' });
   } catch (err) {
-    console.error('[deleteCustomer] Error:', err);
+    logger.error('Delete customer failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menghapus pelanggan.' });
   }
 };
@@ -1007,7 +1017,7 @@ export const getCustomerFavoriteServices = async (req, res) => {
 
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
-    console.error('[getCustomerFavoriteServices]', err);
+    logger.error('Get favorite services failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat layanan favorit.' });
   }
 };
@@ -1029,7 +1039,7 @@ export const updateCustomerFavoriteService = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Layanan favorit berhasil diupdate.' });
   } catch (err) {
-    console.error('[updateCustomerFavoriteService]', err);
+    logger.error('Update favorite service failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal update layanan favorit.' });
   }
 };
@@ -1046,7 +1056,7 @@ export const removeCustomerFavoriteService = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Layanan dihapus dari favorit.' });
   } catch (err) {
-    console.error('[removeCustomerFavoriteService]', err);
+    logger.error('Remove favorite service failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menghapus favorit.' });
   }
 };
@@ -1234,7 +1244,7 @@ export const exportCustomerTransactions = async (req, res) => {
       return res.send(Buffer.from(xlsxBuffer));
     }
   } catch (err) {
-    console.error('[exportCustomerTransactions] Error:', err);
+    logger.error('Export customer transactions failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal export transaksi.' });
   }
 };

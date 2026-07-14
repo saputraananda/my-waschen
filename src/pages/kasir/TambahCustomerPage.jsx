@@ -4,11 +4,13 @@ import { C, SHADOW } from '../../utils/theme';
 import { TopBar, Input, Btn, Select, Modal, DateTimeInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
+import { useResponsive } from '../../utils/hooks';
 import AddressCascadingPicker from '../../components/AddressCascadingPicker';
 import { inferRegionFromHousing } from '../../data/housingSeed';
 
 export default function TambahCustomerPage({ navigate, screenParams }) {
   const { setNotaCustomer } = useApp();
+  const { isMobile } = useResponsive();
   const isEdit = !!screenParams?.id;
 
   const initialPhone = (screenParams?.phone || '').replace(/^\+?62/, '').replace(/^0/, '');
@@ -55,7 +57,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
         if (awarenessRes?.data?.data) setAwarenessSources(awarenessRes.data.data);
         if (zoneRes?.data?.data) setAreaZones(zoneRes.data.data);
       } catch (error) {
-        console.error('Failed to fetch master data:', error);
+        // Silent fail for master data, UI will show empty options
       }
     };
     fetchMasterData();
@@ -144,7 +146,6 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
       }
     } catch (error) {
       const msg = error?.response?.data?.message || 'Gagal memproses data pelanggan. Silakan coba lagi.';
-      console.error('Failed to process customer:', error);
       alertError(msg);
     } finally {
       setLoading(false);
@@ -170,21 +171,21 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title={isEdit ? "Edit Konsumen" : "Buat Konsumen Baru"} onBack={handleBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-        <div style={{ background: C.white, borderRadius: 16, padding: 20, boxShadow: SHADOW.sm }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 20 }}>
+        <div style={{ background: C.white, borderRadius: isMobile ? 12 : 16, padding: isMobile ? 14 : 20, boxShadow: SHADOW.sm }}>
           <Input label="Nama Konsumen *" value={form.name} onChange={setCap('name', 'title')} placeholder="Nama Lengkap" error={errors.name} />
-          
+
           {/* Nomor HP +62 prefix */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Nomor Handphone</div>
             <div style={{ display: 'flex', borderRadius: 10, border: `1.5px solid ${errors.phone ? C.danger : C.n300}`, overflow: 'hidden' }}>
-              <div style={{ padding: '10px 12px', background: C.n50, fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n700, borderRight: `1.5px solid ${C.n200}`, display: 'flex', alignItems: 'center' }}>+62</div>
+              <div style={{ padding: '10px 12px', background: C.n50, fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n700, borderRight: `1.5px solid ${C.n200}`, display: 'flex', alignItems: 'center', flexShrink: 0 }}>+62</div>
               <input
                 value={form.phone}
                 onChange={(e) => set('phone')(e.target.value.replace(/\D/g, ''))}
                 placeholder="857XXXXXXXXX"
                 inputMode="tel"
-                style={{ flex: 1, padding: '10px 12px', border: 'none', outline: 'none', fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: 'transparent' }}
+                style={{ flex: 1, padding: '10px 12px', border: 'none', outline: 'none', fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: 'transparent', minWidth: 0 }}
               />
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 4 }}>Untuk kirim nota, pengingat deposit & promo secara otomatis. Wajib diisi jika daftar member.</div>
@@ -194,7 +195,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
           {/* Jenis Kelamin — Radio (opsional) */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Jenis Kelamin</div>
-            <div style={{ display: 'flex', gap: 20 }}>
+            <div style={{ display: 'flex', gap: isMobile ? 12 : 20 }}>
               <RadioBtn label="Laki-laki" checked={form.gender === 'male'} onClick={() => set('gender')('male')} />
               <RadioBtn label="Perempuan" checked={form.gender === 'female'} onClick={() => set('gender')('female')} />
             </div>
@@ -350,7 +351,17 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
         )}
       </div>
 
-      <div style={{ padding: '12px 20px', background: C.white, borderTop: `1px solid ${C.n100}` }}>
+      <div style={{
+        padding: '12px 20px',
+        background: C.white,
+        borderTop: `1px solid ${C.n100}`,
+        position: isMobile ? 'sticky' : 'relative',
+        bottom: isMobile ? 0 : 'auto',
+        left: 0,
+        right: 0,
+        zIndex: isMobile ? 10 : 'auto',
+        boxShadow: isMobile ? '0 -2px 10px rgba(0,0,0,0.1)' : 'none',
+      }}>
         <Btn variant="primary" onClick={handleSave} loading={loading} style={{ width: '100%' }}>{isEdit ? "Simpan Perubahan" : "Simpan Data Konsumen"}</Btn>
       </div>
 

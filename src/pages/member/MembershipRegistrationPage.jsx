@@ -4,6 +4,7 @@ import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, MoneyInput, Select } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import { useResponsive } from '../../utils/hooks';
 
 // Tier configurations
 const TIERS = {
@@ -35,6 +36,7 @@ const TIERS = {
 
 export default function MembershipRegistrationPage({ navigate, goBack, screenParams }) {
   const customer = screenParams;
+  const { isMobile } = useResponsive();
   const [selectedTier, setSelectedTier] = useState('gold');
   const [topupAmount, setTopupAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,8 +56,8 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
         if (res?.data?.success) {
           setCurrentMembership(res.data.data);
         }
-      } catch (err) {
-        console.warn('Failed to fetch membership status:', err?.message);
+      } catch {
+        // Silent fail for optional membership status
       } finally {
         setMembershipLoading(false);
       }
@@ -108,17 +110,17 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
           <TopBar title="WPC Membership" subtitle={customer?.name} onBack={goBack} />
 
-          <div style={{ flex: 1, padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-            <div style={{ fontSize: 64 }}>✅</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: C.n900, textAlign: 'center' }}>
+          <div style={{ flex: 1, padding: isMobile ? 12 : 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 12 : 16 }}>
+            <div style={{ fontSize: isMobile ? 48 : 64 }}>✅</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 15 : 18, fontWeight: 700, color: C.n900, textAlign: 'center' }}>
               Anda Sudah Menjadi Member
             </div>
             <div style={{
-              background: C.white, borderRadius: 16, padding: 20, width: '100%',
+              background: C.white, borderRadius: isMobile ? 12 : 16, padding: isMobile ? 14 : 20, width: '100%',
               boxShadow: '0 2px 8px rgba(15,23,42,0.08)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                <span style={{ fontSize: 40 }}>{TIERS[currentMembership.tier]?.icon}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12, marginBottom: isMobile ? 12 : 16 }}>
+                <span style={{ fontSize: isMobile ? 32 : 40 }}>{TIERS[currentMembership.tier]?.icon}</span>
                 <div>
                   <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: TIERS[currentMembership.tier]?.color }}>
                     WPC {currentMembership.tier === 'diamond' ? 'Diamond' : 'Gold'} Member
@@ -189,28 +191,28 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
       <TopBar title="WPC Membership" subtitle={customer?.name} onBack={goBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 16 }}>
         {/* Header Info */}
         <div style={{
           background: `linear-gradient(135deg, ${tier.bgColor}, white)`,
           border: `2px solid ${tier.borderColor}`,
-          borderRadius: 16, padding: 16, marginBottom: 16, textAlign: 'center'
+          borderRadius: isMobile ? 12 : 16, padding: isMobile ? 14 : 16, marginBottom: 16, textAlign: 'center'
         }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>🎉</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, marginBottom: 4 }}>
+          <div style={{ fontSize: isMobile ? 36 : 48, marginBottom: isMobile ? 4 : 8 }}>🎉</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 14 : 16, fontWeight: 700, color: C.n900, marginBottom: 4 }}>
             Bergabung dengan WPC
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, color: C.n600 }}>
             Waschen Priority Club - Nikmati benefit eksklusif sebagai member
           </div>
         </div>
 
         {/* Tier Selection */}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 8 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n600, marginBottom: 8 }}>
             Pilih Tier Membership
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             {Object.values(TIERS).map((t) => (
               <button
                 key={t.id}
@@ -222,7 +224,7 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
                   }
                 }}
                 style={{
-                  padding: 16,
+                  padding: isMobile ? 14 : 16,
                   borderRadius: 12,
                   border: `2px solid ${selectedTier === t.id ? t.color : C.n200}`,
                   background: selectedTier === t.id ? t.bgColor : C.white,
@@ -232,7 +234,7 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
                   boxShadow: selectedTier === t.id ? `0 4px 12px ${t.color}30` : 'none',
                 }}
               >
-                <div style={{ fontSize: 32, marginBottom: 4 }}>{t.icon}</div>
+                <div style={{ fontSize: isMobile ? 28 : 32, marginBottom: 4 }}>{t.icon}</div>
                 <div style={{
                   fontFamily: 'Poppins', fontSize: 14, fontWeight: 700,
                   color: selectedTier === t.id ? t.color : C.n900,
@@ -257,44 +259,44 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
 
         {/* Benefits */}
         <div style={{
-          background: C.white, borderRadius: 12, padding: 16, marginBottom: 16,
+          background: C.white, borderRadius: isMobile ? 10 : 12, padding: isMobile ? 14 : 16, marginBottom: 16,
           boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
         }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 10 }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n600, marginBottom: 10 }}>
             ✨ Benefit {tier.name} Membership
           </div>
           {tier.benefits.map((benefit, i) => (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8
             }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={tier.color} strokeWidth="3" strokeLinecap="round">
+              <svg width={isMobile ? 14 : 16} height={isMobile ? 14 : 16} viewBox="0 0 24 24" fill="none" stroke={tier.color} strokeWidth="3" strokeLinecap="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n900 }}>{benefit}</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, color: C.n900 }}>{benefit}</span>
             </div>
           ))}
         </div>
 
         {/* Top-up Amount */}
         <div style={{
-          background: C.white, borderRadius: 12, padding: 16, marginBottom: 16,
+          background: C.white, borderRadius: isMobile ? 10 : 12, padding: isMobile ? 14 : 16, marginBottom: 16,
           boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
         }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>
-            💰 Top-up Deposit (Minimum {rp(minAmount)})
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>
+            Top-up Deposit (Minimum {rp(minAmount)})
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
             {[250000, 500000, 1000000, 2000000].map((preset) => (
               <button
                 key={preset}
                 onClick={() => setTopupAmount(String(preset))}
                 style={{
-                  padding: '8px 4px',
+                  padding: isMobile ? '10px 4px' : '8px 4px',
                   borderRadius: 8,
                   border: `1.5px solid ${topupAmount === String(preset) ? tier.color : C.n200}`,
                   background: topupAmount === String(preset) ? tier.bgColor : C.white,
                   cursor: 'pointer',
-                  fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+                  fontFamily: 'Poppins', fontSize: isMobile ? 10 : 10, fontWeight: 600,
                   color: topupAmount === String(preset) ? tier.color : C.n900,
                 }}
               >
@@ -328,11 +330,11 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
 
         {/* Summary */}
         <div style={{
-          background: C.white, borderRadius: 12, padding: 16,
+          background: C.white, borderRadius: isMobile ? 10 : 12, padding: isMobile ? 14 : 16,
           boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
         }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>
-            📋 Ringkasan
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>
+            Ringkasan
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Tier</span>
@@ -365,8 +367,15 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
       </div>
 
       <div style={{
-        padding: '12px 16px', background: C.white,
-        borderTop: `1px solid ${C.n100}`
+        padding: '12px 16px',
+        background: C.white,
+        borderTop: `1px solid ${C.n100}`,
+        position: isMobile ? 'sticky' : 'relative',
+        bottom: isMobile ? 0 : 'auto',
+        left: 0,
+        right: 0,
+        zIndex: isMobile ? 10 : 'auto',
+        boxShadow: isMobile ? '0 -2px 10px rgba(0,0,0,0.1)' : 'none',
       }}>
         <Btn
           variant="primary"
@@ -390,6 +399,7 @@ export default function MembershipRegistrationPage({ navigate, goBack, screenPar
 
 // ── Renew Membership Form ────────────────────────────────────────────────────
 function RenewMembershipForm({ customer, navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [topupAmount, setTopupAmount] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -428,13 +438,13 @@ function RenewMembershipForm({ customer, navigate, goBack }) {
   return (
     <>
       <div style={{
-        background: C.white, borderRadius: 12, padding: 16, marginBottom: 16,
+        background: C.white, borderRadius: isMobile ? 10 : 12, padding: isMobile ? 14 : 16, marginBottom: 16,
         boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
       }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>
-          💰 Top-up untuk Renew
+        <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n600, marginBottom: 12 }}>
+          Top-up untuk Renew
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
           {[100000, 250000, 500000].map((preset) => (
             <button
               key={preset}

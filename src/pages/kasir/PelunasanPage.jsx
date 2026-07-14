@@ -16,8 +16,10 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { alertSuccess, alertError } from '../../utils/alert';
 import PaymentMethodGrouped from '../../components/PaymentMethodGrouped';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
 
 export default function PelunasanPage({ navigate, goBack, screenParams }) {
+  const { isMobile } = useResponsive();
   const txId = screenParams?.id || screenParams?.transactionId;
   const [tx, setTx] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -149,7 +151,7 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Pelunasan" subtitle={tx.transactionNo} onBack={goBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 24px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 10 : 12, paddingBottom: isMobile ? 'calc(12px + env(safe-area-inset-bottom) + 80px)' : 12 }}>
         {/* Hero summary */}
         <div style={{
           background: 'linear-gradient(135deg, #4F46E5, #6e2e78)',
@@ -267,16 +269,18 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
         )}
 
         {/* Action button */}
-        <Btn
-          variant="primary"
-          onClick={handleSubmit}
-          loading={submitting}
-          disabled={!canSubmit}
-          fullWidth
-          style={{ height: 56, fontSize: 15, fontWeight: 800 }}
-        >
-          {selectedMethod ? `Lunasi ${rp(balanceDue)}` : 'Pilih metode pembayaran dulu'}
-        </Btn>
+        <div style={{ position: isMobile ? 'fixed' : 'static', bottom: isMobile ? 0 : 'auto', left: isMobile ? 0 : 'auto', right: isMobile ? 0 : 'auto', width: isMobile ? '100%' : 'auto', padding: isMobile ? '12px 16px' : 0, paddingBottom: isMobile ? 'calc(12px + env(safe-area-inset-bottom))' : 0, background: isMobile ? C.white : 'transparent', borderTop: isMobile ? `1px solid ${C.n100}` : 'none', zIndex: isMobile ? 100 : 'auto' }}>
+          <Btn
+            variant="primary"
+            onClick={handleSubmit}
+            loading={submitting}
+            disabled={!canSubmit}
+            fullWidth
+            style={{ height: isMobile ? 48 : 56, fontSize: isMobile ? 13 : 15, fontWeight: 800 }}
+          >
+            {selectedMethod ? `Lunasi ${rp(balanceDue)}` : 'Pilih metode pembayaran dulu'}
+          </Btn>
+        </div>
       </div>
     </div>
   );

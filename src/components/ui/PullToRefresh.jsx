@@ -64,7 +64,7 @@ export const PullToRefresh = ({ children, onRefresh, threshold = 70, disabled = 
       try {
         await onRefresh();
       } catch (err) {
-        console.error('[PullToRefresh]', err);
+        // Silent fail - onRefresh errors should be handled by parent component
       } finally {
         setRefreshing(false);
         setPullDistance(0);

@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, inPeriod } from '../../utils/helpers';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Avatar, Btn, SearchBar, Chip, useAppRefresh } from '../../components/ui';
 import { useInfiniteList } from '../../utils/useInfiniteList';
 import { alertError } from '../../utils/alert';
@@ -20,6 +21,7 @@ const STATUS_META = {
 };
 
 export default function ApprovalPage({ goBack }) {
+  const isMobile = useIsMobile();
   const [actionLoading, setActionLoading] = useState(null);
   const [statusFilter, setStatusFilter] = useState('semua');
   const [query, setQuery] = useState('');
@@ -112,7 +114,6 @@ export default function ApprovalPage({ goBack }) {
       pendingList.refresh();
       historyList.refresh();
     } catch (error) {
-      console.error('Failed to approve:', error);
       alertError(error?.response?.data?.message || 'Gagal menyetujui.');
     } finally {
       setActionLoading(null);
@@ -126,7 +127,6 @@ export default function ApprovalPage({ goBack }) {
       pendingList.refresh();
       historyList.refresh();
     } catch (error) {
-      console.error('Failed to reject:', error);
       alertError(error?.response?.data?.message || 'Gagal menolak.');
     } finally {
       setActionLoading(null);
@@ -160,9 +160,33 @@ export default function ApprovalPage({ goBack }) {
       <TopBar title="Approval Center" subtitle={`${totalAllPending} menunggu approval`} onBack={goBack} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 24px' }}>
-        
+        {/* Responsive wrapper for section tabs */}
+        <style>{`
+          @media (max-width: 400px) {
+            .approval-section-tabs {
+              gap: 4px !important;
+            }
+          }
+          @media (max-width: 480px) {
+            .approval-card-header {
+              flex-direction: column !important;
+              gap: 8px !important;
+            }
+            .approval-card-actions {
+              flex-direction: row !important;
+              width: 100% !important;
+            }
+            .approval-card-actions > * {
+              flex: 1 !important;
+            }
+            .approval-filter-chips {
+              flex-wrap: wrap !important;
+            }
+          }
+        `}</style>
+
         {/* Section Tabs - Approvals vs Pengadaan */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, background: C.white, borderRadius: 12, padding: 8, boxShadow: SHADOW.sm }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, background: C.white, borderRadius: 12, padding: 8, boxShadow: SHADOW.sm, className: 'approval-section-tabs' }}>
           <button
             onClick={() => setShowSection('approvals')}
             style={{
@@ -219,7 +243,7 @@ export default function ApprovalPage({ goBack }) {
 
         <SearchBar value={query} onChange={setQuery} placeholder="Cari requester, tipe, atau alasan..." />
 
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingTop: 10, paddingBottom: 6, scrollbarWidth: 'none' }}>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingTop: 10, paddingBottom: 6, scrollbarWidth: 'none' }} className="approval-filter-chips">
           {[
             { value: 'semua', label: 'Semua' },
             { value: 'pending', label: 'Pending' },
@@ -259,8 +283,8 @@ export default function ApprovalPage({ goBack }) {
                   background: C.white, borderRadius: 16, padding: '14px 16px',
                   boxShadow: SHADOW.md, borderLeft: `4px solid ${C.warning}`,
                   transition: 'all 0.2s ease',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                }} className="approval-card-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
                     <Avatar initials={a.requester?.split(' ').map((w) => w[0]).join('').slice(0, 2) || 'US'} size={40} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{a.requester}</div>
@@ -281,6 +305,7 @@ export default function ApprovalPage({ goBack }) {
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 10 }} className="approval-card-actions">
                     <Btn variant="danger" onClick={() => handleReject(a.id)} loading={actionLoading === a.id + '_reject'} style={{ flex: 1 }} size="sm">Tolak</Btn>
                     <Btn variant="success" onClick={() => handleApprove(a.id)} loading={actionLoading === a.id + '_approve'} style={{ flex: 1 }} size="sm">Setujui</Btn>
                   </div>
@@ -294,8 +319,6 @@ export default function ApprovalPage({ goBack }) {
                 )}
               </div>
             )}
-          </>
-        )}
 
         {/* History section */}
         {statusFilter !== 'pending' && filteredHistory.length > 0 && (

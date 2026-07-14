@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { C, SHADOW } from '../utils/theme';
 import { TopBar } from '../components/ui';
+import { useResponsive } from '../utils/hooks';
 
 const F = { fontFamily: 'Poppins' };
 
@@ -48,6 +49,7 @@ const Bullet = ({ icon, label, children }) => (
 );
 
 export default function KebijakanPrivasiPage({ goBack }) {
+  const { isMobile } = useResponsive();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {

@@ -25,7 +25,7 @@ const createTestApp = () => {
     req.user = {
       userId: 1,
       id: 1,
-      roleCode: 'kasir',
+      roleCode: 'frontline',
       outletId: 1,
     };
     next();

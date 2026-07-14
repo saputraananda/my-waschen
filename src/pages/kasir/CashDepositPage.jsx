@@ -2,10 +2,29 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, MoneyInput } from '../../components/ui';
+import { TopBar, Btn, MoneyInput, EmptyState } from '../../components/ui';
 import { alertError, alertSuccess, confirmAction } from '../../utils/alert';
+import { useResponsive, useWindowSize } from '../../utils/hooks';
+import PICSelector from '../../components/PICSelector';
+import { usePICSelector } from '../../hooks/usePIC';
 
 export default function CashDepositPage({ navigate, goBack }) {
+  const { isMobile, isTablet } = useResponsive();
+  const { width } = useWindowSize();
+  // PIC Selection - track who is responsible for this deposit
+  const {
+    currentPIC,
+    setCurrentPIC,
+    availableUsers,
+    refreshUsers,
+    isLoading: picLoading,
+  } = usePICSelector();
+
+  // Fetch available users for PIC on mount
+  useEffect(() => {
+    refreshUsers();
+  }, [refreshUsers]);
+
   const [depositDate, setDepositDate] = useState(new Date().toISOString().split('T')[0]);
   const [cashSalesTotal, setCashSalesTotal] = useState(0);
   const [depositAmount, setDepositAmount] = useState('');
@@ -22,7 +41,7 @@ export default function CashDepositPage({ navigate, goBack }) {
       const res = await axios.get(`/api/cash-deposits/cash-sales/${date}`);
       setCashSalesTotal(res?.data?.data?.total || 0);
     } catch (e) {
-      console.warn('Failed to load cash sales total:', e?.message);
+      // Silent fail - cash sales total is optional
       setCashSalesTotal(0);
     } finally {
       setLoadingTotal(false);
@@ -35,7 +54,7 @@ export default function CashDepositPage({ navigate, goBack }) {
       const res = await axios.get('/api/cash-deposits');
       setDeposits(res?.data?.data || []);
     } catch (e) {
-      console.warn('Failed to load deposits:', e?.message);
+      // Silent fail - deposits list is optional
       setDeposits([]);
     } finally {
       setLoadingDeposits(false);
@@ -93,6 +112,8 @@ export default function CashDepositPage({ navigate, goBack }) {
         deposit_amount: amt,
         notes: notes || null,
         proof_documents: proofDocs.length > 0 ? proofDocs : null,
+        pic_id: currentPIC?.id || null,
+        pic_name: currentPIC?.name || null,
       });
 
       alertSuccess('Setoran kas berhasil dibuat. Menunggu approval admin.');
@@ -137,27 +158,28 @@ export default function CashDepositPage({ navigate, goBack }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
       <TopBar title="Setoran Kas" subtitle="Catat setoran tunai ke bank" onBack={goBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 10 : 16, paddingBottom: isMobile ? 'calc(16px + env(safe-area-inset-bottom) + 80px)' : 16 }}>
         {/* Form Setoran dengan animasi fade in */}
-        <div 
-          style={{ 
-            ...T.card, 
+        <div
+          style={{
+            ...T.card,
             marginBottom: 16,
             animation: 'fadeInUp 0.5s ease-out forwards',
             opacity: 0,
-            animationDelay: '0.1s'
+            animationDelay: '0.1s',
+            padding: isMobile ? 12 : undefined,
           }}
         >
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 14 }}>Buat Setoran Kas</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 600, color: C.n900, marginBottom: isMobile ? 10 : 14 }}>Buat Setoran Kas</div>
 
           {/* Tanggal */}
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: isMobile ? 10 : 12 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Tanggal <span style={{ color: '#DC2626' }}>*</span></div>
             <input
               type="date"
               value={depositDate}
               onChange={(e) => setDepositDate(e.target.value)}
-              style={{ ...T.input, width: '100%' }}
+              style={{ ...T.input, width: '100%', boxSizing: 'border-box' }}
             />
           </div>
 
@@ -178,23 +200,33 @@ export default function CashDepositPage({ navigate, goBack }) {
           />
 
           {/* Catatan */}
-          <div style={{ marginTop: 12, marginBottom: 12 }}>
+          <div style={{ marginTop: 12, marginBottom: isMobile ? 10 : 12 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Catatan (opsional)</div>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={3}
+              rows={isMobile ? 2 : 3}
               placeholder="Contoh: Setoran ke BCA a.n. Waschen Laundry"
-              style={{ ...T.input, height: 'auto', minHeight: 80, resize: 'vertical' }}
+              style={{ ...T.input, height: 'auto', minHeight: 80, resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {/* PIC Selector */}
+          <div style={{ marginBottom: 14 }}>
+            <PICSelector
+              currentPIC={currentPIC}
+              onChange={setCurrentPIC}
+              users={availableUsers}
+              loading={picLoading}
             />
           </div>
 
           {/* Bukti Dokumen */}
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: isMobile ? 10 : 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
               <div style={{ width: 28, height: 28, borderRadius: 8, background: C.infoBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📄</div>
               <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800 }}>Bukti Dokumen</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n800 }}>Bukti Dokumen</div>
                 <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700 }}>Upload bukti setoran (opsional)</div>
               </div>
             </div>
@@ -239,7 +271,14 @@ export default function CashDepositPage({ navigate, goBack }) {
           {loadingDeposits ? (
             <div style={{ textAlign: 'center', padding: 16, color: C.n700, fontFamily: 'Poppins', fontSize: 12 }}>Memuat...</div>
           ) : deposits.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 16, color: C.n700, fontFamily: 'Poppins', fontSize: 12 }}>Belum ada setoran kas.</div>
+            <EmptyState
+              type="reports"
+              title="Belum Ada Setoran Kas"
+              message="Riwayat setoran kas akan muncul di sini"
+              suggestion="Lakukan setoran kas untuk melihat riwayat"
+              illustrationSize={80}
+              compact
+            />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {deposits.map((dep, index) => (
@@ -274,6 +313,23 @@ export default function CashDepositPage({ navigate, goBack }) {
                   <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', marginBottom: 4 }}>
                     Penjualan tunai: <strong>{rp(dep.cash_sales_total)}</strong>
                   </div>
+                  {/* PIC Info */}
+                  {dep.picName && (
+                    <div style={{
+                      background: `${C.primary}08`,
+                      borderRadius: 6,
+                      padding: '4px 10px',
+                      marginTop: 6,
+                      fontFamily: 'Poppins',
+                      fontSize: 10,
+                      color: C.primary,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      👤 PIC: <strong>{dep.picName}</strong>
+                    </div>
+                  )}
                   {dep.notes && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', marginBottom: 4 }}>{dep.notes}</div>}
                   {dep.reject_reason && (
                     <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.danger, marginTop: 4, padding: 8, background: C.validationErrorBg, borderRadius: 8 }}>

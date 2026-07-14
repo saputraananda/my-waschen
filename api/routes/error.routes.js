@@ -15,7 +15,7 @@ import {
 
 const router = Router();
 
-const ADMIN_ROLES = requireRole('admin', 'superadmin', 'owner');
+const ADMIN_ROLES = requireRole('admin');
 
 // POST /api/errors/log — Log error from frontend (public but authenticated preferred)
 router.post('/log', logFrontendError);

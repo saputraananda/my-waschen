@@ -143,7 +143,6 @@ export default function PaymentTrendChart({ days = 14, height = 220, refreshInte
       const res = await axios.get(`/api/admin-dashboard/payment-trend?days=${selectedDays}`, { timeout: 10000 });
       if (res?.data?.data) setData(res.data.data);
     } catch (err) {
-      console.error('[PaymentTrendChart] Fetch error:', err);
       setError(err?.response?.data?.message || 'Gagal memuat data');
     } finally {
       setLoading(false);

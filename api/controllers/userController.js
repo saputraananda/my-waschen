@@ -1,8 +1,8 @@
 import { poolWaschenPos } from '../db/connection.js';
-// bcrypt dihapus — password disimpan plain text sesuai permintaan user
 import { writeAudit } from '../utils/auditLog.js';
 import { validatePassword, validateEmail } from '../utils/validation.js';
 import { notDeleted, softDeleteRecord } from '../utils/softDelete.js';
+import logger from '../utils/logger.js';
 
 // ─── Cache cek kolom schema ───────────────────────────────────────────────────
 const schemaColumnCache = new Map();
@@ -34,8 +34,10 @@ const usernameSelect = async () => {
 export const getMe = async (req, res) => {
   try {
     const uSel = await usernameSelect();
+    const hasGenderCol = await hasColumn('mst_user', 'gender');
+    const genderSelect = hasGenderCol ? 'u.gender,' : '';
     const [rows] = await poolWaschenPos.execute(
-      `SELECT u.id, u.name, ${uSel}, u.email, u.phone,
+      `SELECT u.id, u.name, ${uSel}, u.email, u.phone, ${genderSelect}
               r.code AS role, o.id AS outletId, o.name AS outletName
        FROM mst_user u
        JOIN mst_role r ON r.id = u.primary_role_id
@@ -64,6 +66,7 @@ export const getMe = async (req, res) => {
         phone:      u.phone || null,
         email:      u.email || null,
         photo,
+        gender:     u.gender || null,
         roleCode:   u.role,
         role:       u.role,
         outletId:   u.outletId,
@@ -73,7 +76,7 @@ export const getMe = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[getMe] Error:', err);
+    logger.error('Gagal memuat profil', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat profil.' });
   }
 };
@@ -112,7 +115,7 @@ export const updateMyProfile = async (req, res) => {
       data: { name: name.trim(), phone: phone?.trim() || null, email: email?.trim() || null, photo: photo || null },
     });
   } catch (err) {
-    console.error('[updateMyProfile] Error:', err);
+    logger.error('Gagal memperbarui profil', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memperbarui profil.' });
   }
 };
@@ -150,7 +153,7 @@ export const changeMyPassword = async (req, res) => {
 
     return res.json({ success: true, message: 'Password berhasil diubah.' });
   } catch (err) {
-    console.error('[changeMyPassword] Error:', err);
+    logger.error('Gagal mengubah password', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengubah password.' });
   }
 };
@@ -159,7 +162,9 @@ export const changeMyPassword = async (req, res) => {
 export const getAllUsers = async (req, res) => {
   try {
     const hasDeletedAt = await hasColumn('mst_user', 'deleted_at');
+    const hasGenderCol = await hasColumn('mst_user', 'gender');
     const uSel = await usernameSelect();
+    const genderSelect = hasGenderCol ? 'u.gender,' : '';
 
     const [rows] = await poolWaschenPos.execute(
       `SELECT
@@ -167,6 +172,7 @@ export const getAllUsers = async (req, res) => {
         u.name,
         ${uSel},
         u.email,
+        ${genderSelect}
         r.code AS role,
         u.outlet_id AS outletId,
         o.name AS outlet,
@@ -181,6 +187,7 @@ export const getAllUsers = async (req, res) => {
 
     const users = rows.map((u) => ({
       ...u,
+      gender: u.gender || null,
       avatar: u.name
         .split(' ')
         .map((w) => w[0])
@@ -190,7 +197,7 @@ export const getAllUsers = async (req, res) => {
     }));
     return res.json({ success: true, data: users });
   } catch (err) {
-    console.error('[getAllUsers] Error:', err);
+    logger.error('Gagal memuat data user', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data user.' });
   }
 };
@@ -198,7 +205,7 @@ export const getAllUsers = async (req, res) => {
 // ─── Controller: POST /api/users/register ─────────────────────────────────────
 export const registerUser = async (req, res) => {
   try {
-    const { name, username, password, email, role, outletId, outlet } = req.body;
+    const { name, username, password, email, role, outletId, outlet, gender } = req.body;
 
     if (!name || !password) {
       return res.status(400).json({ success: false, message: 'Nama dan password wajib diisi' });
@@ -273,8 +280,23 @@ export const registerUser = async (req, res) => {
     // Email wajib ada di DB (NOT NULL) — gunakan username sebagai fallback email
     const finalEmail = effectiveEmail || `${effectiveUsername}@waschen.local`;
 
+    const hasGenderCol = await hasColumn('mst_user', 'gender');
     let insertResult;
-    if (hasUsernameCol) {
+    if (hasGenderCol && hasUsernameCol) {
+      [insertResult] = await poolWaschenPos.execute(
+        `INSERT INTO mst_user
+          (name, username, email, password_hash, primary_role_id, outlet_id, gender, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+        [name.trim(), effectiveUsername || finalEmail.split('@')[0], finalEmail, password, roleId, finalOutletId, gender || 'female']
+      );
+    } else if (hasGenderCol) {
+      [insertResult] = await poolWaschenPos.execute(
+        `INSERT INTO mst_user
+          (name, email, password_hash, primary_role_id, outlet_id, gender, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+        [name.trim(), finalEmail, password, roleId, finalOutletId, gender || 'female']
+      );
+    } else if (hasUsernameCol) {
       [insertResult] = await poolWaschenPos.execute(
         `INSERT INTO mst_user
           (name, username, email, password_hash, primary_role_id, outlet_id, is_active, created_at, updated_at)
@@ -303,11 +325,12 @@ export const registerUser = async (req, res) => {
         role: role || 'frontline',
         outlet: finalOutletName,
         outletId: finalOutletId,
+        gender: gender || 'female',
         active: true,
       },
     });
   } catch (err) {
-    console.error('[registerUser] Error:', err);
+    logger.error('Gagal mendaftarkan user', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mendaftarkan user.' });
   }
 };
@@ -316,7 +339,7 @@ export const registerUser = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, username, email, role, outletId, active } = req.body;
+    const { name, username, email, role, outletId, active, gender } = req.body;
 
     if (!name?.trim() || !role) {
       return res.status(400).json({ success: false, message: 'Nama dan role wajib diisi' });
@@ -376,8 +399,23 @@ export const updateUser = async (req, res) => {
     }
 
     const finalEmail = effectiveEmail || `${effectiveUsername}@waschen.local`;
+    const hasGenderCol = await hasColumn('mst_user', 'gender');
 
-    if (hasUsernameCol) {
+    if (hasGenderCol && hasUsernameCol) {
+      await poolWaschenPos.execute(
+        `UPDATE mst_user
+         SET name = ?, username = ?, email = ?, primary_role_id = ?, outlet_id = ?, gender = ?, is_active = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [name.trim(), effectiveUsername || finalEmail.split('@')[0], finalEmail, roleRows[0].id, outletId || null, gender || 'female', active === false ? 0 : 1, id]
+      );
+    } else if (hasGenderCol) {
+      await poolWaschenPos.execute(
+        `UPDATE mst_user
+         SET name = ?, email = ?, primary_role_id = ?, outlet_id = ?, gender = ?, is_active = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [name.trim(), finalEmail, roleRows[0].id, outletId || null, gender || 'female', active === false ? 0 : 1, id]
+      );
+    } else if (hasUsernameCol) {
       await poolWaschenPos.execute(
         `UPDATE mst_user
          SET name = ?, username = ?, email = ?, primary_role_id = ?, outlet_id = ?, is_active = ?, updated_at = NOW()
@@ -409,11 +447,12 @@ export const updateUser = async (req, res) => {
       message: 'User berhasil diupdate.',
       data: {
         ...updated,
+        gender: gender || 'female',
         avatar: updated.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
       },
     });
   } catch (err) {
-    console.error('[updateUser] Error:', err);
+    logger.error('Gagal mengupdate user', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengupdate user.' });
   }
 };
@@ -435,7 +474,7 @@ export const toggleUser = async (req, res) => {
 
     return res.json({ success: true, message: 'Status user berhasil diubah' });
   } catch (err) {
-    console.error('[toggleUser] Error:', err);
+    logger.error('Gagal mengubah status user', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal mengubah status user.' });
   }
 };
@@ -519,7 +558,151 @@ export const deleteUser = async (req, res) => {
 
     return res.json({ success: true, message: 'User berhasil dihapus.' });
   } catch (err) {
-    console.error('[deleteUser] Error:', err);
+    logger.error('Gagal menghapus user', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal menghapus user.' });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/users/pic
+// Get PIC users (shift partners) for the current user's outlet
+// Returns: list of users in the same outlet who can be PIC partners
+// ══════════════════════════════════════════════════════════════════════════════
+export const getPICUsers = async (req, res) => {
+  try {
+    const outletId = req.user?.outletId;
+    const { role, isActive } = req.query;
+
+    let query = `SELECT u.id, u.username, u.name, r.code AS role_code, u.outlet_id, u.is_active
+       FROM mst_user u
+       JOIN mst_role r ON r.id = u.primary_role_id
+       WHERE u.outlet_id = ? AND u.deleted_at IS NULL`;
+    const params = [outletId];
+
+    if (isActive === 'true') {
+      query += ' AND u.is_active = 1';
+    }
+    if (role) {
+      const roles = role.split(',').map(r => r.trim()).filter(Boolean);
+      if (roles.length > 0) {
+        query += ' AND r.code IN (' + roles.map(() => '?').join(',') + ')';
+        params.push(...roles);
+      }
+    }
+    query += ' ORDER BY u.name ASC';
+
+    const [users] = await poolWaschenPos.query(query, params);
+
+    return res.json({ success: true, data: users });
+  } catch (err) {
+    logger.error('Gagal mengambil data PIC users', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Gagal mengambil data PIC users.' });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/users/me/activities
+// Activity log for profile page
+// Returns: recent activities (deposits, transactions, shift events, etc.)
+// ══════════════════════════════════════════════════════════════════════════════
+export const getMyActivities = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    // Clamp limit to safe range
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 10));
+    const activities = [];
+
+    // 1. Cash Deposits
+    try {
+      const [deposits] = await poolWaschenPos.query(
+        `SELECT id, amount, notes, created_at
+         FROM tr_cash_deposit
+         WHERE cashier_id = ? AND deleted_at IS NULL
+         ORDER BY created_at DESC LIMIT ${limit}`,
+        [userId]
+      );
+      deposits.forEach(d => {
+        activities.push({
+          id: `dep_${d.id}`,
+          type: 'deposit',
+          amount: Number(d.amount || 0),
+          description: d.notes || 'Setoran tunai',
+          createdAt: d.created_at,
+        });
+      });
+    } catch { /* skip if table doesn't exist */ }
+
+    // 2. Shift Open events
+    try {
+      const [shifts] = await poolWaschenPos.query(
+        `SELECT id, shift, opened_at, status
+         FROM tr_cashier_session
+         WHERE cashier_id = ? AND deleted_at IS NULL
+         ORDER BY opened_at DESC LIMIT ${limit}`,
+        [userId]
+      );
+      shifts.forEach(s => {
+        if (s.status === 'open') {
+          activities.push({
+            id: `shift_open_${s.id}`,
+            type: 'shift_open',
+            description: `Membuka shift ${s.shift || 'Regular'}`,
+            createdAt: s.opened_at,
+          });
+        }
+      });
+    } catch { /* skip if table doesn't exist */ }
+
+    // 3. Customer created (from audit log)
+    try {
+      const [customers] = await poolWaschenPos.query(
+        `SELECT id, name, created_at
+         FROM mst_customer
+         WHERE created_by = ? AND deleted_at IS NULL
+         ORDER BY created_at DESC LIMIT ${limit}`,
+        [userId]
+      );
+      customers.forEach(c => {
+        activities.push({
+          id: `cust_${c.id}`,
+          type: 'customer_created',
+          customerName: c.name,
+          description: `Menambah customer baru: ${c.name}`,
+          createdAt: c.created_at,
+        });
+      });
+    } catch { /* skip if table doesn't exist */ }
+
+    // 4. Shift handover events (from audit log)
+    try {
+      const hasDeletedAt = await hasColumn('tr_cashier_session', 'deleted_at');
+      const [handoverLogs] = await poolWaschenPos.query(
+        `SELECT cs.id, cs.handover_at, cs.handover_notes, u.name AS targetName
+         FROM tr_cashier_session cs
+         LEFT JOIN mst_user u ON u.id = cs.accepted_by
+         WHERE cs.cashier_id = ? AND cs.handover_at IS NOT NULL
+           ${hasDeletedAt ? 'AND cs.deleted_at IS NULL' : ''}
+         ORDER BY cs.handover_at DESC LIMIT ${limit}`,
+        [userId]
+      );
+      handoverLogs.forEach(h => {
+        activities.push({
+          id: `handover_${h.id}`,
+          type: 'shift_handover',
+          targetName: h.targetName || 'Unknown',
+          description: `Oper shift ke ${h.targetName || 'Unknown'}`,
+          createdAt: h.handover_at,
+        });
+      });
+    } catch { /* skip */ }
+
+    // Sort by date descending and limit
+    activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const finalActivities = activities.slice(0, limit);
+
+    return res.json({ success: true, data: finalActivities });
+  } catch (err) {
+    logger.error('Gagal mengambil aktivitas', { error: err.message });
+    return res.status(500).json({ success: false, message: 'Gagal mengambil aktivitas.' });
   }
 };

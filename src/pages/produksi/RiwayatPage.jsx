@@ -4,6 +4,7 @@ import { TopBar, SkeletonList, useAppRefresh, FilterModal, FilterSection, Filter
 import { C } from '../../utils/theme';
 import { useInfiniteList } from '../../utils/useInfiniteList';
 import { useRealtimeMulti } from '../../utils/realtime';
+import { useResponsive } from '../../utils/hooks';
 import {
   ProductionSearchBar,
   SectionLabel,
@@ -14,18 +15,17 @@ import {
 
 const STAGE_DOTS = {
   Diterima: '#a78bfa',
-  Cuci:     '#38bdf8',
-  Setrika:  '#fbbf24',
   Packing:  '#4ade80',
   Selesai:  '#86efac',
 };
 
 // ─── Stats Banner ─────────────────────────────────────────────
 function StatsBanner({ ready, done, total }) {
+  const { isMobile } = useResponsive();
   return (
     <div style={{
       background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0C4A6E 100%)',
-      padding: '14px 16px 16px',
+      padding: isMobile ? '12px 14px 14px' : '14px 16px 16px',
       flexShrink: 0,
     }}>
       {/* Decorative orb */}
@@ -39,21 +39,21 @@ function StatsBanner({ ready, done, total }) {
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{
-          width: 38, height: 38, borderRadius: 12,
+          width: isMobile ? 32 : 38, height: isMobile ? 32 : 38, borderRadius: isMobile ? 10 : 12,
           background: 'rgba(255,255,255,0.15)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 20,
+          fontSize: isMobile ? 16 : 20,
         }}>
           📚
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontFamily: 'Inter, system-ui', fontSize: 9, fontWeight: 600,
+            fontFamily: 'Inter, system-ui', fontSize: isMobile ? 8 : 9, fontWeight: 600,
             color: 'rgba(255,255,255,0.55)', letterSpacing: '0.07em',
             textTransform: 'uppercase',
           }}>Riwayat Produksi</div>
           <div style={{
-            fontFamily: 'Inter, system-ui', fontSize: 16, fontWeight: 600,
+            fontFamily: 'Inter, system-ui', fontSize: isMobile ? 14 : 16, fontWeight: 600,
             color: '#ffffff', lineHeight: 1.2, marginTop: 1,
           }}>
             {total} item selesai
@@ -62,7 +62,7 @@ function StatsBanner({ ready, done, total }) {
       </div>
 
       {/* Stat tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 6 : 8, marginTop: isMobile ? 10 : 12 }}>
         <StatTile icon="✅" value={ready} label="Siap diambil" tone="green" />
         <StatTile icon="🎉" value={done}  label="Sudah diambil" tone="blue" />
       </div>
@@ -99,6 +99,7 @@ function StatTile({ icon, value, label, tone }) {
 
 // ─── Main ─────────────────────────────────────────────────────
 export default function RiwayatPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const [query, setQuery]             = useState('');
   const [period, setPeriod]           = useState('30');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -189,14 +190,14 @@ export default function RiwayatPage({ navigate, goBack }) {
       <StatsBanner ready={stats.ready} done={stats.done} total={stats.total} />
 
       {/* Search & Filter Header */}
-      <div style={{ background: 'white', padding: '8px 14px 10px', borderBottom: `1px solid ${C.n100}` }}>
+      <div style={{ background: 'white', padding: isMobile ? '6px 12px 8px' : '8px 14px 10px', borderBottom: `1px solid ${C.n100}` }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
           <div style={{
             flex: 1,
             background: C.n50,
             borderRadius: 10,
             display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 12px',
+            padding: isMobile ? '6px 10px' : '8px 12px',
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke={C.n400} strokeWidth="2" strokeLinecap="round">
@@ -268,8 +269,6 @@ export default function RiwayatPage({ navigate, goBack }) {
           {[
             { key: 'all', label: 'Semua' },
             { key: 'Diterima', label: 'Diterima' },
-            { key: 'Cuci', label: 'Cuci' },
-            { key: 'Setrika', label: 'Setrika' },
             { key: 'Packing', label: 'Packing' },
             { key: 'Selesai', label: 'Selesai' },
           ].map(p => {
@@ -299,7 +298,7 @@ export default function RiwayatPage({ navigate, goBack }) {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px 80px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: `0 ${isMobile ? 12 : 14}px ${isMobile ? 90 : 80}px` }}>
         <SectionLabel label="Riwayat Selesai" count={filtered.length} />
 
         {list.loading ? (

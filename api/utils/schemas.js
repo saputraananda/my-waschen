@@ -97,7 +97,7 @@ const CreateUserSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters').max(50),
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.enum(['admin', 'frontline', 'cashier', 'supervisor', 'owner', 'finance']),
+  role: z.enum(['admin', 'frontline', 'produksi']),
   outletId: z.number().int().positive().optional(),
   isActive: z.boolean().default(true),
 });
@@ -105,7 +105,7 @@ const CreateUserSchema = z.object({
 const UpdateUserSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   password: z.string().min(6).optional(),
-  role: z.enum(['admin', 'frontline', 'cashier', 'supervisor', 'owner', 'finance']).optional(),
+  role: z.enum(['admin', 'frontline', 'produksi']).optional(),
   outletId: z.number().int().positive().optional(),
   isActive: z.boolean().optional(),
 });

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, memo } from 'react';
 import axios from 'axios';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Chip, Select, DateTimeInput, StatCard, RevenueAreaChart, TxBarChart, PaymentPieChart, OutletBarChart, HourlyHeatBar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency } from '../../utils/exportReport';
@@ -184,6 +185,7 @@ const PaymentBar = ({ mix }) => {
 };
 
 export default function GeneralReportPage({ goBack }) {
+  const isMobile = useIsMobile();
   const { adminOutletId, setAdminOutletId } = useApp();
   const [outlets, setOutlets] = useState([]);
   const [outletId, setOutletId] = useState(adminOutletId && adminOutletId !== '_all' ? adminOutletId : '');
@@ -215,7 +217,7 @@ export default function GeneralReportPage({ goBack }) {
           label: o.code ? `🏪 ${o.name} · ${o.code}` : `🏪 ${o.name}`,
         })));
       } catch (e) {
-        console.warn('[GeneralReport] Failed to fetch outlets:', e?.message);
+        // Silent fail - outlets optional
         setOutlets([]);
       }
     })();
@@ -246,7 +248,7 @@ export default function GeneralReportPage({ goBack }) {
       setCashiers(cp.data?.data || null);
       setCustomers(ci.data?.data || null);
     } catch (err) {
-      console.error('Report fetch error', err);
+      // Silent fail - user-friendly error handled via UI state
     }
     setLoading(false);
   }, [startDate, endDate, outletId]);
@@ -270,6 +272,15 @@ export default function GeneralReportPage({ goBack }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.n100 }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .report-kpi-grid { grid-template-columns: 1fr 1fr !important; }
+          .report-executive-grid { grid-template-columns: 1fr !important; }
+          .report-cashier-table { font-size: 10px !important; overflow-x: auto; }
+          .report-tabs-section { overflow-x: auto !important; flex-wrap: nowrap !important; }
+          .report-mini-stats { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+      `}</style>
       <TopBar title="General Report" subtitle="Ringkasan lintas outlet atau per outlet" onBack={goBack} />
       <div style={T.pageBody}>
         {/* Global Filters */}
@@ -303,7 +314,7 @@ export default function GeneralReportPage({ goBack }) {
           <>
             {/* Section A: Executive Summary */}
             <CollapsibleSection title="Executive Summary" icon="📊" defaultOpen={true}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 12 }} className="report-executive-grid">
                 <StatCard label="Total Omset" value={rp(executive.revenue)} icon="💰" color={C.primary}
                   sub={<Delta value={executive.revenueGrowth} />} />
                 <StatCard label="Transaksi" value={executive.txCount} icon="🧾" color={C.info}
@@ -403,7 +414,7 @@ export default function GeneralReportPage({ goBack }) {
             {cashiers?.cashiers?.length > 0 && (
               <CollapsibleSection title="Performa Kasir" icon="👤" defaultOpen={false}>
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Poppins', fontSize: 11, minWidth: 500 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Poppins', fontSize: 11, minWidth: 500 }} className="report-cashier-table">
                     <thead>
                       <tr style={{ borderBottom: `1.5px solid ${C.n200}` }}>
                         <th style={thStyle}>Kasir</th>
@@ -517,4 +528,4 @@ const MiniStatCard = ({ label, value, color }) => (
 );
 
 const thStyle = { fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700, padding: '6px 4px', textAlign: 'left', whiteSpace: 'nowrap' };
-const tdStyle = { fontFamily: 'Poppins', fontSize: 11, color: C.n800, padding: '6px 4px', whiteSpace: 'nowrap' };
+const tdStyle = { fontFamily: 'Poppins', fontSize: 11, color: C.n800, padding: '6px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };

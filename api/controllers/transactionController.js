@@ -3,21 +3,10 @@ import { writeAudit } from '../utils/auditLog.js';
 import { dbToUiTxStatus as _dbToUiTxStatus, uiToDbStatusFilter } from '../utils/statusMap.js';
 import { emitTransactionCheckout, emitProductionUpdate, emitPaymentSettled, emitProductionNewItem, emitPhotoSaved } from '../services/eventBus.js';
 import { sendOrderCreatedNotification, sendOrderStatusUpdatedNotification, sendOrderReadyNotification } from '../services/whatsappService.js';
+import { updateCustomerSegmentation } from '../services/segmentationService.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('Transaction');
-
-// Legacy console alias for debugging only - DO NOT USE in production
-const _debug = (ctx, msg, ...args) => {
-  if (process.env.NODE_ENV !== 'production' || process.env.DEBUG === 'true') {
-    console.log(`[${ctx}]`, msg, ...args);
-  }
-};
-const _warn = (ctx, msg, ...args) => {
-  if (process.env.NODE_ENV !== 'production' || process.env.DEBUG === 'true') {
-    console.warn(`[${ctx}]`, msg, ...args);
-  }
-};
 
 const schemaColumnCache = new Map();
 
@@ -75,7 +64,7 @@ const generateTransactionNo = async (conn, outletId = null) => {
 // ─── Helper: Map frontend payMethod to DB ENUM ─────────────────────────────────
 const mapPayMethod = (method) => {
   const m = String(method || '').toLowerCase();
-  const allowed = ['cash', 'transfer', 'deposit', 'qris'];
+  const allowed = ['cash', 'transfer', 'deposit', 'qris', 'edc'];
   return allowed.includes(m) ? m : 'cash';
 };
 
@@ -98,10 +87,17 @@ export const checkoutTransaction = async (req, res) => {
       pickup,
       delivery,
       promoId: bodyPromoId,
+      // ── PIC (Penanggung Jawab) ───────────────────────────────────────────────
+      picId,
+      picName,
     } = req.body;
 
     const { userId, outletId: tokenOutletId } = req.user;
     let outletId = tokenOutletId || payloadOutletId;
+
+    // Fallback PIC to current user if not provided
+    const resolvedPicId = picId || userId;
+    const resolvedPicName = picName || req.user?.name || 'Unknown';
 
     // --- AUTO-ASSIGN OUTLET FOR ADMIN TESTING ---
     if (!outletId) {
@@ -166,7 +162,7 @@ export const checkoutTransaction = async (req, res) => {
       // Strip pickup/delivery schedule for "self" (self-pickup at outlet)
       // Customer will come directly to outlet without scheduled pickup/delivery
       if (req.body.pickup_schedule_at || req.body.delivery_schedule_at) {
-        _warn('checkout', 'Ignoring schedule fields for pickupType="self"');
+        // Ignoring schedule fields for pickupType="self"
       }
     }
 
@@ -249,7 +245,9 @@ export const checkoutTransaction = async (req, res) => {
         customerName = cust.name;
         customer = { ...customer, ...cust };
       }
-    } catch {}
+    } catch (err) {
+      logger.warn('[checkoutTransaction] Gagal fetch customer:', err?.message);
+    }
 
     // ── Generate transaction_no: WSC-YYMMDD-XXX ────────────────────────────────
     const transactionNo = await generateTransactionNo(conn);
@@ -320,7 +318,7 @@ export const checkoutTransaction = async (req, res) => {
         const calculatedQty = Number(length) * Number(width);
         
         if (item.qty && Number(item.qty) !== calculatedQty) {
-          _warn('checkout', 'Client sent qty mismatch for m² service', { clientQty: item.qty, calculated: calculatedQty });
+          // Mismatched qty - will override with calculated m²
         }
         
         // Override qty with calculated value
@@ -473,47 +471,96 @@ export const checkoutTransaction = async (req, res) => {
     let paymentStatus;
     let primaryPaymentMethod;
 
+    // ── SIMPLIFIED PAYMENT AUTO-DETECT ─────────────────────────────────────────
+    // Frontend now sends only: paidAmount + method
+    // Backend auto-detects status based on paidAmount vs computedTotal
+    //
+    // Status Logic:
+    // - paidAmount >= computedTotal → 'paid' (LUNAS)
+    // - paidAmount > 0 && paidAmount < computedTotal → 'partial' (SEBAGIAN)
+    // - paidAmount = 0 → 'unpaid' (BAYAR NANTI)
+    //
+    // Backward compat: if legacy payTiming/payPlan still sent, use that logic
+    // ─────────────────────────────────────────────────────────────────────────
+
     if (hasPaymentIntent) {
-      const payTiming = paymentIntent.payTiming === 'later' ? 'later' : 'now';
-      const payPlan = paymentIntent.payPlan === 'dp' ? 'dp' : 'full';
-      const dpAmount = Math.max(0, Number(paymentIntent.dpAmount || 0));
+      const isLegacyIntent = paymentIntent.payTiming !== undefined || paymentIntent.payPlan !== undefined;
 
-      if (payTiming === 'later') {
-        if (payPlan === 'dp' && dpAmount > 0) {
+      if (isLegacyIntent) {
+        // Legacy flow: respect payTiming/payPlan from frontend
+        const payTiming = paymentIntent.payTiming === 'later' ? 'later' : 'now';
+        const payPlan = paymentIntent.payPlan === 'dp' ? 'dp' : 'full';
+        const dpAmount = Math.max(0, Number(paymentIntent.dpAmount || 0));
+
+        if (payTiming === 'later') {
+          if (payPlan === 'dp' && dpAmount > 0) {
+            paidAmount = Math.min(dpAmount, computedTotal);
+            primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : 'cash';
+          } else {
+            paidAmount = 0;
+            primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : 'cash';
+          }
+        } else if (payPlan === 'dp' && dpAmount > 0) {
           paidAmount = Math.min(dpAmount, computedTotal);
-          primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : 'cash';
+          primaryPaymentMethod = mapPayMethod(payment.method);
         } else {
-          paidAmount = 0;
-          primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : 'cash';
+          paidAmount = payment?.paidAmount != null ? Number(payment.paidAmount) : computedTotal;
+          primaryPaymentMethod = mapPayMethod(payment.method);
         }
-      } else if (payPlan === 'dp' && dpAmount > 0) {
-        paidAmount = Math.min(dpAmount, computedTotal);
-        primaryPaymentMethod = mapPayMethod(payment.method);
-      } else {
-        paidAmount = payment?.paidAmount != null ? Number(payment.paidAmount) : computedTotal;
-        primaryPaymentMethod = mapPayMethod(payment.method);
-      }
 
-      if (paidAmount > 0 && !payment?.method) {
-        await conn.rollback();
-        return res.status(400).json({ success: false, message: 'Metode pembayaran wajib untuk nominal yang dibayar sekarang' });
-      }
-      if (payTiming === 'now' && payPlan === 'dp' && dpAmount <= 0) {
-        await conn.rollback();
-        return res.status(400).json({ success: false, message: 'Masukkan nominal DP' });
-      }
-      if (payTiming === 'later' && payPlan === 'dp' && dpAmount <= 0) {
-        await conn.rollback();
-        return res.status(400).json({ success: false, message: 'Masukkan nominal DP untuk cicilan' });
+        if (paidAmount > 0 && !payment?.method) {
+          await conn.rollback();
+          return res.status(400).json({ success: false, message: 'Metode pembayaran wajib untuk nominal yang dibayar sekarang' });
+        }
+        if (payTiming === 'now' && payPlan === 'dp' && dpAmount <= 0) {
+          await conn.rollback();
+          return res.status(400).json({ success: false, message: 'Masukkan nominal DP' });
+        }
+        if (payTiming === 'later' && payPlan === 'dp' && dpAmount <= 0) {
+          await conn.rollback();
+          return res.status(400).json({ success: false, message: 'Masukkan nominal DP untuk cicilan' });
+        }
+      } else {
+        // SIMPLIFIED NEW FLOW: Auto-detect from paidAmount
+        // Frontend sends: paidAmount (amount customer pays NOW), method
+        // Backend determines status automatically
+
+        if (payment?.paidAmount != null) {
+          // Use paidAmount from frontend
+          paidAmount = Math.max(0, Number(payment.paidAmount));
+        } else if (paymentIntent.paidAmount != null) {
+          paidAmount = Math.max(0, Number(paymentIntent.paidAmount));
+        } else {
+          // Default: assume full payment if no paidAmount specified
+          paidAmount = computedTotal;
+        }
+
+        // Validate: need method if paying anything
+        if (paidAmount > 0 && !payment?.method) {
+          await conn.rollback();
+          return res.status(400).json({ success: false, message: 'Metode pembayaran wajib untuk nominal yang dibayar sekarang' });
+        }
+
+        primaryPaymentMethod = payment?.method ? mapPayMethod(payment.method) : 'cash';
       }
 
       changeAmount = payment?.changeAmount != null
         ? Number(payment.changeAmount)
         : Math.max(0, paidAmount - computedTotal);
 
+      // AUTO-DETECT PAYMENT STATUS based on paidAmount vs computedTotal
       if (paidAmount >= computedTotal && computedTotal >= 0) paymentStatus = 'paid';
       else if (paidAmount > 0) paymentStatus = 'partial';
       else paymentStatus = 'unpaid';
+
+      // ── External method guard: QRIS/EDC/Transfer require kasir confirmation ──
+      // Even if paidAmount >= total, don't mark as 'paid' until kasir explicitly
+      // confirms money received. This prevents false-lunas for claimed-but-unverified payments.
+      const externalMethods = ['qris', 'edc', 'transfer'];
+      if (externalMethods.includes(primaryPaymentMethod) && paymentStatus === 'paid') {
+        const confirmed = paymentIntent?.verifiedByKasir || paymentIntent?.confirmedByKasir;
+        if (!confirmed) paymentStatus = 'menunggu_verifikasi';
+      }
     } else {
       paidAmount = payment.paidAmount != null ? Number(payment.paidAmount) : computedTotal;
       changeAmount = payment.changeAmount != null ? Number(payment.changeAmount) : Math.max(0, paidAmount - computedTotal);
@@ -522,10 +569,14 @@ export const checkoutTransaction = async (req, res) => {
     }
 
     // Note: pickupType already determined in BUG FIX 7 validation section above
-    
-    const intentSummary = hasPaymentIntent
-      ? `[Bayar:${paymentIntent.payTiming === 'later' ? 'nanti(pickup/selesai)' : 'kasir_sekarang'};${paymentIntent.payPlan === 'dp' ? `DP:${Number(paymentIntent.dpAmount || 0)}` : 'lunas'}]`
-      : '';
+
+    // SIMPLIFIED: Build payment summary based on status
+    // Shows: LUNAS / DP / BAYAR NANTI + amount info
+    const statusLabel = paymentStatus === 'paid' ? 'LUNAS'
+      : paymentStatus === 'partial' ? 'DP'
+      : 'BAYAR NANTI';
+    const paidLabel = paidAmount > 0 ? `${statusLabel}:${paidAmount}` : 'BAYAR NANTI';
+    const intentSummary = hasPaymentIntent ? `[${paidLabel}]` : '';
     const combinedNotes = [notes?.trim() || '', intentSummary].filter(Boolean).join('\n') || null;
 
     // ── Auto-compute SLA kalau dueDate tidak diisi manual ─────────────────
@@ -624,40 +675,77 @@ export const checkoutTransaction = async (req, res) => {
     logger.info('[checkout]', 'Transaction linked to session', { sessionId, shift: openSession.shift, date: openSession.session_date });
 
     const hasTrxPromo = await hasColumn('tr_transaction', 'promo_id');
+    const hasPicId = await hasColumn('tr_transaction', 'pic_id');
 
     // ── Langkah 1: Insert tr_transaction — id BIGINT AUTO_INCREMENT ──────────
+    // ── PIC: Include pic_id/pic_name if column exists ─────────────────────────
     let trxId;
     if (hasTrxPromo) {
-      const [trxInsert] = await conn.execute(
-        `INSERT INTO tr_transaction (
-          outlet_id, customer_id, cashier_id, session_id, sub_session_id,
-          promo_id, membership_id,
-          transaction_no, source_channel, status, payment_status,
-          primary_payment_method, is_express, pickup_type,
-          subtotal, member_discount, promo_discount, manual_discount, delivery_fee, total,
-          paid_amount, change_amount,
-          estimated_done_at, notes, created_at, updated_at
-        ) VALUES (
-          ?, ?, ?, ?, ?,
-          ?, ?,
-          ?, 'kasir', 'pending', ?,
-          ?, ?, ?,
-          ?, ?, ?, ?, ?, ?,
-          ?, ?,
-          ?, ?, NOW(), NOW()
-        )`,
-        [
-          outletId, customerId, userId, sessionId, subSessionId,
-          resolvedPromoId, activeMembershipId,
-          transactionNo, paymentStatus,
-          primaryPaymentMethod, isExpress ? 1 : 0, pickupType,
-          computedSubtotal, memberDiscount, promoDiscount, manualDiscount, pickupFee + deliveryFee, computedTotal,
-          paidAmount, changeAmount,
-          finalEstimatedDone, combinedNotes,
-        ]
-      );
-      trxId = trxInsert.insertId;
+      if (hasPicId) {
+        // New schema with pic_id and pic_name
+        const [trxInsert] = await conn.execute(
+          `INSERT INTO tr_transaction (
+            outlet_id, customer_id, cashier_id, pic_id, pic_name, session_id, sub_session_id,
+            promo_id, membership_id,
+            transaction_no, source_channel, status, payment_status,
+            primary_payment_method, is_express, pickup_type,
+            subtotal, member_discount, promo_discount, manual_discount, delivery_fee, total,
+            paid_amount, change_amount,
+            estimated_done_at, notes, created_at, updated_at
+          ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?,
+            ?, 'kasir', 'pending', ?,
+            ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?,
+            ?, ?, NOW(), NOW()
+          )`,
+          [
+            outletId, customerId, userId, resolvedPicId, resolvedPicName, sessionId, subSessionId,
+            resolvedPromoId, activeMembershipId,
+            transactionNo, paymentStatus,
+            primaryPaymentMethod, isExpress ? 1 : 0, pickupType,
+            computedSubtotal, memberDiscount, promoDiscount, manualDiscount, pickupFee + deliveryFee, computedTotal,
+            paidAmount, changeAmount,
+            finalEstimatedDone, combinedNotes,
+          ]
+        );
+        trxId = trxInsert.insertId;
+      } else {
+        // Old schema without pic columns
+        const [trxInsert] = await conn.execute(
+          `INSERT INTO tr_transaction (
+            outlet_id, customer_id, cashier_id, session_id, sub_session_id,
+            promo_id, membership_id,
+            transaction_no, source_channel, status, payment_status,
+            primary_payment_method, is_express, pickup_type,
+            subtotal, member_discount, promo_discount, manual_discount, delivery_fee, total,
+            paid_amount, change_amount,
+            estimated_done_at, notes, created_at, updated_at
+          ) VALUES (
+            ?, ?, ?, ?, ?,
+            ?, ?,
+            ?, 'kasir', 'pending', ?,
+            ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?,
+            ?, ?, NOW(), NOW()
+          )`,
+          [
+            outletId, customerId, userId, sessionId, subSessionId,
+            resolvedPromoId, activeMembershipId,
+            transactionNo, paymentStatus,
+            primaryPaymentMethod, isExpress ? 1 : 0, pickupType,
+            computedSubtotal, memberDiscount, promoDiscount, manualDiscount, pickupFee + deliveryFee, computedTotal,
+            paidAmount, changeAmount,
+            finalEstimatedDone, combinedNotes,
+          ]
+        );
+        trxId = trxInsert.insertId;
+      }
     } else {
+      // Legacy schema without promo_id
       const [trxInsert] = await conn.execute(
         `INSERT INTO tr_transaction (
           outlet_id, customer_id, cashier_id, session_id, sub_session_id,
@@ -704,23 +792,23 @@ export const checkoutTransaction = async (req, res) => {
           WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'material'`
       );
       hasItemExtraCols = Number(chk[0]?.cnt || 0) > 0;
-    } catch { hasItemExtraCols = false; }
-    
+    } catch (err) { logger.warn('[checkoutTransaction] Cek kolom material gagal:', err?.message); hasItemExtraCols = false; }
+
     try {
       const [chk] = await conn.execute(
         `SELECT COUNT(*) AS cnt FROM information_schema.columns
           WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'material_id'`
       );
       hasMaterialIdCol = Number(chk[0]?.cnt || 0) > 0;
-    } catch { hasMaterialIdCol = false; }
-    
+    } catch (err) { logger.warn('[checkoutTransaction] Cek kolom material_id gagal:', err?.message); hasMaterialIdCol = false; }
+
     try {
       const [chk] = await conn.execute(
         `SELECT COUNT(*) AS cnt FROM information_schema.columns
           WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'length'`
       );
       hasLengthWidthCols = Number(chk[0]?.cnt || 0) > 0;
-    } catch { hasLengthWidthCols = false; }
+    } catch (err) { logger.warn('[checkoutTransaction] Cek kolom length gagal:', err?.message); hasLengthWidthCols = false; }
 
     for (let i = 0; i < validatedItems.length; i++) {
       const item = validatedItems[i];
@@ -839,7 +927,7 @@ export const checkoutTransaction = async (req, res) => {
           itemIsExpress || false,
           finalEstimatedDone
         );
-      } catch {}
+      } catch (err) { logger.warn('[checkoutTransaction] Emit production new item gagal:', err?.message); }
 
       // ── Pengurangan stok bahan (auto_deduct) per layanan ─────────────────────
       try {
@@ -880,7 +968,7 @@ export const checkoutTransaction = async (req, res) => {
             ]
           );
         }
-      } catch { /* tabel usage/stok belum terpasang */ }
+      } catch (err) { logger.warn('[checkoutTransaction] Auto-deduct inventory gagal:', err?.message); }
     }
 
     // ── Auto-increment usage_count per service untuk customer ini (favorite) ─
@@ -1064,10 +1152,19 @@ export const checkoutTransaction = async (req, res) => {
       })();
     }
 
+    // ── Update customer segmentation (best-effort, non-blocking) ───────────────
+    (async () => {
+      try {
+        await updateCustomerSegmentation(customerId);
+      } catch (segErr) {
+        logger.warn('[checkout] segmentation update failed:', segErr?.message || segErr);
+      }
+    })();
+
     // ── Realtime emit: nota baru masuk antrian ──────────────────────────────
     try {
       emitTransactionCheckout(outletId, transactionNo, trxId);
-    } catch {}
+    } catch (err) { logger.warn('[checkoutTransaction] emitTransactionCheckout gagal:', err?.message); }
 
     // ── WhatsApp notification: order created (best-effort, non-blocking) ─────────
     (async () => {
@@ -1163,7 +1260,9 @@ export const checkoutTransaction = async (req, res) => {
         t.estimated_done_at AS estimatedDoneAt,
         t.created_at        AS createdAt,
         c.name  AS customerName,
-        c.phone AS customerPhone
+        c.phone AS customerPhone,
+        c.photo AS customerPhoto,
+        c.gender AS customerGender
       FROM tr_transaction t
       JOIN mst_customer c ON c.id = t.customer_id
       WHERE t.id = ?`,
@@ -1239,7 +1338,7 @@ export const checkoutTransaction = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    logger.error('[checkoutTransaction]', 'Error:', err);
+    logger.error('[checkoutTransaction] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({
       success: false,
       message: 'Gagal membuat nota. Transaksi dibatalkan.',
@@ -1280,6 +1379,8 @@ export const getTransactions = async (req, res) => {
         t.created_at AS createdAt,
         c.name AS customerName,
         c.phone AS customerPhone,
+        c.photo AS customerPhoto,
+        c.gender AS customerGender,
         u.name AS cashierName
       FROM tr_transaction t
       JOIN mst_customer c ON c.id = t.customer_id
@@ -1501,7 +1602,7 @@ export const getTransactions = async (req, res) => {
 
     return res.status(200).json({ success: true, data: transactions, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } });
   } catch (err) {
-    logger.error('[getTransactions]', 'Error:', err);
+    logger.error('[getTransactions] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat transaksi.' });
   }
 };
@@ -1531,6 +1632,8 @@ export const getTransactionById = async (req, res) => {
         t.customer_id AS customerId,
         c.name AS customerName,
         c.phone AS customerPhone,
+        c.photo AS customerPhoto,
+        c.gender AS customerGender,
         c.email AS customerEmail,
         c.address_housing AS customerAddressHousing,
         c.address_block AS customerAddressBlock,
@@ -1728,6 +1831,8 @@ export const getTransactionById = async (req, res) => {
       })),
       customerName: t.customerName,
       customerPhone: t.customerPhone,
+      customerPhoto: t.customerPhoto || null,
+      customerGender: t.customerGender || null,
       customerId: t.customerId,
       customerDeposit: Number(t.customerDeposit || 0),
       depositBalance: Number(t.customerDeposit || 0),
@@ -1740,7 +1845,7 @@ export const getTransactionById = async (req, res) => {
 
     return res.status(200).json({ success: true, data: transaction });
   } catch (err) {
-    logger.error('[getTransactionById]', 'Error:', err);
+    logger.error('[getTransactionById] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat detail transaksi.' });
   }
 };
@@ -1762,7 +1867,7 @@ export const recordTransactionPayment = async (req, res) => {
   const roleCode = req.user?.roleCode;
   const outletUserId = req.user?.outletId;
 
-  if (!['kasir', 'frontline', 'admin', 'finance'].includes(roleCode || '')) {
+  if (!['frontline', 'admin'].includes(roleCode || '')) {
     return res.status(403).json({ success: false, message: 'Akses ditolak untuk mencatat pembayaran.' });
   }
 
@@ -1959,7 +2064,7 @@ export const recordTransactionPayment = async (req, res) => {
     // Realtime emit pelunasan/payment masuk
     try {
       emitPaymentSettled(row.outlet_id, row.id, newPaid, methodDb);
-    } catch {}
+    } catch (err) { logger.warn('[recordTransactionPayment] emitPaymentSettled gagal:', err?.message); }
 
     return res.status(201).json({
       success: true,
@@ -1975,7 +2080,7 @@ export const recordTransactionPayment = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    logger.error('[recordTransactionPayment]', 'Error:', err);
+    logger.error('[recordTransactionPayment] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal mencatat pembayaran.' });
   } finally {
     conn.release();
@@ -2023,6 +2128,8 @@ export const getDashboardStats = async (req, res) => {
         t.total,
         t.created_at AS createdAt,
         c.name AS customerName,
+        c.photo AS customerPhoto,
+        c.gender AS customerGender,
         u.name AS cashierName,
         GROUP_CONCAT(ti.service_name_snapshot ORDER BY ti.id ASC SEPARATOR '||') AS itemNames,
         GROUP_CONCAT(ti.is_express ORDER BY ti.id ASC SEPARATOR '||') AS itemExpresses
@@ -2056,11 +2163,31 @@ export const getDashboardStats = async (req, res) => {
         total: Number(t.total),
         createdBy: t.cashierName,
         customerName: t.customerName,
+        customerPhoto: t.customerPhoto || null,
+        customerGender: t.customerGender || null,
         pickedUpAt: t.pickedUpAt,
       };
     });
 
     const r = statsRows[0] || {};
+
+    // Time metrics — average processing time, oldest waiting, overdue pickups
+    const [timeRows] = await poolWaschenPos.execute(
+      `SELECT
+        -- Avg processing time (created_at → picked_up_at for completed orders today)
+        AVG(TIMESTAMPDIFF(HOUR, t.created_at, t.picked_up_at)) AS avg_processing_hours,
+        -- Oldest waiting time for ready orders
+        MIN(TIMESTAMPDIFF(HOUR, t.updated_at, NOW())) AS oldest_waiting_hours,
+        -- Express orders still processing (potential overdue)
+        SUM(CASE WHEN t.is_express = 1 AND t.status IN ('pending','process') THEN 1 ELSE 0 END) AS express_processing,
+        -- Overdue pickups (ready > 24 hours not picked up)
+        SUM(CASE WHEN t.status IN ('ready_for_pickup','ready_for_delivery') AND t.picked_up_at IS NULL AND TIMESTAMPDIFF(HOUR, t.updated_at, NOW()) > 24 THEN 1 ELSE 0 END) AS overdue_pickup
+       FROM tr_transaction t
+       WHERE t.deleted_at IS NULL ${outletFilter}`,
+      outletParam
+    );
+
+    const t = timeRows[0] || {};
 
     return res.status(200).json({
       success: true,
@@ -2079,16 +2206,283 @@ export const getDashboardStats = async (req, res) => {
           process: Number(r.active_process || 0),
           ready:   Number(r.active_ready || 0),
         },
+        timeMetrics: {
+          avgProcessingHours: Number(t.avg_processing_hours || 0).toFixed(1),
+          oldestWaitingHours: Number(t.oldest_waiting_hours || 0),
+          expressProcessing: Number(t.express_processing || 0),
+          overduePickup: Number(t.overdue_pickup || 0),
+        },
         recent,
       },
     });
   } catch (err) {
-    logger.error('[getDashboardStats]', 'Error:', err);
+    logger.error('[getDashboardStats] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat statistik.' });
   }
 };
 
-// ─── PUT /api/transactions/:id/status ─────────────────────────────────────────
+// END OF getDashboardStats
+// </PLACEHOLDER_END>
+
+// ─── GET /api/transactions/dashboard/revenue-trend ──────────────────────────
+export const getRevenueTrend = async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const userOutletId = req.user?.outletId;
+    const outletFilter = userOutletId ? 'AND outlet_id = ?' : '';
+    const outletParam = userOutletId ? [userOutletId] : [];
+
+    // Generate date range
+    const dates = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.push(d.toISOString().slice(0, 10));
+    }
+
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT
+        DATE(created_at) AS date,
+        COALESCE(SUM(total), 0) AS revenue
+       FROM tr_transaction
+       WHERE deleted_at IS NULL
+         AND status <> 'cancelled'
+         AND created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+         ${outletFilter}
+       GROUP BY DATE(created_at)
+       ORDER BY date ASC`,
+      [days, ...outletParam]
+    );
+
+    // Map to days array — DATE() from MySQL may return Date object or string
+    const toDateKey = (d) => {
+      if (!d) return '';
+      if (d instanceof Date) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+      return String(d).substring(0, 10);
+    };
+    const revenueMap = {};
+    rows.forEach((r) => {
+      revenueMap[toDateKey(r.date)] = Number(r.revenue);
+    });
+
+    const data = dates.map((date) => ({
+      date,
+      label: new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+      revenue: revenueMap[date] || 0,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    logger.error('[getRevenueTrend] Error', { error: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, message: 'Gagal memuat tren revenue.' });
+  }
+};
+
+// ─── GET /api/transactions/dashboard/payment-methods ──────────────────────────
+export const getPaymentMethods = async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const userOutletId = req.user?.outletId;
+    const userRole = req.user?.roleCode;
+    const requestedOutletId = req.query.outletId;
+
+    // Global roles (admin) can see all or specific outlet
+    const globalRoles = ['admin'];
+    const isGlobalRole = globalRoles.includes(userRole);
+
+    let effectiveOutlet = null;
+
+    if (isGlobalRole) {
+      // Admin can see all outlets or specific one
+      effectiveOutlet = requestedOutletId || null;
+    } else {
+      // Frontliner only sees their outlet
+      effectiveOutlet = userOutletId;
+      if (!effectiveOutlet) {
+        return res.status(400).json({
+          success: false,
+          message: 'User tidak memiliki outlet yang ditetapkan.'
+        });
+      }
+    }
+
+    const outletFilter = effectiveOutlet ? 'AND t.outlet_id = ?' : '';
+    const params = effectiveOutlet ? [days, effectiveOutlet] : [days];
+
+    // Get payment breakdown from tr_payment_item
+    const [rows] = await poolWaschenPos.execute(
+      `SELECT
+        tp.method,
+        COALESCE(SUM(tp.amount), 0) AS total
+       FROM tr_transaction t
+       LEFT JOIN tr_payment_item tp ON tp.transaction_id = t.id AND tp.deleted_at IS NULL AND tp.status = 'paid'
+       WHERE t.deleted_at IS NULL
+         AND t.status <> 'cancelled'
+         AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+         ${outletFilter}
+       GROUP BY tp.method
+       ORDER BY total DESC`,
+      params
+    );
+
+    // Calculate total
+    const total = rows.reduce((sum, r) => sum + Number(r.total), 0);
+
+    // Map method labels (handle NULL/undefined method as cash)
+    const methodLabels = {
+      cash: { label: 'Tunai', color: '#10B981' },
+      qris: { label: 'QRIS', color: '#3B82F6' },
+      edc: { label: 'EDC', color: '#6B7280' },
+      transfer: { label: 'Transfer', color: '#8B5CF6' },
+      deposit: { label: 'Deposit', color: '#F59E0B' },
+      ovo: { label: 'OVO', color: '#9C27B0' },
+      gopay: { label: 'GoPay', color: '#00A651' },
+      dana: { label: 'DANA', color: '#118EEA' },
+      shopeepay: { label: 'ShopeePay', color: '#EE4D2D' },
+      other: { label: 'Lainnya', color: '#9CA3AF' },
+    };
+
+    const data = rows.map(r => {
+      const method = (r.method || 'cash').toLowerCase();
+      const config = methodLabels[method] || methodLabels.other;
+      const value = Number(r.total);
+      return {
+        label: config.label,
+        value: total > 0 ? Math.round((value / total) * 100) : 0,
+        amount: value,
+        color: config.color,
+      };
+    }).filter(d => d.amount > 0);
+
+    // If no data, return empty array (no fake placeholder values)
+    if (data.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    logger.error('[getPaymentMethods] Error', { error: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, message: 'Gagal memuat metode pembayaran.' });
+  }
+};
+
+// ─── GET /api/transactions/dashboard/top-services ───────────────────────────
+export const getTopServices = async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 5)); // Clamp between 1-100
+    const userOutletId = req.user?.outletId;
+    const userRole = req.user?.roleCode;
+    const requestedOutletId = req.query.outletId;
+
+    // Global roles can see all or specific outlet
+    const globalRoles = ['admin'];
+    const isGlobalRole = globalRoles.includes(userRole);
+
+    let effectiveOutlet = null;
+    if (isGlobalRole) {
+      effectiveOutlet = requestedOutletId || null;
+    } else {
+      effectiveOutlet = userOutletId;
+      if (!effectiveOutlet) {
+        return res.status(400).json({
+          success: false,
+          message: 'User tidak memiliki outlet yang ditetapkan.'
+        });
+      }
+    }
+
+    let query;
+    let params;
+
+    if (effectiveOutlet) {
+      query = `
+        SELECT
+          MAX(ti.service_name_snapshot) AS serviceName,
+          COUNT(DISTINCT ti.transaction_id) AS transactionCount,
+          SUM(ti.qty) AS totalQuantity,
+          SUM(ti.subtotal) AS totalRevenue
+         FROM tr_transaction_item ti
+         JOIN tr_transaction t ON t.id = ti.transaction_id
+         WHERE ti.deleted_at IS NULL
+           AND ti.is_active = 1
+           AND t.deleted_at IS NULL
+           AND t.status <> 'cancelled'
+           AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+           AND t.outlet_id = ?
+         GROUP BY ti.service_id
+         ORDER BY transactionCount DESC
+         LIMIT ${parseInt(limit)}
+      `;
+      params = [days, effectiveOutlet];
+    } else {
+      query = `
+        SELECT
+          MAX(ti.service_name_snapshot) AS serviceName,
+          COUNT(DISTINCT ti.transaction_id) AS transactionCount,
+          SUM(ti.qty) AS totalQuantity,
+          SUM(ti.subtotal) AS totalRevenue
+         FROM tr_transaction_item ti
+         JOIN tr_transaction t ON t.id = ti.transaction_id
+         WHERE ti.deleted_at IS NULL
+           AND ti.is_active = 1
+           AND t.deleted_at IS NULL
+           AND t.status <> 'cancelled'
+           AND t.created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+         GROUP BY ti.service_id
+         ORDER BY transactionCount DESC
+         LIMIT ${parseInt(limit)}
+      `;
+      params = [days];
+    }
+
+    // Get top services by transaction count using service_name_snapshot
+    const [rows] = await poolWaschenPos.execute(query, params);
+
+    // Calculate max for percentage calculation
+    const maxCount = rows.length > 0 ? Math.max(...rows.map(r => Number(r.transactionCount))) : 0;
+
+    const data = rows.map((r, i) => ({
+      rank: i + 1,
+      name: r.serviceName,
+      count: Number(r.transactionCount),
+      quantity: Number(r.totalQuantity),
+      revenue: Number(r.totalRevenue),
+      percentage: maxCount > 0 ? Math.round((Number(r.transactionCount) / maxCount) * 100) : 0,
+    }));
+
+    // Color palette for ranking
+    const rankColors = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#6B7280'];
+
+    return res.status(200).json({
+      success: true,
+      data: data.map((d, i) => ({
+        ...d,
+        color: rankColors[i] || '#9CA3AF',
+      })),
+    });
+  } catch (err) {
+    logger.error('[getTopServices] Error', { error: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, message: 'Gagal memuat layanan teratas.', error: err.message });
+  }
+};
+
+// PLACEHOLDER_START
+// PUT /api/transactions/:id/status
 export const updateTransactionStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -2201,7 +2595,7 @@ export const updateTransactionStatus = async (req, res) => {
       data: hasVersion ? { newVersion: currentVersion + 1 } : undefined,
     });
   } catch (err) {
-    logger.error('[updateTransactionStatus]', 'Error:', err);
+    logger.error('[updateTransactionStatus] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memperbarui status transaksi.' });
   }
 };
@@ -2240,6 +2634,8 @@ export const getProductionQueue = async (req, res) => {
         ${courierSelect},
         c.name AS customerName,
         c.phone AS customerPhone,
+        c.photo AS customerPhoto,
+        c.gender AS customerGender,
         c.email AS customerEmail,
         c.address_housing AS customerAddressHousing,
         c.address_block AS customerAddressBlock,
@@ -2392,7 +2788,7 @@ export const getProductionQueue = async (req, res) => {
 
     return res.status(200).json({ success: true, data: transactions });
   } catch (err) {
-    logger.error('[getProductionQueue]', 'Error:', err);
+    logger.error('[getProductionQueue] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat antrian produksi.' });
   }
 };
@@ -2439,7 +2835,7 @@ export const cancelTransaction = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Sudah ada pengajuan pembatalan yang masih menunggu persetujuan Owner.' });
     }
 
-    const isGlobalRole = ['admin', 'superadmin', 'owner'].includes(req.user?.roleCode);
+    const isGlobalRole = ['admin'].includes(req.user?.roleCode);
     const approvalStatus = isGlobalRole ? 'approved' : 'pending';
     const approvedBy = isGlobalRole ? req.user?.userId : null;
 
@@ -2496,7 +2892,7 @@ export const cancelTransaction = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Pengajuan pembatalan berhasil dikirim. Menunggu persetujuan Owner.' });
   } catch (err) {
-    logger.error('[cancelTransaction]', 'Error:', err);
+    logger.error('[cancelTransaction] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal membatalkan transaksi.' });
   }
 };
@@ -2748,7 +3144,7 @@ export const updateProductionStage = async (req, res) => {
     });
   } catch (err) {
     await connection.rollback();
-    logger.error('[updateProductionStage]', 'Error:', err);
+    logger.error('[updateProductionStage] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal mencatat progress produksi.' });
   } finally {
     connection.release();
@@ -2857,7 +3253,7 @@ export const revertProductionStage = async (req, res) => {
     });
   } catch (err) {
     await connection.rollback();
-    logger.error('[revertProductionStage]', 'Error:', err);
+    logger.error('[revertProductionStage] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal revert stage.' });
   } finally {
     connection.release();
@@ -2921,7 +3317,7 @@ export const requestApproval = async (req, res) => {
         : 'Pengajuan penghapusan berhasil dikirim. Menunggu persetujuan Admin.',
     });
   } catch (err) {
-    logger.error('[requestApproval]', 'Error:', err);
+    logger.error('[requestApproval] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal mengajukan approval.' });
   }
 };
@@ -3014,7 +3410,7 @@ export const saveItemCondition = async (req, res) => {
         );
         insertedCount++;
       } catch (insertErr) {
-        logger.error('[saveItemCondition]', 'Insert failed:', { code: insertErr.code, photoType, error: insertErr.message });
+        logger.error('[saveItemCondition] Insert failed', { code: insertErr.code, photoType, error: insertErr.message });
         lastInsertError = insertErr;
         // Continue to next photo but track failure
       }
@@ -3030,7 +3426,7 @@ export const saveItemCondition = async (req, res) => {
         );
         insertedCount++;
       } catch (e) {
-        logger.error('[saveItemCondition]', 'Note-only insert failed:', e.message);
+        logger.error('[saveItemCondition] Note-only insert failed', { error: e.message });
         lastInsertError = e;
       }
     }
@@ -3068,7 +3464,7 @@ export const saveItemCondition = async (req, res) => {
     });
   } catch (err) {
     await connection.rollback();
-    logger.error('[saveItemCondition]', 'Error:', err);
+    logger.error('[saveItemCondition] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal menyimpan kondisi barang.' });
   } finally {
     connection.release();
@@ -3104,7 +3500,7 @@ export const deleteItemPhoto = async (req, res) => {
 
     return res.json({ success: true, message: 'Foto berhasil dihapus.' });
   } catch (err) {
-    logger.error('[deleteItemPhoto]', err);
+    logger.error('[deleteItemPhoto] Error', { error: err?.message || String(err), stack: err?.stack });
     return res.status(500).json({ success: false, message: 'Gagal menghapus foto.' });
   }
 };
@@ -3154,7 +3550,7 @@ export const updateItemPhoto = async (req, res) => {
 
     return res.json({ success: true, message: 'Foto berhasil diperbarui.' });
   } catch (err) {
-    logger.error('[updateItemPhoto]', err);
+    logger.error('[updateItemPhoto] Error', { error: err?.message || String(err), stack: err?.stack });
     return res.status(500).json({ success: false, message: 'Gagal memperbarui foto.' });
   }
 };
@@ -3198,7 +3594,7 @@ export const getTransactionPhotos = async (req, res) => {
       },
     });
   } catch (err) {
-    logger.error('[getTransactionPhotos]', err);
+    logger.error('[getTransactionPhotos] Error', { error: err?.message || String(err), stack: err?.stack });
     return res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -3232,7 +3628,7 @@ export const saveReview = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Review berhasil disimpan.' });
   } catch (err) {
-    logger.error('[saveReview]', 'Error:', err);
+    logger.error('[saveReview] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal menyimpan review.' });
   }
 };
@@ -3322,7 +3718,7 @@ export const updateDeliveryType = async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    logger.error('[updateDeliveryType]', err);
+    logger.error('[updateDeliveryType] Error', { error: err?.message || String(err), stack: err?.stack });
     return res.status(500).json({ success: false, message: 'Gagal mengubah jenis pengantaran.' });
   } finally {
     conn.release();
@@ -3383,7 +3779,7 @@ export const updatePackingInfo = async (req, res) => {
       data: result[0] || { packingNeeded: 1, packingNotes: null, packingDone: 0 },
     });
   } catch (err) {
-    logger.error('[updatePackingInfo]', err);
+    logger.error('[updatePackingInfo] Error', { error: err?.message || String(err), stack: err?.stack });
     return res.status(500).json({ success: false, message: 'Gagal memperbarui info packing.' });
   }
 };
@@ -3517,6 +3913,8 @@ export const getProductionHistory = async (req, res) => {
         t.created_at AS createdAt,
         c.name AS customerName,
         c.phone AS customerPhone,
+        c.photo AS customerPhoto,
+        c.gender AS customerGender,
         o.name AS outletName
       FROM (
         SELECT
@@ -3581,6 +3979,8 @@ export const getProductionHistory = async (req, res) => {
       isExpress: r.itemExpress === 1 || r.txExpress === 1,
       customerName: r.customerName,
       customerPhone: r.customerPhone,
+      customerPhoto: r.customerPhoto || null,
+      customerGender: r.customerGender || null,
       outletName: r.outletName || null,
       total: Number(r.total || 0),
       status: mapDbStatusToFrontend(r.dbStatus, r.pickedUpAt),
@@ -3604,7 +4004,7 @@ export const getProductionHistory = async (req, res) => {
       },
     });
   } catch (err) {
-    logger.error('[getProductionHistory]', 'Error:', err);
+    logger.error('[getProductionHistory] Error', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat riwayat produksi.' });
   }
 };
@@ -3656,7 +4056,7 @@ export const rescheduleTransaction = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Jadwal berhasil diperbarui.' });
   } catch (err) {
-    logger.error('[rescheduleTransaction]', err);
+    logger.error('[rescheduleTransaction] Error', { error: err?.message || String(err), stack: err?.stack });
     return res.status(500).json({ success: false, message: 'Gagal memperbarui jadwal.' });
   }
 };
@@ -3707,7 +4107,7 @@ export const requestCancellation = async (req, res) => {
 
     return res.status(201).json({ success: true, message: 'Permintaan pembatalan berhasil diajukan.' });
   } catch (err) {
-    logger.error('[requestCancellation]', err);
+    logger.error('[requestCancellation] Error', { error: err?.message || String(err), stack: err?.stack });
     return res.status(500).json({ success: false, message: 'Gagal mengajukan pembatalan.' });
   }
 };
@@ -3775,7 +4175,7 @@ export const getTransactionLabels = async (req, res) => {
 
     return res.status(200).json({ success: true, data: labels });
   } catch (err) {
-    logger.error('[getTransactionLabels]', err);
+    logger.error('[getTransactionLabels] Error', { error: err?.message || String(err), stack: err?.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat data label.' });
   }
 };

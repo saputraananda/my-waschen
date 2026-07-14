@@ -3,6 +3,8 @@
 // Phase 2: Membership System Overhaul
 // ─────────────────────────────────────────────────────────────────────────────
 import { poolWaschenPos as db } from '../db/connection.js';
+import logger from '../utils/logger.js';
+import { recordMembershipHistory } from './membershipHistoryController.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS & HELPERS
@@ -98,8 +100,35 @@ async function hasColumn(conn, tableName, columnName) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PUBLIC API: GET MEMBERSHIP STATUS
+// BONUS CONFIGURATION
 // ─────────────────────────────────────────────────────────────────────────────
+const BONUS_CONFIG = {
+  gold: 25000,     // Bonus for Gold tier
+  diamond: 50000,  // Bonus for Diamond tier
+};
+
+/**
+ * Check if membership bonus is enabled from settings
+ */
+async function isBonusEnabled(conn) {
+  try {
+    const [[row]] = await conn.execute(
+      "SELECT setting_value FROM mst_setting WHERE setting_key = 'membership_bonus_enabled' LIMIT 1"
+    );
+    return row?.setting_value === 'true' || row?.setting_value === '1';
+  } catch {
+    return true; // Default to enabled if setting not found
+  }
+}
+
+/**
+ * Get bonus amount for a tier (if bonus is enabled)
+ */
+async function getBonusAmount(conn, tier) {
+  const enabled = await isBonusEnabled(conn);
+  if (!enabled) return 0;
+  return BONUS_CONFIG[tier] || 0;
+}
 
 /**
  * GET /api/membership/status/:customerId
@@ -199,7 +228,7 @@ export async function getMembershipStatus(req, res) {
       },
     });
   } catch (error) {
-    console.error('[getMembershipStatus] Error:', error);
+    logger.error('Gagal mengambil status membership', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil status membership.',
@@ -271,7 +300,7 @@ export async function getMembershipDetails(req, res) {
       },
     });
   } catch (error) {
-    console.error('[getMembershipDetails] Error:', error);
+    logger.error('Gagal mengambil detail membership', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil detail membership.',
@@ -302,7 +331,7 @@ export async function listMemberships(req, res) {
 
     // Status filter
     if (status === 'active') {
-      whereClause += ` AND m.status = 'active' AND m.expired_at >= NOW()`;
+      whereClause += ` AND m.status = 'active' AND (m.expired_at IS NULL OR m.expired_at >= NOW())`;
     } else if (status === 'expired') {
       whereClause += ` AND (m.status = 'expired' OR m.expired_at < NOW())`;
     } else if (status !== 'all') {
@@ -324,7 +353,7 @@ export async function listMemberships(req, res) {
     }
 
     // Count total
-    const [countResult] = await db.execute(
+    const [countResult] = await db.query(
       `SELECT COUNT(*) as total FROM mst_membership m
        JOIN mst_customer c ON c.id = m.customer_id
        ${whereClause}`,
@@ -332,8 +361,8 @@ export async function listMemberships(req, res) {
     );
     const total = countResult[0]?.total || 0;
 
-    // Get memberships
-    const [memberships] = await db.execute(`
+    // Get memberships - use query() instead of execute() for flexibility
+    const [memberships] = await db.query(`
       SELECT
         m.id,
         m.customer_id,
@@ -371,7 +400,11 @@ export async function listMemberships(req, res) {
       },
     });
   } catch (error) {
-    console.error('[listMemberships] Error:', error);
+    logger.error('Gagal mengambil daftar membership', {
+      error: error.message,
+      stack: error.stack,
+      query: req.query
+    });
     return res.status(500).json({
       success: false,
       message: 'Gagal mengambil daftar membership.',
@@ -520,24 +553,68 @@ export async function registerMembership(req, res) {
     }
 
     // ── If topupAmount provided, process deposit ───────────────────────────
+    let bonusApplied = 0;
+    let totalDeposit = 0;
+
     if (topupAmount && Number(topupAmount) > 0) {
+      // Check if bonus is enabled
+      const bonusEnabled = await isBonusEnabled(conn);
+      const bonusAmount = bonusEnabled ? (BONUS_CONFIG[tierKey] || 0) : 0;
+      totalDeposit = Number(topupAmount);
+      bonusApplied = bonusAmount;
+
+      // Add base amount
       await conn.execute(
         'UPDATE mst_customer_wallet SET balance = balance + ?, updated_at = NOW() WHERE customer_id = ?',
-        [Number(topupAmount), customerId]
+        [totalDeposit, customerId]
       );
+
+      // Add bonus if enabled
+      if (bonusApplied > 0) {
+        await conn.execute(
+          'UPDATE mst_customer_wallet SET balance = balance + ?, updated_at = NOW() WHERE customer_id = ?',
+          [bonusApplied, customerId]
+        );
+
+        // Record bonus in ledger
+        await conn.execute(`
+          INSERT INTO tr_wallet_ledger (
+            customer_id, type, amount, balance_after, description, created_by, created_at
+          ) VALUES (?, 'bonus', ?, (SELECT balance FROM mst_customer_wallet WHERE customer_id = ?), ?, ?, NOW())
+        `, [customerId, bonusApplied, customerId, `Bonus top-up WPC ${tierInfo.name} Membership`, userId]);
+      }
 
       await conn.execute(`
         INSERT INTO tr_wallet_ledger (
           customer_id, type, amount, balance_after, description, created_by, created_at
         ) VALUES (?, 'topup', ?, (SELECT balance FROM mst_customer_wallet WHERE customer_id = ?), ?, ?, NOW())
-      `, [customerId, Number(topupAmount), customerId, `Registration fee for WPC ${tierInfo.name} Membership`, userId]);
+      `, [customerId, totalDeposit, customerId, `Registration fee for WPC ${tierInfo.name} Membership`, userId]);
     }
 
     await conn.commit();
 
+    // Record membership history
+    await recordMembershipHistory(conn, {
+      customerId,
+      membershipId,
+      action: 'register',
+      oldTier: null,
+      newTier: tierKey,
+      oldExpiredAt: null,
+      newExpiredAt: expiredAt,
+      oldStatus: null,
+      newStatus: 'active',
+      amount: topupAmount ? Number(topupAmount) : null,
+      bonus: bonusApplied > 0 ? bonusApplied : null,
+      notes: `WPC ${tierInfo.name} Membership Registration${bonusApplied > 0 ? ` (Bonus: Rp ${bonusApplied.toLocaleString('id-ID')})` : ''}`,
+      createdBy: userId,
+      picId: userId,
+      picName: user?.name || 'Unknown',
+    }).catch(err => logger.warn('[membership]', 'Failed to record history', { error: err.message }));
+
     return res.status(201).json({
       success: true,
-      message: `Membership ${tierInfo.name} berhasil dibuat!`,
+      message: `Membership ${tierInfo.name} berhasil dibuat!${bonusApplied > 0 ? ` Bonus Rp ${bonusApplied.toLocaleString('id-ID')} ditambahkan!` : ''}`,
       data: {
         id: membershipId,
         memberNo,
@@ -550,11 +627,13 @@ export async function registerMembership(req, res) {
         startedAt,
         expiredAt,
         status: 'active',
+        bonusApplied,
+        totalDeposit: totalDeposit + bonusApplied,
       },
     });
   } catch (error) {
     await conn.rollback();
-    console.error('[registerMembership] Error:', error);
+    logger.error('Gagal membuat membership', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal membuat membership.',
@@ -648,11 +727,36 @@ export async function renewMembership(req, res) {
     `, [newExpiry, id]);
 
     // ── Process top-up if provided ─────────────────────────────────────────
+    let bonusApplied = 0;
+    let totalDeposit = 0;
+
     if (topupAmount && Number(topupAmount) > 0) {
+      // Check if bonus is enabled
+      const bonusEnabled = await isBonusEnabled(conn);
+      const bonusAmount = bonusEnabled ? (BONUS_CONFIG[tierKey] || 0) : 0;
+      totalDeposit = Number(topupAmount);
+      bonusApplied = bonusAmount;
+
+      // Add base amount
       await conn.execute(
         'UPDATE mst_customer_wallet SET balance = balance + ?, updated_at = NOW() WHERE customer_id = ?',
-        [Number(topupAmount), membership.customer_id]
+        [totalDeposit, membership.customer_id]
       );
+
+      // Add bonus if enabled
+      if (bonusApplied > 0) {
+        await conn.execute(
+          'UPDATE mst_customer_wallet SET balance = balance + ?, updated_at = NOW() WHERE customer_id = ?',
+          [bonusApplied, membership.customer_id]
+        );
+
+        // Record bonus in ledger
+        await conn.execute(`
+          INSERT INTO tr_wallet_ledger (
+            customer_id, type, amount, balance_after, description, created_by, created_at
+          ) VALUES (?, 'bonus', ?, (SELECT balance FROM mst_customer_wallet WHERE customer_id = ?), ?, ?, NOW())
+        `, [membership.customer_id, bonusApplied, membership.customer_id, `Bonus top-up WPC ${tierInfo.name} Membership`, userId]);
+      }
 
       const [[wallet]] = await conn.execute(
         'SELECT balance FROM mst_customer_wallet WHERE customer_id = ? LIMIT 1',
@@ -665,7 +769,7 @@ export async function renewMembership(req, res) {
         ) VALUES (?, 'topup', ?, ?, ?, ?, NOW())
       `, [
         membership.customer_id,
-        Number(topupAmount),
+        totalDeposit,
         wallet?.balance || 0,
         `Renewal fee for WPC ${tierInfo.name} Membership`,
         userId,
@@ -674,9 +778,28 @@ export async function renewMembership(req, res) {
 
     await conn.commit();
 
+    // Record membership history
+    await recordMembershipHistory(conn, {
+      customerId: membership.customer_id,
+      membershipId: membership.id,
+      action: 'renew',
+      oldTier: tierKey,
+      newTier: tierKey,
+      oldExpiredAt: membership.expired_at,
+      newExpiredAt: newExpiry,
+      oldStatus: 'active',
+      newStatus: 'active',
+      amount: topupAmount ? Number(topupAmount) : null,
+      bonus: bonusApplied > 0 ? bonusApplied : null,
+      notes: `WPC ${tierInfo.name} Membership Renewal${bonusApplied > 0 ? ` (Bonus: Rp ${bonusApplied.toLocaleString('id-ID')})` : ''}`,
+      createdBy: userId,
+      picId: userId,
+      picName: user?.name || 'Unknown',
+    }).catch(err => logger.warn('[membership]', 'Failed to record history', { error: err.message }));
+
     return res.status(200).json({
       success: true,
-      message: `Membership ${tierInfo.name} berhasil direnew!`,
+      message: `Membership ${tierInfo.name} berhasil direnew!${bonusApplied > 0 ? ` Bonus Rp ${bonusApplied.toLocaleString('id-ID')} ditambahkan!` : ''}`,
       data: {
         id: membership.id,
         memberNo: membership.member_no,
@@ -687,11 +810,13 @@ export async function renewMembership(req, res) {
         previousExpiry: membership.expired_at,
         newExpiry,
         status: 'active',
+        bonusApplied,
+        totalDeposit: totalDeposit + bonusApplied,
       },
     });
   } catch (error) {
     await conn.rollback();
-    console.error('[renewMembership] Error:', error);
+    logger.error('Gagal merenew membership', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal merenew membership.',
@@ -768,11 +893,36 @@ export async function upgradeTier(req, res) {
       WHERE id = ?
     `, [TIER_CONFIG.diamond.discountPct, id]);
 
-    // Process top-up
+    // Process top-up with bonus
+    let bonusApplied = 0;
+    let totalDeposit = Number(topupAmount);
+
+    // Check if bonus is enabled
+    const bonusEnabled = await isBonusEnabled(conn);
+    if (bonusEnabled) {
+      bonusApplied = BONUS_CONFIG.diamond || 0;
+    }
+
+    // Add base amount
     await conn.execute(
       'UPDATE mst_customer_wallet SET balance = balance + ?, updated_at = NOW() WHERE customer_id = ?',
-      [Number(topupAmount), membership.customer_id]
+      [totalDeposit, membership.customer_id]
     );
+
+    // Add bonus if enabled
+    if (bonusApplied > 0) {
+      await conn.execute(
+        'UPDATE mst_customer_wallet SET balance = balance + ?, updated_at = NOW() WHERE customer_id = ?',
+        [bonusApplied, membership.customer_id]
+      );
+
+      // Record bonus in ledger
+      await conn.execute(`
+        INSERT INTO tr_wallet_ledger (
+          customer_id, type, amount, balance_after, description, created_by, created_at
+        ) VALUES (?, 'bonus', ?, (SELECT balance FROM mst_customer_wallet WHERE customer_id = ?), ?, ?, NOW())
+      `, [membership.customer_id, bonusApplied, membership.customer_id, `Bonus top-up WPC Diamond Membership Upgrade`, userId]);
+    }
 
     const [[wallet]] = await conn.execute(
       'SELECT balance FROM mst_customer_wallet WHERE customer_id = ? LIMIT 1',
@@ -785,17 +935,36 @@ export async function upgradeTier(req, res) {
       ) VALUES (?, 'topup', ?, ?, ?, ?, NOW())
     `, [
       membership.customer_id,
-      Number(topupAmount),
+      totalDeposit,
       wallet?.balance || 0,
-      `Upgrade to WPC Diamond Membership`,
+      `Upgrade to WPC Diamond Membership${bonusApplied > 0 ? ` (Bonus: Rp ${bonusApplied.toLocaleString('id-ID')})` : ''}`,
       userId,
     ]);
 
     await conn.commit();
 
+    // Record membership history
+    await recordMembershipHistory(conn, {
+      customerId: membership.customer_id,
+      membershipId: membership.id,
+      action: 'upgrade',
+      oldTier: tierKey,
+      newTier: 'diamond',
+      oldExpiredAt: membership.expired_at,
+      newExpiredAt: membership.expired_at,
+      oldStatus: 'active',
+      newStatus: 'active',
+      amount: totalDeposit,
+      bonus: bonusApplied > 0 ? bonusApplied : null,
+      notes: `WPC Gold to Diamond Membership Upgrade${bonusApplied > 0 ? ` (Bonus: Rp ${bonusApplied.toLocaleString('id-ID')})` : ''}`,
+      createdBy: userId,
+      picId: userId,
+      picName: user?.name || 'Unknown',
+    }).catch(err => logger.warn('[membership]', 'Failed to record history', { error: err.message }));
+
     return res.status(200).json({
       success: true,
-      message: 'Berhasil upgrade ke Diamond Membership!',
+      message: `Berhasil upgrade ke Diamond Membership!${bonusApplied > 0 ? ` Bonus Rp ${bonusApplied.toLocaleString('id-ID')} ditambahkan!` : ''}`,
       data: {
         id: membership.id,
         memberNo: membership.member_no,
@@ -804,12 +973,14 @@ export async function upgradeTier(req, res) {
         newTier: 'diamond',
         discountPct: TIER_CONFIG.diamond.discountPct,
         benefits: TIER_CONFIG.diamond.benefits,
-        topupAmount: Number(topupAmount),
+        topupAmount: totalDeposit,
+        bonusApplied,
+        totalDeposit: totalDeposit + bonusApplied,
       },
     });
   } catch (error) {
     await conn.rollback();
-    console.error('[upgradeTier] Error:', error);
+    logger.error('Gagal upgrade membership', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal upgrade membership.',
@@ -838,7 +1009,7 @@ export async function cancelMembership(req, res) {
     const userRole = req.user?.roleCode;
 
     // Only admin can cancel
-    if (!['admin', 'superadmin'].includes(userRole)) {
+    if (!['admin'].includes(userRole)) {
       conn.release();
       return res.status(403).json({
         success: false,
@@ -906,13 +1077,32 @@ export async function cancelMembership(req, res) {
 
     await conn.commit();
 
+    // Record membership history
+    await recordMembershipHistory(conn, {
+      customerId: membership.customer_id,
+      membershipId: membership.id,
+      action: 'cancel',
+      oldTier: membership.tier,
+      newTier: null,
+      oldExpiredAt: membership.expired_at,
+      newExpiredAt: null,
+      oldStatus: 'active',
+      newStatus: 'suspended',
+      amount: forfeitedAmount || null,
+      bonus: null,
+      notes: reason ? `Membership cancelled. Reason: ${reason}` : 'Membership cancelled by user/admin',
+      createdBy: userId,
+      picId: userId,
+      picName: user?.name || 'Unknown',
+    }).catch(err => logger.warn('[membership]', 'Failed to record history', { error: err.message }));
+
     return res.status(200).json({
       success: true,
       message: 'Membership berhasil dibatalkan. Sisa deposit telah disita sesuai ketentuan.',
     });
   } catch (error) {
     await conn.rollback();
-    console.error('[cancelMembership] Error:', error);
+    logger.error('Gagal membatalkan membership', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal membatalkan membership.',
@@ -992,7 +1182,7 @@ export async function processExpiryAndForfeiture(req, res) {
 
       processedCount++;
 
-      console.log(`[processExpiry] Expired membership ${membership.member_no} for ${membership.customer_name}`);
+      // [processExpiry] Membership expired
     }
 
     // ── Check for inactivity-based expiry ────────────────────────────────
@@ -1055,7 +1245,25 @@ export async function processExpiryAndForfeiture(req, res) {
       );
 
       processedCount++;
-      console.log(`[processExpiry] Inactive membership ${membership.member_no} expired for ${membership.customer_name}`);
+      // Record membership history for expiry
+      await recordMembershipHistory(conn, {
+        customerId: membership.customer_id,
+        membershipId: membership.id,
+        action: 'expire',
+        oldTier: membership.tier,
+        newTier: null,
+        oldExpiredAt: membership.expired_at,
+        newExpiredAt: null,
+        oldStatus: 'active',
+        newStatus: 'expired',
+        amount: null,
+        bonus: null,
+        notes: `Expired due to ${inactivityThreshold} months inactivity`,
+        createdBy: null,
+        picId: null,
+        picName: 'System',
+      }).catch(err => logger.warn('[membership]', 'Failed to record expiry history', { error: err.message }));
+      // [processExpiry] Inactive membership expired
     }
 
     // ── Update inactivity_months for active memberships ───────────────────
@@ -1088,7 +1296,7 @@ export async function processExpiryAndForfeiture(req, res) {
     });
   } catch (error) {
     await conn.rollback();
-    console.error('[processExpiryAndForfeiture] Error:', error);
+    logger.error('Gagal memproses expiry membership', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal memproses expiry membership.',
@@ -1122,7 +1330,7 @@ export async function updateLastTransaction(req, res) {
       message: 'Last transaction updated.',
     });
   } catch (error) {
-    console.error('[updateLastTransaction] Error:', error);
+    logger.error('Gagal update last transaction', { error: error.message });
     return res.status(500).json({
       success: false,
       message: 'Gagal update last transaction.',
@@ -1139,9 +1347,19 @@ export async function updateLastTransaction(req, res) {
  * Get membership tier information (public, for display)
  */
 export async function getTierInfo(req, res) {
+  // Get bonus enabled status
+  let bonusEnabled = true;
+  try {
+    const [[row]] = await db.execute(
+      "SELECT setting_value FROM mst_setting WHERE setting_key = 'membership_bonus_enabled' LIMIT 1"
+    );
+    bonusEnabled = row?.setting_value === 'true' || row?.setting_value === '1';
+  } catch { /* use default */ }
+
   return res.status(200).json({
     success: true,
     data: {
+      bonusEnabled,
       tiers: Object.entries(TIER_CONFIG).map(([key, config]) => ({
         id: key,
         name: config.name,
@@ -1150,6 +1368,7 @@ export async function getTierInfo(req, res) {
         discountPct: config.discountPct,
         inactivityMonths: config.inactivityMonths,
         benefits: config.benefits,
+        bonusAmount: bonusEnabled ? (BONUS_CONFIG[key] || 0) : 0,
       })),
     },
   });

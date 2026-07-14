@@ -34,7 +34,7 @@ const logErrorToBackend = async (error, errorInfo) => {
     });
   } catch (e) {
     // Best effort - don't fail if logging fails
-    console.warn('[GlobalErrorBoundary] Failed to log error to backend:', e?.message);
+    // Silent fail - error logging to backend optional
   }
 };
 
@@ -49,8 +49,7 @@ export class GlobalErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log to console (development) and backend (production)
-    console.error('[GlobalErrorBoundary]', error, errorInfo);
+    // Log to backend for error tracking (console.error removed - errors sent to backend)
     this.setState({ errorInfo });
 
     // Send to backend for error tracking
@@ -152,7 +151,7 @@ export const createErrorBoundary = (name) => {
     }
 
     componentDidCatch(error, errorInfo) {
-      console.error(`[ErrorBoundary:${name}]`, error, errorInfo);
+      // Errors sent to backend via logErrorToBackend
       logErrorToBackend(error, errorInfo);
     }
 

@@ -5,12 +5,12 @@ import {
   getCashDepositStatus,
   getPaymentMethodTrend
 } from '../controllers/adminDashboardController.js';
-import { authenticate, canAccessFinance } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/outlet-performance', authenticate, canAccessFinance, getOutletPerformance);
-router.get('/cash-deposit-status', authenticate, canAccessFinance, getCashDepositStatus);
-router.get('/payment-trend', authenticate, canAccessFinance, getPaymentMethodTrend);
+router.get('/outlet-performance', authenticate, requireRole('admin'), getOutletPerformance);
+router.get('/cash-deposit-status', authenticate, requireRole('admin'), getCashDepositStatus);
+router.get('/payment-trend', authenticate, requireRole('admin'), getPaymentMethodTrend);
 
 export default router;

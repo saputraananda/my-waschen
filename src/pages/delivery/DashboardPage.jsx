@@ -7,6 +7,7 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
+import { useResponsive } from '../../utils/hooks';
 import { Avatar, Btn, ErrorBoundary, useAppRefresh } from '../../components/ui';
 import { CharacterAvatar, DeliveryVehicle, BrandBadge } from '../../components/CharacterAvatar';
 
@@ -74,7 +75,7 @@ function StatCard({ label, value, icon, color = C.primary }) {
 }
 
 // Task card component
-function TaskCard({ task, onStatusUpdate, onCall }) {
+function TaskCard({ task, onStatusUpdate, onCall, isMobile = false }) {
   const statusColors = {
     pending: { bg: C.validationWarningBg, color: C.warning, label: 'Menunggu' },
     picked: { bg: C.infoBg, color: C.info, label: 'Dijemput' },
@@ -187,6 +188,7 @@ function TaskCard({ task, onStatusUpdate, onCall }) {
       <div style={{
         display: 'flex',
         gap: 8,
+        flexDirection: isMobile ? 'column' : 'row',
       }}>
         <Btn
           variant="primary"
@@ -251,6 +253,7 @@ function EmptyState({ type }) {
 
 // Main dashboard component
 export default function DriverDashboardPage({ user, navigate }) {
+  const { isMobile } = useResponsive();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tasks, setTasks] = useState([]);
@@ -279,7 +282,7 @@ export default function DriverDashboardPage({ user, navigate }) {
         setStats(s);
       }
     } catch (err) {
-      console.error('Failed to load tasks:', err);
+      // Silent fail, tasks remain empty
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -314,7 +317,7 @@ export default function DriverDashboardPage({ user, navigate }) {
         loadTasks();
       }
     } catch (err) {
-      console.error('Failed to update status:', err);
+      // Silent fail
     }
   };
 
@@ -407,9 +410,10 @@ export default function DriverDashboardPage({ user, navigate }) {
         {/* Stats row */}
         <div style={{
           marginTop: -16,
-          marginLeft: 16,
-          marginRight: 16,
-          display: 'flex',
+          marginLeft: isMobile ? 12 : 16,
+          marginRight: isMobile ? 12 : 16,
+          display: 'grid',
+          gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)',
           gap: 10,
         }}>
           <StatCard
@@ -453,7 +457,7 @@ export default function DriverDashboardPage({ user, navigate }) {
                 border: 'none',
                 cursor: 'pointer',
                 fontFamily: 'Poppins',
-                fontSize: 12,
+                fontSize: isMobile ? 11 : 12,
                 fontWeight: 600,
                 background: activeTab === tab.key
                   ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`
@@ -489,6 +493,7 @@ export default function DriverDashboardPage({ user, navigate }) {
                 task={task}
                 onStatusUpdate={handleStatusUpdate}
                 onCall={handleCall}
+                isMobile={isMobile}
               />
             ))
           )}

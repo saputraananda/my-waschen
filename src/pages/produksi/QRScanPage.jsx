@@ -14,8 +14,10 @@ import jsQR from 'jsqr';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { TopBar, Btn } from '../../components/ui';
+import { useResponsive } from '../../utils/hooks';
 
 export default function ProduksiQRScanPage({ navigate, goBack }) {
+  const { isMobile } = useResponsive();
   const videoRef    = useRef(null);
   const canvasRef   = useRef(null);
   const streamRef   = useRef(null);
@@ -175,7 +177,7 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
           <button
             key={m.k}
             onClick={() => { setMode(m.k); setResult(null); setFoundTx(null); setError(''); if (m.k === 'camera') startCamera(); else stopCamera(); }}
-            style={{ flex: 1, padding: '8px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, background: mode === m.k ? C.info : 'transparent', color: mode === m.k ? 'white' : C.n400 }}
+            style={{ flex: 1, padding: isMobile ? '6px' : '8px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, fontWeight: 600, background: mode === m.k ? C.info : 'transparent', color: mode === m.k ? 'white' : C.n400 }}
           >{m.label}</button>
         ))}
       </div>
@@ -196,7 +198,7 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
           {!result && !cameraError && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
               {/* Viewfinder box */}
-              <div style={{ width: 240, height: 240, position: 'relative' }}>
+              <div style={{ width: isMobile ? 200 : 240, height: isMobile ? 200 : 240, position: 'relative' }}>
                 {/* Corner brackets */}
                 {[
                   { top: 0, left: 0, borderTop: `3px solid ${C.info}`, borderLeft: `3px solid ${C.info}`, borderRadius: '4px 0 0 0' },
@@ -204,12 +206,12 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
                   { bottom: 0, left: 0, borderBottom: `3px solid ${C.info}`, borderLeft: `3px solid ${C.info}`, borderRadius: '0 0 0 4px' },
                   { bottom: 0, right: 0, borderBottom: `3px solid ${C.info}`, borderRight: `3px solid ${C.info}`, borderRadius: '0 0 4px 0' },
                 ].map((s, i) => (
-                  <div key={i} style={{ position: 'absolute', width: 32, height: 32, ...s }} />
+                  <div key={i} style={{ position: 'absolute', width: isMobile ? 28 : 32, height: isMobile ? 28 : 32, ...s }} />
                 ))}
                 {/* Scan line */}
                 <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: C.info, top: '50%', animation: 'scanLine 2s ease-in-out infinite', opacity: 0.8 }} />
               </div>
-              <div style={{ marginTop: 20, fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: 'white', textAlign: 'center', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+              <div style={{ marginTop: 20, fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: 'white', textAlign: 'center', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
                 Arahkan ke QR Code pada label nota
               </div>
             </div>
@@ -228,11 +230,11 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
 
       {/* Manual input */}
       {mode === 'manual' && !foundTx && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 24, gap: 16 }}>
-          <div style={{ textAlign: 'center', paddingTop: 24 }}>
-            <div style={{ fontSize: 64, marginBottom: 12 }}>🔍</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: 'white' }}>Cari Nota</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n400, marginTop: 4 }}>Ketik nomor nota atau scan barcode</div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: isMobile ? 16 : 24, gap: isMobile ? 12 : 16 }}>
+          <div style={{ textAlign: 'center', paddingTop: isMobile ? 16 : 24 }}>
+            <div style={{ fontSize: isMobile ? 48 : 64, marginBottom: 12 }}>🔍</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 14 : 16, fontWeight: 600, color: 'white' }}>Cari Nota</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, color: C.n400, marginTop: 4 }}>Ketik nomor nota atau scan barcode</div>
           </div>
           <input
             value={manualNo}
@@ -241,8 +243,8 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
             placeholder="Contoh: WAS-20250514-001"
             autoFocus
             style={{
-              height: 54, borderRadius: 14, border: `2px solid ${error ? C.danger : C.n600}`,
-              background: C.n800, color: 'white', fontFamily: 'Poppins', fontSize: 15,
+              height: isMobile ? 48 : 54, borderRadius: 14, border: `2px solid ${error ? C.danger : C.n600}`,
+              background: C.n800, color: 'white', fontFamily: 'Poppins', fontSize: isMobile ? 14 : 15,
               padding: '0 16px', outline: 'none', boxSizing: 'border-box', width: '100%',
               letterSpacing: 1,
             }}
@@ -256,18 +258,18 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
 
       {/* Result panel */}
       {(result || foundTx || (error && mode === 'camera')) && (
-        <div style={{ position: mode === 'camera' ? 'absolute' : 'relative', bottom: 0, left: 0, right: 0, background: C.n800, borderRadius: mode === 'camera' ? '20px 20px 0 0' : 0, padding: '20px 20px 32px', flexShrink: 0 }}>
+        <div style={{ position: mode === 'camera' ? 'absolute' : 'relative', bottom: 0, left: 0, right: 0, background: C.n800, borderRadius: mode === 'camera' ? '20px 20px 0 0' : 0, padding: `${isMobile ? 16 : 20}px ${isMobile ? 16 : 20}px ${isMobile ? 24 : 32}px`, flexShrink: 0 }}>
           {loading && (
             <div style={{ textAlign: 'center', padding: '12px 0' }}>
               <div style={{ width: 32, height: 32, border: `3px solid ${C.n600}`, borderTopColor: C.info, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-              <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n400 }}>Mencari nota {result}...</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, color: C.n400 }}>Mencari nota {result}...</div>
             </div>
           )}
 
           {error && !loading && (
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>❌</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.danger, marginBottom: 4 }}>Tidak Ditemukan</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 600, color: C.danger, marginBottom: 4 }}>Tidak Ditemukan</div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n400, marginBottom: 16 }}>{error}</div>
               <Btn variant="secondary" onClick={handleRetry}>Scan Ulang</Btn>
             </div>
@@ -279,32 +281,32 @@ export default function ProduksiQRScanPage({ navigate, goBack }) {
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: C.success }} />
                 <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.success }}>Order ditemukan!</div>
               </div>
-              <div style={{ background: C.n800, borderRadius: 14, padding: '14px 16px', marginBottom: 16 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: 'white', marginBottom: 4 }}>{foundTx.customerName}</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n400, marginBottom: 8 }}>{foundTx.id} · {foundTx.date}</div>
+              <div style={{ background: C.n800, borderRadius: 14, padding: isMobile ? '12px 14px' : '14px 16px', marginBottom: 16 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 14 : 16, fontWeight: 600, color: 'white', marginBottom: 4 }}>{foundTx.customerName}</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, color: C.n400, marginBottom: 8 }}>{foundTx.id} · {foundTx.date}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ background: C.n800, padding: '3px 10px', borderRadius: 999, fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: foundTx.status === 'selesai' ? C.success : C.info }}>
+                  <span style={{ background: C.n800, padding: '3px 10px', borderRadius: 999, fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, fontWeight: 600, color: foundTx.status === 'selesai' ? C.success : C.info }}>
                     {foundTx.status === 'baru' ? '📥 Baru masuk'
                      : foundTx.status === 'proses' ? '🔄 Sedang diproses'
                      : foundTx.status === 'selesai' ? '✅ Sudah selesai'
                      : foundTx.status}
                   </span>
-                  {foundTx.isExpress && <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999 }}>⚡ EXPRESS</span>}
+                  {foundTx.isExpress && <span style={{ background: C.validationWarningBg, color: C.validationWarningText, fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999 }}>⚡ EXPRESS</span>}
                 </div>
                 {foundTx.items?.length > 0 && (
                   <div style={{ marginTop: 10, borderTop: `1px solid ${C.n800}`, paddingTop: 8 }}>
                     {foundTx.items.slice(0, 3).map((item, i) => (
-                      <div key={i} style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n400 }}>• {item.name || item.serviceName} {item.qty && `(${item.qty} ${item.unit || ''})`}</div>
+                      <div key={i} style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, color: C.n400 }}>• {item.name || item.serviceName} {item.qty && `(${item.qty} ${item.unit || ''})`}</div>
                     ))}
                     {foundTx.items.length > 3 && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>+{foundTx.items.length - 3} item lainnya</div>}
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={handleRetry} style={{ padding: '12px', borderRadius: 12, border: `1.5px solid ${C.n600}`, background: 'transparent', cursor: 'pointer', fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n400 }}>
+              <div style={{ display: 'flex', gap: isMobile ? 8 : 10 }}>
+                <button onClick={handleRetry} style={{ padding: isMobile ? '10px' : '12px', borderRadius: 12, border: `1.5px solid ${C.n600}`, background: 'transparent', cursor: 'pointer', fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n400 }}>
                   Scan Lagi
                 </button>
-                <button onClick={handleNavigate} style={{ flex: 1, padding: '14px', borderRadius: 12, border: 'none', cursor: 'pointer', background: C.info, fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: 'white' }}>
+                <button onClick={handleNavigate} style={{ flex: 1, padding: isMobile ? '12px' : '14px', borderRadius: 12, border: 'none', cursor: 'pointer', background: C.info, fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 600, color: 'white' }}>
                   Buka Order →
                 </button>
               </div>
