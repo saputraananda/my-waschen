@@ -27,7 +27,7 @@ const KEY_DISPLAY = {
   },
 };
 
-export default function AdminSettingsPage({ goBack }) {
+export default function AdminSettingsPage({ goBack, navigate }) {
   const isMobile = useIsMobile();
   const [settings, setSettings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +92,23 @@ export default function AdminSettingsPage({ goBack }) {
         }
       `}</style>
       <TopBar title="Pengaturan Sistem" subtitle={`${settings.length} konfigurasi`} onBack={goBack} />
+
+      {/* Quick Access */}
+      <div style={{ padding: '8px 12px', background: C.n50, borderBottom: `1px solid ${C.n200}` }}>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          <button
+            onClick={() => navigate && navigate('admin_payment_config')}
+            style={{
+              flexShrink: 0, padding: '8px 14px', borderRadius: 10,
+              background: C.white, border: `1px solid ${C.n200}`,
+              fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            💳 Konfigurasi Pembayaran
+          </button>
+        </div>
+      </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {loading && (

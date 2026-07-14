@@ -73,6 +73,16 @@ export const checkoutTransaction = async (req, res) => {
   const conn = await poolWaschenPos.getConnection();
 
   try {
+    // DEBUG: Log incoming request
+    logger.info('[checkout] Incoming request:', {
+      customerId: req.body.customerId,
+      itemsCount: req.body.items?.length,
+      paymentMethod: req.body.payment?.method,
+      pickupType: req.body.pickupType,
+      scheduleAt: req.body.scheduleAt,
+      kasirConfirmed: req.body.paymentIntent?.verifiedByKasir,
+    });
+
     const {
       customerId,
       outletId: payloadOutletId,
@@ -86,6 +96,7 @@ export const checkoutTransaction = async (req, res) => {
       dueDate,
       pickup,
       delivery,
+      pickupType: bodyPickupType,
       promoId: bodyPromoId,
       // ── PIC (Penanggung Jawab) ───────────────────────────────────────────────
       picId,
@@ -124,9 +135,10 @@ export const checkoutTransaction = async (req, res) => {
 
     // ── BUG FIX 7: Pickup Schedule Validation (Requirements 2.9, 2.10, 2.11) ───
     // Validate schedule fields based on order_type
-    const pickupScheduleAt = pickup?.scheduleAt || req.body.pickup_schedule_at;
-    const deliveryScheduleAt = delivery?.scheduleAt || req.body.delivery_schedule_at;
-    const pickupType = req.body.pickupType || (pickup && delivery ? 'both' : pickup ? 'pickup' : delivery ? 'delivery' : 'self');
+    // Frontend sends scheduleAt as top-level field, not inside pickup/delivery object
+    const pickupScheduleAt = req.body.scheduleAt || req.body.pickup_schedule_at;
+    const deliveryScheduleAt = req.body.scheduleAt || req.body.delivery_schedule_at;
+    const pickupType = bodyPickupType || (pickup && delivery ? 'both' : pickup ? 'pickup' : delivery ? 'delivery' : 'self');
 
     // Schedule validation - only enforce for pure pickup or pure delivery
     // For 'both' (pickup_and_delivery), schedules are optional

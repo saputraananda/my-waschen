@@ -92,6 +92,7 @@ export const SCREEN_ACCESS = {
     'admin_cash_deposit',
     'admin_refund',
     'setor_approval',
+    'admin_payment_config',
   ],
 
   // Finance ONLY screens

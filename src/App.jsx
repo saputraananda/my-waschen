@@ -78,6 +78,7 @@ const AdminPeriodClosePage = lazy(() => import('./pages/admin/AdminPeriodClosePa
 const ComparisonReportPage = lazy(() => import('./pages/admin/ComparisonReportPage'));
 const ForecastPage = lazy(() => import('./pages/admin/ForecastPage'));
 const SetorApprovalPage = lazy(() => import('./pages/admin/SetorApprovalPage'));
+const AdminPaymentConfigPage = lazy(() => import('./pages/admin/AdminPaymentConfigPage'));
 
 // Produksi
 const ProduksiDashboardPage = lazy(() => import('./pages/produksi/DashboardPage'));
@@ -184,6 +185,7 @@ const SCREENS_NO_NAV = new Set([
   'kasir_antrian', 'kasir_siap_ambil', 'kasir_laporan', 'printer_settings', 'general_report', 'admin_target', 'admin_target_detail', 'admin_period_close',
   'comparison_report', 'forecast', 'laporan_per_outlet', 'manajemen_outlet', 'kebijakan_privasi',
   'kasir_refund', 'admin_refund', 'adjustment_list', 'adjustment_detail', 'outstanding_list', 'outstanding_detail', 'petty_cash', 'merge_transaction', 'daily_report', 'ap_request', 'target_page', 'pengajuan_belanja',
+  'admin_payment_config',
 ]);
 
 function AppInner() {
@@ -360,6 +362,9 @@ function AppInner() {
       case 'admin_segmentasi':
         if (!isAdminUser) return renderUnauthorized();
         return <SegmentasiPage navigate={navigate} goBack={goBack} />;
+      case 'admin_payment_config':
+        if (!isAdminUser) return renderUnauthorized();
+        return <AdminPaymentConfigPage navigate={navigate} goBack={goBack} />;
 
       case 'notifikasi_produksi':
         return <ProduksiNotifikasiPage navigate={navigate} />;
