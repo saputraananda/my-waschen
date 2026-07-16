@@ -22,20 +22,14 @@ export const topupDeposit = async (req, res) => {
     const { id } = req.params;
     const { amount, payMethod } = req.body;
 
-    // Ambil min deposit dari config (default Rp 500.000)
-    let minDeposit = 500000;
-    try {
-      const [[cfg]] = await conn.execute(
-        "SELECT config_val FROM mst_app_config WHERE config_key = 'min_deposit_amount' AND is_active = 1 LIMIT 1"
-      );
-      if (cfg?.config_val) minDeposit = Number(cfg.config_val) || 500000;
-    } catch { /* config table belum ada, pakai default */ }
+    // Minimum deposit Rp 1.000
+    const MIN_DEPOSIT = 1000;
 
-    if (!amount || Number(amount) < minDeposit) {
+    if (!amount || Number(amount) < MIN_DEPOSIT) {
       conn.release();
       return res.status(400).json({
         success: false,
-        message: `Nominal top up minimal Rp ${minDeposit.toLocaleString('id-ID')}.`,
+        message: `Nominal top up minimal Rp ${MIN_DEPOSIT.toLocaleString('id-ID')}.`,
       });
     }
 
@@ -48,8 +42,66 @@ export const topupDeposit = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
     }
 
+    const paymentMethod = payMethod || 'cash';
+    const isPendingPayment = ['transfer', 'qris', 'edc'].includes(paymentMethod);
+
     await conn.beginTransaction();
 
+    // ── NON-CASH PAYMENT: Create pending record ───────────────────────────────
+    if (isPendingPayment) {
+      const paymentLabels = {
+        transfer: 'Transfer Bank',
+        qris: 'QRIS Statis',
+        edc: 'Mesin EDC'
+      };
+
+      // Generate pending ID
+      const pendingId = `TUP-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+      // Insert into pending table (auto-create if not exists)
+      await conn.execute(`
+        CREATE TABLE IF NOT EXISTS tr_wallet_topup_pending (
+          id VARCHAR(50) PRIMARY KEY,
+          customer_id INT NOT NULL,
+          amount DECIMAL(12,0) NOT NULL,
+          pay_method VARCHAR(20) NOT NULL,
+          status ENUM('pending', 'confirmed', 'rejected', 'cancelled') DEFAULT 'pending',
+          recorded_by INT,
+          confirmed_by INT,
+          confirmed_at DATETIME,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_customer (customer_id),
+          INDEX idx_status (status),
+          INDEX idx_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `).catch(() => {}); // Table might already exist
+
+      // Insert pending record
+      await conn.execute(
+        `INSERT INTO tr_wallet_topup_pending
+         (id, customer_id, amount, pay_method, recorded_by)
+         VALUES (?, ?, ?, ?, ?)`,
+        [pendingId, id, Number(amount), paymentMethod, req.user?.userId || null]
+      );
+
+      await conn.commit();
+
+      return res.status(200).json({
+        success: true,
+        message: `Top up ${paymentLabels[paymentMethod]} berhasil dicatat. Menunggu konfirmasi finance.`,
+        data: {
+          pendingId,
+          status: 'pending',
+          paymentMethod,
+          amount: Number(amount),
+          customerId: Number(id),
+        },
+      });
+    }
+
+    // ── CASH PAYMENT: Process immediately ──────────────────────────────────
     // 1. Update / create wallet
     const [walletRows] = await conn.execute(
       'SELECT id, balance FROM mst_customer_wallet WHERE customer_id = ? LIMIT 1',

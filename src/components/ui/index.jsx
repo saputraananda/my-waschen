@@ -1550,6 +1550,13 @@ export { default as EmptyState, EmptyIllustration, EmptyStateList, EmptyStateCar
 export { default as GlassModal, ConfirmModal, AlertModal, SuccessModal, ErrorModal } from './GlassModal';
 export { default as GlassButton, GlassButtonGroup, GlassIconButton } from './GlassButton';
 
+// ── Profile Avatar Components ─────────────────────────────────────────────────
+export { default as ProfileAvatar, ProfileAvatarButton, CompactProfileAvatar, AvatarGroup } from './ProfileAvatar';
+
 // ── Layout Components ─────────────────────────────────────────────────────────────
 export { PageWrapper, Card, CardHeader, Grid, Stack, Row, Spacer, LAYOUT, getPagePadding, getBottomNavPadding } from '../layout/PageWrapper';
 // Note: Divider already exported above at line 1009
+
+// Note: DesignSystem components are NOT re-exported here
+// Components like GlassCard, ClayCard, etc. are available directly from './DesignSystem'
+// Use: import { GlassCard, ClayCard } from './DesignSystem';

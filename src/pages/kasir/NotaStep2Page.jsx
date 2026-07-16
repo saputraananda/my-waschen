@@ -102,6 +102,13 @@ export default function NotaStep2Page({ goBack }) {
   const [measuringId, setMeasuringId] = useState(null);
   const [carpetInputs, setCarpetInputs] = useState({}); // { [serviceId]: { panjang: '', lebar: '' } } - in meters
 
+  // ─── Block back: redirect if customer is gone (from successful checkout) ──
+  useEffect(() => {
+    if (!notaCustomer?.id) {
+      navigate('nota_step1', null, { replace: true });
+    }
+  }, [notaCustomer, navigate]);
+
   useEffect(() => {
     const fetchServices = async () => {
       setLoading(true);

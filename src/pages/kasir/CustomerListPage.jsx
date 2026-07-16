@@ -105,7 +105,7 @@ const GLASS_STYLES = `
   }
 
   /* Header gradient with blobs */
-  .header {
+  .tx-header {
     background:
       radial-gradient(circle at 85% -10%, rgba(232,90,168,0.55) 0%, transparent 55%),
       radial-gradient(circle at -10% 20%, rgba(95,217,174,0.25) 0%, transparent 45%),
@@ -121,7 +121,7 @@ const GLASS_STYLES = `
     filter: blur(18px);
   }
 
-  .blob-1 {
+  .tx-blob-1 {
     width: 180px;
     height: 180px;
     background: radial-gradient(circle, rgba(232,90,168,0.55) 0%, transparent 70%);
@@ -130,7 +130,7 @@ const GLASS_STYLES = `
     animation: floatB 11s ease-in-out infinite;
   }
 
-  .blob-2 {
+  .tx-blob-2 {
     width: 150px;
     height: 150px;
     background: radial-gradient(circle, rgba(95,217,174,0.35) 0%, transparent 70%);
@@ -139,7 +139,7 @@ const GLASS_STYLES = `
     animation: floatC 16s ease-in-out infinite;
   }
 
-  .blob-3 {
+  .tx-blob-3 {
     width: 90px;
     height: 90px;
     background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%);
@@ -152,13 +152,13 @@ const GLASS_STYLES = `
   @keyframes floatB { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(18px, -12px) scale(1.1); } }
   @keyframes floatC { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(16px, 10px) scale(0.95); } }
 
-  @media (prefers-reduced-motion: reduce) { .blob-1, .blob-2, .blob-3 { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .tx-blob-1, .tx-blob-2, .tx-blob-3 { animation: none; } }
 `;
 
 // Inject styles on mount
 function useGlassStyles() {
   useEffect(() => {
-    const styleId = 'glass-customer-styles';
+    const styleId = 'glass-tx-styles';
     if (!document.getElementById(styleId)) {
       const style = document.createElement('style');
       style.id = styleId;
@@ -355,15 +355,15 @@ export default function CustomerListPage({ navigate }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--glass-bg)', overflow: 'hidden' }}>
       {/* Glass header with gradient */}
-      <div className="header" style={{
+      <div className="tx-header" style={{
         position: 'relative',
         padding: '16px 16px 20px',
         overflow: 'hidden',
       }}>
         {/* Atmospheric blobs */}
-        <div className="blob blob-1" />
-        <div className="blob blob-2" />
-        <div className="blob blob-3" />
+        <div className="blob tx-blob-1" />
+        <div className="blob tx-blob-2" />
+        <div className="blob tx-blob-3" />
 
         {/* Header content */}
         <div style={{ position: 'relative', zIndex: 1 }}>
@@ -649,7 +649,7 @@ export default function CustomerListPage({ navigate }) {
             cursor: 'pointer',
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>

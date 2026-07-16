@@ -6,6 +6,7 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { useDebounce } from '../../utils/hooks';
 import { rp } from '../../utils/helpers';
+import { ProfileAvatar } from './ProfileAvatar';
 
 /**
  * CustomerSearchInput — typeahead search untuk customer.
@@ -197,15 +198,10 @@ export const CustomerSearchInput = ({ onSelect, onAddNew, placeholder = 'Cari na
                 }}
               >
                 {/* Avatar */}
-                <div style={{
-                  width: 36, height: 36, borderRadius: 18,
-                  background: `linear-gradient(135deg, ${C.primaryLight}, ${C.primary}40)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.primary,
-                  flexShrink: 0,
-                }}>
-                  {(c.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                </div>
+                <ProfileAvatar
+                  user={{ ...c, roleCode: 'customer' }}
+                  size={36}
+                />
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

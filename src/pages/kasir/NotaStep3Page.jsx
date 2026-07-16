@@ -10,6 +10,31 @@ import PICSelector from '../../components/PICSelector';
 import { usePICSelector } from '../../hooks/usePIC';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
 
+// ─── Client-side Image Compression ────────────────────────────────────────────
+// Resize to max 800px width, PNG format (lossless) → text stays sharp
+// Typical size: 200-400KB vs original 2-5MB phone photo
+const compressImage = (file) =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX_W = 800;
+      let { width, height } = img;
+      if (width > MAX_W) {
+        height = Math.round((height * MAX_W) / width);
+        width = MAX_W;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+
 // ─── Payment Status Auto-Detection ───────────────────────────────────────────
 // Cash & Deposit: auto-detect from amount comparison (kasir holds cash / system owns deposit data)
 // QRIS / EDC / Transfer: require explicit kasir confirmation — NEVER auto-lunas
@@ -154,16 +179,17 @@ function PaymentPhotoUpload({ photo, preview, onFileChange, onClear, mandatory =
       </label>
 
       {preview && (
-        <div style={{ marginTop: 12, position: 'relative' }}>
+        <div style={{ marginTop: 12, position: 'relative', display: 'inline-block' }}>
           <img
             src={preview}
             alt="Bukti transaksi"
             style={{
-              width: '100%',
-              maxHeight: 150,
+              width: 80,
+              height: 80,
               objectFit: 'cover',
-              borderRadius: 8,
-              border: `1px solid ${C.n200}`
+              borderRadius: 10,
+              border: `2px solid ${C.n200}`,
+              display: 'block',
             }}
           />
           <button
@@ -173,10 +199,10 @@ function PaymentPhotoUpload({ photo, preview, onFileChange, onClear, mandatory =
             }}
             style={{
               position: 'absolute',
-              top: 8,
-              right: 8,
-              width: 28,
-              height: 28,
+              top: -6,
+              right: -6,
+              width: 22,
+              height: 22,
               borderRadius: '50%',
               background: C.danger,
               color: C.white,
@@ -185,12 +211,16 @@ function PaymentPhotoUpload({ photo, preview, onFileChange, onClear, mandatory =
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 700,
+              padding: 0,
             }}
           >
             ×
           </button>
+          <div style={{ marginTop: 6, fontFamily: 'Poppins', fontSize: 9, color: C.n500, textAlign: 'center' }}>
+            {Math.round(preview.length * 0.75 / 1024)} KB
+          </div>
         </div>
       )}
     </div>
@@ -494,11 +524,7 @@ export default function NotaStep3Page({ goBack }) {
         return `${year}-${month}-${day}`;
       };
 
-      const photoBase64 = paymentPhoto ? await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result);
-        reader.readAsDataURL(paymentPhoto);
-      }) : null;
+      const photoBase64 = paymentPhotoPreview;
 
       const finalPaidAmount = Math.min(paidAmountValue, total);
       const finalChangeAmount = paymentStatus === 'lunas' ? Math.max(0, paidAmountValue - total) : 0;
@@ -534,7 +560,7 @@ export default function NotaStep3Page({ goBack }) {
           paidAmount: finalPaidAmount,
           verifiedByKasir: ['qris', 'edc', 'transfer'].includes(payMethod) ? kasirConfirmedReceived : true,
           bankAccountId: payMethod === 'transfer' ? selectedBankAccountId : undefined,
-          paymentPhotoBase64: photoBase64,
+          paymentPhotoBase64: payMethod === 'transfer' ? photoBase64 : undefined,
         },
         picId: currentPIC?.id || user?.userId || user?.id,
         picName: currentPIC?.name || user?.name,
@@ -1173,215 +1199,274 @@ export default function NotaStep3Page({ goBack }) {
 
           {/* CASH Panel */}
           {payMethod === 'cash' && (
-            <div style={{ marginTop: 4, background: C.n50, borderRadius: 12, padding: '16px', border: `1px solid ${C.n200}` }}>
+            <div style={{ marginTop: 4, background: '#F8F5FB', borderRadius: 16, padding: '20px 16px 16px', border: '1.5px solid #E8D8F0' }}>
               <div style={{
                 background: C.white,
-                borderRadius: 12,
-                padding: '16px',
+                borderRadius: 16,
+                padding: '20px 16px',
                 marginBottom: 12,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+                boxShadow: '0 2px 12px rgba(110, 46, 104, 0.1)',
+                textAlign: 'center',
+                border: '1.5px solid #E8D8F0',
               }}>
                 <div style={{
                   fontFamily: 'Poppins',
                   fontSize: 11,
-                  fontWeight: 500,
-                  color: C.n600,
+                  fontWeight: 600,
+                  color: C.n500,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  marginBottom: 8
+                  marginBottom: 6,
                 }}>
                   Nominal Diterima
                 </div>
                 <div style={{
-                  fontFamily: 'Poppins',
-                  fontSize: 32,
-                  fontWeight: 700,
-                  color: C.n900,
-                  marginBottom: 4
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 36,
+                  fontWeight: 800,
+                  color: effectivePaid > 0 ? C.primary : C.n900,
+                  marginBottom: 4,
+                  transition: 'color 0.2s',
+                  fontVariantNumeric: 'tabular-nums',
                 }}>
                   {effectivePaid > 0 ? rp(effectivePaid) : 'Rp 0'}
                 </div>
                 <div style={{
                   fontFamily: 'Poppins',
-                  fontSize: 11,
-                  color: C.n500
+                  fontSize: 10.5,
+                  color: C.n400,
                 }}>
-                  Uang Tunai · Kasir {user?.name || 'RH'}
+                  💵 Uang Tunai · {user?.name || 'Kasir'}
                 </div>
               </div>
 
               {effectivePaid > 0 && kembalian >= 0 && (
                 <div style={{
-                  background: `linear-gradient(135deg, ${C.successBg} 0%, #A7F3D0 100%)`,
+                  background: 'linear-gradient(135deg, #EFFDF4 0%, #A7F3D0 100%)',
                   borderRadius: 12,
-                  padding: '14px 16px',
+                  padding: '12px 14px',
                   marginBottom: 12,
-                  border: `1.5px solid ${C.success}`,
-                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)'
+                  border: '1.5px solid #6E2E68',
+                  boxShadow: '0 2px 8px rgba(110, 46, 104, 0.12)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{
-                        fontFamily: 'Poppins',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: C.successDark,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px'
-                      }}>
-                        Kembalian
-                      </div>
-                      <div style={{
-                        fontFamily: 'Poppins',
-                        fontSize: 10,
-                        color: C.success,
-                        marginTop: 2
-                      }}>
-                        {rp(effectivePaid)} - {rp(effectivePaid)}
-                      </div>
+                  <div>
+                    <div style={{
+                      fontFamily: 'Poppins',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: C.primary,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      Kembalian
                     </div>
                     <div style={{
                       fontFamily: 'Poppins',
-                      fontSize: 24,
-                      fontWeight: 700,
-                      color: C.success
+                      fontSize: 9.5,
+                      color: '#9C3F7E',
+                      marginTop: 1,
                     }}>
-                      {rp(kembalian)}
+                      {rp(effectivePaid)} - {rp(total)}
                     </div>
+                  </div>
+                  <div style={{
+                    fontFamily: "'Poppins', sans-serif",
+                    fontSize: 22,
+                    fontWeight: 800,
+                    color: C.primary,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}>
+                    {rp(kembalian)}
                   </div>
                 </div>
               )}
 
               <div style={{
                 fontFamily: 'Poppins',
-                fontSize: 11,
-                fontWeight: 600,
-                color: C.n600,
+                fontSize: 10,
+                fontWeight: 700,
+                color: C.n500,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
-                marginBottom: 8
+                marginBottom: 8,
               }}>
                 Nominal Cepat
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
                 <button
                   type="button"
                   onClick={() => setPaidAmountStr(String(Math.ceil(total / 1000) * 1000))}
                   style={{
-                    padding: '12px 8px',
-                    borderRadius: 10,
-                    border: `1.5px solid ${C.primary}`,
-                    background: C.primaryLight,
+                    padding: '10px 8px',
+                    borderRadius: 12,
+                    border: '1.5px solid #6E2E68',
+                    background: '#F3EEF8',
                     fontFamily: 'Poppins',
                     fontSize: 11,
                     fontWeight: 700,
-                    color: C.primary,
+                    color: '#6E2E68',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    textAlign: 'center'
+                    textAlign: 'center',
                   }}
                 >
-                  <div style={{ fontSize: 10, fontWeight: 500, marginBottom: 2 }}>Total</div>
-                  <div>{rp(Math.ceil(total / 1000) * 1000)}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 500, marginBottom: 2, color: '#9C3F7E' }}>Total</div>
+                  <div style={{ fontVariantNumeric: 'tabular-nums' }}>{rp(Math.ceil(total / 1000) * 1000)}</div>
                 </button>
 
-                {[50000, 100000, 150000].map((amount) => {
-                  const isSelected = effectivePaid === amount;
-                  return (
-                    <button
-                      key={amount}
-                      type="button"
-                      onClick={() => setPaidAmountStr(String(amount))}
-                      style={{
-                        padding: '12px 8px',
-                        borderRadius: 10,
-                        border: `1.5px solid ${isSelected ? C.primary : C.n300}`,
-                        background: isSelected ? C.primaryLight : C.white,
-                        fontFamily: 'Poppins',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: isSelected ? C.primary : C.n700,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        textAlign: 'center'
-                      }}
-                    >
-                      {rp(amount)}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div style={{ marginTop: 6 }}>
                 <button
                   type="button"
-                  onClick={() => setPaidAmountStr(String(total))}
+                  onClick={() => setPaidAmountStr(String(50000))}
                   style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 10,
-                    border: `1.5px solid ${C.success}`,
-                    background: C.successBg,
+                    padding: '10px 8px',
+                    borderRadius: 12,
+                    border: '1.5px solid #E4E9F1',
+                    background: C.white,
                     fontFamily: 'Poppins',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: C.success,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: C.n800,
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    textAlign: 'center'
+                    textAlign: 'center',
                   }}
                 >
-                  💵 Pas (Exact) — {rp(total)}
+                  Rp 50.000
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaidAmountStr(String(100000))}
+                  style={{
+                    padding: '10px 8px',
+                    borderRadius: 12,
+                    border: '1.5px solid #E4E9F1',
+                    background: C.white,
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: C.n800,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textAlign: 'center',
+                  }}
+                >
+                  Rp 100.000
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaidAmountStr(String(150000))}
+                  style={{
+                    padding: '10px 8px',
+                    borderRadius: 12,
+                    border: '1.5px solid #E4E9F1',
+                    background: C.white,
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: C.n800,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textAlign: 'center',
+                  }}
+                >
+                  Rp 150.000
                 </button>
               </div>
 
-              <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => setPaidAmountStr(String(total))}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: 12,
+                  border: '1.5px solid #16A34A',
+                  background: 'linear-gradient(135deg, #22C55E, #16A34A)',
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: '#fff',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  textAlign: 'center',
+                  marginBottom: 10,
+                  boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+              >
+                💵 Uang Pas — {rp(total)}
+              </button>
+
+              <div style={{ marginBottom: 10 }}>
+                <div style={{
+                  fontFamily: 'Poppins',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: C.n500,
+                  marginBottom: 5,
+                }}>
+                  Atau masukkan nominal lain
+                </div>
                 <MoneyInput
                   value={paidAmountStr}
                   onChange={setPaidAmountStr}
-                  placeholder="Atau masukkan nominal lain..."
+                  placeholder="Ketik nominal..."
                   style={{
                     background: C.white,
-                    border: `1.5px solid ${C.n300}`,
-                    fontSize: 14
+                    border: '1.5px solid #E4E9F1',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: C.n900,
+                    borderRadius: 10,
+                    padding: '10px 12px',
                   }}
                 />
               </div>
 
               {effectivePaid > 0 && effectivePaid < total && (
                 <div style={{
-                  marginTop: 12,
-                  padding: '10px 12px',
-                  background: C.validationErrorBg,
+                  marginTop: 8,
+                  padding: '9px 12px',
+                  background: '#FEE2E2',
                   borderRadius: 8,
-                  border: `1px solid ${C.validationErrorBorder}`
+                  border: '1px solid #FECACA',
                 }}>
                   <div style={{
                     fontFamily: 'Poppins',
                     fontSize: 11,
-                    color: C.validationErrorText,
+                    color: '#DC2626',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6
+                    gap: 6,
                   }}>
-                    <span>⚠️</span>
-                    <span>Uang yang diterima kurang <strong>{rp(total - effectivePaid)}</strong></span>
+                    ⚠️ Kurang <strong>{rp(total - effectivePaid)}</strong>
                   </div>
                 </div>
               )}
 
               <div style={{
-                marginTop: 12,
-                padding: '10px 12px',
-                background: C.infoBg,
+                marginTop: 10,
+                padding: '9px 12px',
+                background: '#F0EDF5',
                 borderRadius: 8,
-                border: `1px solid ${C.infoBg}`,
+                border: '1px solid #DDD0EB',
                 fontFamily: 'Poppins',
                 fontSize: 11,
-                color: C.infoDark,
-                lineHeight: 1.5
+                color: '#6E2E68',
+                lineHeight: 1.4,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
               }}>
-                💰 {paymentStatus === 'pending' ? 'Masukkan nominal untuk melanjutkan.' : paymentStatus === 'lunas' ? 'Lunas dengan uang tunai.' : `Partial payment. Sisa ${rp(total - effectivePaid)} akan dilunasi nanti.`}
+                💰 {paymentStatus === 'pending' ? 'Masukkan nominal untuk melanjutkan.' : paymentStatus === 'lunas' ? 'Lunas dengan uang tunai.' : `Partial. Sisa ${rp(total - effectivePaid)} akan dilunasi nanti.`}
               </div>
             </div>
           )}
@@ -1438,7 +1523,7 @@ export default function NotaStep3Page({ goBack }) {
 
               <div style={{ marginTop: 16 }}>
                 <PaymentPhotoUpload photo={paymentPhoto} preview={paymentPhotoPreview}
-                  onFileChange={(f) => { setPaymentPhoto(f); const r = new FileReader(); r.onload = (ev) => setPaymentPhotoPreview(ev.target?.result); r.readAsDataURL(f); }}
+                  onFileChange={(f) => { setPaymentPhoto(f); compressImage(f).then(setPaymentPhotoPreview); }}
                   onClear={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
                   mandatory={false} label="📷 Bukti QRIS (Opsional)" />
               </div>
@@ -1492,7 +1577,7 @@ export default function NotaStep3Page({ goBack }) {
 
               <div style={{ marginTop: 16 }}>
                 <PaymentPhotoUpload photo={paymentPhoto} preview={paymentPhotoPreview}
-                  onFileChange={(f) => { setPaymentPhoto(f); const r = new FileReader(); r.onload = (ev) => setPaymentPhotoPreview(ev.target?.result); r.readAsDataURL(f); }}
+                  onFileChange={(f) => { setPaymentPhoto(f); compressImage(f).then(setPaymentPhotoPreview); }}
                   onClear={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
                   mandatory={false} label="📷 Struk EDC (Opsional)" />
               </div>
@@ -1558,7 +1643,7 @@ export default function NotaStep3Page({ goBack }) {
 
               <div style={{ marginTop: 16 }}>
                 <PaymentPhotoUpload photo={paymentPhoto} preview={paymentPhotoPreview}
-                  onFileChange={(f) => { setPaymentPhoto(f); const r = new FileReader(); r.onload = (ev) => setPaymentPhotoPreview(ev.target?.result); r.readAsDataURL(f); }}
+                  onFileChange={(f) => { setPaymentPhoto(f); compressImage(f).then(setPaymentPhotoPreview); }}
                   onClear={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
                   mandatory={true} label="📷 Bukti Transfer (Wajib)" />
               </div>

@@ -12,6 +12,7 @@ import {
   cancelPengajuan,
   getDashboard,
   getConfig,
+  getSummary,
 } from '../controllers/pengajuanBelanjaController.js';
 
 const router = Router();
@@ -34,6 +35,9 @@ router.get('/categories', authenticate, readLimiter, getCategories);
 
 // GET /api/pengajuan-belanja/dashboard — dashboard summary
 router.get('/dashboard', authenticate, requireRole('frontline', 'admin'), readLimiter, getDashboard);
+
+// GET /api/pengajuan-belanja/summary — summary by status+groupType (no pagination)
+router.get('/summary', authenticate, requireRole('frontline', 'admin'), readLimiter, getSummary);
 
 // GET /api/pengajuan-belanja — list all pengajuan
 router.get('/', authenticate, requireRole('frontline', 'admin'), readLimiter, getPengajuans);

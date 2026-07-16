@@ -78,13 +78,27 @@ export const getCategories = async (req, res) => {
   }
 };
 
+// ─── Helper: Resolve category ID from code ─────────────────────────────────────
+async function resolveCategoryId(conn, categoryIdentifier) {
+  // categoryIdentifier can be numeric ID or string code
+  if (/^\d+$/.test(String(categoryIdentifier))) {
+    return parseInt(categoryIdentifier);
+  }
+  // Try to find by code
+  const [rows] = await conn.execute(
+    'SELECT id FROM mst_pengajuan_category WHERE code = ? AND is_active = 1 LIMIT 1',
+    [String(categoryIdentifier)]
+  );
+  return rows.length > 0 ? rows[0].id : null;
+}
+
 // ─── POST /api/pengajuan-belanja ────────────────────────────────────────────
 export const createPengajuan = async (req, res) => {
   const conn = await poolWaschenPos.getConnection();
 
   try {
     const {
-      items, // Array of { categoryId, itemName, qty, unit, estimatedPrice }
+      items, // Array of { categoryId or categoryCode, itemName, qty, unit, estimatedPrice }
       description,
       periodMonth,
       periodYear,
@@ -112,12 +126,9 @@ export const createPengajuan = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Minimal harus ada 1 item' });
     }
 
-    // Validate each item
+    // Validate and resolve each item's category
+    const resolvedItems = [];
     for (const item of items) {
-      if (!item.categoryId) {
-        conn.release();
-        return res.status(400).json({ success: false, message: 'Kategori wajib dipilih untuk semua item' });
-      }
       if (!item.itemName || item.itemName.trim().length < 2) {
         conn.release();
         return res.status(400).json({ success: false, message: 'Nama item minimal 2 karakter' });
@@ -126,6 +137,14 @@ export const createPengajuan = async (req, res) => {
         conn.release();
         return res.status(400).json({ success: false, message: 'Harga estimasi harus lebih dari 0' });
       }
+
+      // Resolve category
+      const categoryId = await resolveCategoryId(conn, item.categoryId || item.categoryCode);
+      if (!categoryId) {
+        conn.release();
+        return res.status(400).json({ success: false, message: `Kategori "${item.categoryId || item.categoryCode}" tidak ditemukan` });
+      }
+      resolvedItems.push({ ...item, categoryId });
     }
 
     await conn.beginTransaction();
@@ -134,19 +153,26 @@ export const createPengajuan = async (req, res) => {
     const requestNo = await generateRequestNo(conn, outletId);
 
     // Calculate total
-    const totalAmount = calculateTotal(items);
-    const needsApproval = totalAmount > AUTO_APPROVE_LIMIT;
+    const totalAmount = calculateTotal(resolvedItems);
+
+    // Determine approval:
+    // - Uang Kas (operational): always auto-approve (source_type = 'operational')
+    // - Biaya AP (tagihan): auto-approve if <= 500k, else pending
+    const firstCat = resolvedItems[0];
+    const [catRows] = await conn.execute(
+      'SELECT group_type FROM mst_pengajuan_category WHERE id = ?',
+      [firstCat.categoryId]
+    );
+    const groupType = catRows.length > 0 ? (catRows[0].group_type || 'operational') : 'operational';
+    const isOperational = groupType === 'operational';
+    const needsApproval = !isOperational && totalAmount > AUTO_APPROVE_LIMIT;
 
     // Resolve PIC
     const resolvedPicName = picName || req.user?.name || req.user?.fullName || 'Unknown';
     const resolvedPicId = userId;
 
-    // Determine source type based on first item category
-    const [firstCat] = await conn.execute(
-      'SELECT group_type FROM mst_pengajuan_category WHERE id = ?',
-      [items[0].categoryId]
-    );
-    const sourceType = firstCat.length > 0 ? (firstCat[0].group_type || 'operational') : 'operational';
+    // Determine source type
+    const sourceType = isOperational ? 'operational' : 'tagihan';
 
     // Insert main request
     const [insertResult] = await conn.execute(
@@ -174,7 +200,7 @@ export const createPengajuan = async (req, res) => {
     const pengajuanId = insertResult.insertId;
 
     // Insert items
-    for (const item of items) {
+    for (const item of resolvedItems) {
       const qty = parseFloat(item.qty) || 1;
       const estimatedPrice = parseFloat(item.estimatedPrice);
       const totalPrice = qty * estimatedPrice;
@@ -236,6 +262,63 @@ export const createPengajuan = async (req, res) => {
 };
 
 // ─── GET /api/pengajuan-belanja ──────────────────────────────────────────────
+// ─── GET /api/pengajuan-belanja/summary ──────────────────────────────────────
+export const getSummary = async (req, res) => {
+  try {
+    const { groupType, dateFrom, dateTo } = req.query;
+    const { user } = req;
+
+    const isAdmin = ['admin'].includes(user?.role);
+    const userOutletId = user?.outlet_id || null;
+
+    const conditions = ['1=1'];
+    const params = [];
+
+    if (!isAdmin && userOutletId) {
+      conditions.push('p.outlet_id = ?');
+      params.push(userOutletId);
+    }
+
+    if (dateFrom) {
+      conditions.push('DATE(p.created_at) >= ?');
+      params.push(dateFrom);
+    }
+    if (dateTo) {
+      conditions.push('DATE(p.created_at) <= ?');
+      params.push(dateTo);
+    }
+    if (groupType) {
+      conditions.push(
+        'EXISTS (SELECT 1 FROM tr_pengajuan_belanja_item pi2 JOIN mst_pengajuan_category c2 ON pi2.category_id = c2.id WHERE pi2.pengajuan_id = p.id AND c2.group_type = ?)'
+      );
+      params.push(groupType);
+    }
+
+    const [summary] = await poolWaschenPos.query(
+      `SELECT
+        p.status,
+        COUNT(*) as count,
+        COALESCE(SUM(p.total_amount), 0) as total_amount
+       FROM tr_pengajuan_belanja p
+       WHERE ${conditions.join(' AND ')}
+       GROUP BY p.status`,
+      params
+    );
+
+    return res.json({
+      success: true,
+      data: summary.map(s => ({
+        status: s.status,
+        count: parseInt(s.count),
+        total_amount: parseFloat(s.total_amount),
+      })),
+    });
+  } catch (error) {
+    logger.error('[getSummary] Error:', error);
+    return res.status(500).json({ success: false, message: 'Gagal mengambil ringkasan' });
+  }
+};
+
 export const getPengajuans = async (req, res) => {
   try {
     const {
@@ -287,27 +370,29 @@ export const getPengajuans = async (req, res) => {
       params.push(dateTo);
     }
 
+    // Search: only on p fields (items fetched separately)
     if (search) {
-      conditions.push('(p.request_no LIKE ? OR p.description LIKE ? OR pi.item_name LIKE ?)');
+      conditions.push('(p.request_no LIKE ? OR p.description LIKE ?)');
       const searchParam = `%${search}%`;
-      params.push(searchParam, searchParam, searchParam);
+      params.push(searchParam, searchParam);
     }
 
     if (categoryId) {
-      conditions.push('pi.category_id = ?');
+      conditions.push('EXISTS (SELECT 1 FROM tr_pengajuan_belanja_item pi2 WHERE pi2.pengajuan_id = p.id AND pi2.category_id = ?)');
       params.push(categoryId);
     }
 
-    // Filter by group_type (Uang Kas = 'operasional', Biaya AP = 'tagihan')
+    // Filter by group_type (Uang Kas = 'operational', Biaya AP = 'tagihan')
     if (groupType) {
       conditions.push('EXISTS (SELECT 1 FROM tr_pengajuan_belanja_item pi2 JOIN mst_pengajuan_category c2 ON pi2.category_id = c2.id WHERE pi2.pengajuan_id = p.id AND c2.group_type = ?)');
       params.push(groupType);
     }
 
     const whereClause = conditions.join(' AND ');
+    const sqlParams = [...params, limitNum, offsetNum];
 
-    // Query with items
-    const [rows] = await poolWaschenPos.execute(
+    // Query with items — use query() for dynamic SQL with LIMIT/OFFSET as integers
+    const [rows] = await poolWaschenPos.query(
       `SELECT p.*,
               o.name as outlet_name,
               u.name as requester_name,
@@ -320,7 +405,7 @@ export const getPengajuans = async (req, res) => {
        GROUP BY p.id
        ORDER BY p.created_at DESC
        LIMIT ? OFFSET ?`,
-      [...params, limitNum, offsetNum]
+      sqlParams
     );
 
     // Get items for each pengajuan
@@ -362,7 +447,7 @@ export const getPengajuans = async (req, res) => {
       summaryParams.push(groupType);
     }
 
-    const [summary] = await poolWaschenPos.execute(
+    const [summary] = await poolWaschenPos.query(
       `SELECT
         p.status,
         COUNT(*) as count,

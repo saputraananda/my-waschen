@@ -21,6 +21,7 @@ import {
   // Phase 6: Stock History
   getStockHistory,
 } from '../controllers/inventoryController.js';
+import { getInventoryStock } from '../controllers/inventoryCheckController.js';
 import { validateInventoryCreate } from '../schemas/validationSchemas.js';
 
 const router = Router();
@@ -50,6 +51,9 @@ router.post('/low-stock-to-pr', authenticate, productionOrAbove, convertAlertToP
 
 // GET /api/inventory/low-stock-my-alerts - Kasir sees alerts for their outlet
 router.get('/low-stock-my-alerts', authenticate, requireRole('frontline', 'admin', 'produksi'), getLowStockAlertHistory);
+
+// GET /api/inventory/check — read-only inventory check (Role B production)
+router.get('/check', authenticate, requireRole('frontline', 'produksi', 'admin'), getInventoryStock);
 
 // Phase 6: Stock Movement History
 router.get('/stock-history', authenticate, adminOnly, getStockHistory);

@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C } from '../utils/theme';
 import { rp } from '../utils/helpers';
 
@@ -40,21 +41,27 @@ export default function TodayTargetWidget({ onClick }) {
 
   if (loading) {
     return (
-      <div style={{
-        height: 140,
-        background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-        borderRadius: 24,
-        marginBottom: 12,
-        boxShadow: '6px 6px 16px rgba(60, 10, 99, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.9)',
-        animation: 'pulse 1.5s infinite',
-      }} />
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{
+          height: 140,
+          background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+          borderRadius: 24,
+          marginBottom: 12,
+          boxShadow: '6px 6px 16px rgba(60, 10, 99, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.9)',
+        }}
+      />
     );
   }
 
   // Empty state — card elevated dengan shadow dan claymorphism
   if (!data) {
     return (
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
         onClick={onClick}
         style={{
           background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
@@ -70,19 +77,24 @@ export default function TodayTargetWidget({ onClick }) {
         }}
       >
         {/* Claymorphism icon container */}
-        <div style={{
-          width: 56,
-          height: 56,
-          borderRadius: 16,
-          background: 'linear-gradient(145deg, #F3E8FF, #EDE7F6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '4px 4px 10px rgba(60, 10, 99, 0.1), -2px -2px 8px rgba(255, 255, 255, 0.9)',
-          fontSize: 28,
-        }}>
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.15, type: 'spring', stiffness: 300 }}
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 16,
+            background: 'linear-gradient(145deg, #F3E8FF, #EDE7F6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '4px 4px 10px rgba(60, 10, 99, 0.1), -2px -2px 8px rgba(255, 255, 255, 0.9)',
+            fontSize: 28,
+          }}
+        >
           🎯
-        </div>
+        </motion.div>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>
             Belum ada target bulan ini
@@ -106,7 +118,7 @@ export default function TodayTargetWidget({ onClick }) {
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -116,7 +128,10 @@ export default function TodayTargetWidget({ onClick }) {
   const todayPctClamped = Math.min(100, Math.max(0, data.todayPct));
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
       onClick={onClick}
       style={{
         background: theme.gradient,
@@ -186,26 +201,31 @@ export default function TodayTargetWidget({ onClick }) {
             </div>
           </div>
 
-          {/* Claymorphism badge */}
-          <div style={{
-            background: badge.bg,
-            color: badge.color,
-            padding: '8px 16px',
-            borderRadius: 16,
-            fontFamily: 'Poppins',
-            fontSize: 14,
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            boxShadow: `4px 4px 10px rgba(0,0,0,0.15), -2px -2px 6px rgba(255,255,255,0.1)`,
-          }}>
+          {/* Claymorphism badge — Framer Motion */}
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 300, damping: 20 }}
+            style={{
+              background: badge.bg,
+              color: badge.color,
+              padding: '8px 16px',
+              borderRadius: 16,
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: `4px 4px 10px rgba(0,0,0,0.15), -2px -2px 6px rgba(255,255,255,0.1)`,
+            }}
+          >
             <span style={{ fontSize: 16 }}>{theme.icon}</span>
             {data.todayPct}%
-          </div>
+          </motion.div>
         </div>
 
-        {/* Progress bar - claymorphism style */}
+        {/* Progress bar - Framer Motion */}
         <div style={{
           background: 'rgba(255,255,255,0.15)',
           height: 10,
@@ -213,14 +233,17 @@ export default function TodayTargetWidget({ onClick }) {
           overflow: 'hidden',
           boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1)',
         }}>
-          <div style={{
-            background: `linear-gradient(90deg, ${theme.accent}, #E85D00)`,
-            height: '100%',
-            width: `${todayPctClamped}%`,
-            borderRadius: 5,
-            transition: 'width 0.6s ease',
-            boxShadow: `0 0 12px ${theme.accent}60`,
-          }} />
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${todayPctClamped}%` }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            style={{
+              background: `linear-gradient(90deg, ${theme.accent}, #E85D00)`,
+              height: '100%',
+              borderRadius: 5,
+              boxShadow: `0 0 12px ${theme.accent}60`,
+            }}
+          />
         </div>
 
         {/* Motivational message */}
@@ -278,6 +301,6 @@ export default function TodayTargetWidget({ onClick }) {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

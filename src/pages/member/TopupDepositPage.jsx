@@ -9,9 +9,10 @@ import { useResponsive } from '../../utils/hooks';
 const PRESETS = ['50000', '100000', '200000', '500000'];
 
 const PAY_METHODS = [
-  { key: 'cash',     label: '💵 Tunai',          desc: 'Customer bayar di kasir' },
-  { key: 'transfer', label: '🏦 Transfer Manual', desc: 'Verifikasi manual oleh finance' },
-  { key: 'qris',     label: '📱 QRIS Statis',     desc: 'QR cetak / EDC manual' },
+  { key: 'cash',     label: '💵 Tunai',            desc: 'Customer bayar langsung di kasir' },
+  { key: 'transfer', label: '🏦 Transfer Bank',      desc: 'Konfirmasi transfer manual oleh finance' },
+  { key: 'qris',     label: '📱 QRIS Statis',      desc: 'Konfirmasi QRIS statis (cetak/EDC)' },
+  { key: 'edc',      label: '💳 Mesin EDC',         desc: 'Konfirmasi pembayaran via mesin EDC' },
 ];
 
 // Membership tier configurations
@@ -114,15 +115,34 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
       return;
     }
 
+    const isPendingPayment = ['transfer', 'qris', 'edc'].includes(payMethod);
+    const paymentLabels = {
+      cash: 'Tunai',
+      transfer: 'Transfer Bank',
+      qris: 'QRIS Statis',
+      edc: 'Mesin EDC'
+    };
+
     setLoading(true);
     try {
       const res = await axios.post(`/api/customers/${customer.id}/topup`, {
         amount: enteredAmount,
         payMethod,
       });
-      const newBalance = res?.data?.data?.newBalance ?? (customer.deposit || 0) + enteredAmount;
-      await alertSuccess(`Top up ${rp(enteredAmount)} berhasil!`);
-      navigate('detail_customer', { ...customer, deposit: newBalance });
+
+      if (res?.data?.status === 'pending') {
+        // Non-cash payment: waiting for finance confirmation
+        await alertSuccess(
+          `Top up ${paymentLabels[payMethod]} berhasil dicatat.\nMenunggu konfirmasi finance.\nID: ${res.data.data?.pendingId}`,
+          { title: 'Menunggu Konfirmasi' }
+        );
+        navigate('detail_customer', { ...customer });
+      } else {
+        // Cash payment: immediate success
+        const newBalance = res?.data?.data?.newBalance ?? (customer.deposit || 0) + enteredAmount;
+        await alertSuccess(`Top up ${rp(enteredAmount)} berhasil!`);
+        navigate('detail_customer', { ...customer, deposit: newBalance });
+      }
     } catch (err) {
       const msg = err?.response?.data?.message || 'Gagal melakukan top up.';
       alertError(msg);
@@ -203,6 +223,7 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
   const canRegisterMembership = !membershipStatus?.hasMembership;
   const canRenewMembership = membershipStatus?.hasMembership && !membershipStatus?.isActive && membershipStatus?.canRenew;
   const tier = TIERS[selectedTier];
+  const isPendingPayment = ['transfer', 'qris', 'edc'].includes(payMethod);
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
@@ -391,6 +412,30 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
           </div>
         </div>
 
+        {/* Pending Payment Info */}
+        {isPendingPayment && amount && enteredAmount >= 1000 && (
+          <div style={{
+            background: '#FEF3C7',
+            borderRadius: isMobile ? 10 : 12,
+            padding: isMobile ? '10px 14px' : '12px 16px',
+            marginBottom: 16,
+            border: '1.5px solid #FCD34D',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 10,
+          }}>
+            <span style={{ fontSize: 20 }}>⏳</span>
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>
+                Menunggu Konfirmasi Finance
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#B45309' }}>
+                Deposit akan bertambah setelah finance mengkonfirmasi pembayaran.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons based on membership status */}
         {canRenewMembership ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -417,7 +462,7 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
             onClick={handleTopUp}
             disabled={!amount || enteredAmount < 1000}
           >
-            Top Up {amount ? rp(enteredAmount) : ''}
+            {isPendingPayment ? 'Catat + Tunggu Konfirmasi' : 'Top Up'} {amount ? rp(enteredAmount) : ''}
           </Btn>
         )}
       </div>

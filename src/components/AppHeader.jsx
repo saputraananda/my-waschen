@@ -15,6 +15,7 @@ import { useApp } from '../../context/AppContext';
 
 // ─── Avatar Images (from spec Section 5) ────────────────────────────────────────
 import { getAvatarSource } from '../utils/avatar';
+import { ProfileAvatar } from './ui/ProfileAvatar';
 
 // ─── Greeting Helper ────────────────────────────────────────────────────────────
 const getGreeting = (name) => {
@@ -394,61 +395,13 @@ function NotificationBadge({ count = 0 }) {
 
 // ─── Avatar Component ────────────────────────────────────────────────────────────
 function UserAvatar({ user, size = 40, hasNotification = false }) {
-  const avatarSrc = useMemo(() => getAvatarSource(user), [user]);
-  const initials = (user?.name || 'US')
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        flexShrink: 0,
-      }}
-    >
-      {/* Avatar image or initials */}
-      {user?.photo ? (
-        <img
-          src={user.photo}
-          alt={user?.name || 'User'}
-          style={{
-            width: '100%',
-            height: '100%',
-            borderRadius: size / 2,
-            objectFit: 'cover',
-            border: '2px solid rgba(255,255,255,0.3)',
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            width: '100%',
-            height: '100%',
-            borderRadius: size / 2,
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1))',
-            border: '2px solid rgba(255,255,255,0.3)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: "'Poppins', sans-serif",
-            fontSize: size * 0.35,
-            fontWeight: 700,
-            color: '#fff',
-          }}
-        >
-          {initials}
-        </div>
-      )}
-
-      {/* Notification badge */}
-      <NotificationBadge count={hasNotification ? 3 : 0} />
-    </div>
+    <ProfileAvatar
+      user={user}
+      size={size}
+      showBorder={false}
+      notificationDot={hasNotification}
+    />
   );
 }
 

@@ -410,12 +410,12 @@ const EmptyState = ({
           style={{
             fontFamily: 'Poppins, sans-serif',
             fontSize: 11,
-            color: COLORS.n400,
-            fontStyle: 'italic',
+            color: COLORS.n600,
+            fontStyle: 'normal',
             marginBottom: 0,
           }}
         >
-          💡 {displaySuggestion}
+          {displaySuggestion}
         </motion.p>
       )}
 
@@ -437,18 +437,14 @@ const EmptyState = ({
               gap: 8,
               padding: '12px 24px',
               borderRadius: 12,
-              border: displayAction.primary ? 'none' : `1.5px solid ${COLORS.primary}`,
-              background: displayAction.primary
-                ? `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.primaryDark})`
-                : 'transparent',
-              color: displayAction.primary ? 'white' : COLORS.primary,
+              border: 'none',
+              background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.primaryDark})`,
+              color: 'white',
               fontFamily: 'Poppins, sans-serif',
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',
-              boxShadow: displayAction.primary
-                ? `0 4px 16px ${COLORS.primary}30`
-                : 'none',
+              boxShadow: `0 4px 16px ${COLORS.primary}30`,
               transition: 'all 0.2s ease',
             }}
           >

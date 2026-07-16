@@ -1,5 +1,5 @@
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// ProfilePage.jsx â€” Redesigned with 2-Column Asymmetric Layout
+// ═════════════════════════════════════════════════════════════════════════════════
+// ProfilePage.jsx — Redesigned with 2-Column Asymmetric Layout
 // Ref: My_Waschen_Redesign_Spec_dan_Prompt.md Section 4.4
 //
 // Layout:
@@ -9,24 +9,25 @@
 //
 // Phase 4 Polish: Framer Motion animations, count-up stats, hover effects
 // Phase 7: Responsive QA at 4 breakpoints
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-import { useState, useRef, useMemo, useEffect } from 'react';
+// ═════════════════════════════════════════════════════════════════════════════════
+import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Cropper from 'react-easy-crop';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { C, T } from '../utils/theme';
 import { rp } from '../utils/helpers';
 import { compressImage, getCroppedImg } from '../utils/helpers';
 import { TopBar, Btn, Input } from '../components/ui';
 import { alertError, alertInfo, alertSuccess, alertWarning } from '../utils/alert';
 import { useApp } from '../context/AppContext';
-
-// â”€â”€â”€ Premium Animation Assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+import { ProfileAvatar } from '../components/ui/ProfileAvatar';
 import bubbleIcon from '../assets/Decorative icon/bubble-1.webp'
 import bubble2Icon from '../assets/Decorative icon/bubble-2.webp'
 import soapBubble from '../assets/Decorative icon/soap-bubble.webp'
 
-// â”€â”€â”€ Premium Animation Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ═════════════════════════════════════════════════════════════════════════════════
+// Premium Animation Components
+// ═════════════════════════════════════════════════════════════════════════════════
 const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.4 }) => (
   <motion.div
     animate={{ y: [0, -15, 0], scale: [1, 1.08, 1], opacity: [opacity * 0.6, opacity, opacity * 0.6] }}
@@ -47,20 +48,9 @@ const Sparkle = ({ top, left, size = 5, delay = 0 }) => (
 
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Frontline', frontline: 'Frontline', produksi: 'Produksi', finance: 'Finance' };
 
-// â”€â”€â”€ Avatar Images â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-import staffGirl from '../assets/Avatar set/staff-girl.webp'
-import staffBoy from '../assets/Avatar set/staff-boy.webp'
-import adminLaptop from '../assets/Avatar set/admin-laptop.webp'
-
-const getAvatarSource = (user) => {
-  const role = user?.roleCode || user?.originalRoleCode;
-  const gender = user?.gender?.toLowerCase();
-  if (role === 'admin') return adminLaptop;
-  if (role === 'frontline' || role === 'kasir') return gender === 'male' ? staffBoy : staffGirl;
-  return gender === 'male' ? staffBoy : staffGirl;
-};
-
-// â”€â”€â”€ Count-up Animation Hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ═════════════════════════════════════════════════════════════════════════════════
+// Count-up Animation Hook
+// ═════════════════════════════════════════════════════════════════════════════════
 function useCountUp(target, duration = 700, delay = 0) {
   const [value, setValue] = useState(0);
   const hasAnimated = useRef(false);
@@ -85,13 +75,17 @@ function useCountUp(target, duration = 700, delay = 0) {
   return value;
 }
 
-// â”€â”€â”€ Animated Number Display â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ═════════════════════════════════════════════════════════════════════════════════
+// Animated Number Display
+// ═════════════════════════════════════════════════════════════════════════════════
 function AnimatedNumber({ value, prefix = '', suffix = '', duration = 700, delay = 0 }) {
   const animated = useCountUp(typeof value === 'number' ? value : 0, duration, delay);
   return <span>{prefix}{typeof value === 'number' ? animated.toLocaleString() : value}{suffix}</span>;
 }
 
-// â”€â”€â”€ Responsive Hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ═════════════════════════════════════════════════════════════════════════════════
+// Responsive Hook
+// ═════════════════════════════════════════════════════════════════════════════════
 const useResponsive = () => {
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
 
@@ -104,10 +98,438 @@ const useResponsive = () => {
   return { isMobile: width < 768, isTablet: width >= 768 && width < 1024, isDesktop: width >= 1024 };
 };
 
-// â”€â”€â”€ Left Column - Profile Card (Sticky) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
-  const avatarSrc = useMemo(() => getAvatarSource(user), [user]);
+// ═════════════════════════════════════════════════════════════════════════════════
+// Shared Modal Backdrop (prevents scrolling and interaction behind modal)
+// ═════════════════════════════════════════════════════════════════════════════════
+function ModalBackdrop({ children, onClose }) {
+  useEffect(() => {
+    // Prevent background scroll
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15, 23, 42, 0.7)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: 16,
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 16,
+          width: '100%',
+          maxWidth: 440,
+          maxHeight: '90vh',
+          overflow: 'auto',
+          boxShadow: '0 25px 80px rgba(0,0,0,0.3)',
+        }}
+      >
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════
+// Edit Profile Modal
+// ═════════════════════════════════════════════════════════════════════════════════
+function EditProfileModal({ name, phone, email, saving, onSave, onClose }) {
+  const [localName, setLocalName] = useState(name);
+  const [localPhone, setLocalPhone] = useState(phone);
+  const [localEmail, setLocalEmail] = useState(email);
+
+  const handleSave = () => {
+    if (!localName.trim()) {
+      alertWarning('Nama tidak boleh kosong');
+      return;
+    }
+    onSave(localName, localPhone, localEmail);
+  };
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <div style={{ padding: 24 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: 18,
+            fontWeight: 700,
+            color: '#1a1a1a',
+            margin: 0,
+          }}>
+            ✏️ Edit Profil
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              border: 'none',
+              background: '#F1F5F9',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+              color: '#64748B',
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Form */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{
+              display: 'block',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#475569',
+              marginBottom: 6,
+            }}>
+              Nama Lengkap
+            </label>
+            <input
+              type="text"
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              placeholder="Masukkan nama lengkap"
+              style={{
+                width: '100%',
+                height: 44,
+                borderRadius: 10,
+                border: '1.5px solid #E2E8F0',
+                padding: '0 14px',
+                fontSize: 14,
+                fontFamily: "'Poppins', sans-serif",
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{
+              display: 'block',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#475569',
+              marginBottom: 6,
+            }}>
+              Nomor HP
+            </label>
+            <input
+              type="tel"
+              value={localPhone}
+              onChange={(e) => setLocalPhone(e.target.value)}
+              placeholder="08xxxxxxxxxx"
+              style={{
+                width: '100%',
+                height: 44,
+                borderRadius: 10,
+                border: '1.5px solid #E2E8F0',
+                padding: '0 14px',
+                fontSize: 14,
+                fontFamily: "'Poppins', sans-serif",
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{
+              display: 'block',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#475569',
+              marginBottom: 6,
+            }}>
+              Email
+            </label>
+            <input
+              type="email"
+              value={localEmail}
+              onChange={(e) => setLocalEmail(e.target.value)}
+              placeholder="nama@email.com"
+              style={{
+                width: '100%',
+                height: 44,
+                borderRadius: 10,
+                border: '1.5px solid #E2E8F0',
+                padding: '0 14px',
+                fontSize: 14,
+                fontFamily: "'Poppins', sans-serif",
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            style={{
+              flex: 1,
+              height: 44,
+              borderRadius: 10,
+              border: '1.5px solid #E2E8F0',
+              background: '#fff',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#475569',
+              cursor: 'pointer',
+            }}
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              flex: 1,
+              height: 44,
+              borderRadius: 10,
+              border: 'none',
+              background: '#5B005F',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#fff',
+              cursor: saving ? 'wait' : 'pointer',
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? 'Menyimpan...' : 'Simpan'}
+          </button>
+        </div>
+      </div>
+    </ModalBackdrop>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════
+// Change Password Modal
+// ═════════════════════════════════════════════════════════════════════════════════
+function ChangePasswordModal({ pwLoading, onChange, onClose }) {
+  const [oldPw, setOldPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
+
+  const handleSubmit = () => {
+    if (!oldPw || !newPw) {
+      alertWarning('Password lama dan baru wajib diisi');
+      return;
+    }
+    if (newPw !== confirmPw) {
+      alertWarning('Konfirmasi password tidak cocok');
+      return;
+    }
+    if (newPw.length < 6) {
+      alertWarning('Password baru minimal 6 karakter');
+      return;
+    }
+    onChange(oldPw, newPw);
+  };
+
+  const PasswordInput = ({ label, value, onChange, placeholder }) => (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{
+        display: 'block',
+        fontFamily: "'Poppins', sans-serif",
+        fontSize: 12,
+        fontWeight: 600,
+        color: '#475569',
+        marginBottom: 6,
+      }}>
+        {label}
+      </label>
+      <div style={{ position: 'relative' }}>
+        <input
+          type={showPw ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={{
+            width: '100%',
+            height: 44,
+            borderRadius: 10,
+            border: '1.5px solid #E2E8F0',
+            padding: '0 44px 0 14px',
+            fontSize: 14,
+            fontFamily: "'Poppins', sans-serif",
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPw(!showPw)}
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 16,
+            color: '#94A3B8',
+          }}
+        >
+          {showPw ? '👁️' : '👁️‍🗨️'}
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <div style={{ padding: 24 }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: 18,
+            fontWeight: 700,
+            color: '#1a1a1a',
+            margin: 0,
+          }}>
+            🔒 Ubah Password
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              border: 'none',
+              background: '#F1F5F9',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+              color: '#64748B',
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Form */}
+        <PasswordInput
+          label="Password Lama"
+          value={oldPw}
+          onChange={setOldPw}
+          placeholder="Masukkan password lama"
+        />
+        <PasswordInput
+          label="Password Baru"
+          value={newPw}
+          onChange={setNewPw}
+          placeholder="Min. 6 karakter"
+        />
+        <PasswordInput
+          label="Konfirmasi Password Baru"
+          value={confirmPw}
+          onChange={setConfirmPw}
+          placeholder="Ulangi password baru"
+        />
+
+        {/* Info */}
+        <div style={{
+          background: '#F8FAFC',
+          borderRadius: 8,
+          padding: 10,
+          marginBottom: 16,
+          fontSize: 12,
+          color: '#64748B',
+          fontFamily: "'Poppins', sans-serif",
+        }}>
+          💡 Password baru minimal 6 karakter dan berbeda dari password lama.
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={onClose}
+            disabled={pwLoading}
+            style={{
+              flex: 1,
+              height: 44,
+              borderRadius: 10,
+              border: '1.5px solid #E2E8F0',
+              background: '#fff',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#475569',
+              cursor: 'pointer',
+            }}
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={pwLoading}
+            style={{
+              flex: 1,
+              height: 44,
+              borderRadius: 10,
+              border: 'none',
+              background: '#5B005F',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#fff',
+              cursor: pwLoading ? 'wait' : 'pointer',
+              opacity: pwLoading ? 0.7 : 1,
+            }}
+          >
+            {pwLoading ? 'Menyimpan...' : 'Ubah Password'}
+          </button>
+        </div>
+      </div>
+    </ModalBackdrop>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════════
+// Left Column - Profile Card (Sticky)
+// ═════════════════════════════════════════════════════════════════════════════════
+function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick, onEditClick, onPasswordClick }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -130,8 +552,12 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
     >
       {/* Background decoration */}
       <div style={{
-        position: 'absolute', top: -50, right: -50,
-        width: 150, height: 150, borderRadius: '50%',
+        position: 'absolute',
+        top: -50,
+        right: -50,
+        width: 150,
+        height: 150,
+        borderRadius: '50%',
         background: 'rgba(255,255,255,0.08)',
         filter: 'blur(40px)',
       }} />
@@ -158,18 +584,7 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
           {photo ? (
             <img src={photo} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
-            <div style={{
-              width: '100%',
-              height: '100%',
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.3), rgba(255,255,255,0.1))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 36, fontWeight: 700, color: '#fff' }}>
-                {initials}
-              </span>
-            </div>
+            <ProfileAvatar user={user} size={100} showBorder={false} />
           )}
         </div>
         {/* Edit button */}
@@ -238,7 +653,7 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
           fontSize: 12,
           color: 'rgba(255,255,255,0.7)',
         }}>
-          ðŸ“ {user.outlet.name}
+          📍 {user.outlet.name}
         </span>
       )}
 
@@ -250,7 +665,7 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
         width: '100%',
       }}>
         <motion.button
-          onClick={() => document.getElementById('edit-profile-btn')?.click()}
+          onClick={onEditClick}
           whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.25)' }}
           whileTap={{ scale: 0.98 }}
           style={{
@@ -270,10 +685,10 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
             gap: 6,
           }}
         >
-          âœï¸ Edit
+          ✏️ Edit
         </motion.button>
         <motion.button
-          onClick={() => document.getElementById('change-password-btn')?.click()}
+          onClick={onPasswordClick}
           whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.15)' }}
           whileTap={{ scale: 0.98 }}
           style={{
@@ -293,21 +708,22 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
             gap: 6,
           }}
         >
-          ðŸ”’ Password
+          🔒 Password
         </motion.button>
       </div>
     </motion.div>
   );
 }
 
-// â”€â”€â”€ Right Column - Stats & Activity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ═════════════════════════════════════════════════════════════════════════════════
+// Right Column - Stats & Activity
+// ═════════════════════════════════════════════════════════════════════════════════
 function StatsSection({ stats, animationDelay = 0 }) {
-  // Omset/cash hanya dimunculkan jika parent mengirim totalRevenue (artinya role boleh lihat)
   const statItems = [
-    { label: 'Total Shift', value: stats?.totalShifts || 0, icon: 'ðŸ•', color: '#5B005F' },
-    { label: 'Transaksi', value: stats?.totalTransactions || 0, icon: 'ðŸ“‹', color: '#059669' },
+    { label: 'Total Shift', value: stats?.totalShifts || 0, icon: '🕐', color: '#5B005F' },
+    { label: 'Transaksi', value: stats?.totalTransactions || 0, icon: '📋', color: '#059669' },
     stats?.totalRevenue != null
-      ? { label: 'Omset', value: stats.totalRevenue, icon: 'ðŸ’°', color: '#F93E11', isCurrency: true }
+      ? { label: 'Omset', value: stats.totalRevenue, icon: '💰', color: '#F93E11', isCurrency: true }
       : null,
   ].filter(Boolean);
 
@@ -331,7 +747,7 @@ function StatsSection({ stats, animationDelay = 0 }) {
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        ðŸ“Š Statistik Bulanan
+        📊 Statistik Bulanan
       </h3>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${statItems.length}, 1fr)`, gap: 12 }}>
         {statItems.map((item, idx) => (
@@ -399,7 +815,7 @@ function ShiftHistorySection({ shifts, hideCash = false, animationDelay = 0 }) {
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        ðŸ• Riwayat Shift Terakhir
+        🕐 Riwayat Shift Terakhir
       </h3>
       {shifts && shifts.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -434,7 +850,7 @@ function ShiftHistorySection({ shifts, hideCash = false, animationDelay = 0 }) {
                   justifyContent: 'center',
                 }}>
                 <span style={{ fontSize: 16 }}>
-                  {shift.status === 'closed' ? 'âœ…' : 'â³'}
+                  {shift.status === 'closed' ? '✅' : '⏳'}
                 </span>
               </motion.div>
               <div style={{ flex: 1 }}>
@@ -451,7 +867,7 @@ function ShiftHistorySection({ shifts, hideCash = false, animationDelay = 0 }) {
                   fontSize: 10,
                   color: '#5a5a5a',
                 }}>
-                  {shift.type || 'Regular'} â€¢ {shift.startTime || '-'} - {shift.endTime || 'ongoing'}
+                  {shift.type || 'Regular'} • {shift.startTime || '-'} - {shift.endTime || 'ongoing'}
                 </div>
               </div>
               <motion.span
@@ -501,7 +917,7 @@ function ActivityLogSection({ activities, animationDelay = 0 }) {
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        ðŸ“ Aktivitas Terbaru
+        📝 Aktivitas Terbaru
       </h3>
       {activities && activities.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -522,7 +938,7 @@ function ActivityLogSection({ activities, animationDelay = 0 }) {
                 transition: 'background-color 0.2s ease',
               }}
             >
-              <span style={{ fontSize: 14, marginTop: 2 }}>{activity.icon || 'ðŸ“‹'}</span>
+              <span style={{ fontSize: 14, marginTop: 2 }}>{activity.icon || '📋'}</span>
               <div style={{ flex: 1 }}>
                 <div style={{
                   fontFamily: "'Poppins', sans-serif",
@@ -553,10 +969,10 @@ function ActivityLogSection({ activities, animationDelay = 0 }) {
   );
 }
 
-// â”€â”€â”€ Mobile Profile Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function MobileProfileHeader({ user, photo, initials, onPhotoClick }) {
-  const avatarSrc = useMemo(() => getAvatarSource(user), [user]);
-
+// ═════════════════════════════════════════════════════════════════════════════════
+// Mobile Profile Header
+// ═════════════════════════════════════════════════════════════════════════════════
+function MobileProfileHeader({ user, photo, initials, onPhotoClick, onEditClick, onPasswordClick }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: -20 }}
@@ -592,18 +1008,7 @@ function MobileProfileHeader({ user, photo, initials, onPhotoClick }) {
           {photo ? (
             <img src={photo} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
-            <div style={{
-              width: '100%',
-              height: '100%',
-              background: 'rgba(255,255,255,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 24, fontWeight: 700, color: '#fff' }}>
-                {initials}
-              </span>
-            </div>
+            <ProfileAvatar user={user} size={58} showBorder={false} />
           )}
         </div>
       </motion.div>
@@ -640,92 +1045,56 @@ function MobileProfileHeader({ user, photo, initials, onPhotoClick }) {
               fontSize: 10,
               color: 'rgba(255,255,255,0.7)',
             }}>
-              ðŸ“ {user.outlet.name}
+              📍 {user.outlet.name}
             </span>
           )}
         </div>
       </motion.div>
-    </motion.div>
-  );
-}
 
-// â”€â”€â”€ Edit Profile Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function EditProfileForm({ name, phone, email, saving, onSave, isMobile, animationDelay = 0 }) {
-  return (
-    <motion.div
-      id="edit-profile-btn"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: animationDelay }}
-      whileHover={{ y: -2, boxShadow: '0 4px 16px rgba(91, 0, 95, 0.12)' }}
-      style={{
-        background: '#fff',
-        borderRadius: 16,
-        padding: isMobile ? 16 : 20,
-        boxShadow: '0 2px 8px rgba(91, 0, 95, 0.08)',
-        transition: 'box-shadow 0.2s ease',
-      }}
-    >
-      <h3 style={{
-        fontFamily: "'Poppins', sans-serif",
-        fontSize: 14,
-        fontWeight: 700,
-        color: '#1a1a1a',
-        margin: '0 0 16px',
-      }}>
-        âœï¸ Edit Profil
-      </h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Input label="Nama Lengkap" value={name} onChange={(v) => {}} placeholder="Masukkan nama lengkap" />
-        <Input label="Nomor HP" value={phone} onChange={(v) => {}} placeholder="08xxxxxxxxxx" />
-        <Input label="Email" value={email} onChange={(v) => {}} placeholder="nama@email.com" />
-      </div>
-      <div style={{ marginTop: 16 }}>
-        <Btn variant="primary" fullWidth loading={saving} onClick={onSave}>Simpan Profil</Btn>
-      </div>
-    </motion.div>
-  );
-}
-
-// â”€â”€â”€ Change Password Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function ChangePasswordForm({ oldPw, newPw, confirmPw, pwLoading, onChange, isMobile, animationDelay = 0 }) {
-  return (
-    <motion.div
-      id="change-password-btn"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: animationDelay }}
-      whileHover={{ y: -2, boxShadow: '0 4px 16px rgba(91, 0, 95, 0.12)' }}
-      style={{
-        background: '#fff',
-        borderRadius: 16,
-        padding: isMobile ? 16 : 20,
-        boxShadow: '0 2px 8px rgba(91, 0, 95, 0.08)',
-        transition: 'box-shadow 0.2s ease',
-      }}
-    >
-      <h3 style={{
-        fontFamily: "'Poppins', sans-serif",
-        fontSize: 14,
-        fontWeight: 700,
-        color: '#1a1a1a',
-        margin: '0 0 16px',
-      }}>
-        ðŸ”’ Ubah Password
-      </h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Input label="Password Lama" value={oldPw} onChange={(v) => {}} type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
-        <Input label="Password Baru" value={newPw} onChange={(v) => {}} type="password" placeholder="Min. 6 karakter" />
-        <Input label="Konfirmasi Password Baru" value={confirmPw} onChange={(v) => {}} type="password" placeholder="Ulangi password baru" />
-      </div>
-      <div style={{ marginTop: 16 }}>
-        <Btn variant="secondary" fullWidth loading={pwLoading} onClick={onChange}>Konfirmasi Ubah Password</Btn>
+      {/* Quick Action Buttons */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={onEditClick}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.2)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 16,
+          }}
+        >
+          ✏️
+        </button>
+        <button
+          onClick={onPasswordClick}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 16,
+          }}
+        >
+          🔒
+        </button>
       </div>
     </motion.div>
   );
 }
 
-// â”€â”€â”€ Role Switcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ═════════════════════════════════════════════════════════════════════════════════
+// Role Switcher
+// ═════════════════════════════════════════════════════════════════════════════════
 function RoleSwitcher({ ROLES, user, isAdmin, handleSwitchRole, navigate, isMobile, animationDelay = 0 }) {
   if (!isAdmin) return null;
 
@@ -750,7 +1119,7 @@ function RoleSwitcher({ ROLES, user, isAdmin, handleSwitchRole, navigate, isMobi
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        ðŸ‘‘ Tampil Sebagai Role
+        👑 Tampil Sebagai Role
       </h3>
       <div style={{
         display: 'grid',
@@ -794,27 +1163,28 @@ function RoleSwitcher({ ROLES, user, isAdmin, handleSwitchRole, navigate, isMobi
         textAlign: 'center',
         marginTop: 12,
       }}>
-        Akun tetap sebagai Admin Â· hanya tampilan yang berubah
+        Akun tetap sebagai Admin · hanya tampilan yang berubah
       </p>
     </motion.div>
   );
 }
 
-// â”€â”€â”€ Main Profile Page Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ═════════════════════════════════════════════════════════════════════════════════
+// Main Profile Page Component
+// ═════════════════════════════════════════════════════════════════════════════════
 export default function ProfilePage({ navigate, goBack }) {
   const { user, updateUserProfile, handleSwitchRole } = useApp();
   const roleCode = user?.originalRoleCode ?? user?.roleCode;
   const isAdmin = roleCode === 'admin';
-  // PRODUCTION sees NO financial data (omset, cash totals, setoran nominal) â€” hanya frontline & admin
   const isProduksi = roleCode === 'produksi';
-  const showFinancials = isAdmin || !isProduksi; // frontline/admin = visible, produksi = hidden
+  const showFinancials = isAdmin || !isProduksi;
   const { isMobile, isTablet } = useResponsive();
 
   const ROLES = [
-    { id: 'frontline', label: 'Frontline', icon: 'ðŸ§¾' },
-    { id: 'produksi', label: 'Produksi', icon: 'ðŸ§º' },
-    { id: 'admin',    label: 'Admin',    icon: 'ðŸ‘‘' },
-    { id: 'finance',  label: 'Finance',  icon: 'ðŸ’°' },
+    { id: 'frontline', label: 'Frontline', icon: '🧺' },
+    { id: 'produksi', label: 'Produksi', icon: '🧺' },
+    { id: 'admin',    label: 'Admin',    icon: '👑' },
+    { id: 'finance',  label: 'Finance',  icon: '💰' },
   ];
 
   const [name, setName]   = useState(user?.name  || '');
@@ -822,13 +1192,13 @@ export default function ProfilePage({ navigate, goBack }) {
   const [email, setEmail] = useState(user?.email || '');
   const [photo, setPhoto] = useState(user?.photo || null);
 
-  const [oldPw, setOldPw]     = useState('');
-  const [newPw, setNewPw]     = useState('');
-  const [confirmPw, setConfirmPw] = useState('');
-  const [showPw, setShowPw]   = useState(false);
-
   const [saving, setSaving]   = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
+
+  // Modal states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+
   const fileRef = useRef();
 
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -845,10 +1215,10 @@ export default function ProfilePage({ navigate, goBack }) {
     { date: '30 Jun 2026', type: 'Siang', startTime: '15:00', endTime: '22:00', status: 'closed', cashTotal: 3120000 },
   ]);
   const [activities] = useState([
-    { icon: 'ðŸ’°', description: 'Melakukan setoran tunai Rp 5.000.000', time: '2 Jul 2026, 14:30' },
-    { icon: 'ðŸ“‹', description: 'Membuat transaksi Nota #1247', time: '2 Jul 2026, 13:45' },
-    { icon: 'ðŸ‘¤', description: 'Menambah customer baru: Budi Santoso', time: '2 Jul 2026, 11:20' },
-    { icon: 'ðŸ”„', description: 'Oper shift ke Maya', time: '2 Jul 2026, 10:00' },
+    { icon: '💰', description: 'Melakukan setoran tunai Rp 5.000.000', time: '2 Jul 2026, 14:30' },
+    { icon: '📋', description: 'Membuat transaksi Nota #1247', time: '2 Jul 2026, 13:45' },
+    { icon: '👤', description: 'Menambah customer baru: Budi Santoso', time: '2 Jul 2026, 11:20' },
+    { icon: '🔄', description: 'Oper shift ke Maya', time: '2 Jul 2026, 10:00' },
   ]);
 
   const handlePhotoChange = async (e) => {
@@ -870,18 +1240,22 @@ export default function ProfilePage({ navigate, goBack }) {
   const initials = (name || user?.name || 'US')
     .split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
-  const handleSaveProfile = async () => {
-    if (!name.trim()) { alertWarning('Nama tidak boleh kosong'); return; }
+  const handleSaveProfile = async (newName, newPhone, newEmail) => {
+    if (!newName.trim()) { alertWarning('Nama tidak boleh kosong'); return; }
     setSaving(true);
     try {
       await axios.patch('/api/users/me/profile', {
-        name: name.trim(),
-        phone: phone.trim() || null,
-        email: email.trim() || null,
+        name: newName.trim(),
+        phone: newPhone.trim() || null,
+        email: newEmail.trim() || null,
         photo,
       });
-      updateUserProfile({ name: name.trim(), phone: phone.trim() || null, email: email.trim() || null, photo });
+      setName(newName.trim());
+      setPhone(newPhone.trim() || null);
+      setEmail(newEmail.trim() || null);
+      updateUserProfile({ name: newName.trim(), phone: newPhone.trim() || null, email: newEmail.trim() || null, photo });
       alertSuccess('Profil berhasil disimpan');
+      setShowEditModal(false);
     } catch (err) {
       alertError(err?.response?.data?.message || 'Gagal menyimpan profil');
     } finally {
@@ -889,15 +1263,12 @@ export default function ProfilePage({ navigate, goBack }) {
     }
   };
 
-  const handleChangePassword = async () => {
-    if (!oldPw || !newPw) { alertWarning('Password lama dan baru wajib diisi'); return; }
-    if (newPw !== confirmPw) { alertWarning('Konfirmasi password tidak cocok'); return; }
-    if (newPw.length < 6) { alertWarning('Password baru minimal 6 karakter'); return; }
+  const handleChangePassword = async (oldPw, newPw) => {
     setPwLoading(true);
     try {
       await axios.patch('/api/users/me/password', { oldPassword: oldPw, newPassword: newPw });
       alertSuccess('Password berhasil diubah');
-      setOldPw(''); setNewPw(''); setConfirmPw('');
+      setShowPasswordModal(false);
     } catch (err) {
       alertError(err?.response?.data?.message || 'Gagal mengubah password');
     } finally {
@@ -910,11 +1281,11 @@ export default function ProfilePage({ navigate, goBack }) {
   const statsDelay = baseDelay + 0.1;
   const shiftDelay = baseDelay + 0.2;
   const activityDelay = baseDelay + 0.3;
-  const editDelay = baseDelay + (isMobile ? 0.3 : 0.4);
-  const passwordDelay = baseDelay + (isMobile ? 0.4 : 0.5);
-  const roleDelay = baseDelay + (isMobile ? 0.5 : 0.6);
+  const roleDelay = baseDelay + 0.4;
 
-  // â”€â”€â”€ Main Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ═════════════════════════════════════════════════════════════════════════════════
+  // Main Render
+  // ═════════════════════════════════════════════════════════════════════════════════
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F4EDF4', overflow: 'hidden' }}>
       <TopBar title="Profil Saya" onBack={goBack} />
@@ -954,40 +1325,43 @@ export default function ProfilePage({ navigate, goBack }) {
                 initials={initials}
                 onPhotoChange={() => fileRef.current?.click()}
                 onPhotoClick={() => fileRef.current?.click()}
+                onEditClick={() => setShowEditModal(true)}
+                onPasswordClick={() => setShowPasswordModal(true)}
               />
             </div>
           )}
 
           {/* Right Column - Scrollable */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Mobile: Avatar Header */}
+            {/* Mobile: Avatar Header with Quick Actions */}
             {isMobile && (
               <MobileProfileHeader
                 user={user}
                 photo={photo}
                 initials={initials}
                 onPhotoClick={() => fileRef.current?.click()}
+                onEditClick={() => setShowEditModal(true)}
+                onPasswordClick={() => setShowPasswordModal(true)}
               />
             )}
 
-            {/* Stats â€” produksi lihat SHIFT + TRANSAKSI, TANPA omset/cash */}
+            {/* Stats */}
             <StatsSection
               stats={showFinancials ? stats : {
                 totalShifts: stats?.totalShifts,
                 totalTransactions: stats?.totalTransactions,
-                // omset/pelunasan/hari ini â†’ tidak dikirim ke produksi
               }}
               animationDelay={statsDelay}
             />
 
-            {/* Shift History â€” produksi lihat SHIFT LIST, TANPA nominal kas */}
+            {/* Shift History */}
             <ShiftHistorySection
               shifts={shifts}
               hideCash={isProduksi}
               animationDelay={shiftDelay}
             />
 
-            {/* Activity Log â€” produksi lihat aktivitas NON-FINANSIAL saja */}
+            {/* Activity Log */}
             <ActivityLogSection
               activities={
                 showFinancials
@@ -995,31 +1369,6 @@ export default function ProfilePage({ navigate, goBack }) {
                   : activities?.filter(a => !/setoran|rp|[\d.]+(?:\.\d{3})/.test(a.description ?? '')) ?? []
               }
               animationDelay={activityDelay}
-            />
-
-            {/* Activity Log */}
-            <ActivityLogSection activities={activities} animationDelay={activityDelay} />
-
-            {/* Edit Profile Form */}
-            <EditProfileForm
-              name={name}
-              phone={phone}
-              email={email}
-              saving={saving}
-              onSave={handleSaveProfile}
-              isMobile={isMobile}
-              animationDelay={editDelay}
-            />
-
-            {/* Change Password */}
-            <ChangePasswordForm
-              oldPw={oldPw}
-              newPw={newPw}
-              confirmPw={confirmPw}
-              pwLoading={pwLoading}
-              onChange={handleChangePassword}
-              isMobile={isMobile}
-              animationDelay={passwordDelay}
             />
 
             {/* Role Switcher */}
@@ -1036,9 +1385,34 @@ export default function ProfilePage({ navigate, goBack }) {
         </div>
       </motion.div>
 
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {showEditModal && (
+          <EditProfileModal
+            name={name}
+            phone={phone}
+            email={email}
+            saving={saving}
+            onSave={handleSaveProfile}
+            onClose={() => setShowEditModal(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Change Password Modal */}
+      <AnimatePresence>
+        {showPasswordModal && (
+          <ChangePasswordModal
+            pwLoading={pwLoading}
+            onChange={handleChangePassword}
+            onClose={() => setShowPasswordModal(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Crop Modal */}
       {cropModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: '#000', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#000', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 16, background: '#111', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <span style={{ color: 'white', fontFamily: "'Poppins', sans-serif", fontWeight: 600 }}>Sesuaikan Foto Profil</span>
           </div>

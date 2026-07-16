@@ -10,8 +10,9 @@ import { useResponsive, useWindowSize } from '../../utils/hooks';
 import TodayTargetWidget from '../../components/TodayTargetWidget';
 import RevenueTrendChart from '../../components/RevenueTrendChart';
 import TopServicesChart from '../../components/TopServicesChart';
+import TopupSelectCustomerModal from '../../components/TopupSelectCustomerModal';
 import {
-  Plus, Users, Package, Wallet, CreditCard, FileText,
+  Plus, Users, Package, CreditCard, FileText,
   TrendingUp, Clock, Check, Bell, ChevronRight, Search,
   DollarSign, X, ArrowUpRight, ArrowDownRight,
   Edit3, ArrowLeftRight, Receipt, Sparkles,
@@ -339,7 +340,8 @@ function PeriodSelector({ value, onChange, options, styles }) {
 /** ClayProgressBar — Premium Progress Bar */
 function ClayProgressBar({ value, max, color = COLORS.primary, styles }) {
   const { fonts } = styles || {};
-  const percent = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  if (max == null || max <= 0) return null;
+  const percent = Math.min((value / max) * 100, 100);
 
   return (
     <div style={{ width: '100%' }}>
@@ -362,6 +364,141 @@ function ClayProgressBar({ value, max, color = COLORS.primary, styles }) {
         />
       </div>
     </div>
+  );
+}
+
+/** LowStockAlertsCard — Low stock alerts for kasir dashboard */
+function LowStockAlertsCard({ alerts, loading, onClick, styles }) {
+  const { fonts, spacing, radius } = styles || {};
+
+  const urgencyConfig = {
+    critical: { color: COLORS.danger, bg: COLORS.dangerBg, icon: '🚨', label: 'Habis' },
+    high:     { color: '#F97316',  bg: '#FFF7ED',       icon: '⚠️', label: 'Rendah' },
+    medium:   { color: COLORS.warning, bg: COLORS.warningBg, icon: '📉', label: 'Menipis' },
+    low:      { color: COLORS.info, bg: COLORS.infoBg, icon: '🔔', label: 'Waspada' },
+  };
+
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        style={{ ...clayCard(false, radius), padding: spacing?.md || 14 }}
+      >
+        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.sm || 11, fontWeight: 700, color: COLORS.n700, marginBottom: spacing?.sm || 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          ⚠️ Stok Rendah
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} style={{ height: 40, borderRadius: 8, background: '#f3f4f6', marginBottom: 6, animation: 'shimmer 1.5s infinite', backgroundSize: '200% 100%' }} />
+        ))}
+      </motion.div>
+    );
+  }
+
+  if (!alerts || alerts.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        style={{ ...clayCard(false, radius), padding: spacing?.md || 14, cursor: onClick ? 'pointer' : 'default' }}
+        onClick={onClick}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing?.sm || 8, marginBottom: spacing?.sm || 8 }}>
+          <div style={{ ...clayIcon(COLORS.success, 28), background: COLORS.successBg }}>
+            <Check size={12} color={COLORS.success} />
+          </div>
+          <span style={{ fontFamily: 'Poppins', fontSize: fonts?.sm || 11, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            ⚠️ Stok Rendah
+          </span>
+        </div>
+        <div style={{ textAlign: 'center', padding: spacing?.md || 12 }}>
+          <div style={{ fontSize: 24, marginBottom: 4 }}>✅</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: fonts?.sm || 11, color: COLORS.success, fontWeight: 600 }}>Semua stok aman</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n400, marginTop: 2 }}>Tidak ada item di bawah minimum</div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+      style={{ ...clayCard(false, radius), padding: spacing?.md || 14 }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing?.sm || 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing?.sm || 8 }}>
+          <div style={{ ...clayIcon(COLORS.warning, 28), background: COLORS.warningBg }}>
+            <AlertTriangle size={12} color={COLORS.warning} />
+          </div>
+          <span style={{ fontFamily: 'Poppins', fontSize: fonts?.sm || 11, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            ⚠️ Stok Rendah
+          </span>
+        </div>
+        <motion.button
+          onClick={onClick}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          style={{
+            padding: '4px 10px', borderRadius: 8,
+            background: COLORS.warningBg, border: 'none', cursor: 'pointer',
+            fontFamily: 'Poppins', fontSize: fonts?.xs || 10, fontWeight: 600, color: COLORS.warning,
+          }}
+        >
+          Lihat Semua
+        </motion.button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing?.xs || 6 }}>
+        {alerts.slice(0, 3).map((alert, i) => {
+          const cfg = urgencyConfig[alert.urgency] || urgencyConfig.low;
+          return (
+            <motion.div
+              key={alert.itemId || i}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15 + i * 0.05 }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: spacing?.sm || 8,
+                padding: `${spacing?.xs || 6}px ${spacing?.sm || 8}px`,
+                background: cfg.bg, borderRadius: radius?.sm || 8,
+                border: `1px solid ${cfg.color}20`,
+              }}
+            >
+              <span style={{ fontSize: 14, flexShrink: 0 }}>{cfg.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontFamily: 'Poppins', fontSize: fonts?.xs || 10, fontWeight: 600,
+                  color: COLORS.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                }}>
+                  {alert.itemName}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, color: COLORS.n500 }}>
+                  {alert.currentStock} / {alert.minStock} {alert.unit}
+                </div>
+              </div>
+              <div style={{
+                padding: '2px 8px', borderRadius: 6,
+                background: cfg.color, color: 'white',
+                fontFamily: 'Poppins', fontSize: 9, fontWeight: 700,
+                flexShrink: 0,
+              }}>
+                {cfg.label}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      {alerts.length > 3 && (
+        <div style={{ textAlign: 'center', marginTop: spacing?.sm || 8, fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n400 }}>
+          +{alerts.length - 3} item lainnya
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -582,9 +719,9 @@ export default function KasirDashboardPage({ user, navigate }) {
   const styles = getResponsiveStyles(bp);
 
   const [stats, setStats] = useState({
-    total: 0, omset: 0, target: 5000000, completed: 0,
-    express: 0, pending: 0, customers: 0, lunasRate: 82,
-    targetMonth: 40000000, omsetMonth: 0,
+    total: 0, omset: 0, target: null, completed: 0,
+    express: 0, pending: 0, customers: 0, lunasRate: 0,
+    targetMonth: null, omsetMonth: 0,
     // Nota count stats
     notaCount: {
       dibuat: 0, lunas: 0, dp: 0, selesai: 0
@@ -595,6 +732,9 @@ export default function KasirDashboardPage({ user, navigate }) {
   const [loading, setLoading] = useState(true);
   const [shift, setShift] = useState(null);
   const [clock, setClock] = useState({ date: formatDate(), time: formatTime() });
+  const [lowStockAlerts, setLowStockAlerts] = useState([]);
+  const [lowStockLoading, setLowStockLoading] = useState(true);
+  const [topupModalVisible, setTopupModalVisible] = useState(false);
 
   // Sparkline data from API
   const [sparkData, setSparkData] = useState({
@@ -622,10 +762,9 @@ export default function KasirDashboardPage({ user, navigate }) {
     // Inventory & Stock
     { key: 'inventory', label: 'Inventory', icon: <Package size={16} />, color: COLORS.primaryHover, category: 'Inventory' },
     { key: 'adjustment', label: 'Koreksi Nota', icon: <Edit3 size={16} />, color: COLORS.warning, category: 'Operasional' },
+    { key: 'pengajuan', label: 'Pengajuan Operasional', icon: <Receipt size={16} />, color: '#EC4899', category: 'Operasional' },
     // Financial
-    { key: 'kas', label: 'Kas Outlet', icon: <Wallet size={16} />, color: COLORS.info, category: 'Keuangan' },
-    { key: 'piutang', label: 'Piutang', icon: <TrendingUp size={16} />, color: COLORS.danger, category: 'Keuangan' },
-    { key: 'pengajuan', label: 'Pengajuan Belanja', icon: <Receipt size={16} />, color: '#EC4899', category: 'Keuangan' },
+    { key: 'piutang', label: 'Piutang', icon: <TrendingUp size={16} />, color: COLORS.danger, category: 'Operasional' },
     // Reports & Admin
     { key: 'laporan', label: 'Laporan', icon: <FileText size={16} />, color: '#64748B', category: 'Laporan' },
     { key: 'shift', label: 'Shift', icon: <Clock size={16} />, color: '#6B7280', category: 'Laporan' },
@@ -664,13 +803,13 @@ export default function KasirDashboardPage({ user, navigate }) {
             ...prev,
             total: d.today?.total || 0,
             omset: d.today?.omset || 0,
-            target: targetRes?.data?.data?.dailyTarget || 5000000,
-            targetMonth: targetRes?.data?.data?.monthlyTarget || 40000000,
-            omsetMonth: targetRes?.data?.data?.monthActual || 0,
-            express: d.today?.express || 0,
-            pending: d.today?.pending || 0,
-            completed: d.today?.completed || 0,
-            lunasRate: lunasRate || 82,
+            target: targetRes?.data?.data?.dailyTarget ?? null,
+            targetMonth: targetRes?.data?.data?.monthlyTarget ?? null,
+            omsetMonth: targetRes?.data?.data?.monthActual ?? 0,
+            express: d.today?.express ?? 0,
+            pending: d.today?.pending ?? 0,
+            completed: d.today?.completed ?? 0,
+            lunasRate: lunasRate ?? 0,
             notaCount: {
               dibuat: d.today?.total || 0,
               lunas: d.today?.completed || 0,
@@ -703,6 +842,16 @@ export default function KasirDashboardPage({ user, navigate }) {
       finally { setLoading(false); }
     };
     load();
+  }, []);
+
+  // Load low stock alerts
+  useEffect(() => {
+    let cancelled = false;
+    axios.get('/api/dashboard-intelligence/low-stock')
+      .then(r => { if (!cancelled) setLowStockAlerts(r?.data?.data?.alerts || []); })
+      .catch(() => { if (!cancelled) setLowStockAlerts([]); })
+      .finally(() => { if (!cancelled) setLowStockLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   // Fetch chart data with periods
@@ -743,20 +892,28 @@ export default function KasirDashboardPage({ user, navigate }) {
   const shiftElapsed = shift?.session?.openedAt ? fmtElapsed(shift.session.openedAt) : '';
 
   const goTo = (key) => {
+    if (key === 'topup') {
+      setTopupModalVisible(true);
+      return;
+    }
     const routes = {
       nota: () => shiftOpen ? navigate('nota_step1') : navigate('kasir_shift'),
       customer: () => navigate('customer'),
       inventory: () => navigate('kasir_stok_bahan'),
-      kas: () => navigate('kas_outlet'),
-      piutang: () => navigate('outstanding_list'),
       pengajuan: () => navigate('pengajuan_belanja'),
+      piutang: () => navigate('outstanding_list'),
       laporan: () => navigate('kasir_laporan'),
       shift: () => navigate('kasir_shift'),
-      topup: () => navigate('topup'),
       adjustment: () => navigate('adjustment_list'),
       merge: () => navigate('merge_transaction'),
     };
     routes[key]?.();
+  };
+
+  // Handle customer selection from topup modal
+  const handleTopupSelectCustomer = (customer) => {
+    setTopupModalVisible(false);
+    navigate('topup_deposit', customer);
   };
 
   const targetHariPercent = stats.target > 0 ? Math.round((stats.omset / stats.target) * 100) : 0;
@@ -1048,7 +1205,7 @@ export default function KasirDashboardPage({ user, navigate }) {
             icon={<Target size={16} />}
             label="Target"
             value={loading ? '...' : `${targetHariPercent}%`}
-            subValue={`Tersisa ${fmtK(Math.max(0, stats.target - stats.omset))}`}
+            subValue={stats.target != null ? `Tersisa ${fmtK(Math.max(0, stats.target - stats.omset))}` : 'Belum ada target'}
             color={COLORS.warning}
             sparkData={sparkData.target}
             delay={0.25}
@@ -1056,195 +1213,266 @@ export default function KasirDashboardPage({ user, navigate }) {
           />
         </div>
 
-        {/* ── 1.5 NOTA BREAKDOWN ── */}
+        {/* ── 2. MENU FITUR ── */}
         <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md, marginBottom: styles.spacing.md }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.sm, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: styles.spacing.sm }}>
-            📋 Ringkasan Nota Hari Ini
+          <div style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, marginBottom: styles.spacing.md }}>
+            <Sparkles size={bp.isMobile ? 14 : 16} color={COLORS.primary} />
+            <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.md, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase' }}>
+              Menu Fitur
+            </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: styles.notaGridCols, gap: styles.spacing.sm }}>
-            {/* Dibuat */}
+          <div style={{ display: 'grid', gridTemplateColumns: styles.menuGridCols, gap: bp.isMobile ? 6 : styles.spacing.sm }}>
+            {MENU_ITEMS.map((item, i) => {
+              const { key, ...rest } = item;
+              return <ClayMenuBtn key={key} {...rest} index={i} onClick={() => goTo(key)} styles={componentStyles} />;
+            })}
+          </div>
+        </div>
+
+        {/* ── 3. STATUS PEKERJAAN (Full Width - Prominent) ── */}
+        <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md, marginBottom: styles.spacing.md }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.sm, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: styles.spacing.md }}>
+            Status Pekerjaan
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: bp.isMobile ? 'repeat(3, 1fr)' : 'repeat(3, 1fr)', gap: styles.spacing.sm }}>
+            {/* Express */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              style={{ textAlign: 'center', padding: `${styles.spacing.md}px ${styles.spacing.xs}px`, background: `${COLORS.primary}08`, borderRadius: styles.radius.md }}
+              transition={{ delay: 0.05 }}
+              whileHover={{ y: -3, scale: 1.02 }}
+              style={{
+                background: '#FFF7ED',
+                borderRadius: styles.radius.md,
+                padding: `${styles.spacing.md}px`,
+                textAlign: 'center',
+                border: '1.5px solid #FED7AA',
+                cursor: 'pointer',
+              }}
             >
-              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? styles.fonts.xxl : styles.fonts.hero, fontWeight: 800, color: COLORS.primary }}>
-                {loading ? '-' : stats.notaCount.dibuat}
+              <div style={{
+                width: 48, height: 48, borderRadius: 14,
+                background: 'linear-gradient(145deg, #FFEDD5, #FFF7ED)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 8px',
+                boxShadow: '4px 4px 10px rgba(249,115,22,0.1), -2px -2px 6px rgba(255,255,255,0.9)',
+              }}>
+                <Zap size={20} color="#F97316" />
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4 }}>Dibuat</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 20 : 26, fontWeight: 800, color: '#C2410C', lineHeight: 1 }}>
+                {loading ? '-' : stats.express || 0}
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: '#9A3412', fontWeight: 600, marginTop: 4 }}>Express</div>
+              {stats.timeMetrics?.expressProcessing > 0 && (
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, color: '#F97316', marginTop: 6, background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 6, padding: '2px 6px' }}>
+                  ⚡ {stats.timeMetrics.expressProcessing} lagi proses
+                </div>
+              )}
             </motion.div>
-            {/* Lunas */}
+
+            {/* Proses */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.35 }}
-              style={{ textAlign: 'center', padding: `${styles.spacing.md}px ${styles.spacing.xs}px`, background: COLORS.successBg, borderRadius: styles.radius.md }}
+              transition={{ delay: 0.1 }}
+              whileHover={{ y: -3, scale: 1.02 }}
+              style={{
+                background: COLORS.infoLight,
+                borderRadius: styles.radius.md,
+                padding: `${styles.spacing.md}px`,
+                textAlign: 'center',
+                border: '1.5px solid #BFDBFE',
+                cursor: 'pointer',
+              }}
             >
-              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? styles.fonts.xxl : styles.fonts.hero, fontWeight: 800, color: COLORS.success }}>
-                {loading ? '-' : stats.notaCount.lunas}
+              <div style={{
+                width: 48, height: 48, borderRadius: 14,
+                background: 'linear-gradient(145deg, #DBEAFE, #EFF6FF)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 8px',
+                boxShadow: '4px 4px 10px rgba(59,130,246,0.1), -2px -2px 6px rgba(255,255,255,0.9)',
+              }}>
+                <Clock size={20} color={COLORS.info} />
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4 }}>Lunas</div>
-            </motion.div>
-            {/* DP */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              style={{ textAlign: 'center', padding: `${styles.spacing.md}px ${styles.spacing.xs}px`, background: COLORS.warningBg, borderRadius: styles.radius.md }}
-            >
-              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? styles.fonts.xxl : styles.fonts.hero, fontWeight: 800, color: COLORS.warning }}>
-                {loading ? '-' : stats.notaCount.dp}
+              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 20 : 26, fontWeight: 800, color: '#1D4ED8', lineHeight: 1 }}>
+                {loading ? '-' : stats.pending || 0}
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4 }}>DP</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: '#1E40AF', fontWeight: 600, marginTop: 4 }}>Proses</div>
+              {stats.timeMetrics?.oldestWaitingHours > 0 && (
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, color: COLORS.info, marginTop: 6, background: '#DBEAFE', border: '1px solid #BFDBFE', borderRadius: 6, padding: '2px 6px' }}>
+                  🕐 Tertunda {stats.timeMetrics.oldestWaitingHours} jam
+                </div>
+              )}
             </motion.div>
+
             {/* Selesai */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.45 }}
-              style={{ textAlign: 'center', padding: `${styles.spacing.md}px ${styles.spacing.xs}px`, background: `${COLORS.success}15`, borderRadius: styles.radius.md }}
+              transition={{ delay: 0.15 }}
+              whileHover={{ y: -3, scale: 1.02 }}
+              style={{
+                background: COLORS.successBg,
+                borderRadius: styles.radius.md,
+                padding: `${styles.spacing.md}px`,
+                textAlign: 'center',
+                border: '1.5px solid #A7F3D0',
+                cursor: 'pointer',
+              }}
             >
-              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? styles.fonts.xxl : styles.fonts.hero, fontWeight: 800, color: COLORS.success }}>
-                {loading ? '-' : stats.notaCount.selesai}
+              <div style={{
+                width: 48, height: 48, borderRadius: 14,
+                background: 'linear-gradient(145deg, #D1FAE5, #ECFDF5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 8px',
+                boxShadow: '4px 4px 10px rgba(16,185,129,0.1), -2px -2px 6px rgba(255,255,255,0.9)',
+              }}>
+                <Check size={20} color={COLORS.success} />
               </div>
-              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4 }}>Selesai</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 20 : 26, fontWeight: 800, color: '#047857', lineHeight: 1 }}>
+                {loading ? '-' : stats.completed || 0}
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: '#065F46', fontWeight: 600, marginTop: 4 }}>Selesai</div>
+              {stats.timeMetrics?.avgProcessingHours > 0 && (
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, color: COLORS.success, marginTop: 6, background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 6, padding: '2px 6px' }}>
+                  ✓ Avg {stats.timeMetrics.avgProcessingHours} jam proses
+                </div>
+              )}
+              {stats.timeMetrics?.overduePickup > 0 && (
+                <div style={{ fontFamily: 'Poppins', fontSize: 9, color: COLORS.danger, marginTop: 4, background: COLORS.dangerBg, border: '1px solid #FECACA', borderRadius: 6, padding: '2px 6px' }}>
+                  ⚠ {stats.timeMetrics.overduePickup} belum diambil
+                </div>
+              )}
             </motion.div>
           </div>
         </div>
 
-        {/* ── 2. STATUS PEKERJAAN + TARGET CARDS ── */}
+        {/* ── 4. NOTA + TARGET + STOK (2 Column Grid) ── */}
         <div style={{ display: 'grid', gridTemplateColumns: styles.statusTargetCols, gap: bp.isMobile ? styles.spacing.sm : styles.spacing.md, marginBottom: styles.spacing.md }}>
 
-          {/* KIRI: Status Pekerjaan */}
+          {/* KIRI: Ringkasan Nota Hari Ini (2x2 Grid) */}
           <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md }}>
             <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.sm, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: styles.spacing.sm }}>
-              Status Pekerjaan
+              📋 Nota Hari Ini
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: styles.spacing.sm }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: styles.spacing.sm }}>
+              {/* Dibuat */}
               <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                style={{
+                  textAlign: 'center',
+                  padding: `${styles.spacing.sm}px`,
+                  background: `${COLORS.primary}10`,
+                  borderRadius: styles.radius.md,
+                  border: '1.5px solid rgba(139,92,246,0.15)',
+                }}
+              >
+                <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 20 : 26, fontWeight: 800, color: COLORS.primary, lineHeight: 1.2 }}>
+                  {loading ? '-' : stats.notaCount.dibuat}
+                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4, fontWeight: 600 }}>Dibuat</div>
+              </motion.div>
+              {/* Proses */}
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, padding: `${styles.spacing.sm}px ${styles.spacing.md}px`, background: '#FFF7ED', borderRadius: styles.radius.md }}
+                style={{
+                  textAlign: 'center',
+                  padding: `${styles.spacing.sm}px`,
+                  background: COLORS.infoLight,
+                  borderRadius: styles.radius.md,
+                  border: '1.5px solid rgba(59,130,246,0.15)',
+                }}
               >
-                <div style={{ ...clayIcon('#F97316', bp.isMobile ? 32 : 36), background: '#FFF7ED' }}>
-                  <Zap size={bp.isMobile ? 16 : 18} color="#F97316" />
+                <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 20 : 26, fontWeight: 800, color: COLORS.info, lineHeight: 1.2 }}>
+                  {loading ? '-' : stats.pending || 0}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.n800 }}>{loading ? '-' : stats.express || 0}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Express</div>
-                  </div>
-                  {stats.timeMetrics?.expressProcessing > 0 && (
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: '#F97316', marginTop: 2 }}>
-                      ⚡ {stats.timeMetrics.expressProcessing} lagi proses
-                    </div>
-                  )}
-                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4, fontWeight: 600 }}>Proses</div>
               </motion.div>
+              {/* Belum Diambil */}
               <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, padding: `${styles.spacing.sm}px ${styles.spacing.md}px`, background: COLORS.infoLight, borderRadius: styles.radius.md }}
+                style={{
+                  textAlign: 'center',
+                  padding: `${styles.spacing.sm}px`,
+                  background: COLORS.dangerBg,
+                  borderRadius: styles.radius.md,
+                  border: '1.5px solid rgba(239,68,68,0.15)',
+                }}
               >
-                <div style={{ ...clayIcon(COLORS.info, bp.isMobile ? 32 : 36), background: COLORS.infoLight }}>
-                  <Clock size={bp.isMobile ? 16 : 18} color={COLORS.info} />
+                <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 20 : 26, fontWeight: 800, color: COLORS.danger, lineHeight: 1.2 }}>
+                  {loading ? '-' : stats.timeMetrics?.overduePickup || 0}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.n800 }}>{loading ? '-' : stats.pending || 0}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Proses</div>
-                  </div>
-                  {stats.timeMetrics?.oldestWaitingHours > 0 && (
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.info, marginTop: 2 }}>
-                      🕐 Tertunda {stats.timeMetrics.oldestWaitingHours} jam
-                    </div>
-                  )}
-                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4, fontWeight: 600 }}>Belum Diambil</div>
               </motion.div>
+              {/* Lunas Rate */}
               <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, padding: `${styles.spacing.sm}px ${styles.spacing.md}px`, background: COLORS.successBg, borderRadius: styles.radius.md }}
+                style={{
+                  textAlign: 'center',
+                  padding: `${styles.spacing.sm}px`,
+                  background: COLORS.successBg,
+                  borderRadius: styles.radius.md,
+                  border: '1.5px solid rgba(16,185,129,0.15)',
+                }}
               >
-                <div style={{ ...clayIcon(COLORS.success, bp.isMobile ? 32 : 36), background: COLORS.successBg }}>
-                  <Check size={bp.isMobile ? 16 : 18} color={COLORS.success} />
+                <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 20 : 26, fontWeight: 800, color: COLORS.success, lineHeight: 1.2 }}>
+                  {loading ? '-' : stats.lunasRate || 0}%
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.n800 }}>{loading ? '-' : stats.completed || 0}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Selesai</div>
-                  </div>
-                  {stats.timeMetrics?.avgProcessingHours > 0 && (
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.success, marginTop: 2 }}>
-                      ✓ Avg {stats.timeMetrics.avgProcessingHours} jam proses
-                    </div>
-                  )}
-                  {stats.timeMetrics?.overduePickup > 0 && (
-                    <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.danger, marginTop: 2 }}>
-                      ⚠ {stats.timeMetrics.overduePickup} belum diambil
-                    </div>
-                  )}
-                </div>
+                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500, marginTop: 4, fontWeight: 600 }}>Lunas Rate</div>
               </motion.div>
             </div>
           </div>
 
-          {/* KANAN: Target Cards */}
+          {/* KANAN: Target Bulanan + Stok Rendah */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: styles.spacing.sm }}>
-            <motion.div
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              style={{ ...clayCard(false, styles.radius), padding: `${styles.spacing.sm}px ${styles.spacing.md}px` }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: styles.spacing.xs }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n500, textTransform: 'uppercase' }}>Target Bulan Ini</div>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.primary }}>{targetBulanPercent}%</span>
-              </div>
-              <ClayProgressBar value={stats.omsetMonth} max={stats.targetMonth} color={COLORS.primary} styles={componentStyles} />
-              <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Realisasi</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.omsetMonth)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Target</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.targetMonth)}</span>
-              </div>
-            </motion.div>
+            {/* Target Bulan Ini — hanya tampil kalau ada target */}
+            {stats.targetMonth != null && (
+              <motion.div
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                style={{ ...clayCard(false, styles.radius), padding: `${styles.spacing.sm}px ${styles.spacing.md}px` }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: styles.spacing.xs }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n500, textTransform: 'uppercase' }}>Target Bulan Ini</div>
+                  <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.primary }}>{targetBulanPercent}%</span>
+                </div>
+                <ClayProgressBar value={stats.omsetMonth} max={stats.targetMonth} color={COLORS.primary} styles={componentStyles} />
+                <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Realisasi</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.omsetMonth)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                  <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Target</span>
+                  <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.targetMonth)}</span>
+                </div>
+              </motion.div>
+            )}
 
-            <motion.div
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.15 }}
-              style={{ ...clayCard(false, styles.radius), padding: `${styles.spacing.sm}px ${styles.spacing.md}px` }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: styles.spacing.xs }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n500, textTransform: 'uppercase' }}>Target Hari Ini</div>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.lg, fontWeight: 800, color: COLORS.warning }}>{targetHariPercent}%</span>
-              </div>
-              <ClayProgressBar value={stats.omset} max={stats.target} color={COLORS.warning} styles={componentStyles} />
-              <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Realisasi</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.omset)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, color: COLORS.n500 }}>Target</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.xs, fontWeight: 600, color: COLORS.n700 }}>{rp(stats.target)}</span>
-              </div>
-            </motion.div>
+            {/* Stok Rendah Alerts */}
+            <LowStockAlertsCard
+              alerts={lowStockAlerts}
+              loading={lowStockLoading}
+              onClick={() => navigate('kasir_stok_bahan')}
+              styles={componentStyles}
+            />
           </div>
         </div>
 
-        {/* ── 3. CHARTS ROW 1: Revenue Trend ── */}
+        {/* ── 5. CHARTS ROW 1: Revenue Trend ── */}
         <div style={{ ...clayCard(false, styles.radius), minHeight: bp.isMobile ? 180 : 220, marginBottom: styles.spacing.md }}>
           <RevenueTrendChart />
         </div>
 
-        {/* ── 3. CHARTS ROW 2: Payment Methods + Top Services ── */}
+        {/* ── 6. CHARTS ROW 2: Payment Methods + Top Services ── */}
         <div style={{ display: 'grid', gridTemplateColumns: styles.chartGridCols, gap: bp.isMobile ? styles.spacing.sm : styles.spacing.md, marginBottom: styles.spacing.md }}>
           {/* Payment Methods Donut */}
           <div style={{ ...clayCard(false, styles.radius), minHeight: bp.isMobile ? 180 : 200 }}>
@@ -1276,24 +1504,7 @@ export default function KasirDashboardPage({ user, navigate }) {
           </div>
         </div>
 
-        {/* ── 4. MENU FITUR (Card terpisah) ── */}
-        <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md, marginBottom: styles.spacing.md }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm, marginBottom: styles.spacing.md }}>
-            <Sparkles size={bp.isMobile ? 14 : 16} color={COLORS.primary} />
-            <span style={{ fontFamily: 'Poppins', fontSize: styles.fonts.md, fontWeight: 700, color: COLORS.n700, textTransform: 'uppercase' }}>
-              Menu Fitur
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: styles.menuGridCols, gap: bp.isMobile ? 6 : styles.spacing.sm }}>
-            {MENU_ITEMS.map((item, i) => {
-              const { key, ...rest } = item;
-              return <ClayMenuBtn key={key} {...rest} index={i} onClick={() => goTo(key)} styles={componentStyles} />;
-            })}
-          </div>
-        </div>
-
-        {/* ── 5. TRANSAKSI TERAKHIR ── */}
+        {/* ── 7. TRANSAKSI TERAKHIR ── */}
         <div style={{ ...clayCard(true, styles.radius), padding: styles.spacing.md, marginBottom: styles.spacing.md }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: styles.spacing.sm, flexWrap: 'wrap', gap: styles.spacing.xs }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: styles.spacing.sm }}>
@@ -1345,6 +1556,13 @@ export default function KasirDashboardPage({ user, navigate }) {
         </div>
 
       </div>
+
+      {/* Top Up Customer Selection Modal */}
+      <TopupSelectCustomerModal
+        visible={topupModalVisible}
+        onClose={() => setTopupModalVisible(false)}
+        onSelectCustomer={handleTopupSelectCustomer}
+      />
 
     </div>
   );

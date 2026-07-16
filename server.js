@@ -87,6 +87,8 @@ import outstandingRoutes from './api/routes/outstanding.routes.js';
 import mergeRoutes from './api/routes/merge.routes.js';
 import dailyReportRoutes from './api/routes/dailyReport.routes.js';
 import pengajuanBelanjaRoutes from './api/routes/pengajuanBelanja.routes.js';
+import { upload, handleUpload } from './api/controllers/uploadController.js';
+import { authenticate } from './api/middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -220,6 +222,10 @@ app.use('/api/outstandings', outstandingRoutes);
 app.use('/api/merges', mergeRoutes);
 app.use('/api/daily-reports', dailyReportRoutes);
 app.use('/api/pengajuan-belanja', pengajuanBelanjaRoutes);
+
+// ─── Generic File Upload ───────────────────────────────────────────────────
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.post('/api/upload', authenticate, upload.single('file'), handleUpload);
 
 // 404 handler for unknown API routes
 app.use('/api/*', (req, res) => {
