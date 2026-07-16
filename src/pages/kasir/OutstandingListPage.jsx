@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { rp } from '../../utils/helpers';
+import { rp, buildWaMeLink } from '../../utils/helpers';
 import { C, SHADOW } from '../../utils/theme';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
 import {
@@ -422,7 +422,7 @@ export default function OutstandingListPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       {item.phone && (
-                        <a href={`https://wa.me/${item.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                        <a href={buildWaMeLink(item.phone) || '#'} target="_blank" rel="noopener noreferrer">
                           <button style={{
                             width: 32, height: 32,
                             borderRadius: 8,

@@ -154,7 +154,7 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 10 : 12, paddingBottom: isMobile ? 'calc(12px + env(safe-area-inset-bottom) + 80px)' : 12 }}>
         {/* Hero summary */}
         <div style={{
-          background: 'linear-gradient(135deg, #4F46E5, #6e2e78)',
+          background: 'linear-gradient(135deg, #4F46E5, #5B005F)',
           borderRadius: 16, padding: '18px 20px', marginBottom: 14,
           color: 'white',
         }}>

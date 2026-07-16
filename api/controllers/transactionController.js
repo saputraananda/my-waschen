@@ -10,6 +10,34 @@ const logger = createLogger('Transaction');
 
 const schemaColumnCache = new Map();
 
+// ─── Helper: BigInt → safe number/string for JSON serialization ─────────────────
+const safeBigInt = (v) => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'bigint') {
+    const n = Number(v);
+    return Number.isSafeInteger(n) ? n : String(v);
+  }
+  return v;
+};
+
+// Recursively sanitize objects/arrays for BigInt
+const sanitizeResponse = (obj) => {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') {
+    const n = Number(obj);
+    return Number.isSafeInteger(n) ? n : String(obj);
+  }
+  if (Array.isArray(obj)) return obj.map(sanitizeResponse);
+  if (typeof obj === 'object') {
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = sanitizeResponse(value);
+    }
+    return result;
+  }
+  return obj;
+};
+
 const hasColumn = async (tableName, columnName) => {
   const key = `${tableName}.${columnName}`;
   if (schemaColumnCache.has(key)) return schemaColumnCache.get(key);
@@ -82,6 +110,9 @@ export const checkoutTransaction = async (req, res) => {
       scheduleAt: req.body.scheduleAt,
       kasirConfirmed: req.body.paymentIntent?.verifiedByKasir,
     });
+
+    // TEMP: Log all request body keys for debugging
+    logger.info('[checkout] Body keys:', Object.keys(req.body || {}));
 
     const {
       customerId,
@@ -270,7 +301,8 @@ export const checkoutTransaction = async (req, res) => {
     if (serviceIds.length > 0) {
       const ph = serviceIds.map(() => '?').join(',');
       const [svcRows] = await conn.execute(
-        `SELECT id, name AS service_name, unit_type AS unit, price, express_multiplier, category_id, requires_material
+        `SELECT id, name AS service_name, unit_type AS unit, price, express_multiplier,
+                category_id, requires_material, durasi_hari
          FROM mst_service WHERE id IN (${ph})`,
         serviceIds
       );
@@ -309,34 +341,39 @@ export const checkoutTransaction = async (req, res) => {
       }
       
       // BUG FIX 4: M² Calculation Enforcement
-      if (service.unit === 'm2' || service.unit === 'm²') {
-        const length = item.length;
-        const width = item.width;
+      // Accept both 'm2' and 'm²' (handles frontend/backend encoding differences)
+      const unitStr = String(service.unit || '').trim();
+      const isM2 = unitStr === 'm2' || unitStr === 'm²';
+      if (isM2) {
+        // Frontend sends carpetPanjangCm / carpetLebarCm (stored in cm)
+        // Backend reads item.length / item.width (expecting cm values)
+        const pCm = Number(item.carpetPanjangCm ?? item.length ?? 0);
+        const lCm = Number(item.carpetLebarCm ?? item.width ?? 0);
         
-        if (!length || !width) {
+        if (!pCm || !lCm) {
           await conn.rollback();
           conn.release();
           return res.status(422).json({
             success: false,
-            message: `Service "${service.service_name}" dengan unit m² memerlukan input panjang (length) dan lebar (width).`,
+            message: `Service "${service.service_name}" dengan unit m² memerlukan input dimensi karpet (panjang & lebar dalam cm).`,
             errors: {
-              length: 'Required for m² services',
-              width: 'Required for m² services'
+              carpetPanjangCm: 'Required for m² services',
+              carpetLebarCm: 'Required for m² services',
             }
           });
         }
-        
-        // Calculate qty from length × width (ignore any qty sent from client)
-        const calculatedQty = Number(length) * Number(width);
-        
-        if (item.qty && Number(item.qty) !== calculatedQty) {
-          // Mismatched qty - will override with calculated m²
-        }
-        
-        // Override qty with calculated value
+
+        // Convert cm → m, then calculate qty (area in m²)
+        const pM = pCm / 100;
+        const lM = lCm / 100;
+        const calculatedQty = Math.round(pM * lM * 100) / 100; // 2 decimal places
+
+        // Normalize field names for downstream code (tr_transaction_item insert)
+        item.length = pM;
+        item.width = lM;
+        item.carpetPanjangCm = pCm;
+        item.carpetLebarCm = lCm;
         item.qty = calculatedQty;
-        item.length = Number(length);
-        item.width = Number(width);
       }
       
       validatedItems.push(item);
@@ -591,52 +628,72 @@ export const checkoutTransaction = async (req, res) => {
     const intentSummary = hasPaymentIntent ? `[${paidLabel}]` : '';
     const combinedNotes = [notes?.trim() || '', intentSummary].filter(Boolean).join('\n') || null;
 
-    // ── Auto-compute SLA kalau dueDate tidak diisi manual ─────────────────
-    // Logika:
-    // 1. Cari MAX(sla_*_hours) dari semua service yang dipilih
-    // 2. Kalau service tidak punya, fallback ke mst_sla_template (per outlet/global)
-    // 3. Default fallback: 48 jam regular / 24 jam express
+    // ── Auto-compute SLA berdasarkan durasi_hari (MAX principle) ─────────────────
+    // LOGIKA: 1 Nota = 1 waktu pengambilan customer
+    // Estimasi nota = MAX(durasi_hari) dari semua item dalam nota
+    // Karena customer TIDAK akan datang 3x untuk ambil 3 item terpisah
+    // Mereka datang sekali, jadi estimasi = item yang paling lambat selesai
+    //
+    // Contoh:
+    //   Cuci Kering (2 hari) + Dry Clean (3 hari) + Setrika (1 hari)
+    //   → Estimasi Nota = MAX(2, 3, 1) = 3 hari
+    //
+    // Konsep ini mengikuti multi-item order di laundry profesional:
+    // "All items ready at the same time" - baru diambil bersamaan
+    // ORDER DATE: selalu gunakan tanggal order untuk menghitung estimasi per item
+    const orderDate = new Date();
+
     let finalEstimatedDone = dueDate || null;
     if (!finalEstimatedDone) {
       try {
         const serviceIds = items.map(i => i.serviceId).filter(Boolean);
-        let maxRegularHours = 48;
-        let maxExpressHours = 24;
-        const isExpress = items.some(i => i.isExpress);
+        let maxDurasiHari = 2; // default 2 hari jika tidak ada data
 
         if (serviceIds.length > 0) {
+          // Ambil durasi_hari dari setiap service dan hitung MAX
           const [svcRows] = await conn.execute(
-            `SELECT MAX(sla_regular_hours) AS maxReg, MAX(sla_express_hours) AS maxExp
-               FROM mst_service WHERE id IN (${serviceIds.map(() => '?').join(',')})`,
+            `SELECT COALESCE(MAX(durasi_hari), 2) AS maxDurasi
+             FROM mst_service WHERE id IN (${serviceIds.map(() => '?').join(',')})`,
             serviceIds
           );
-          if (svcRows[0]?.maxReg) maxRegularHours = Number(svcRows[0].maxReg);
-          if (svcRows[0]?.maxExp) maxExpressHours = Number(svcRows[0].maxExp);
-
-          // Kalau service tidak punya SLA, fallback ke template
-          if (!svcRows[0]?.maxReg) {
-            const [tmplRows] = await conn.execute(
-              `SELECT regular_hours, express_hours FROM mst_sla_template
-                WHERE (outlet_id = ? OR outlet_id IS NULL) AND is_active = 1
-                ORDER BY outlet_id IS NULL ASC LIMIT 1`,
-              [outletId]
-            );
-            if (tmplRows[0]) {
-              maxRegularHours = Number(tmplRows[0].regular_hours) || 48;
-              maxExpressHours = Number(tmplRows[0].express_hours) || 24;
-            }
+          if (svcRows[0]?.maxDurasi) {
+            maxDurasiHari = Number(svcRows[0].maxDurasi);
           }
+
+          // Log untuk debugging
+          logger.info('[checkout] SLA Calculation:', {
+            serviceIds,
+            maxDurasiHari,
+            itemCount: serviceIds.length,
+            principle: 'MAX(durasi_hari) - all items ready at same time'
+          });
         }
 
-        const slaHours = isExpress ? maxExpressHours : maxRegularHours;
-        const eta = new Date(Date.now() + slaHours * 3600 * 1000);
-        // Format YYYY-MM-DD HH:MM:SS
-        finalEstimatedDone = eta.toISOString().slice(0, 19).replace('T', ' ');
+        // Hitung tanggal selesai = tanggal order + maxDurasiHari hari
+        const estimatedDate = new Date(orderDate);
+        estimatedDate.setDate(estimatedDate.getDate() + maxDurasiHari);
+
+        // Format: YYYY-MM-DD HH:MM:SS (set default time ke jam 18:00 sebagai estimasi selesai)
+        const hours = 18;
+        const minutes = 0;
+        const seconds = 0;
+        estimatedDate.setHours(hours, minutes, seconds, 0);
+
+        finalEstimatedDone = estimatedDate.toISOString().slice(0, 19).replace('T', ' ');
+
+        logger.info('[checkout] Estimated Done:', {
+          orderDate: orderDate.toISOString().slice(0, 10),
+          maxDurasiHari,
+          estimatedDone: finalEstimatedDone
+        });
+
       } catch (slaErr) {
         logger.warn('[checkout] SLA auto-compute failed:', slaErr.message);
-        // Fallback hardcoded: 48 jam dari sekarang
-        const eta = new Date(Date.now() + 48 * 3600 * 1000);
-        finalEstimatedDone = eta.toISOString().slice(0, 19).replace('T', ' ');
+        // Fallback: 2 hari dari sekarang jam 18:00
+        const fallbackDate = new Date(orderDate);
+        fallbackDate.setDate(fallbackDate.getDate() + 2);
+        fallbackDate.setHours(18, 0, 0, 0);
+        finalEstimatedDone = fallbackDate.toISOString().slice(0, 19).replace('T', ' ');
       }
     }
     // ── CRITICAL: Validate active shift session ─────────────────────────────────
@@ -814,13 +871,25 @@ export const checkoutTransaction = async (req, res) => {
       hasMaterialIdCol = Number(chk[0]?.cnt || 0) > 0;
     } catch (err) { logger.warn('[checkoutTransaction] Cek kolom material_id gagal:', err?.message); hasMaterialIdCol = false; }
 
+    // Check if carpet-specific columns exist (carpet_panjang_cm, carpet_lebar_cm)
+    let hasCarpetCols = false;
     try {
       const [chk] = await conn.execute(
         `SELECT COUNT(*) AS cnt FROM information_schema.columns
-          WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'length'`
+          WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'carpet_panjang_cm'`
       );
-      hasLengthWidthCols = Number(chk[0]?.cnt || 0) > 0;
-    } catch (err) { logger.warn('[checkoutTransaction] Cek kolom length gagal:', err?.message); hasLengthWidthCols = false; }
+      hasCarpetCols = Number(chk[0]?.cnt || 0) > 0;
+    } catch (err) { logger.warn('[checkoutTransaction] Cek kolom carpet_panjang_cm gagal:', err?.message); hasCarpetCols = false; }
+
+    // Check if estimated_done_at column exists for deadline tracking
+    let hasEstimatedDoneCol = false;
+    try {
+      const [chk2] = await conn.execute(
+        `SELECT COUNT(*) AS cnt FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'tr_transaction_item' AND column_name = 'estimated_done_at'`
+      );
+      hasEstimatedDoneCol = Number(chk2[0]?.cnt || 0) > 0;
+    } catch (err) { logger.warn('[checkoutTransaction] Cek kolom estimated_done_at gagal:', err?.message); hasEstimatedDoneCol = false; }
 
     for (let i = 0; i < validatedItems.length; i++) {
       const item = validatedItems[i];
@@ -841,70 +910,137 @@ export const checkoutTransaction = async (req, res) => {
         multiplier = Number(svc.express_multiplier) || 1.0;
       }
 
+      // ── Calculate per-item estimated_done_at ─────────────────────────────────────
+      // Estimasi per item berdasarkan durasi_hari dari service
+      // Transaction estimated = MAX dari semua item (sudah dihitung di atas)
+      // Per-item estimated = order_date + service.durasi_hari
+      const itemDurasi = Number(svc.durasi_hari) || 2;
+      const itemEstimatedDate = new Date(orderDate);
+      itemEstimatedDate.setDate(itemEstimatedDate.getDate() + itemDurasi);
+      itemEstimatedDate.setHours(18, 0, 0, 0);
+      const itemEstimatedDoneStr = itemEstimatedDate.toISOString().slice(0, 19).replace('T', ' ');
+
       // Build INSERT query based on available columns
-      if (hasItemExtraCols && hasMaterialIdCol && hasLengthWidthCols) {
-        // Full support: material (text), material_id (FK), length, width
+      // hasCarpetCols = carpet_panjang_cm (cm stored), hasItemExtraCols = material text, hasMaterialIdCol = material_id FK
+      // hasEstimatedDoneCol = estimated_done_at (added in migration 031)
+      if (hasCarpetCols) {
+        // Full support: carpet dimensions (cm) + material (text) + material_id (FK)
+        const fields = [
+          'transaction_id', 'service_id', 'item_no',
+          'service_name_snapshot', 'unit_type_snapshot',
+          'qty', 'price', 'express_multiplier', 'is_express',
+          'subtotal', 'notes', 'material', 'brand', 'special_care_alert',
+          'material_id', 'carpet_panjang_cm', 'carpet_lebar_cm'
+        ];
+        const values = [
+          trxId, serviceId, itemNo,
+          item.serviceName || item.name || svc.service_name || 'Layanan',
+          item.unit || svc.unit || 'pcs',
+          itemQty, itemPrice, multiplier, itemIsExpress,
+          itemSubtotal, item.notes || null,
+          item.material ? String(item.material).slice(0, 80) : null,
+          item.brand ? String(item.brand).slice(0, 80) : null,
+          item.specialCareAlert ? String(item.specialCareAlert).slice(0, 255) : null,
+          item.materialId || item.material_id || null,
+          item.carpetPanjangCm || item.carpet_panjang_cm || null,
+          item.carpetLebarCm || item.carpet_lebar_cm || null,
+        ];
+
+        if (hasEstimatedDoneCol) {
+          fields.push('estimated_done_at');
+          values.push(itemEstimatedDoneStr);
+        }
+
         await conn.execute(
-          `INSERT INTO tr_transaction_item (
-            transaction_id, service_id, item_no,
-            service_name_snapshot, unit_type_snapshot,
-            qty, price, express_multiplier, is_express,
-            subtotal, notes, material, brand, special_care_alert,
-            material_id, length, width,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-          [
-            trxId, serviceId, itemNo,
-            item.serviceName || item.name || svc.service_name || 'Layanan',
-            item.unit || svc.unit || 'pcs',
-            itemQty, itemPrice, multiplier, itemIsExpress,
-            itemSubtotal, item.notes || null,
-            item.material ? String(item.material).slice(0, 80) : null,
-            item.brand ? String(item.brand).slice(0, 80) : null,
-            item.specialCareAlert ? String(item.specialCareAlert).slice(0, 255) : null,
-            item.materialId || item.material_id || null,
-            item.length || null,
-            item.width || null,
-          ]
+          'INSERT INTO tr_transaction_item (' + fields.join(', ') + ', created_at, updated_at) ' +
+          'VALUES (' + fields.map(() => '?').join(', ') + ', NOW(), NOW())',
+          values
+        );
+      } else if (hasItemExtraCols && hasMaterialIdCol) {
+        // Legacy: material text + material_id, no carpet cols
+        const fields = [
+          'transaction_id', 'service_id', 'item_no',
+          'service_name_snapshot', 'unit_type_snapshot',
+          'qty', 'price', 'express_multiplier', 'is_express',
+          'subtotal', 'notes', 'material', 'brand', 'special_care_alert',
+          'material_id'
+        ];
+        const values = [
+          trxId, serviceId, itemNo,
+          item.serviceName || item.name || svc.service_name || 'Layanan',
+          item.unit || svc.unit || 'pcs',
+          itemQty, itemPrice, multiplier, itemIsExpress,
+          itemSubtotal, item.notes || null,
+          item.material ? String(item.material).slice(0, 80) : null,
+          item.brand ? String(item.brand).slice(0, 80) : null,
+          item.specialCareAlert ? String(item.specialCareAlert).slice(0, 255) : null,
+          item.materialId || item.material_id || null,
+        ];
+
+        if (hasEstimatedDoneCol) {
+          fields.push('estimated_done_at');
+          values.push(itemEstimatedDoneStr);
+        }
+
+        await conn.execute(
+          'INSERT INTO tr_transaction_item (' + fields.join(', ') + ', created_at, updated_at) ' +
+          'VALUES (' + fields.map(() => '?').join(', ') + ', NOW(), NOW())',
+          values
         );
       } else if (hasItemExtraCols) {
         // Legacy: only material (text), brand, special_care_alert
+        const fields = [
+          'transaction_id', 'service_id', 'item_no',
+          'service_name_snapshot', 'unit_type_snapshot',
+          'qty', 'price', 'express_multiplier', 'is_express',
+          'subtotal', 'notes', 'material', 'brand', 'special_care_alert'
+        ];
+        const values = [
+          trxId, serviceId, itemNo,
+          item.serviceName || item.name || svc.service_name || 'Layanan',
+          item.unit || svc.unit || 'pcs',
+          itemQty, itemPrice, multiplier, itemIsExpress,
+          itemSubtotal, item.notes || null,
+          item.material ? String(item.material).slice(0, 80) : null,
+          item.brand ? String(item.brand).slice(0, 80) : null,
+          item.specialCareAlert ? String(item.specialCareAlert).slice(0, 255) : null,
+        ];
+
+        if (hasEstimatedDoneCol) {
+          fields.push('estimated_done_at');
+          values.push(itemEstimatedDoneStr);
+        }
+
         await conn.execute(
-          `INSERT INTO tr_transaction_item (
-            transaction_id, service_id, item_no,
-            service_name_snapshot, unit_type_snapshot,
-            qty, price, express_multiplier, is_express,
-            subtotal, notes, material, brand, special_care_alert,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-          [
-            trxId, serviceId, itemNo,
-            item.serviceName || item.name || svc.service_name || 'Layanan',
-            item.unit || svc.unit || 'pcs',
-            itemQty, itemPrice, multiplier, itemIsExpress,
-            itemSubtotal, item.notes || null,
-            item.material ? String(item.material).slice(0, 80) : null,
-            item.brand ? String(item.brand).slice(0, 80) : null,
-            item.specialCareAlert ? String(item.specialCareAlert).slice(0, 255) : null,
-          ]
+          'INSERT INTO tr_transaction_item (' + fields.join(', ') + ', created_at, updated_at) ' +
+          'VALUES (' + fields.map(() => '?').join(', ') + ', NOW(), NOW())',
+          values
         );
       } else {
         // Minimal: no extra columns
+        const fields = [
+          'transaction_id', 'service_id', 'item_no',
+          'service_name_snapshot', 'unit_type_snapshot',
+          'qty', 'price', 'express_multiplier', 'is_express',
+          'subtotal', 'notes'
+        ];
+        const values = [
+          trxId, serviceId, itemNo,
+          item.serviceName || item.name || svc.service_name || 'Layanan',
+          item.unit || svc.unit || 'pcs',
+          itemQty, itemPrice, multiplier, itemIsExpress,
+          itemSubtotal, item.notes || null,
+        ];
+
+        if (hasEstimatedDoneCol) {
+          fields.push('estimated_done_at');
+          values.push(itemEstimatedDoneStr);
+        }
+
         await conn.execute(
-          `INSERT INTO tr_transaction_item (
-            transaction_id, service_id, item_no,
-            service_name_snapshot, unit_type_snapshot,
-            qty, price, express_multiplier, is_express,
-            subtotal, notes,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-          [
-            trxId, serviceId, itemNo,
-            item.serviceName || item.name || svc.service_name || 'Layanan',
-            item.unit || svc.unit || 'pcs',
-            itemQty, itemPrice, multiplier, itemIsExpress,
-            itemSubtotal, item.notes || null,
-          ]
+          'INSERT INTO tr_transaction_item (' + fields.join(', ') + ', created_at, updated_at) ' +
+          'VALUES (' + fields.map(() => '?').join(', ') + ', NOW(), NOW())',
+          values
         );
       }
       // Ambil insertId untuk dipakai sebagai FK di tr_item_unit
@@ -916,19 +1052,47 @@ export const checkoutTransaction = async (req, res) => {
 
       // --- INTEGRASI PRODUKSI: Buat unit fisik untuk ditrack oleh tim cuci ---
       // id AUTO_INCREMENT — biarkan DB yang generate
-      await conn.execute(
-        `INSERT INTO tr_item_unit (
-          transaction_id, transaction_item_id, unit_no,
-          unit_sequence, qty_share, production_status,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, 1, ?, 'received', NOW(), NOW())`,
-        [
-          trxId,
-          txItemId,
-          `${itemNo}-U1`,
-          itemQty
-        ]
-      );
+      // estimated_done_at untuk tr_item_unit dihitung di atas (reuse itemEstimatedDoneStr)
+      // Cek apakah kolom estimated_done_at ada di tr_item_unit
+      let hasItemUnitEstimatedDoneCol = false;
+      try {
+        const [chk3] = await conn.execute(
+          `SELECT COUNT(*) AS cnt FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'tr_item_unit' AND column_name = 'estimated_done_at'`
+        );
+        hasItemUnitEstimatedDoneCol = Number(chk3[0]?.cnt || 0) > 0;
+      } catch (err) { logger.warn('[checkoutTransaction] Cek kolom tr_item_unit estimated_done_at gagal:', err?.message); }
+      if (hasItemUnitEstimatedDoneCol) {
+        await conn.execute(
+          `INSERT INTO tr_item_unit (
+            transaction_id, transaction_item_id, unit_no,
+            unit_sequence, qty_share, production_status,
+            estimated_done_at,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, 1, ?, 'received', ?, NOW(), NOW())`,
+          [
+            trxId,
+            txItemId,
+            `${itemNo}-U1`,
+            itemQty,
+            itemEstimatedDoneStr
+          ]
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO tr_item_unit (
+            transaction_id, transaction_item_id, unit_no,
+            unit_sequence, qty_share, production_status,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, 1, ?, 'received', NOW(), NOW())`,
+          [
+            trxId,
+            txItemId,
+            `${itemNo}-U1`,
+            itemQty
+          ]
+        );
+      }
 
       // ── Emit realtime: item baru masuk ke tim produksi ───────────────────────
       try {
@@ -1142,7 +1306,9 @@ export const checkoutTransaction = async (req, res) => {
     // 'self' and any other type: no logistic records created
 
     // ── Commit ────────────────────────────────────────────────────────────────
+    logger.info('[checkout] CHECKPOINT 1: About to commit');
     await conn.commit();
+    logger.info('[checkout] CHECKPOINT 2: Commit done');
 
     // ── Auto-reorder check (best-effort, non-blocking) ────────────────────────
     // Cek tiap inventory yang baru ke-deduct, kalau di bawah min_stock buat PR.
@@ -1253,7 +1419,8 @@ export const checkoutTransaction = async (req, res) => {
       }
     }
 
-    // Fetch hasil untuk response
+    // ── Fetch hasil untuk response ────────────────────────────────────────────
+    logger.info('[checkout] CHECKPOINT 3: About to fetch trxRow');
     const [[trxRow]] = await poolWaschenPos.execute(
       `SELECT
         t.id,
@@ -1280,6 +1447,7 @@ export const checkoutTransaction = async (req, res) => {
       WHERE t.id = ?`,
       [trxId]
     );
+    logger.info('[checkout] CHECKPOINT 4: trxRow fetched');
 
     const hasItemActiveFlag = await hasColumn('tr_transaction_item', 'is_active');
     const hasItemMaterial = await hasColumn('tr_transaction_item', 'material');
@@ -1297,6 +1465,7 @@ export const checkoutTransaction = async (req, res) => {
       ${hasItemActiveFlag ? 'AND is_active = 1' : ''}`,
       [trxId]
     );
+    logger.info('[checkout] CHECKPOINT 5: itemRows fetched', { itemCount: itemRows?.length });
 
     // Audit log — kritis untuk keuangan
     writeAudit(poolWaschenPos, {
@@ -1317,13 +1486,22 @@ export const checkoutTransaction = async (req, res) => {
       req,
     }).catch(() => {});
 
-    return res.status(201).json({
+    // DEBUG: Log sebelum response
+    logger.info('[checkout] Preparing response', {
+      trxId,
+      trxRowType: typeof trxRow,
+      trxRowIsArray: Array.isArray(trxRow),
+      trxRowKeys: trxRow ? Object.keys(trxRow[0] || {}) : [],
+      itemRowsCount: itemRows?.length,
+    });
+
+    const responsePayload = {
       success: true,
       message: 'Nota berhasil dibuat',
       data: {
-        ...trxRow,
+        ...sanitizeResponse(trxRow),
         status: 'baru',
-        items: itemRows,
+        items: sanitizeResponse(itemRows),
         subSessionId, // Phase 3: Individual accountability
         sessionId,
         payment: {
@@ -1347,10 +1525,23 @@ export const checkoutTransaction = async (req, res) => {
       birthdayMessage: birthdayDiscount > 0
         ? `🎂 Diskon ultah 10% (Rp ${birthdayDiscount.toLocaleString('id-ID')}) diterapkan!`
         : null,
-    });
+    };
+
+    // DEBUG: Log response size
+    const responseStr = JSON.stringify(responsePayload);
+    logger.info('[checkout] CHECKPOINT 6: Response prepared', { bytes: responseStr.length, trxId });
+
+    logger.info('[checkout] CHECKPOINT 7: Sending response');
+    return res.status(201).json(responsePayload);
   } catch (err) {
     await conn.rollback();
     logger.error('[checkoutTransaction] Error', { error: err.message, stack: err.stack });
+    logger.error('[checkoutTransaction] Error details:', {
+      code: err.code,
+      errno: err.errno,
+      sqlState: err.sqlState,
+      sqlMessage: err.sqlMessage,
+    });
     return res.status(500).json({
       success: false,
       message: 'Gagal membuat nota. Transaksi dibatalkan.',
@@ -1420,7 +1611,8 @@ export const getTransactions = async (req, res) => {
         proses: ['process'],
         /** Aktif kasir: belum diambil (baru → proses → siap ambil/antar). 'completed' juga bisa belum diambil. */
         active: ['draft', 'pending', 'process', 'ready_for_pickup', 'ready_for_delivery'],
-        selesai: ['ready_for_pickup', 'ready_for_delivery', 'completed'],
+        /** Siap Ambil: harus payment_status='paid' AND picked_up_at IS NULL (otomatis di bawah) */
+        selesai: ['ready_for_pickup', 'ready_for_delivery'],
         dibatalkan: ['cancelled'],
         diambil: ['completed'],
         ready_for_pickup: ['ready_for_pickup'],
@@ -1499,7 +1691,8 @@ export const getTransactions = async (req, res) => {
         baru: ['draft', 'pending'],
         proses: ['process'],
         active: ['draft', 'pending', 'process', 'ready_for_pickup', 'ready_for_delivery'],
-        selesai: ['ready_for_pickup', 'ready_for_delivery', 'completed'],
+        /** Siap Ambil: harus payment_status='paid' AND picked_up_at IS NULL */
+        selesai: ['ready_for_pickup', 'ready_for_delivery'],
         dibatalkan: ['cancelled'],
         diambil: ['completed'],
         ready_for_pickup: ['ready_for_pickup'],
@@ -1692,8 +1885,8 @@ export const getTransactionById = async (req, res) => {
       `SELECT ti.id, ti.service_id AS serviceId, ti.service_name_snapshot AS name,
               ti.unit_type_snapshot AS unit, ti.qty, ti.price,
               ti.is_express AS express, ti.express_multiplier AS expressMultiplier, ti.subtotal
-              ${packingTiSelect}${packingIuSelect}${carpetSelect}${itemExtraSelect}
-       FROM tr_transaction_item ti ${packingJoin}
+              ${packingTiSelect}${carpetSelect}${itemExtraSelect}
+       FROM tr_transaction_item ti
        WHERE ti.transaction_id = ?
        ${hasItemActiveFlag ? 'AND ti.is_active = 1' : ''}`,
       [trxRows[0].id]
@@ -1701,12 +1894,41 @@ export const getTransactionById = async (req, res) => {
 
     const t = trxRows[0];
 
+    // Get units with production status per item
     const [units] = await poolWaschenPos.execute(
-      `SELECT unit_no AS unitNo, transaction_item_id AS txItemId
-       FROM tr_item_unit
-       WHERE transaction_id = ?`,
+      `SELECT
+         iu.id, iu.unit_no AS unitNo, iu.transaction_item_id AS txItemId,
+         iu.production_status, iu.ready_at, iu.done_at,
+         iu.packing_done, iu.current_pic_id AS currentPicId
+       FROM tr_item_unit iu
+       WHERE iu.transaction_id = ?
+       ORDER BY iu.id ASC`,
       [t.id]
     );
+
+    // Map production status per item for frontend
+    const itemsWithProduction = items.map(item => {
+      const itemUnits = units.filter(u => u.txItemId === item.id);
+      // If multiple units, return all; if single, return main status
+      const mainUnit = itemUnits[0];
+      return {
+        ...item,
+        // Production tracking per item
+        productionStatus: mainUnit?.production_status || 'received',
+        readyAt: mainUnit?.ready_at || null,
+        doneAt: mainUnit?.done_at || null,
+        packingDone: mainUnit?.packing_done || false,
+        // If multiple units, include all unit details
+        units: itemUnits.length > 1 ? itemUnits.map(u => ({
+          id: u.id,
+          unitNo: u.unitNo,
+          productionStatus: u.production_status,
+          readyAt: u.ready_at,
+          doneAt: u.done_at,
+          packingDone: u.packing_done,
+        })) : undefined,
+      };
+    });
 
     // Get Log History untuk dipassing (disesuaikan dengan skema baru)
     let progressLogs = [];
@@ -1820,14 +2042,28 @@ export const getTransactionById = async (req, res) => {
       status: mapDbStatusToFrontend(t.dbStatus, t.pickedUpAt),
       date: new Date(t.createdAt).toISOString().slice(0, 10),
       dueDate: t.estimatedDoneAt ? new Date(t.estimatedDoneAt).toISOString().slice(0, 10) : null,
-      items: items.map((item) => ({
+      estimatedDoneAt: t.estimatedDoneAt, // Full datetime for display
+      // Use items with production tracking per item
+      items: itemsWithProduction.map((item) => ({
         ...item,
         express: item.express === 1 || item.express === true,
         expressExtra: item.express && item.expressMultiplier > 1
           ? Math.round(item.price * (item.expressMultiplier - 1))
           : 0,
+        // Per-item production status
+        productionStatus: item.productionStatus || 'received',
+        readyAt: item.readyAt,
+        doneAt: item.doneAt,
+        packingDone: item.packingDone || false,
       })),
-      units,
+      // All units with full production status
+      units: units.map(u => ({
+        ...u,
+        productionStatus: u.production_status,
+        readyAt: u.ready_at,
+        doneAt: u.done_at,
+        packingDone: u.packing_done,
+      })),
       progress: progressLogs,
       createdBy: t.cashierName,
       total: totalNum,
@@ -1853,6 +2089,10 @@ export const getTransactionById = async (req, res) => {
       notes: t.notes,
       conditionPhotos,
       production: productionMeta,
+      // Production completion tracking per item
+      allItemsReady: itemsWithProduction.every(item => item.productionStatus === 'ready' || item.productionStatus === 'done'),
+      itemsReadyCount: itemsWithProduction.filter(item => item.productionStatus === 'ready' || item.productionStatus === 'done').length,
+      itemsTotalCount: itemsWithProduction.length,
     };
 
     return res.status(200).json({ success: true, data: transaction });
@@ -2138,6 +2378,7 @@ export const getDashboardStats = async (req, res) => {
         t.picked_up_at AS pickedUpAt,
         t.is_express AS isExpress,
         t.total,
+        t.payment_status AS paymentStatus,
         t.created_at AS createdAt,
         c.name AS customerName,
         c.photo AS customerPhoto,
@@ -2151,7 +2392,7 @@ export const getDashboardStats = async (req, res) => {
       LEFT JOIN tr_transaction_item ti ON ti.transaction_id = t.id ${itemActiveFilter}
       WHERE t.deleted_at IS NULL
       ${outletFilter}
-      GROUP BY t.id, t.transaction_no, t.status, t.picked_up_at, t.is_express, t.total, t.created_at, c.name, u.name
+      GROUP BY t.id, t.transaction_no, t.status, t.picked_up_at, t.is_express, t.total, t.payment_status, t.created_at, c.name, u.name
       ORDER BY t.created_at DESC
       LIMIT 5`,
       outletParam
@@ -2164,14 +2405,23 @@ export const getDashboardStats = async (req, res) => {
         name,
         express: exprs[idx] === '1' || exprs[idx] === 1,
       }));
+      // Derive paymentStatus for frontend (map payment_status to paid/partial/unpaid)
+      const paymentStatusMap = { 'paid': 'paid', 'partial': 'partial' };
+      const paymentStatus = paymentStatusMap[t.paymentStatus] || 'unpaid';
+      // Extract time from createdAt
+      const createdDate = new Date(t.createdAt);
+      const time = createdDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
       return {
         id: t.transactionNo || t.id,
         transactionNo: t.transactionNo,
         status: mapDbStatusToFrontend(t.dbStatus, t.pickedUpAt),
+        paymentStatus,
         date: new Date(t.createdAt).toISOString().slice(0, 10),
+        time,
         createdAt: t.createdAt,
         isExpress: t.isExpress === 1 || t.isExpress === true,
         items,
+        services: items.length > 0 ? items[0].name : '1 layanan',
         total: Number(t.total),
         createdBy: t.cashierName,
         customerName: t.customerName,

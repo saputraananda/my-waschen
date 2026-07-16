@@ -162,8 +162,10 @@ const validate = (schema, source = 'body') => {
       const result = schema.safeParse(data);
 
       if (!result.success) {
-        const errors = result.error.errors.map(err => ({
-          field: err.path.join('.'),
+        // Zod v4 uses .issues, Zod v3 uses .errors
+        const errList = result.error.issues || result.error.errors || [];
+        const errors = errList.map(err => ({
+          field: Array.isArray(err.path) ? err.path.join('.') : String(err.path || ''),
           message: err.message,
         }));
         return next(new ValidationError('Validation failed', errors));

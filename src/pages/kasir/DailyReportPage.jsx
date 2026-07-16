@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
+import { buildWaMeLink } from '../../utils/helpers';
 import {
   ChevronRight,
   RefreshCw,
@@ -68,19 +69,15 @@ export default function DailyReportPage() {
     }
 
     if (reportData?.content) {
-      const phone = recipientPhone.replace(/\D/g, '');
-      const waNumber = phone.startsWith('0') ? '62' + phone.slice(1) : phone;
-      const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(reportData.content)}`;
-      window.open(waLink, '_blank');
+      const waLink = buildWaMeLink(recipientPhone, reportData.content);
+      if (waLink) window.open(waLink, '_blank', 'noopener,noreferrer');
     }
   };
 
   // Generate shareable link
   const getWALink = () => {
     if (!recipientPhone || !reportData?.content) return null;
-    const phone = recipientPhone.replace(/\D/g, '');
-    const waNumber = phone.startsWith('0') ? '62' + phone.slice(1) : phone;
-    return `https://wa.me/${waNumber}?text=${encodeURIComponent(reportData.content)}`;
+    return buildWaMeLink(recipientPhone, reportData.content);
   };
 
   return (

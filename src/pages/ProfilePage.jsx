@@ -1,5 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// ProfilePage.jsx — Redesigned with 2-Column Asymmetric Layout
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ProfilePage.jsx â€” Redesigned with 2-Column Asymmetric Layout
 // Ref: My_Waschen_Redesign_Spec_dan_Prompt.md Section 4.4
 //
 // Layout:
@@ -9,7 +9,7 @@
 //
 // Phase 4 Polish: Framer Motion animations, count-up stats, hover effects
 // Phase 7: Responsive QA at 4 breakpoints
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 import { useState, useRef, useMemo, useEffect } from 'react';
 import axios from 'axios';
 import Cropper from 'react-easy-crop';
@@ -21,12 +21,12 @@ import { TopBar, Btn, Input } from '../components/ui';
 import { alertError, alertInfo, alertSuccess, alertWarning } from '../utils/alert';
 import { useApp } from '../context/AppContext';
 
-// ─── Premium Animation Assets ───────────────────────────────────────────────
+// â”€â”€â”€ Premium Animation Assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 import bubbleIcon from '../assets/Decorative icon/bubble-1.webp'
 import bubble2Icon from '../assets/Decorative icon/bubble-2.webp'
 import soapBubble from '../assets/Decorative icon/soap-bubble.webp'
 
-// ─── Premium Animation Components ──────────────────────────────────────────────
+// â”€â”€â”€ Premium Animation Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const FloatingBubble = ({ src, size, top, left, right, bottom, delay = 0, duration = 5, opacity = 0.4 }) => (
   <motion.div
     animate={{ y: [0, -15, 0], scale: [1, 1.08, 1], opacity: [opacity * 0.6, opacity, opacity * 0.6] }}
@@ -47,7 +47,7 @@ const Sparkle = ({ top, left, size = 5, delay = 0 }) => (
 
 const ROLE_LABEL = { admin: 'Admin', kasir: 'Frontline', frontline: 'Frontline', produksi: 'Produksi', finance: 'Finance' };
 
-// ─── Avatar Images ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Avatar Images â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 import staffGirl from '../assets/Avatar set/staff-girl.webp'
 import staffBoy from '../assets/Avatar set/staff-boy.webp'
 import adminLaptop from '../assets/Avatar set/admin-laptop.webp'
@@ -60,7 +60,7 @@ const getAvatarSource = (user) => {
   return gender === 'male' ? staffBoy : staffGirl;
 };
 
-// ─── Count-up Animation Hook ───────────────────────────────────────────────────
+// â”€â”€â”€ Count-up Animation Hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function useCountUp(target, duration = 700, delay = 0) {
   const [value, setValue] = useState(0);
   const hasAnimated = useRef(false);
@@ -85,13 +85,13 @@ function useCountUp(target, duration = 700, delay = 0) {
   return value;
 }
 
-// ─── Animated Number Display ───────────────────────────────────────────────────
+// â”€â”€â”€ Animated Number Display â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function AnimatedNumber({ value, prefix = '', suffix = '', duration = 700, delay = 0 }) {
   const animated = useCountUp(typeof value === 'number' ? value : 0, duration, delay);
   return <span>{prefix}{typeof value === 'number' ? animated.toLocaleString() : value}{suffix}</span>;
 }
 
-// ─── Responsive Hook ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Responsive Hook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const useResponsive = () => {
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
 
@@ -104,7 +104,7 @@ const useResponsive = () => {
   return { isMobile: width < 768, isTablet: width >= 768 && width < 1024, isDesktop: width >= 1024 };
 };
 
-// ─── Left Column - Profile Card (Sticky) ───────────────────────────────────────
+// â”€â”€â”€ Left Column - Profile Card (Sticky) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
   const avatarSrc = useMemo(() => getAvatarSource(user), [user]);
 
@@ -238,7 +238,7 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
           fontSize: 12,
           color: 'rgba(255,255,255,0.7)',
         }}>
-          📍 {user.outlet.name}
+          ðŸ“ {user.outlet.name}
         </span>
       )}
 
@@ -270,7 +270,7 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
             gap: 6,
           }}
         >
-          ✏️ Edit
+          âœï¸ Edit
         </motion.button>
         <motion.button
           onClick={() => document.getElementById('change-password-btn')?.click()}
@@ -293,15 +293,24 @@ function ProfileCard({ user, photo, initials, onPhotoChange, onPhotoClick }) {
             gap: 6,
           }}
         >
-          🔒 Password
+          ðŸ”’ Password
         </motion.button>
       </div>
     </motion.div>
   );
 }
 
-// ─── Right Column - Stats & Activity ─────────────────────────────────────────────
+// â”€â”€â”€ Right Column - Stats & Activity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatsSection({ stats, animationDelay = 0 }) {
+  // Omset/cash hanya dimunculkan jika parent mengirim totalRevenue (artinya role boleh lihat)
+  const statItems = [
+    { label: 'Total Shift', value: stats?.totalShifts || 0, icon: 'ðŸ•', color: '#5B005F' },
+    { label: 'Transaksi', value: stats?.totalTransactions || 0, icon: 'ðŸ“‹', color: '#059669' },
+    stats?.totalRevenue != null
+      ? { label: 'Omset', value: stats.totalRevenue, icon: 'ðŸ’°', color: '#F93E11', isCurrency: true }
+      : null,
+  ].filter(Boolean);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -322,14 +331,10 @@ function StatsSection({ stats, animationDelay = 0 }) {
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        📊 Statistik Bulanan
+        ðŸ“Š Statistik Bulanan
       </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {[
-          { label: 'Total Shift', value: stats?.totalShifts || 0, icon: '🕐', color: '#5B005F' },
-          { label: 'Transaksi', value: stats?.totalTransactions || 0, icon: '📋', color: '#059669' },
-          { label: 'Omset', value: stats?.totalRevenue || 0, icon: '💰', color: '#F93E11', isCurrency: true },
-        ].map((item, idx) => (
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${statItems.length}, 1fr)`, gap: 12 }}>
+        {statItems.map((item, idx) => (
           <motion.div
             key={item.label}
             initial={{ opacity: 0, scale: 0.9 }}
@@ -373,7 +378,7 @@ function StatsSection({ stats, animationDelay = 0 }) {
   );
 }
 
-function ShiftHistorySection({ shifts, animationDelay = 0 }) {
+function ShiftHistorySection({ shifts, hideCash = false, animationDelay = 0 }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -394,7 +399,7 @@ function ShiftHistorySection({ shifts, animationDelay = 0 }) {
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        🕐 Riwayat Shift Terakhir
+        ðŸ• Riwayat Shift Terakhir
       </h3>
       {shifts && shifts.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -429,7 +434,7 @@ function ShiftHistorySection({ shifts, animationDelay = 0 }) {
                   justifyContent: 'center',
                 }}>
                 <span style={{ fontSize: 16 }}>
-                  {shift.status === 'closed' ? '✅' : '⏳'}
+                  {shift.status === 'closed' ? 'âœ…' : 'â³'}
                 </span>
               </motion.div>
               <div style={{ flex: 1 }}>
@@ -446,12 +451,12 @@ function ShiftHistorySection({ shifts, animationDelay = 0 }) {
                   fontSize: 10,
                   color: '#5a5a5a',
                 }}>
-                  {shift.type || 'Regular'} • {shift.startTime || '-'} - {shift.endTime || 'ongoing'}
+                  {shift.type || 'Regular'} â€¢ {shift.startTime || '-'} - {shift.endTime || 'ongoing'}
                 </div>
               </div>
               <motion.span
-                animate={shift.status !== 'closed' ? { opacity: [1, 0.6, 1] } : {}}
-                transition={{ repeat: Infinity, duration: 1.5 }}
+                animate={!hideCash && shift.status === 'open' ? { opacity: [1, 0.6, 1] } : {}}
+                transition={{ repeat: !hideCash && shift.status === 'open' ? Infinity : undefined, duration: 1.5 }}
                 style={{
                   fontFamily: "'Poppins', sans-serif",
                   fontSize: 11,
@@ -459,7 +464,10 @@ function ShiftHistorySection({ shifts, animationDelay = 0 }) {
                   color: shift.status === 'closed' ? '#059669' : '#F93E11',
                 }}
               >
-                {shift.status === 'closed' ? rp(shift.cashTotal || 0) : 'Aktif'}
+                {hideCash
+                  ? shift.status === 'closed' ? 'Tutup' : 'Aktif'
+                  : shift.status === 'closed' ? rp(shift.cashTotal || 0) : 'Aktif'
+                }
               </motion.span>
             </motion.div>
           ))}
@@ -493,7 +501,7 @@ function ActivityLogSection({ activities, animationDelay = 0 }) {
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        📝 Aktivitas Terbaru
+        ðŸ“ Aktivitas Terbaru
       </h3>
       {activities && activities.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -514,7 +522,7 @@ function ActivityLogSection({ activities, animationDelay = 0 }) {
                 transition: 'background-color 0.2s ease',
               }}
             >
-              <span style={{ fontSize: 14, marginTop: 2 }}>{activity.icon || '📋'}</span>
+              <span style={{ fontSize: 14, marginTop: 2 }}>{activity.icon || 'ðŸ“‹'}</span>
               <div style={{ flex: 1 }}>
                 <div style={{
                   fontFamily: "'Poppins', sans-serif",
@@ -545,7 +553,7 @@ function ActivityLogSection({ activities, animationDelay = 0 }) {
   );
 }
 
-// ─── Mobile Profile Header ──────────────────────────────────────────────────────
+// â”€â”€â”€ Mobile Profile Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function MobileProfileHeader({ user, photo, initials, onPhotoClick }) {
   const avatarSrc = useMemo(() => getAvatarSource(user), [user]);
 
@@ -632,7 +640,7 @@ function MobileProfileHeader({ user, photo, initials, onPhotoClick }) {
               fontSize: 10,
               color: 'rgba(255,255,255,0.7)',
             }}>
-              📍 {user.outlet.name}
+              ðŸ“ {user.outlet.name}
             </span>
           )}
         </div>
@@ -641,7 +649,7 @@ function MobileProfileHeader({ user, photo, initials, onPhotoClick }) {
   );
 }
 
-// ─── Edit Profile Form ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Edit Profile Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EditProfileForm({ name, phone, email, saving, onSave, isMobile, animationDelay = 0 }) {
   return (
     <motion.div
@@ -665,7 +673,7 @@ function EditProfileForm({ name, phone, email, saving, onSave, isMobile, animati
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        ✏️ Edit Profil
+        âœï¸ Edit Profil
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Input label="Nama Lengkap" value={name} onChange={(v) => {}} placeholder="Masukkan nama lengkap" />
@@ -679,7 +687,7 @@ function EditProfileForm({ name, phone, email, saving, onSave, isMobile, animati
   );
 }
 
-// ─── Change Password Form ──────────────────────────────────────────────────────
+// â”€â”€â”€ Change Password Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ChangePasswordForm({ oldPw, newPw, confirmPw, pwLoading, onChange, isMobile, animationDelay = 0 }) {
   return (
     <motion.div
@@ -703,10 +711,10 @@ function ChangePasswordForm({ oldPw, newPw, confirmPw, pwLoading, onChange, isMo
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        🔒 Ubah Password
+        ðŸ”’ Ubah Password
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Input label="Password Lama" value={oldPw} onChange={(v) => {}} type="password" placeholder="••••••••" />
+        <Input label="Password Lama" value={oldPw} onChange={(v) => {}} type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
         <Input label="Password Baru" value={newPw} onChange={(v) => {}} type="password" placeholder="Min. 6 karakter" />
         <Input label="Konfirmasi Password Baru" value={confirmPw} onChange={(v) => {}} type="password" placeholder="Ulangi password baru" />
       </div>
@@ -717,7 +725,7 @@ function ChangePasswordForm({ oldPw, newPw, confirmPw, pwLoading, onChange, isMo
   );
 }
 
-// ─── Role Switcher ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Role Switcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function RoleSwitcher({ ROLES, user, isAdmin, handleSwitchRole, navigate, isMobile, animationDelay = 0 }) {
   if (!isAdmin) return null;
 
@@ -742,7 +750,7 @@ function RoleSwitcher({ ROLES, user, isAdmin, handleSwitchRole, navigate, isMobi
         color: '#1a1a1a',
         margin: '0 0 16px',
       }}>
-        👑 Tampil Sebagai Role
+        ðŸ‘‘ Tampil Sebagai Role
       </h3>
       <div style={{
         display: 'grid',
@@ -786,23 +794,27 @@ function RoleSwitcher({ ROLES, user, isAdmin, handleSwitchRole, navigate, isMobi
         textAlign: 'center',
         marginTop: 12,
       }}>
-        Akun tetap sebagai Admin · hanya tampilan yang berubah
+        Akun tetap sebagai Admin Â· hanya tampilan yang berubah
       </p>
     </motion.div>
   );
 }
 
-// ─── Main Profile Page Component ─────────────────────────────────────────────────
+// â”€â”€â”€ Main Profile Page Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function ProfilePage({ navigate, goBack }) {
   const { user, updateUserProfile, handleSwitchRole } = useApp();
-  const isAdmin = (user?.originalRoleCode ?? user?.roleCode) === 'admin';
+  const roleCode = user?.originalRoleCode ?? user?.roleCode;
+  const isAdmin = roleCode === 'admin';
+  // PRODUCTION sees NO financial data (omset, cash totals, setoran nominal) â€” hanya frontline & admin
+  const isProduksi = roleCode === 'produksi';
+  const showFinancials = isAdmin || !isProduksi; // frontline/admin = visible, produksi = hidden
   const { isMobile, isTablet } = useResponsive();
 
   const ROLES = [
-    { id: 'frontline', label: 'Frontline', icon: '🧾' },
-    { id: 'produksi', label: 'Produksi', icon: '🧺' },
-    { id: 'admin',    label: 'Admin',    icon: '👑' },
-    { id: 'finance',  label: 'Finance',  icon: '💰' },
+    { id: 'frontline', label: 'Frontline', icon: 'ðŸ§¾' },
+    { id: 'produksi', label: 'Produksi', icon: 'ðŸ§º' },
+    { id: 'admin',    label: 'Admin',    icon: 'ðŸ‘‘' },
+    { id: 'finance',  label: 'Finance',  icon: 'ðŸ’°' },
   ];
 
   const [name, setName]   = useState(user?.name  || '');
@@ -833,10 +845,10 @@ export default function ProfilePage({ navigate, goBack }) {
     { date: '30 Jun 2026', type: 'Siang', startTime: '15:00', endTime: '22:00', status: 'closed', cashTotal: 3120000 },
   ]);
   const [activities] = useState([
-    { icon: '💰', description: 'Melakukan setoran tunai Rp 5.000.000', time: '2 Jul 2026, 14:30' },
-    { icon: '📋', description: 'Membuat transaksi Nota #1247', time: '2 Jul 2026, 13:45' },
-    { icon: '👤', description: 'Menambah customer baru: Budi Santoso', time: '2 Jul 2026, 11:20' },
-    { icon: '🔄', description: 'Oper shift ke Maya', time: '2 Jul 2026, 10:00' },
+    { icon: 'ðŸ’°', description: 'Melakukan setoran tunai Rp 5.000.000', time: '2 Jul 2026, 14:30' },
+    { icon: 'ðŸ“‹', description: 'Membuat transaksi Nota #1247', time: '2 Jul 2026, 13:45' },
+    { icon: 'ðŸ‘¤', description: 'Menambah customer baru: Budi Santoso', time: '2 Jul 2026, 11:20' },
+    { icon: 'ðŸ”„', description: 'Oper shift ke Maya', time: '2 Jul 2026, 10:00' },
   ]);
 
   const handlePhotoChange = async (e) => {
@@ -902,7 +914,7 @@ export default function ProfilePage({ navigate, goBack }) {
   const passwordDelay = baseDelay + (isMobile ? 0.4 : 0.5);
   const roleDelay = baseDelay + (isMobile ? 0.5 : 0.6);
 
-  // ─── Main Render ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Main Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F4EDF4', overflow: 'hidden' }}>
       <TopBar title="Profil Saya" onBack={goBack} />
@@ -958,11 +970,32 @@ export default function ProfilePage({ navigate, goBack }) {
               />
             )}
 
-            {/* Stats Section */}
-            <StatsSection stats={stats} animationDelay={statsDelay} />
+            {/* Stats â€” produksi lihat SHIFT + TRANSAKSI, TANPA omset/cash */}
+            <StatsSection
+              stats={showFinancials ? stats : {
+                totalShifts: stats?.totalShifts,
+                totalTransactions: stats?.totalTransactions,
+                // omset/pelunasan/hari ini â†’ tidak dikirim ke produksi
+              }}
+              animationDelay={statsDelay}
+            />
 
-            {/* Shift History */}
-            <ShiftHistorySection shifts={shifts} animationDelay={shiftDelay} />
+            {/* Shift History â€” produksi lihat SHIFT LIST, TANPA nominal kas */}
+            <ShiftHistorySection
+              shifts={shifts}
+              hideCash={isProduksi}
+              animationDelay={shiftDelay}
+            />
+
+            {/* Activity Log â€” produksi lihat aktivitas NON-FINANSIAL saja */}
+            <ActivityLogSection
+              activities={
+                showFinancials
+                  ? activities
+                  : activities?.filter(a => !/setoran|rp|[\d.]+(?:\.\d{3})/.test(a.description ?? '')) ?? []
+              }
+              animationDelay={activityDelay}
+            />
 
             {/* Activity Log */}
             <ActivityLogSection activities={activities} animationDelay={activityDelay} />

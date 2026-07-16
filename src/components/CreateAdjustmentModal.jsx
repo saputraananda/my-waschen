@@ -147,7 +147,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
               key={s}
               style={{
                 flex: 1, height: 4, borderRadius: 2,
-                background: s <= step ? '#6e2e78' : '#E5E7EB',
+                background: s <= step ? '#5B005F' : '#E5E7EB',
                 transition: 'background 0.3s',
               }}
             />
@@ -168,7 +168,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
                   style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: 14, borderRadius: 12,
-                    border: type === t.key ? '2px solid #6e2e78' : '1.5px solid #E5E7EB',
+                    border: type === t.key ? '2px solid #5B005F' : '1.5px solid #E5E7EB',
                     background: type === t.key ? '#F8F4FF' : 'white',
                     cursor: 'pointer', textAlign: 'left',
                   }}
@@ -188,7 +188,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
                     <div style={{ fontSize: 12, color: '#6B7280' }}>{t.desc}</div>
                   </div>
                   {type === t.key && (
-                    <Check size={20} color="#6e2e78" />
+                    <Check size={20} color="#5B005F" />
                   )}
                 </button>
               ))}
@@ -211,7 +211,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
               marginBottom: 16,
             }}>
               <div style={{ fontSize: 12, color: '#6B7280' }}>Total Transaksi Saat Ini</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#6e2e78' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#5B005F' }}>
                 {rp(transaction?.total || 0)}
               </div>
             </div>
@@ -324,7 +324,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
                   style={{
                     padding: '8px 14px',
                     borderRadius: 20,
-                    border: reason === r ? '2px solid #6e2e78' : '1px solid #E5E7EB',
+                    border: reason === r ? '2px solid #5B005F' : '1px solid #E5E7EB',
                     background: reason === r ? '#F8F4FF' : 'white',
                     fontSize: 12,
                     cursor: 'pointer',
@@ -394,7 +394,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
             padding: 14,
             marginTop: 16,
           }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#6e2e78', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#5B005F', marginBottom: 8 }}>
               Ringkasan Koreksi
             </div>
             <div style={{ fontSize: 13, color: '#374151' }}>
@@ -430,7 +430,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
               style={{
                 flex: 1, height: 48, borderRadius: 12,
                 border: 'none',
-                background: canProceed() ? 'linear-gradient(135deg, #6e2e78, #8B5CF6)' : '#E5E7EB',
+                background: canProceed() ? 'linear-gradient(135deg, #5B005F, #8B5CF6)' : '#E5E7EB',
                 fontSize: 14, fontWeight: 600,
                 color: canProceed() ? 'white' : '#9CA3AF',
                 cursor: canProceed() ? 'pointer' : 'not-allowed',

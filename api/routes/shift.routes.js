@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireRole } from '../middleware/auth.js';
 import { writeLimiter } from '../middleware/rateLimit.js';
 import {
   validateShiftOpen,
@@ -35,6 +35,7 @@ import {
 } from '../controllers/subSessionController.js';
 
 const router = Router();
+const ADMIN = requireRole('admin');
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN SHIFT ROUTES (Kasir Session - single user per outlet)
@@ -53,13 +54,13 @@ router.post('/close', authenticate, writeLimiter, validateShiftClose, closeShift
 router.get('/current-summary', authenticate, getShiftCurrentSummary);
 
 // GET /api/shifts/sessions - Admin: riwayat semua shift
-router.get('/sessions', authenticate, listShiftSessions);
+router.get('/sessions', authenticate, ADMIN, listShiftSessions);
 
 // GET /api/shifts/outlet-summary - Admin: ringkasan per outlet
-router.get('/outlet-summary', authenticate, getShiftOutletSummary);
+router.get('/outlet-summary', authenticate, ADMIN, getShiftOutletSummary);
 
 // GET /api/shifts/export - Admin: export report
-router.get('/export', authenticate, exportShiftReport);
+router.get('/export', authenticate, ADMIN, exportShiftReport);
 
 // GET /api/shifts/my-stats - Stats for profile page (by period)
 router.get('/my-stats', authenticate, getMyStats);
@@ -93,11 +94,11 @@ router.post('/sub-session/close', authenticate, writeLimiter, validateSubSession
 // GET /api/shifts/sub-session/current - Get sub-session aktif user
 router.get('/sub-session/current', authenticate, getCurrentSubSession);
 
-// GET /api/shifts/sub-session/:sessionId/all - Get semua sub-session dalam shift
-router.get('/sub-session/:sessionId/all', authenticate, getAllSubSessions);
+// GET /api/shifts/sub-session/:sessionId/all - Admin: get semua sub-session dalam shift
+router.get('/sub-session/:sessionId/all', authenticate, ADMIN, getAllSubSessions);
 
-// GET /api/shifts/sub-session/:id - Get detail sub-session by ID
-router.get('/sub-session/:id', authenticate, getSubSessionById);
+// GET /api/shifts/sub-session/:id - Admin: get detail sub-session by ID
+router.get('/sub-session/:id', authenticate, ADMIN, getSubSessionById);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // HANDOVER DETAIL ROUTES (Sub-session handover antar kasir)
@@ -106,8 +107,8 @@ router.get('/sub-session/:id', authenticate, getSubSessionById);
 // POST /api/shifts/handover/create - Create handover record antar sub-session
 router.post('/handover/create', authenticate, writeLimiter, createHandover);
 
-// GET /api/shifts/handover/:subSessionId/history - Get history handover
-router.get('/handover/:subSessionId/history', authenticate, getHandoverHistory);
+// GET /api/shifts/handover/:subSessionId/history - Admin: get history handover
+router.get('/handover/:subSessionId/history', authenticate, ADMIN, getHandoverHistory);
 
 // PUT /api/shifts/handover/:id/acknowledge - Acknowledge handover
 router.put('/handover/:id/acknowledge', authenticate, writeLimiter, acknowledgeHandover);

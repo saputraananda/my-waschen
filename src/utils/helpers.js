@@ -71,7 +71,7 @@ export const STAGES = ['Diterima', 'Packing', 'Selesai'];
 // Single source of truth untuk warna status badge di seluruh app.
 export const STATUS_COLORS = {
   // Transaction status (UI)
-  baru:        { bg: '#f5eef7', text: '#6e2e78', border: '#d9b8e0' },
+  baru:        { bg: '#f5eef7', text: '#5B005F', border: '#d9b8e0' },
   proses:      { bg: '#f0ecf2', text: '#5a5a5a', border: '#d4cad8' },
   selesai:     { bg: '#e1f5ee', text: '#0f6e56', border: '#86efac' },
   diambil:     { bg: '#e1f5ee', text: '#0f6e56', border: '#86efac' },
@@ -86,7 +86,7 @@ export const STATUS_COLORS = {
   Gold:        { bg: '#fef3e2', text: '#ba7517', border: '#f5c27a' },
   Silver:      { bg: '#f0ecf2', text: '#5a5a5a', border: '#d4cad8' },
   Regular:     { bg: '#f7f5f8', text: '#9a9a9a', border: '#e8e2ea' },
-  Premium:     { bg: '#f5eef7', text: '#6e2e78', border: '#d9b8e0' },
+  Premium:     { bg: '#f5eef7', text: '#5B005F', border: '#d9b8e0' },
 
   // Approval / generic
   pending:          { bg: '#fef3e2', text: '#ba7517', border: '#f5c27a' },
@@ -440,4 +440,53 @@ export function formatRelative(date) {
   if (diffDays === 1) return 'Kemarin';
   if (diffDays < 7) return `${diffDays} hari lalu`;
   return formatDateList(d);
+}
+
+// ─── WhatsApp Utilities ──────────────────────────────────────────────────────────
+
+/**
+ * Format phone number to wa.me format.
+ * Always converts: 0xxx → 62xxx, then strips non-digits.
+ * @param {string} phone
+ * @returns {string|null} e.g. "6281234567890" or null
+ */
+export function formatPhoneForWa(phone) {
+  if (!phone) return null;
+  const cleaned = String(phone).replace(/\D/g, '');
+  if (!cleaned) return null;
+  // 0xxx → 62xxx
+  if (cleaned.startsWith('0')) return '62' + cleaned.slice(1);
+  // already 62xxx
+  if (cleaned.startsWith('62')) return cleaned;
+  // bare number (no country code)
+  return '62' + cleaned;
+}
+
+/**
+ * Build a wa.me URL with optional pre-filled text.
+ * @param {string} phone
+ * @param {string} [message]
+ * @returns {string|null}
+ */
+export function buildWaMeLink(phone, message) {
+  const waNumber = formatPhoneForWa(phone);
+  if (!waNumber) return null;
+  const encoded = message ? encodeURIComponent(message) : '';
+  return encoded
+    ? `https://wa.me/${waNumber}?text=${encoded}`
+    : `https://wa.me/${waNumber}`;
+}
+
+/**
+ * Open WhatsApp with wa.me link.
+ * @param {string} phone
+ * @param {string} [message]
+ */
+export function openWaMe(phone, message) {
+  const url = buildWaMeLink(phone, message);
+  if (!url) {
+    alert('Nomor HP tidak valid.');
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
 }

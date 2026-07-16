@@ -42,7 +42,7 @@ export default function KeranjangPanel({
             Keranjang
           </span>
           <span style={{
-            background: itemCount > 0 ? '#6e2e78' : '#e5e5e5',
+            background: itemCount > 0 ? '#5B005F' : '#e5e5e5',
             color: itemCount > 0 ? 'white' : '#999',
             fontSize: 11,
             fontWeight: 700,
@@ -62,7 +62,7 @@ export default function KeranjangPanel({
           borderBottom: '1px solid #f0f0f0',
         }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#999' }}>Pelanggan</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#6e2e78' }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#5B005F' }}>
             {customerName}
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function KeranjangPanel({
           <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#374151' }}>
             Total
           </span>
-          <span style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: '#6e2e78' }}>
+          <span style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: '#5B005F' }}>
             {rp(subtotal)}
           </span>
         </div>
@@ -199,7 +199,7 @@ export default function KeranjangPanel({
             height: 48,
             borderRadius: 12,
             border: 'none',
-            background: canProceed && items.length > 0 ? '#6e2e78' : '#e5e5e5',
+            background: canProceed && items.length > 0 ? '#5B005F' : '#e5e5e5',
             color: canProceed && items.length > 0 ? 'white' : '#999',
             fontFamily: 'Poppins',
             fontSize: 13,

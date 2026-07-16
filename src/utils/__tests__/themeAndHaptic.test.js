@@ -12,7 +12,7 @@ import {
 // ── theme.js ────────────────────────────────────────────────────────────────
 describe('Theme Colors (C)', () => {
   it('exports primary color', () => {
-    expect(C.primary).toBe('#6e2e78');
+    expect(C.primary).toBe('#5B005F');
   });
 
   it('exports all semantic colors', () => {

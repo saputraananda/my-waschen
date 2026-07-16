@@ -150,7 +150,7 @@ const TrendIndicator = ({ trend, size = 'sm' }) => {
 /**
  * Mini progress bar component
  */
-const MiniProgress = ({ progress, color = '#6e2e78', height = 4 }) => {
+const MiniProgress = ({ progress, color = '#5B005F', height = 4 }) => {
   const clampedProgress = Math.min(100, Math.max(0, progress || 0));
 
   return (
@@ -183,7 +183,7 @@ const MiniProgress = ({ progress, color = '#6e2e78', height = 4 }) => {
 /**
  * Icon wrapper with background
  */
-const IconWrapper = ({ icon, color = '#6e2e78', size = 32 }) => (
+const IconWrapper = ({ icon, color = '#5B005F', size = 32 }) => (
   <div
     style={{
       width: size,
@@ -214,11 +214,11 @@ const StatCard = ({
 
   // Icon
   icon = null,
-  iconColor = '#6e2e78',
+  iconColor = '#5B005F',
   iconSize = 30,
 
   // Visual
-  color = '#6e2e78',
+  color = '#5B005F',
   compact = false,
   interactive = false,
 

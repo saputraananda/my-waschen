@@ -625,10 +625,7 @@ export default function KasirDashboardPage({ user, navigate }) {
     // Financial
     { key: 'kas', label: 'Kas Outlet', icon: <Wallet size={16} />, color: COLORS.info, category: 'Keuangan' },
     { key: 'piutang', label: 'Piutang', icon: <TrendingUp size={16} />, color: COLORS.danger, category: 'Keuangan' },
-    { key: 'pettycash', label: 'Petty Cash', icon: <DollarSign size={16} />, color: '#EC4899', category: 'Keuangan' },
-    // Operations
-    { key: 'merge', label: 'Gabung Nota', icon: <ArrowRightLeft size={16} />, color: COLORS.success, category: 'Operasional' },
-    { key: 'ap', label: 'Pengajuan AP', icon: <Receipt size={16} />, color: COLORS.warning, category: 'Operasional' },
+    { key: 'pengajuan', label: 'Pengajuan Belanja', icon: <Receipt size={16} />, color: '#EC4899', category: 'Keuangan' },
     // Reports & Admin
     { key: 'laporan', label: 'Laporan', icon: <FileText size={16} />, color: '#64748B', category: 'Laporan' },
     { key: 'shift', label: 'Shift', icon: <Clock size={16} />, color: '#6B7280', category: 'Laporan' },
@@ -752,13 +749,12 @@ export default function KasirDashboardPage({ user, navigate }) {
       inventory: () => navigate('kasir_stok_bahan'),
       kas: () => navigate('kas_outlet'),
       piutang: () => navigate('outstanding_list'),
-      pettycash: () => navigate('petty_cash'),
+      pengajuan: () => navigate('pengajuan_belanja'),
       laporan: () => navigate('kasir_laporan'),
       shift: () => navigate('kasir_shift'),
       topup: () => navigate('topup'),
       adjustment: () => navigate('adjustment_list'),
       merge: () => navigate('merge_transaction'),
-      ap: () => navigate('ap_request'),
     };
     routes[key]?.();
   };

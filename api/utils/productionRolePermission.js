@@ -4,21 +4,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Roles that can update production status
-export const PRODUCTION_ROLES = ['admin', 'frontline', 'produksi'];
+// PERUBAHAN: Hanya TIM PACKING (produksi) yang boleh update status produksi
+export const PRODUCTION_ROLES = ['produksi'];
 
 // Check if user has packing role (can update production status)
+// PERUBAHAN: Hanya role 'produksi' yang boleh update status produksi
+// Admin dan Frontliner hanya bisa VIEW, tidak boleh update
 export function canUpdateProductionStatus(user) {
   if (!user) return false;
 
-  // Admin always has access
-  if (user.roleCode === 'admin') return true;
-
-  // Produksi can update status
+  // Hanya tim packing yang boleh update status produksi
   if (user.roleCode === 'produksi') return true;
 
-  // Frontliner can update
-  if (user.roleCode === 'frontline') return true;
-
+  // Admin dan Frontliner TIDAK boleh update (hanya bisa melihat)
   return false;
 }
 
@@ -65,9 +63,21 @@ export function requireProductionStatusPermission(req, res, next) {
     return next();
   }
 
+  // Tentukan pesan error berdasarkan role
+  const roleCode = req.user?.roleCode || 'unknown';
+  let message = 'Anda tidak memiliki akses untuk update status produksi.';
+
+  if (roleCode === 'admin') {
+    message = 'Admin tidak diperkenankan untuk update status produksi. Hubungi tim packing.';
+  } else if (roleCode === 'frontline') {
+    message = 'Kasir tidak diperkenankan untuk update status produksi. Hubungi tim packing.';
+  } else {
+    message = 'Anda tidak memiliki akses untuk update status produksi. Hubungi admin.';
+  }
+
   return res.status(403).json({
     success: false,
-    message: 'Anda tidak memiliki akses untuk update status produksi. Hubungi admin.',
+    message,
   });
 }
 

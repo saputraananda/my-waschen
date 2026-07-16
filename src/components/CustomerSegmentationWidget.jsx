@@ -158,11 +158,11 @@ export default function CustomerSegmentationWidget({ onViewAll, refreshInterval 
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)',
           }}>
-            <Users size={18} color="#6e2e78" />
+            <Users size={18} color="#5B005F" />
           </div>
           <div>
             <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <IconChart size={18} color="#6e2e78" /> Segmentasi Pelanggan
+              <IconChart size={18} color="#5B005F" /> Segmentasi Pelanggan
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#9ca3af' }}>
               {activitySummary?.total || 0} Total Pelanggan
@@ -210,7 +210,7 @@ export default function CustomerSegmentationWidget({ onViewAll, refreshInterval 
         </div>
         <div style={{ width: 1, background: 'rgba(139, 92, 246, 0.1)' }} />
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: '#6e2e78' }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: '#5B005F' }}>
             {activitySummary?.activeRate || 0}%
           </div>
           <div style={{ fontFamily: 'Poppins', fontSize: 9, color: '#64748B' }}>Active Rate</div>
@@ -225,7 +225,7 @@ export default function CustomerSegmentationWidget({ onViewAll, refreshInterval 
         }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#64748B', marginBottom: 4 }}>Total Revenue</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: '#6e2e78' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: '#5B005F' }}>
               Rp {(revenueSummary.total / 1000000).toFixed(1)}jt
             </div>
           </div>
@@ -251,7 +251,7 @@ export default function CustomerSegmentationWidget({ onViewAll, refreshInterval 
             background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
             border: '1px solid rgba(139, 92, 246, 0.15)',
             borderRadius: 12, cursor: 'pointer',
-            fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: '#6e2e78',
+            fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: '#5B005F',
           }}
         >
           Lihat Detail Segmentasi →

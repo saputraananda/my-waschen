@@ -166,9 +166,9 @@ export function ClayStatusBadge({ status, size = 'md' }) {
       IconSparkle: <svg width="12" height="12" viewBox="0 0 24 24" fill="#7C3AED"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg>,
       IconProcess: <svg width="12" height="12" viewBox="0 0 24 24" fill="#D97706"><path d="M13 2L3 14H12L11 22L21 10H12L13 2Z"/></svg>,
       IconDone: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01L9 11.01"/></svg>,
-      IconReady: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6e2e78" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01L20.73 6.96"/><path d="M12 22.08V12"/></svg>,
+      IconReady: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5B005F" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01L20.73 6.96"/><path d="M12 22.08V12"/></svg>,
       IconPickedUp: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
-      IconDelivered: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6e2e78" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M5 12l3 3 5-6" stroke="#10B981"/></svg>,
+      IconDelivered: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5B005F" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M5 12l3 3 5-6" stroke="#10B981"/></svg>,
       IconCancelled: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M15 9L9 15M9 9l6 6"/></svg>,
       IconClock: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>,
       IconPaid: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>,
@@ -176,7 +176,7 @@ export function ClayStatusBadge({ status, size = 'md' }) {
       IconStar: <svg width="12" height="12" viewBox="0 0 24 24" fill="#F59E0B"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>,
       IconInactive: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/></svg>,
       IconExpired: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>,
-      IconList: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6e2e78" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>,
+      IconList: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5B005F" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>,
     };
     return iconMap[iconName] || null;
   };

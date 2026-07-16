@@ -35,7 +35,7 @@ export async function getDriverTasks(req, res) {
         lo.notes,
         lo.created_at,
         t.order_code,
-        t.total_amount,
+        t.total,
         t.payment_status,
         t.created_at as order_date,
         c.name as customer_name,
@@ -83,7 +83,7 @@ export async function getDriverTasks(req, res) {
         outletName: order.outlet_name,
         itemCount: items[0]?.count || 0,
         qty: items[0]?.total_qty || 0,
-        totalAmount: order.total_amount,
+        totalAmount: order.total,
         paymentStatus: order.payment_status,
         scheduledAt: order.scheduled_at,
         deliveryFee: order.delivery_fee,
@@ -116,7 +116,7 @@ export async function getDriverHistory(req, res) {
         lo.done_at,
         lo.delivery_fee,
         t.order_code,
-        t.total_amount,
+        t.total,
         c.name as customer_name,
         o.name as outlet_name
       FROM tr_logistic_order lo
@@ -331,7 +331,7 @@ export async function getAllDeliveries(req, res) {
       SELECT
         lo.*,
         t.order_code,
-        t.total_amount,
+        t.total,
         c.name as customer_name,
         c.phone as customer_phone,
         o.name as outlet_name,
@@ -385,7 +385,7 @@ export async function getDeliveryById(req, res) {
       SELECT
         lo.*,
         t.order_code,
-        t.total_amount,
+        t.total,
         t.payment_status,
         c.name as customer_name,
         c.phone as customer_phone,

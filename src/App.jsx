@@ -184,7 +184,7 @@ const SCREENS_NO_NAV = new Set([
   'profil', 'buka_shift', 'tutup_shift', 'oper_shift', 'setor_tunai', 'admin_laporan', 'admin_shift', 'setor_approval', 'info_outlet', 'rekap_pendapatan',
   'kasir_antrian', 'kasir_siap_ambil', 'kasir_laporan', 'printer_settings', 'general_report', 'admin_target', 'admin_target_detail', 'admin_period_close',
   'comparison_report', 'forecast', 'laporan_per_outlet', 'manajemen_outlet', 'kebijakan_privasi',
-  'kasir_refund', 'admin_refund', 'adjustment_list', 'adjustment_detail', 'outstanding_list', 'outstanding_detail', 'petty_cash', 'merge_transaction', 'daily_report', 'ap_request', 'target_page', 'pengajuan_belanja',
+  'kasir_refund', 'admin_refund', 'adjustment_list', 'adjustment_detail', 'outstanding_list', 'outstanding_detail', 'merge_transaction', 'daily_report', 'ap_request', 'target_page', 'pengajuan_belanja',
   'admin_payment_config',
 ]);
 
@@ -280,6 +280,12 @@ function AppInner() {
       case 'splash':
         return <SplashPage onDone={() => navigate('login')} />;
       case 'login':
+        // SECURITY: Jika user sudah login, redirect langsung ke dashboard
+        // Mencegah user yang sudah login melihat halaman login via browser back / deep link
+        if (user) {
+          navigate('dashboard', null, { replace: true });
+          return null;
+        }
         return <LoginPage onLogin={handleLogin} />;
       case 'buka_shift':
       case 'tutup_shift':
@@ -319,7 +325,7 @@ function AppInner() {
         return <DaftarMemberPage navigate={navigate} goBack={goBack} />;
 
       case 'nota_step1':
-        return <NotaStep1Page goBack={goBack} />;
+        return <NotaStep1Page goBack={goBack} screenParams={screenParams} />;
       case 'nota_step2':
         return <NotaStep2Page goBack={goBack} />;
       case 'nota_step3':
@@ -636,7 +642,7 @@ function AppInner() {
             </div>
             <button
               onClick={() => window.location.reload()}
-              style={{ width: '100%', padding: '12px 0', fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: 'white', background: '#6e2e78', border: 'none', borderRadius: 12, cursor: 'pointer' }}
+              style={{ width: '100%', padding: '12px 0', fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: 'white', background: '#5B005F', border: 'none', borderRadius: 12, cursor: 'pointer' }}
             >
               Login Kembali
             </button>

@@ -500,8 +500,8 @@ export default function RevenueTrendChart({ className }) {
         )}
       </div>
 
-      {/* Summary Stats */}
-      {summary && (
+      {/* Summary Stats — only show when financial data is present (non-produksi) */}
+      {summary && summary.totalActual !== undefined && (
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',

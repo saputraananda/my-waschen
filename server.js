@@ -29,6 +29,21 @@ if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32 && process.env.
   process.exit(1);
 }
 
+// ─── Global Error Handlers ───────────────────────────────────────────────────
+// Catch unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[UNHANDLED_REJECTION]', reason);
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Stack:', reason?.stack);
+  }
+});
+
+// Catch uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT_EXCEPTION]', err.message);
+  console.error('Stack:', err.stack);
+});
+
 import authRoutes from './api/routes/auth.routes.js'
 import userRoutes from './api/routes/user.routes.js'
 import serviceRoutes from './api/routes/services.routes.js'
@@ -282,6 +297,21 @@ app.use((err, req, res, next) => {
 })
 
 const server = http.createServer(app);
+
+// ─── Server Error Handler ─────────────────────────────────────────────────────
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use. Please kill the process using that port.`);
+  } else {
+    console.error('[SERVER_ERROR]', err.message);
+  }
+});
+
+server.on('clientError', (err, socket) => {
+  console.error('[CLIENT_ERROR]', err.message);
+  if (socket) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+});
+
 server.listen(PORT, () => {
   const localIPAddress = getLocalIPAddress()
   const frontendPort = 5173

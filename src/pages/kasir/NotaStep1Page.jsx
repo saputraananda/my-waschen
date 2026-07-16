@@ -199,14 +199,28 @@ const LOYALTY_META = {
   churn: { label: 'Churn', bg: 'linear-gradient(135deg, #FFE0E0, #FFB8B8)', color: '#8B2020', border: '1px solid rgba(255,120,120,0.3)' },
 };
 
-export default function NotaStep1Page({ goBack }) {
+export default function NotaStep1Page({ goBack, screenParams }) {
   const { navigate, setNotaCustomer } = useApp();
   const [customers, setCustomers] = useState([]);
+  const [recentCustomers, setRecentCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [recentLoading, setRecentLoading] = useState(false);
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 250);
   const [hasActiveSession, setHasActiveSession] = useState(null);
   const [sessionCheckError, setSessionCheckError] = useState(null);
+
+  // Auto-skip to Step 2 if preCustomer is passed (from DetailCustomerPage "Buat Nota")
+  // Only skip AFTER shift check completes (hasActiveSession is not null)
+  useEffect(() => {
+    const preCustomer = screenParams?.preCustomer;
+    // Wait for shift check to complete (hasActiveSession !== null) before auto-skip
+    if (preCustomer?.id && hasActiveSession === true) {
+      setNotaCustomer(preCustomer);
+      // Auto navigate to Step 2 with replace=true
+      navigate('nota_step2', null, { replace: true });
+    }
+  }, [screenParams, hasActiveSession]);
 
   // Responsive hooks
   const { isMobile } = useResponsive();
@@ -233,6 +247,24 @@ export default function NotaStep1Page({ goBack }) {
       }
     };
     checkActiveSession();
+  }, []);
+
+  // Fetch recent customers (last 5 unique customers)
+  useEffect(() => {
+    const fetchRecentCustomers = async () => {
+      setRecentLoading(true);
+      try {
+        const res = await axios.get('/api/customers?recent=true&limit=5');
+        if (res?.data?.success) {
+          setRecentCustomers(res.data.data || []);
+        }
+      } catch {
+        setRecentCustomers([]);
+      } finally {
+        setRecentLoading(false);
+      }
+    };
+    fetchRecentCustomers();
   }, []);
 
   // Fetch with server-side search & pagination
@@ -332,6 +364,84 @@ export default function NotaStep1Page({ goBack }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '10px 12px' : '12px 16px' }}>
+
+        {/* Customer Shortcut - Recent Customers */}
+        {!query && recentCustomers.length > 0 && (
+          <div style={{ marginBottom: isMobile ? 14 : 16 }}>
+            <div style={{
+              fontFamily: 'Poppins',
+              fontSize: isMobile ? 11 : 12,
+              fontWeight: 600,
+              color: C.n600,
+              marginBottom: isMobile ? 8 : 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n500} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Customer Terakhir
+            </div>
+            <div style={{
+              display: 'flex',
+              gap: isMobile ? 8 : 10,
+              overflowX: 'auto',
+              paddingBottom: 4,
+              scrollSnapType: 'x mandatory',
+              WebkitOverflowScrolling: 'touch',
+            }}>
+              {recentCustomers.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => selectCustomer(c)}
+                  style={{
+                    flexShrink: 0,
+                    width: isMobile ? 110 : 120,
+                    padding: isMobile ? '12px 10px' : '14px 12px',
+                    background: 'white',
+                    borderRadius: 16,
+                    border: `1.5px solid ${C.n200}`,
+                    cursor: hasActiveSession === false ? 'not-allowed' : 'pointer',
+                    opacity: hasActiveSession === false ? 0.5 : 1,
+                    scrollSnapAlign: 'start',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <CustomerAvatar customer={c} size={isMobile ? 40 : 48} />
+                  <div style={{
+                    fontFamily: 'Poppins',
+                    fontSize: isMobile ? 11 : 12,
+                    fontWeight: 600,
+                    color: C.n800,
+                    textAlign: 'center',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    width: '100%',
+                  }}>
+                    {c.name?.split(' ')[0]}
+                  </div>
+                  <div style={{
+                    fontFamily: 'Poppins',
+                    fontSize: isMobile ? 9 : 10,
+                    color: C.n500,
+                    textAlign: 'center',
+                  }}>
+                    {c.phone?.slice(-4)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Search Bar */}
         <div style={{ marginBottom: isMobile ? 10 : 12 }}>
           <SearchBar value={query} onChange={setQuery} placeholder="Cari nama atau nomor HP..." />
         </div>

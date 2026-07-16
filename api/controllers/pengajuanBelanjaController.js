@@ -244,6 +244,7 @@ export const getPengajuans = async (req, res) => {
       outletId,
       status,
       categoryId,
+      groupType, // 'operasional' or 'tagihan'
       dateFrom,
       dateTo,
       search,
@@ -297,6 +298,12 @@ export const getPengajuans = async (req, res) => {
       params.push(categoryId);
     }
 
+    // Filter by group_type (Uang Kas = 'operasional', Biaya AP = 'tagihan')
+    if (groupType) {
+      conditions.push('EXISTS (SELECT 1 FROM tr_pengajuan_belanja_item pi2 JOIN mst_pengajuan_category c2 ON pi2.category_id = c2.id WHERE pi2.pengajuan_id = p.id AND c2.group_type = ?)');
+      params.push(groupType);
+    }
+
     const whereClause = conditions.join(' AND ');
 
     // Query with items
@@ -319,7 +326,7 @@ export const getPengajuans = async (req, res) => {
     // Get items for each pengajuan
     for (const row of rows) {
       const [items] = await poolWaschenPos.execute(
-        `SELECT pi.*, c.name as category_name, c.code as category_code, c.icon as category_icon, c.color as category_color
+        `SELECT pi.*, c.name as category_name, c.code as category_code, c.icon as category_icon, c.color as category_color, c.group_type as category_group_type
          FROM tr_pengajuan_belanja_item pi
          JOIN mst_pengajuan_category c ON pi.category_id = c.id
          WHERE pi.pengajuan_id = ?
@@ -338,7 +345,7 @@ export const getPengajuans = async (req, res) => {
       params
     );
 
-    // Summary by status
+    // Summary by status (with optional groupType filter)
     const summaryConditions = ['1=1'];
     const summaryParams = [];
 
@@ -348,6 +355,11 @@ export const getPengajuans = async (req, res) => {
     } else if (outletId) {
       summaryConditions.push('p.outlet_id = ?');
       summaryParams.push(outletId);
+    }
+
+    if (groupType) {
+      summaryConditions.push('EXISTS (SELECT 1 FROM tr_pengajuan_belanja_item pi2 JOIN mst_pengajuan_category c2 ON pi2.category_id = c2.id WHERE pi2.pengajuan_id = p.id AND c2.group_type = ?)');
+      summaryParams.push(groupType);
     }
 
     const [summary] = await poolWaschenPos.execute(

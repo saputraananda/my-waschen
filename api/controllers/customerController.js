@@ -3,6 +3,18 @@ import { writeAudit } from '../utils/auditLog.js';
 import { notDeleted, softDeleteRecord } from '../utils/softDelete.js';
 import logger from '../utils/logger.js';
 
+// ─── Helper: BigInt → safe number/string for JSON serialization ─────────────────
+// MySQL BIGINT > Number.MAX_SAFE_INTEGER loses precision when serialized to JSON.
+// This converts BigInt to Number (if safe) or String (if unsafe).
+const safeBigInt = (v) => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'bigint') {
+    const n = Number(v);
+    return Number.isSafeInteger(n) ? n : String(v);
+  }
+  return v;
+};
+
 // ─── Controller: POST /api/customers/:id/topup ─────────────────────────────
 export const topupDeposit = async (req, res) => {
   const conn = await poolWaschenPos.getConnection();
@@ -406,6 +418,7 @@ const mapCustomerRow = (c) => {
 
   return {
     ...c,
+    id: safeBigInt(c.id), // Fix BigInt serialization
     avatar: (c.name || '')
       .split(' ')
       .filter(Boolean)
@@ -420,7 +433,7 @@ const mapCustomerRow = (c) => {
     lastSpendDate: c.lastTxDate || null,
     membershipTier: c.membershipTier || null,
     loyaltyCategory,
-    registeredOutletId: c.registeredOutletId || null,
+    registeredOutletId: safeBigInt(c.registeredOutletId),
     registeredOutletName: c.registeredOutletName || null,
   };
 };
@@ -428,7 +441,7 @@ const mapCustomerRow = (c) => {
 // ─── Controller: GET /api/customers ────────────────────────────────────────────
 export const getCustomers = async (req, res) => {
   try {
-    const { search, page = 1, limit = 100, outletId: queryOutletId, sort, member, loyalty } = req.query;
+    const { search, page = 1, limit = 100, outletId: queryOutletId, sort, member, loyalty, recent } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 100));
     const offset = (pageNum - 1) * limitNum;
@@ -456,6 +469,51 @@ export const getCustomers = async (req, res) => {
         OR c.address_no LIKE ? OR c.address_detail LIKE ?)`;
       const q = `%${search.trim()}%`;
       params.push(q, q, q, q, q, q, q);
+    }
+
+    // Recent customers: Get last 5 unique customers from recent transactions at this outlet
+    if (recent === 'true') {
+      // This is handled separately below - override the query
+      const userId = req.user?.userId;
+      const userOutletId = req.user?.outletId;
+
+      const [rows] = await poolWaschenPos.execute(
+        `SELECT DISTINCT c.id, c.name, c.phone, c.is_member, c.gender, c.photo,
+                c.registered_outlet_id AS registeredOutletId,
+                o.name AS registeredOutletName,
+                w.balance AS depositBalance,
+                COALESCE(tx.totalTx, 0) AS totalTx,
+                COALESCE(tx.lastTxDate, NULL) AS lastTxDate,
+                COALESCE(tx.totalSpendAmount, 0) AS totalSpendAmount,
+                MAX(tx.lastCreatedAt) AS recentTransactionAt
+         FROM mst_customer c
+         LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
+         LEFT JOIN mst_outlet o ON o.id = c.registered_outlet_id
+         LEFT JOIN (
+           SELECT customer_id,
+                  COUNT(*) AS totalTx,
+                  MAX(created_at) AS lastTxDate,
+                  COALESCE(SUM(total), 0) AS totalSpendAmount,
+                  MAX(created_at) AS lastCreatedAt
+           FROM tr_transaction
+           WHERE deleted_at IS NULL
+             AND status != 'cancelled'
+             ${userOutletId ? 'AND outlet_id = ?' : ''}
+           GROUP BY customer_id
+         ) tx ON tx.customer_id = c.id
+         WHERE c.is_active = 1 AND c.deleted_at IS NULL
+           AND tx.customer_id IS NOT NULL
+         GROUP BY c.id
+         ORDER BY MAX(tx.lastCreatedAt) DESC
+         LIMIT 5`,
+        userOutletId ? [userOutletId] : []
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: rows.map(mapCustomerRow),
+        pagination: { page: 1, limit: 5, total: rows.length, totalPages: 1 },
+      });
     }
 
     if (member === 'premium') {
@@ -637,7 +695,7 @@ export const getCustomerById = async (req, res) => {
       if (membRows.length > 0) {
         const m = membRows[0];
         base.membership = {
-          id: m.id,
+          id: safeBigInt(m.id),
           memberNo: m.member_no,
           status: m.status,
           discountPct: Number(m.discount_pct),
@@ -690,6 +748,13 @@ export const createCustomer = async (req, res) => {
       awareness_source_id,
       awareness_other_text,
       notes,
+      birth_date,
+      // Cascading address fields (optional)
+      province_id,
+      city_id,
+      district_id,
+      sub_district_id,
+      address_other,
     } = req.body;
 
     // Validasi: hanya nama dan HP yang wajib
@@ -709,40 +774,6 @@ export const createCustomer = async (req, res) => {
       return res.status(409).json({
         success: false,
         message: 'Nomor HP sudah terdaftar',
-      });
-    }
-
-    // BUG FIX: Cascading Address Validation (Requirements 2.1, 2.3)
-    // Customer MUST provide EITHER structured cascading address OR address_other fallback
-    const {
-      province_id,
-      city_id,
-      district_id,
-      sub_district_id,
-      address_other,
-    } = req.body;
-
-    const hasStructuredAddress = province_id && city_id && district_id && sub_district_id;
-    const hasAddressOther = address_other && address_other.trim();
-
-    if (!hasStructuredAddress && !hasAddressOther) {
-      return res.status(422).json({
-        success: false,
-        message: 'Alamat wajib diisi. Pilih dari cascading dropdown (Province → City → District → Sub-District) atau isi "Alamat Lainnya" jika tidak ditemukan di master.',
-        errors: {
-          address: 'Required: Either (province_id, city_id, district_id, sub_district_id) OR address_other'
-        }
-      });
-    }
-
-    // Validate partial cascading address (must be complete or none)
-    if ((province_id || city_id || district_id || sub_district_id) && !hasStructuredAddress) {
-      return res.status(422).json({
-        success: false,
-        message: 'Alamat cascading tidak lengkap. Harap lengkapi semua field: Province, City, District, Sub-District.',
-        errors: {
-          address: 'Incomplete cascading address'
-        }
       });
     }
 
@@ -786,27 +817,30 @@ export const createCustomer = async (req, res) => {
 
     const [insertResult] = await poolWaschenPos.execute(
       `INSERT INTO mst_customer (
-        customer_no, name, phone, gender, greeting, email, photo,
+        customer_no, name, phone, birth_date, gender, greeting, email,
         awareness_source_id, awareness_other_text, area_zone_id,
         registered_outlet_id,
-        province_id, city_id, district_id, sub_district_id, address_detail, address_other,
+        province_id, city_id, district_id, sub_district_id,
+        address_detail, address_other,
         address_housing, address_block, address_no,
         is_member, notes, is_active, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE, ?, TRUE, NOW(), NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
-        customerNo, name.trim(), phone.trim(), finalGender, finalGreeting,
-        finalEmail, req.body.photo || null, finalAwarenessId, finalAwarenessOther, finalAreaZoneId,
+        customerNo, name.trim(), phone.trim(), birth_date || null, finalGender, finalGreeting,
+        finalEmail, finalAwarenessId, finalAwarenessOther, finalAreaZoneId,
         req.user?.outletId || null,
         province_id || null,
         city_id || null,
         district_id || null,
         sub_district_id || null,
-        (address_detail || '').trim() || null,
+        (address_detail || '').trim() || '-',
         address_other ? address_other.trim() : null,
         (address_housing || '').trim() || '-',
         (address_block || '').trim() || '-',
         (address_no || '').trim() || '-',
+        0, // is_member = FALSE (0)
         finalNotes,
+        1, // is_active = TRUE (1)
       ]
     );
 
@@ -825,12 +859,14 @@ export const createCustomer = async (req, res) => {
       name: name.trim(),
       phone: phone.trim(),
       email: finalEmail,
-      gender: gender,
-      greeting: greeting,
-      addressHousing: address_housing,
-      addressBlock: address_block,
-      addressNo: address_no,
-      addressDetail: address_detail,
+      birthDate: birth_date,
+      gender: finalGender,
+      greeting: finalGreeting,
+      areaZoneId: finalAreaZoneId,
+      addressHousing: (address_housing || '').trim() || null,
+      addressBlock: (address_block || '').trim() || null,
+      addressNo: (address_no || '').trim() || null,
+      addressDetail: (address_detail || '').trim() || null,
       isMember: false,
       isPremium: false,
       notes: finalNotes,

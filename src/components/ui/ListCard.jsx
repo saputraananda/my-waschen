@@ -202,7 +202,7 @@ const ListCard = ({
   onClick,
 
   // Styling
-  color = '#6e2e78',
+  color = '#5B005F',
   compact = false,
   interactive = true,
 
@@ -215,7 +215,7 @@ const ListCard = ({
 
   // Avatar/Icon
   avatar = null,
-  avatarColor = '#6e2e78',
+  avatarColor = '#5B005F',
 
   // ClassName
   className = '',

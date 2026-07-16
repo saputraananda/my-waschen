@@ -30,7 +30,7 @@ const indexes = [
   ['tr_customer_review', 'idx_review_outlet_created', '(outlet_id, created_at)'],
   ['tr_production_assignment', 'idx_prodassign_stage_status', '(stage, status)'],
   ['tr_production_assignment', 'idx_prodassign_assigned_to', '(assigned_to, status)'],
-  ['mst_service', 'idx_service_outlet_active', '(outlet_id, is_active)'],
+  // mst_service.outlet_id removed — services are now global (idx_service_kind_active below)
   ['mst_customer_wallet', 'idx_wallet_customer', '(customer_id)'],
   ['mst_outlet_cash_balance', 'idx_cashbalance_outlet', '(outlet_id)'],
 ];

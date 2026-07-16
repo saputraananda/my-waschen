@@ -174,11 +174,11 @@ export default function TransactionMetricsWidget({ period = 'today', compact = f
             boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)',
             flexShrink: 0,
           }}>
-            <BarChart3 size={18} color="#6e2e78" />
+            <BarChart3 size={18} color="#5B005F" />
           </div>
           <div>
             <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <IconChart size={18} color="#6e2e78" /> Metrik Transaksi
+              <IconChart size={18} color="#5B005F" /> Metrik Transaksi
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#9ca3af' }}>
               {period === 'today' ? 'Hari ini' : period === 'month' ? 'Bulan ini' : 'Semua'}
@@ -200,7 +200,7 @@ export default function TransactionMetricsWidget({ period = 'today', compact = f
                   onClick={() => onPeriodChange(p)}
                   style={{
                     padding: '4px 10px', borderRadius: 8, border: 'none',
-                    background: period === p ? '#6e2e78' : '#F1F5F9',
+                    background: period === p ? '#5B005F' : '#F1F5F9',
                     color: period === p ? 'white' : '#64748B',
                     fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
                     cursor: 'pointer',
@@ -364,7 +364,7 @@ export default function TransactionMetricsWidget({ period = 'today', compact = f
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#64748B', marginBottom: 8 }}>Bulan Ini</div>
           <div style={{ display: 'flex', gap: 10 }}>
             <div style={{ flex: 1, background: '#F8F4FF', borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: '#6e2e78' }}>{rp(monthData.totalRevenue)}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 800, color: '#5B005F' }}>{rp(monthData.totalRevenue)}</div>
               <div style={{ fontFamily: 'Poppins', fontSize: 9, color: '#64748B', marginTop: 2 }}>Total Omset</div>
             </div>
             <div style={{ flex: 1, background: '#F0FDF4', borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>

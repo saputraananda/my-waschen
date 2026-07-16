@@ -13,23 +13,45 @@ export const optionalNumber = z.number().optional();
 
 // ─── Customer Schemas ──────────────────────────────────────────────────────────
 
+// Normalize phone: strip +, spaces, dashes. Convert 62xx → 0xx for consistent DB storage.
+const normalizePhone = (v) => {
+  if (v == null || typeof v !== 'string') return v; // pass through for Zod to handle
+  const digits = v.replace(/[\s\-+()]/g, '');
+  if (!digits) return v; // pass through - Zod string().regex() will catch empty
+  // Convert 62 prefix to 0 (e.g. 62812... → 0812...)
+  if (digits.startsWith('62') && digits.length >= 10) {
+    return '0' + digits.slice(2);
+  }
+  return digits;
+};
+
 export const createCustomerSchema = z.object({
   name: z.string().min(1, 'Nama wajib diisi').max(100),
-  phone: z.string().regex(/^8\d{7,12}$/, 'Nomor HP tidak valid (08xxxxxxxxxx)'),
-  email: z.string().email('Email tidak valid').optional().or(z.literal('')),
-  gender: z.enum(['male', 'female']).optional(),
-  greeting: z.string().optional(),
-  instansi: z.string().optional(),
-  birth_date: z.string().optional(), // YYYY-MM-DD
-  religion: z.string().optional(),
-  awareness_source_id: z.number().int().positive().optional(),
-  awareness_other_text: z.string().optional(),
-  area_zone_id: z.number().int().positive().optional(),
-  address_housing: z.string().optional(),
-  address_block: z.string().optional(),
-  address_no: z.string().optional(),
-  address_detail: z.string().optional(),
-  notes: z.string().optional(),
+  phone: z.preprocess(
+    normalizePhone,
+    z.string()
+      .regex(/^0[8]\d{7,11}$/, 'Nomor HP tidak valid (contoh: 081234567890)')
+  ),
+  email: z.string().email('Email tidak valid').optional().nullable().or(z.literal('')),
+  gender: z.enum(['male', 'female']).optional().nullable(),
+  greeting: z.string().optional().nullable(),
+  instansi: z.string().optional().nullable(),
+  birth_date: z.string().optional().nullable(), // YYYY-MM-DD
+  religion: z.string().optional().nullable(),
+  awareness_source_id: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined) ? null : (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v),
+    z.number().int().positive().optional().nullable()
+  ),
+  awareness_other_text: z.string().optional().nullable(),
+  area_zone_id: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined) ? null : (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v),
+    z.number().int().positive().optional().nullable()
+  ),
+  address_housing: z.string().optional().nullable(),
+  address_block: z.string().optional().nullable(),
+  address_no: z.string().optional().nullable(),
+  address_detail: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();
@@ -37,81 +59,181 @@ export const updateCustomerSchema = createCustomerSchema.partial();
 // ─── Transaction Schemas ───────────────────────────────────────────────────────
 
 export const transactionItemSchema = z.object({
-  serviceId: z.number().int().positive('Service ID wajib diisi'),
-  serviceName: z.string().optional(),
+  // Support string (numeric string "123") or UUID string or numeric serviceId
+  serviceId: z.preprocess(
+    (v) => typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v,
+    z.union([z.string().uuid(), z.number().int().positive()])
+  ),
+  serviceName: z.string().optional().nullable(),
   qty: z.number().positive('Qty wajib > 0'),
   price: z.number().min(0),
-  unit: z.string().optional(),
+  unit: z.string().optional().nullable(),
   isExpress: z.boolean().optional(),
-  material: z.string().optional(),
-  materialId: z.number().int().positive().optional(),
-  length: z.number().optional(),
-  width: z.number().optional(),
-  notes: z.string().optional(),
+  material: z.string().optional().nullable(),
+  materialId: z.preprocess(
+    (v) => typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v,
+    z.union([z.string(), z.number().int().positive()])
+  ).optional().nullable(),
+  // Carpet dimensions in cm (from frontend)
+  carpetPanjangCm: z.number().min(0).optional().nullable(),
+  carpetLebarCm: z.number().min(0).optional().nullable(),
+  // Legacy length/width (in meters or cm depending on context)
+  length: z.number().optional().nullable(),
+  width: z.number().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  // Extra fields passed through
+  brand: z.string().optional().nullable(),
+  specialCareAlert: z.string().optional().nullable(),
+  subtotal: z.number().min(0).optional(),
 });
 
 export const checkoutTransactionSchema = z.object({
-  customerId: z.number().int().positive('Customer ID wajib diisi'),
+  // Support string (numeric string "123" or UUID) and numeric customerId
+  customerId: z.preprocess(
+    (v) => {
+      if (typeof v === 'string') {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : v;
+      }
+      return v;
+    },
+    z.union([z.string().uuid(), z.number().int().positive()])
+  ),
   items: z.array(transactionItemSchema).min(1, 'Minimal 1 item wajib dipilih'),
-  outletId: z.number().int().positive('Outlet ID wajib diisi'),
+  outletId: z.preprocess(
+    (v) => {
+      if (typeof v === 'string') {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : v;
+      }
+      return v;
+    },
+    z.union([z.string().uuid(), z.number().int().positive()])
+  ).optional(),
 
   // Payment
   payment: z.object({
     method: z.enum(['cash', 'transfer', 'qris', 'edc', 'deposit']).optional(),
     paidAmount: z.number().min(0).optional(),
     changeAmount: z.number().min(0).optional(),
+    amount: z.number().min(0).optional(),
   }).optional(),
 
-  // Optional fields
-  notes: z.string().optional(),
-  promoCode: z.string().optional(),
+  // Payment intent (simplified flow from frontend)
+  paymentIntent: z.object({
+    paidAmount: z.number().min(0).optional(),
+    verifiedByKasir: z.boolean().optional(),
+    bankAccountId: z.union([z.string(), z.number()]).nullable().optional(),
+    paymentPhotoBase64: z.string().optional().nullable(),
+  }).optional(),
+
+  // PIC (Penanggung Jawab)
+  picId: z.union([z.string(), z.number()]).nullable().optional(),
+  picName: z.string().optional().nullable(),
+
+  // Promo
+  promoId: z.union([z.string(), z.number()]).nullable().optional(),
+
+  // Logistic / Pickup
+  pickup: z.boolean().optional(),
+  delivery: z.boolean().optional(),
+  areaZoneId: z.union([z.string(), z.number()]).nullable().optional(),
+  scheduleAt: z.string().optional().nullable(),
+  courierName: z.string().optional().nullable(),
+  deliveryNotes: z.string().optional().nullable(),
+
+  // Financials
+  subtotal: z.number().min(0).optional(),
+  discount: z.number().min(0).optional(),
+  total: z.number().min(0).optional(),
+
+  // Other
+  notes: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
+  pickupType: z.union([
+    z.enum(['self', 'pickup', 'delivery', 'both']),
+    z.string(),       // accept any string value gracefully
+  ]).optional().nullable(),
+  promoCode: z.string().optional().nullable(),
   manualDiscount: z.number().min(0).optional(),
-  dueDate: z.string().optional(),
-  pickupType: z.enum(['self', 'pickup', 'delivery']).optional(),
-  pickupScheduleAt: z.string().optional(),
-  deliveryScheduleAt: z.string().optional(),
-  pickupAddressId: z.number().int().positive().optional(),
+  pickupScheduleAt: z.string().optional().nullable(),
+  deliveryScheduleAt: z.string().optional().nullable(),
+  pickupAddressId: z.union([z.string(), z.number().int().positive()]).nullable().optional(),
   deliveryFee: z.number().min(0).optional(),
 });
 
 // ─── Service Schemas ───────────────────────────────────────────────────────────
-
+// NOTE: Field names MUST match what the frontend sends and controller destructures.
+// Controller expects camelCase: category, price, unit, active, expressExtra,
+// expressEligible, minQty, slaRegular, slaExpress, durasiHari, outletId
 export const createServiceSchema = z.object({
   name: z.string().min(1, 'Nama layanan wajib diisi').max(100),
-  category_id: z.number().int().positive('Kategori wajib dipilih'),
+  // category: string category name (e.g. "Cuci", "Dry Clean") — controller calls getOrCreateCategory()
+  category: z.string().min(1, 'Kategori wajib diisi').optional(),
+  // category_id: numeric ID — either this OR category name must be provided
+  category_id: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined) ? undefined : (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v),
+    z.number().int().positive().optional()
+  ),
   price: z.number().min(0, 'Harga tidak boleh negatif'),
-  unit: z.enum(['pcs', 'kg', 'm2', 'liter', 'meter']).default('pcs'),
-  estimated_hours: z.number().int().positive().optional(),
-  sla_regular_hours: z.number().int().positive().optional(),
-  sla_express_hours: z.number().int().positive().optional(),
-  is_express_available: z.boolean().default(false),
-  express_multiplier: z.number().min(1).optional(),
-  requires_material: z.boolean().default(false),
-  min_stock_qty: z.number().min(0).optional(),
-  is_active: z.boolean().default(true),
-  outlet_ids: z.array(z.number().int().positive()).optional(),
+  // unit: freeform string (controller accepts any string)
+  unit: z.string().min(1, 'Satuan wajib diisi').optional(),
+  estimated_hours: z.number().int().nonnegative().optional().nullable(),
+  durasiHari: z.number().int().nonnegative().optional().nullable(), // alias
+  sla_regular_hours: z.number().int().nonnegative().optional().nullable(),
+  slaExpress: z.number().int().nonnegative().optional().nullable(), // camelCase alias
+  sla_regular: z.number().int().nonnegative().optional().nullable(), // camelCase alias
+  sla_express_hours: z.number().int().nonnegative().optional().nullable(),
+  is_express_available: z.boolean().optional(),
+  expressEligible: z.boolean().optional(), // camelCase alias
+  express_multiplier: z.number().min(0).optional().nullable(),
+  expressExtra: z.number().min(0).optional().nullable(), // nominal express surcharge
+  requires_material: z.boolean().optional(),
+  min_stock_qty: z.number().min(0).optional().nullable(),
+  minQty: z.number().min(0).optional().nullable(), // camelCase alias
+  is_active: z.boolean().optional(),
+  active: z.boolean().optional(), // camelCase alias
+  outletId: z.number().int().positive().optional(), // camelCase
+  outlet_ids: z.array(z.number().int().positive()).optional(), // snake_case (legacy)
 });
 
 // ─── Promo Schemas ─────────────────────────────────────────────────────────────
-
+// NOTE: Field names MUST match what the frontend sends and controller destructures.
+// Controller expects camelCase: minTrxAmount, maxDiscount, validFrom, validUntil,
+// isGlobal, outletIds, promoType, applicableType, applicableServices, applicableCategories
 export const createPromoSchema = z.object({
   code: z.string().min(1, 'Kode promo wajib diisi').max(50),
   name: z.string().min(1, 'Nama promo wajib diisi').max(100),
   type: z.enum(['percent', 'nominal']),
   value: z.number().min(0, 'Nilai tidak boleh negatif'),
-  min_trx_amount: z.number().min(0).optional(),
-  max_discount: z.number().min(0).optional(),
-  promo_type: z.enum(['general', 'birthday', 'campaign', 'loyalty']).optional(),
+  // Support both camelCase and snake_case from frontend
+  minTrxAmount: z.number().min(0).optional(),
+  min_trx_amount: z.number().min(0).optional(), // snake_case fallback
+  maxDiscount: z.number().min(0).optional(),
+  max_discount: z.number().min(0).optional(), // snake_case fallback
+  promoType: z.enum(['general', 'birthday', 'campaign', 'loyalty']).optional(),
+  promo_type: z.enum(['general', 'birthday', 'campaign', 'loyalty']).optional(), // snake_case fallback
   // Service/category applicability
-  applicable_type: z.enum(['all', 'category', 'service']).optional(),
-  applicable_services: z.array(z.number().int().positive()).optional(),
-  applicable_categories: z.array(z.string()).optional(),
-  auto_apply: z.boolean().optional(),
-  is_global: z.boolean().optional(),
-  outlet_ids: z.array(z.number().int().positive()).optional(),
-  valid_from: z.string().optional(),
-  valid_until: z.string().optional(),
-  is_active: z.boolean().default(true),
+  applicableType: z.enum(['all', 'category', 'service']).optional(),
+  applicable_type: z.enum(['all', 'category', 'service']).optional(), // snake_case fallback
+  applicableServices: z.array(z.number().int().positive()).optional(),
+  applicable_services: z.array(z.number().int().positive()).optional(), // snake_case fallback
+  applicableCategories: z.array(z.string()).optional(),
+  applicable_categories: z.array(z.string()).optional(), // snake_case fallback
+  autoApply: z.boolean().optional(),
+  auto_apply: z.boolean().optional(), // snake_case fallback
+  isGlobal: z.boolean().optional(),
+  is_global: z.boolean().optional(), // snake_case fallback
+  outletIds: z.array(z.number().int().positive()).optional(),
+  outlet_ids: z.array(z.number().int().positive()).optional(), // snake_case fallback
+  validFrom: z.string().optional(),
+  valid_from: z.string().optional(), // snake_case fallback
+  validUntil: z.string().optional(),
+  valid_until: z.string().optional(), // snake_case fallback
+  is_active: z.boolean().optional(),
+  active: z.boolean().optional(), // camelCase fallback
+  isActive: z.boolean().optional(),
+  is_active: z.boolean().optional(),
 });
 
 // ─── Shift Schemas ─────────────────────────────────────────────────────────────
@@ -169,37 +291,67 @@ export const renewMembershipSchema = z.object({
 // ─── Inventory Schemas ─────────────────────────────────────────────────────────
 
 export const createInventoryItemSchema = z.object({
-  category_id: z.number().int().positive('Kategori wajib dipilih'),
+  // Support both camelCase (controller expects) and snake_case (legacy)
+  categoryId: z.number().int().positive('Kategori wajib dipilih'),
+  category_id: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined) ? undefined : (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v),
+    z.number().int().positive().optional()
+  ),
   name: z.string().min(1, 'Nama item wajib diisi').max(100),
-  unit: z.string().default('pcs'),
-  item_code: z.string().optional(),
-  min_stock_default: z.number().min(0).default(0),
-  is_active: z.boolean().default(true),
+  unit: z.string().min(1, 'Satuan wajib').optional(),
+  itemCode: z.string().optional(),
+  item_code: z.string().optional(), // snake_case fallback
+  minStockDefault: z.number().min(0).optional(),
+  min_stock_default: z.number().min(0).optional(), // snake_case fallback
+  is_active: z.boolean().optional(),
+  active: z.boolean().optional(), // camelCase fallback
 });
 
 export const createPurchaseRequestSchema = z.object({
   outletId: z.number().int().positive('Outlet ID wajib diisi'),
   items: z.array(z.object({
-    inventory_id: z.number().int().positive(),
+    inventoryId: z.number().int().positive(),
+    inventory_id: z.number().int().positive().optional(),
     qty: z.number().positive(),
-    unit_price: z.number().min(0),
+    unit_price: z.number().min(0).optional(),
+    unitPrice: z.number().min(0).optional(),
     notes: z.string().optional(),
   })).min(1, 'Minimal 1 item wajib'),
   notes: z.string().optional(),
 });
 
 // ─── User Schemas ─────────────────────────────────────────────────────────────
-
+// NOTE: Field names MUST match what the frontend sends and controller destructures.
+// Controller expects: username, password, name, role, outletId, email, outlet, gender
 export const createUserSchema = z.object({
-  username: z.string().min(3, 'Username minimal 3 karakter').max(50),
+  username: z.string().min(3, 'Username minimal 3 karakter').max(50).optional(),
   password: z.string().min(6, 'Password minimal 6 karakter'),
   name: z.string().min(1, 'Nama wajib diisi').max(100),
-  role_code: z.enum(['admin', 'frontline', 'produksi']),
-  outlet_id: z.number().int().positive().optional(),
-  is_active: z.boolean().default(true),
+  email: z.string().email('Email tidak valid').optional().nullable().or(z.literal('')),
+  // Support both role (camelCase from frontend) and role_code (snake_case)
+  role: z.enum(['admin', 'frontline', 'produksi']).optional(),
+  role_code: z.enum(['admin', 'frontline', 'produksi']).optional(),
+  outletId: z.number().int().positive().optional(),
+  outlet_id: z.number().int().positive().optional(), // snake_case fallback
+  outlet: z.string().optional(), // outlet name (for lookup)
+  gender: z.enum(['male', 'female']).optional().nullable(),
+  is_active: z.boolean().optional(),
+  active: z.boolean().optional(), // camelCase fallback
 });
 
-export const updateUserSchema = createUserSchema.partial().omit({ password: true });
+export const updateUserSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  email: z.string().email('Email tidak valid').optional().nullable().or(z.literal('')),
+  role: z.enum(['admin', 'frontline', 'produksi']).optional(),
+  role_code: z.enum(['admin', 'frontline', 'produksi']).optional(),
+  outletId: z.number().int().positive().optional(),
+  outlet_id: z.number().int().positive().optional(),
+  outlet: z.string().optional(),
+  gender: z.enum(['male', 'female']).optional().nullable(),
+  is_active: z.boolean().optional(),
+  active: z.boolean().optional(),
+  password: z.string().min(6, 'Password minimal 6 karakter').optional(),
+});
 
 // ─── Outlet Schemas ─────────────────────────────────────────────────────────────
 
@@ -224,16 +376,32 @@ export const validate = (schema) => (req, res, next) => {
     req.body = result;
     next();
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      if (!error.errors || !Array.isArray(error.errors)) {
-        return res.status(422).json({
-          success: false,
-          message: 'Validasi gagal',
-          errors: {},
+    // Zod v4 uses .issues, Zod v3 uses .errors
+    const issues = error.issues || error.errors;
+    if (error instanceof z.ZodError && Array.isArray(issues)) {
+      // Log validation errors for debugging — wrapped in try/catch so logging never breaks error handling
+      try {
+        console.error('[VALIDATION] Zod validation failed:', {
+          path: req.path,
+          errors: issues.map(e => ({
+            path: Array.isArray(e.path) ? e.path.join('.') : String(e.path || ''),
+            message: e.message,
+            code: e.code,
+          })),
+          bodyKeys: Object.keys(req.body || {}),
+          bodyCustomerId: req.body?.customerId,
+          bodyCustomerIdType: typeof req.body?.customerId,
+          bodyItemsCount: Array.isArray(req.body?.items) ? req.body.items.length : null,
+          bodyItemsServiceIds: Array.isArray(req.body?.items)
+            ? req.body.items.map(i => ({ id: i?.serviceId, type: typeof i?.serviceId }))
+            : null,
         });
+      } catch (logErr) {
+        // Logging failure must never prevent error response from being sent
+        console.error('[VALIDATION] Logging failed:', logErr.message);
       }
 
-      const errors = error.errors.reduce((acc, err) => {
+      const errors = issues.reduce((acc, err) => {
         if (!err) return acc;
         const path = Array.isArray(err.path) ? err.path.join('.') : String(err.path || '');
         acc[path] = err.message || 'Invalid value';
@@ -260,16 +428,10 @@ export const validateQuery = (schema) => (req, res, next) => {
     req.query = schema.parse(req.query);
     next();
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      if (!error.errors || !Array.isArray(error.errors)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid query parameters',
-          errors: {},
-        });
-      }
-
-      const errors = error.errors.reduce((acc, err) => {
+    // Zod v4 uses .issues, Zod v3 uses .errors
+    const issues = error.issues || error.errors;
+    if (error instanceof z.ZodError && Array.isArray(issues)) {
+      const errors = issues.reduce((acc, err) => {
         if (!err) return acc;
         const path = Array.isArray(err.path) ? err.path.join('.') : String(err.path || '');
         acc[path] = err.message || 'Invalid value';

@@ -734,6 +734,8 @@ export const getOutletSummary = async (req, res) => {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
     const isGlobalRole = ['admin'].includes(userRole);
+    const PRODUCTION_ROLES = ['produksi'];
+    const isProduksi = PRODUCTION_ROLES.includes(userRole);
 
     // Tentukan outlet yang dibaca
     let outletId = req.query.outletId || userOutletId;
@@ -935,73 +937,76 @@ export const getOutletSummary = async (req, res) => {
 
     const totalMethodAmount = methodRows.reduce((s, r) => s + Number(r.amount || 0), 0) || 1;
 
-    return res.json({
-      success: true,
-      data: {
-        period: { startDate, endDate, days, periodKey: period },
-        outlet: outletMeta,
-        summary: {
+    // PRODUCTION: strip all financial data — operational stats only
+    const safeData = {
+      period: { startDate, endDate, days, periodKey: period },
+      outlet: outletMeta,
+      summary: {
+        // Non-financial: semua role dapat
+        txCount,
+        uniqueCustomers: Number(curAgg.uniqueCustomers || 0),
+        newCustomers,
+        expressCount: Number(curAgg.expressCount || 0),
+        // Financial: frontline & admin ONLY
+        ...(isProduksi ? {} : {
           revenue,
           pelunasan: Number(curAgg.pelunasan || 0),
           balanceDue: Math.max(0, revenue - Number(curAgg.pelunasan || 0)),
-          txCount,
-          uniqueCustomers: Number(curAgg.uniqueCustomers || 0),
-          newCustomers,
-          expressCount: Number(curAgg.expressCount || 0),
           avgPerTx: txCount > 0 ? Math.round(revenue / txCount) : 0,
           avgPerDay: days > 0 ? Math.round(revenue / days) : 0,
-        },
-        growth: {
-          revenue: growthPct(revenue, prevRevenue),
-          txCount: growthPct(txCount, prevTxCount),
-          prevRevenue,
-          prevTxCount,
-        },
-        target,
-        targetAchievement,
-        daily: (() => {
-          // Daily breakdown dengan target carry-over (request user #9)
-          // - Target hari kemarin yang kurang → ditambahkan ke target hari ini
-          // - Hari overachieve TIDAK mengurangi target esok (carry hanya kekurangan)
-          const dailyArr = dailyRows.map(r => ({
-            date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10),
-            revenue: Number(r.revenue),
-            txCount: Number(r.txCount),
-          }));
-
-          const baseDaily = target && target.amount > 0
-            ? Math.round(Number(target.amount) / 30) // approx target harian (per bulan dibagi 30)
-            : 0;
-
-          let shortfall = 0;
-          return dailyArr.map((d) => {
-            const todayTarget = baseDaily + Math.max(0, shortfall);
-            const achieved = d.revenue;
-            const newShortfall = Math.max(0, todayTarget - achieved);
-            // Carry-over hanya kekurangan (jangan minus)
-            shortfall = newShortfall;
-            return {
-              ...d,
-              target: baseDaily,
-              effectiveTarget: todayTarget,
-              shortfall: newShortfall,
-              achievementPct: todayTarget > 0 ? Math.round((achieved / todayTarget) * 100) : null,
-            };
-          });
-        })(),
-        paymentMix: methodRows.map(r => ({
-          method: r.method || 'unknown',
-          amount: Number(r.amount),
-          count: Number(r.cnt),
-          pct: Number(((Number(r.amount) / totalMethodAmount) * 100).toFixed(1)),
-        })),
-        topServices: topServices.map(r => ({
-          name: r.name,
-          orderCount: Number(r.orderCount),
-          revenue: Number(r.revenue),
-        })),
+        }),
       },
-    });
+      growth: isProduksi ? {} : {
+        revenue: growthPct(revenue, prevRevenue),
+        txCount: growthPct(txCount, prevTxCount),
+        prevRevenue,
+        prevTxCount,
+      },
+      target: isProduksi ? {} : target,
+      targetAchievement: isProduksi ? null : targetAchievement,
+      daily: (() => {
+        const dailyArr = dailyRows.map(r => ({
+          date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10),
+          revenue: Number(r.revenue),
+          txCount: Number(r.txCount),
+        }));
+        if (isProduksi) {
+          return dailyArr.map((d, i) => ({
+            date: d.date,
+            txCount: d.txCount,
+            isPast: i < dailyArr.length - 1,
+            isFuture: false,
+          }));
+        }
+        const baseDaily = target && target.amount > 0 ? Math.round(Number(target.amount) / 30) : 0;
+        let shortfall = 0;
+        return dailyArr.map((d) => {
+          const todayTarget = baseDaily + Math.max(0, shortfall);
+          const achieved = d.revenue;
+          const newShortfall = Math.max(0, todayTarget - achieved);
+          shortfall = newShortfall;
+          return {
+            ...d,
+            target: baseDaily,
+            effectiveTarget: todayTarget,
+            shortfall: newShortfall,
+            achievementPct: todayTarget > 0 ? Math.round((achieved / todayTarget) * 100) : null,
+          };
+        });
+      })(),
+      paymentMix: isProduksi ? [] : methodRows.map(r => ({
+        method: r.method || 'unknown',
+        amount: Number(r.amount),
+        count: Number(r.cnt),
+        pct: Number(((Number(r.amount) / totalMethodAmount) * 100).toFixed(1)),
+      })),
+      topServices: isProduksi ? [] : topServices.map(r => ({
+        name: r.name,
+        orderCount: Number(r.orderCount),
+        revenue: Number(r.revenue),
+      })),
+    };
+    return res.json({ success: true, data: safeData });
   } catch (err) {
     logger.error('Gagal memuat laporan outlet', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat laporan outlet.' });

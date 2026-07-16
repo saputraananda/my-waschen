@@ -243,7 +243,7 @@ export default function DashboardAdminTemplate({
           value={formatCurrency(stats.totalOmset)}
           trend={{ value: 8, direction: 'up' }}
           icon={<DollarSign size={16} />}
-          iconColor="#6e2e78"
+          iconColor="#5B005F"
           compact={isMobile}
         />
 
@@ -351,7 +351,7 @@ export default function DashboardAdminTemplate({
                 <div style={{
                   width: 32,
                   height: `${(outlet.revenue / Math.max(...outletPerformance.map(o => o.revenue)) * 180}px`,
-                  background: `linear-gradient(180deg, #8B5CF6, #6e2e78)`,
+                  background: `linear-gradient(180deg, #8B5CF6, #5B005F)`,
                   borderRadius: '4px 4px 0 0',
                   minHeight: 20,
                 }} />
@@ -445,15 +445,15 @@ export default function DashboardAdminTemplate({
             <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6e2e78" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#6e2e78" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#5B005F" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#5B005F" stopOpacity="0" />
                 </linearGradient>
               </defs>
               {/* Simple trend line */}
               <path
                 d="M0,180 Q50,160 100,140 T200,120 T300,100 T400,80"
                 fill="none"
-                stroke="#6e2e78"
+                stroke="#5B005F"
                 strokeWidth="3"
               />
               <path
@@ -557,7 +557,7 @@ export default function DashboardAdminTemplate({
           animate={{ opacity: 1, y: 0 }}
           style={{
             marginTop: isMobile ? 12 : 16,
-            background: 'linear-gradient(135deg, #8B5CF6, #6e2e78)',
+            background: 'linear-gradient(135deg, #8B5CF6, #5B005F)',
             borderRadius: 16,
             padding: isMobile ? 16 : 20,
             color: '#FFFFFF',

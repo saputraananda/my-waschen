@@ -23,7 +23,7 @@ const REFUND_METHODS = [
     value: 'deposit',
     label: 'Deposit/Saldo',
     icon: Wallet,
-    color: '#6e2e78',
+    color: '#5B005F',
     description: 'Langsung masuk ke saldo member'
   },
   {
@@ -52,7 +52,7 @@ function LoadingState() {
       padding: '40px 20px',
       gap: 12
     }}>
-      <Loader2 size={32} color="#6e2e78" style={{ animation: 'spin 1s linear infinite' }} />
+      <Loader2 size={32} color="#5B005F" style={{ animation: 'spin 1s linear infinite' }} />
       <span style={{ fontFamily: 'Poppins', fontSize: 13, color: '#64748B' }}>
         Memuat detail transaksi...
       </span>
@@ -75,7 +75,7 @@ function ReasonOption({ reason, selected, onClick }) {
         gap: 12,
         padding: '12px 14px',
         background: selected ? '#f3e8ff' : '#f8fafc',
-        border: `2px solid ${selected ? '#6e2e78' : 'transparent'}`,
+        border: `2px solid ${selected ? '#5B005F' : 'transparent'}`,
         borderRadius: 12,
         cursor: 'pointer',
         textAlign: 'left',
@@ -88,14 +88,14 @@ function ReasonOption({ reason, selected, onClick }) {
         fontFamily: 'Poppins',
         fontSize: 13,
         fontWeight: selected ? 600 : 500,
-        color: selected ? '#6e2e78' : '#334155'
+        color: selected ? '#5B005F' : '#334155'
       }}>
         {reason.label}
       </span>
       {selected && (
         <div style={{
           width: 20, height: 20, borderRadius: '50%',
-          background: '#6e2e78',
+          background: '#5B005F',
           display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
           <Check size={12} color="white" />
@@ -336,7 +336,7 @@ export default function RefundCancelModal({
               resize: 'none',
               outline: 'none',
             }}
-            onFocus={(e) => e.target.style.borderColor = '#6e2e78'}
+            onFocus={(e) => e.target.style.borderColor = '#5B005F'}
             onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
           />
         </div>
@@ -369,7 +369,7 @@ export default function RefundCancelModal({
             resize: 'none',
             outline: 'none',
           }}
-          onFocus={(e) => e.target.style.borderColor = '#6e2e78'}
+          onFocus={(e) => e.target.style.borderColor = '#5B005F'}
           onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
         />
       </div>
@@ -617,7 +617,7 @@ export default function RefundCancelModal({
             fontFamily: 'Poppins',
             fontSize: 20,
             fontWeight: 800,
-            color: '#6e2e78'
+            color: '#5B005F'
           }}>
             {rp(refundAmount)}
           </div>
@@ -748,7 +748,7 @@ export default function RefundCancelModal({
               flex: 1,
               height: 4,
               borderRadius: 2,
-              background: s <= step ? '#6e2e78' : '#e2e8f0',
+              background: s <= step ? '#5B005F' : '#e2e8f0',
               transition: 'background 0.2s'
             }}
           />

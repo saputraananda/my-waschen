@@ -103,23 +103,11 @@ function HeroRevenueCard({ data }) {
   );
 }
 
-// Target progress card (bulan ini)
+// Target progress card (bulan ini) — hidden for produksi role (no financial data)
 function TargetCard({ target, achievement }) {
-  if (!target) {
-    return (
-      <div style={{
-        background: 'white', borderRadius: 16, padding: '14px 16px',
-        border: `1px dashed ${C.n300}`,
-        textAlign: 'center',
-      }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600 }}>
-          🎯 Target Belum Diset
-        </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 3 }}>
-          Hubungi admin untuk set target bulanan outlet ini.
-        </div>
-      </div>
-    );
+  // Hidden when target is empty/undefined (production role gets {} from API)
+  if (!target || !target.amount) {
+    return null;
   }
 
   const isAchieved = achievement?.isAchieved;

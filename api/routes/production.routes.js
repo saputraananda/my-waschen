@@ -8,6 +8,7 @@ import { uploadItemUnitPhoto } from '../controllers/productionItemUnitController
 const router = Router();
 
 // POST /api/production/item-unit/:id/photo — Upload photo for PAP
-router.post('/item-unit/:id/photo', authenticate, requireRole('produksi', 'admin', 'frontline'), uploadItemUnitPhoto);
+// PERUBAHAN: Hanya role 'produksi' yang boleh upload foto hasil laundry
+router.post('/item-unit/:id/photo', authenticate, requireRole('produksi'), uploadItemUnitPhoto);
 
 export default router;

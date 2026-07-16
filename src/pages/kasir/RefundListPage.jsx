@@ -16,7 +16,7 @@ const STATUS_CONFIG = {
   pending: { label: 'Pending', color: '#ba7517', bg: '#fef3c7', icon: Clock },
   approved: { label: 'Disetujui', color: '#0f6e56', bg: '#d1fae5', icon: CheckCircle2 },
   rejected: { label: 'Ditolak', color: '#dc2626', bg: '#fee2e2', icon: XCircle },
-  processed: { label: 'Diproses', color: '#6e2e78', bg: '#f3e8ff', icon: CheckCircle2 },
+  processed: { label: 'Diproses', color: '#5B005F', bg: '#f3e8ff', icon: CheckCircle2 },
 };
 
 const REASON_LABELS = {
@@ -122,7 +122,7 @@ export default function RefundListPage({ goBack }) {
           <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#92400e' }}>Menunggu</div>
         </div>
         <div style={{ background: '#f3e8ff', borderRadius: 12, padding: isMobile ? 12 : 14, textAlign: 'center' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 20 : 24, fontWeight: 700, color: '#6e2e78' }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 20 : 24, fontWeight: 700, color: '#5B005F' }}>
             {rp(stats.total)}
           </div>
           <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#581c87' }}>Total Refund</div>

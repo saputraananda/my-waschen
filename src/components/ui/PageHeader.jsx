@@ -92,7 +92,7 @@ const BreadcrumbItem = ({ item, isLast }) => {
       to={item.href}
       style={{ textDecoration: 'none' }}
       onMouseEnter={(e) => {
-        e.currentTarget.querySelector('span').style.color = '#6e2e78';
+        e.currentTarget.querySelector('span').style.color = '#5B005F';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.querySelector('span').style.color = '#9CA3AF';
@@ -147,7 +147,7 @@ const BackButton = ({ onClick, label = 'Kembali' }) => (
       fontFamily: 'Poppins, sans-serif',
       fontSize: 13,
       fontWeight: 500,
-      color: '#6e2e78',
+      color: '#5B005F',
       cursor: 'pointer',
       marginBottom: 8,
     }}
@@ -373,13 +373,13 @@ export const SectionHeader = ({
           fontFamily: 'Poppins, sans-serif',
           fontSize: 12,
           fontWeight: 600,
-          color: '#6e2e78',
+          color: '#5B005F',
           cursor: 'pointer',
           padding: '4px 8px',
           borderRadius: 6,
           transition: 'background 0.15s ease',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = '#6e2e7810')}
+        onMouseEnter={(e) => (e.currentTarget.style.background = '#5B005F10')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       >
         {actionLabel || action} →

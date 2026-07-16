@@ -46,7 +46,7 @@ const DailyChart = ({ data, maxDays = 14 }) => {
 const METHOD_COLORS = {
   cash: { bg: '#10B981', label: 'Tunai', icon: '💵' },
   transfer: { bg: '#2563EB', label: 'Transfer', icon: '🏦' },
-  qris: { bg: '#6e2e78', label: 'QRIS', icon: '📱' },
+  qris: { bg: '#5B005F', label: 'QRIS', icon: '📱' },
   deposit: { bg: '#F59E0B', label: 'Deposit', icon: '💳' },
 };
 

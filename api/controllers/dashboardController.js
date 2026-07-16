@@ -72,8 +72,9 @@ export const getDashboardStats = async (req, res) => {
     const r = statsRows[0] || {};
 
     let outletComparison = null;
-    if (compare && (period === 'today' || period === 'month')) {
-      const dateSql = period === 'today'
+    const PRODUCTION_ROLES = ['produksi'];
+    const isProduksi = PRODUCTION_ROLES.includes(userRole);
+    if (compare && (period === 'today' || period === 'month')) {      const dateSql = period === 'today'
         ? 'DATE(t.created_at) = CURDATE()'
         : 'YEAR(t.created_at) = YEAR(CURDATE()) AND MONTH(t.created_at) = MONTH(CURDATE())';
       const [cmpRows] = await poolWaschenPos.execute(
@@ -95,25 +96,28 @@ export const getDashboardStats = async (req, res) => {
       }));
     }
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        outletId: isAllOutlets ? '_all' : effectiveOutlet,
-        period,
-        total_omset: Number(r.total_omset ?? 0),
-        total_transaksi: Number(r.total_transaksi ?? 0),
-        total_pelunasan: Number(r.total_pelunasan ?? 0),
-        omset_today: Number(r.omset_today ?? 0),
-        pelunasan_today: Number(r.pelunasan_today ?? 0),
-        transaksi_today: Number(r.transaksi_today ?? 0),
-        omset_month: Number(r.omset_month ?? 0),
-        pelunasan_month: Number(r.pelunasan_month ?? 0),
-        transaksi_month: Number(r.transaksi_month ?? 0),
-        pending_transactions: Number(r.pending_transactions ?? 0),
-        total_customers: Number(customerRow?.total_customers ?? 0),
-        outlet_comparison: outletComparison,
-      },
-    });
+    // PRODUCTION role: strip financial data (omset/pelunasan/cash) — operational stats only
+    const safeData = {
+      outletId: isAllOutlets ? '_all' : effectiveOutlet,
+      period,
+      // Non-financial: semua role dapat operational stats
+      total_transaksi: Number(r.total_transaksi ?? 0),
+      transaksi_today: Number(r.transaksi_today ?? 0),
+      transaksi_month: Number(r.transaksi_month ?? 0),
+      pending_transactions: Number(r.pending_transactions ?? 0),
+      total_customers: Number(customerRow?.total_customers ?? 0),
+    };
+    // Financial fields: frontline & admin ONLY — produksi gets empty financial data
+    if (!isProduksi) {
+      safeData.total_omset = Number(r.total_omset ?? 0);
+      safeData.total_pelunasan = Number(r.total_pelunasan ?? 0);
+      safeData.omset_today = Number(r.omset_today ?? 0);
+      safeData.pelunasan_today = Number(r.pelunasan_today ?? 0);
+      safeData.omset_month = Number(r.omset_month ?? 0);
+      safeData.pelunasan_month = Number(r.pelunasan_month ?? 0);
+      safeData.outlet_comparison = outletComparison;
+    }
+    return res.status(200).json({ success: true, data: safeData });
   } catch (err) {
     logger.error('Get dashboard stats failed', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat statistik dashboard.' });
@@ -127,6 +131,8 @@ export const getRevenueTrend = async (req, res) => {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
     const isGlobalRole = globalRoles.includes(userRole);
+    const PRODUCTION_ROLES = ['produksi'];
+    const isProduksi = PRODUCTION_ROLES.includes(userRole);
 
     // Parse filters
     const { range = '7d', startDate, endDate, outletId } = req.query;
@@ -250,15 +256,16 @@ export const getRevenueTrend = async (req, res) => {
     }
 
     // Calculate target based on database target
-    const trendWithTarget = result.map(day => ({
+    // PRODUCTION: no target/financial data — empty array
+    const trendWithTarget = isProduksi ? [] : result.map(day => ({
       ...day,
       target: dailyTarget,
     }));
 
-    // Summary stats
-    const totalActual = result.reduce((sum, d) => sum + d.actual, 0);
-    const totalTarget = trendWithTarget.reduce((sum, d) => sum + d.target, 0);
-    const achievementRate = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
+    // Summary stats — only calculate financials for non-produksi
+    const totalActual = isProduksi ? 0 : result.reduce((sum, d) => sum + d.actual, 0);
+    const totalTarget = isProduksi ? 0 : trendWithTarget.reduce((sum, d) => sum + d.target, 0);
+    const achievementRate = isProduksi ? 0 : (totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0);
 
     return res.status(200).json({
       success: true,
@@ -266,19 +273,24 @@ export const getRevenueTrend = async (req, res) => {
         range: range,
         startDate: start.toISOString().slice(0, 10),
         endDate: end.toISOString().slice(0, 10),
-        daily: trendWithTarget,
-        summary: {
-          totalActual,
-          totalTarget,
-          achievementRate,
-          avgDailyActual: result.length > 0 ? Math.round(totalActual / result.length) : 0,
-          avgDailyTarget: Math.round(dailyTarget),
-          dayCount: result.length,
-        },
+        // PRODUCTION strips financials: daily tanpa target, summary tanpa omset/target/rate
+        daily: isProduksi
+          ? result.map(d => ({ date: d.date, transactions: d.transactions }))
+          : trendWithTarget,
+        summary: isProduksi
+          ? { dayCount: result.length, avgDailyTarget: 0 }
+          : {
+              totalActual,
+              totalTarget,
+              achievementRate,
+              avgDailyActual: result.length > 0 ? Math.round(totalActual / result.length) : 0,
+              avgDailyTarget: Math.round(dailyTarget),
+              dayCount: result.length,
+            },
       },
     });
   } catch (err) {
-    logger.error('getRevenueTrend failed', { error: err.message, stack: err.stack });
+    logger.error('getRevenueTrend failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat tren revenue.' });
   }
 };
@@ -290,6 +302,8 @@ export const getSparkline = async (req, res) => {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
     const isGlobalRole = globalRoles.includes(userRole);
+    const PRODUCTION_ROLES = ['produksi'];
+    const isProduksi = PRODUCTION_ROLES.includes(userRole);
     const days = Math.min(parseInt(req.query.days) || 7, 30);
 
     // Get outlet filter
@@ -357,17 +371,12 @@ export const getSparkline = async (req, res) => {
     const totalOmset = omsetArr.reduce((a, b) => a + b, 0);
     const targetPerDay = totalOmset > 0 ? Math.round(totalOmset / Math.max(omsetArr.filter(v => v > 0).length, 1)) : 500000;
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        omset: omsetArr,
-        transaksi: transaksiArr,
-        selesai: selesaiArr,
-        target: omsetArr.map(() => targetPerDay),
-      },
-    });
+    const safeData = isProduksi
+      ? { transaksi: transaksiArr, selesai: selesaiArr }
+      : { omset: omsetArr, target: omsetArr.map(() => targetPerDay), transaksi: transaksiArr, selesai: selesaiArr };
+    return res.status(200).json({ success: true, data: safeData });
   } catch (err) {
-    logger.error('Get sparkline failed', { error: err.message, stack: err.stack });
+    logger.error('Get sparkline failed', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data sparkline.' });
   }
 };
@@ -379,6 +388,8 @@ export const getTargetTracking = async (req, res) => {
     const userOutletId = req.user?.outletId;
     const userRole = req.user?.roleCode;
     const isGlobalRole = globalRoles.includes(userRole);
+    const PRODUCTION_ROLES = ['produksi'];
+    const isProduksi = PRODUCTION_ROLES.includes(userRole);
     const requestedOutletId = req.query.outletId;
 
     let effectiveOutlet = null;
@@ -484,37 +495,26 @@ export const getTargetTracking = async (req, res) => {
     else if (monthAchievement >= 100) status = 'achieved';
     else if (monthAchievement >= 95) status = 'almost';
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        month: {
-          name: now.toLocaleString('id-ID', { month: 'long', year: 'numeric' }),
-          year: now.getFullYear(),
-          month: now.getMonth() + 1,
-        },
-        target: {
-          monthly: monthlyTarget,
-          daily: dailyTarget,
-          targetUntilToday,
-        },
-        actual: {
-          total: totalActualMonth,
-          targetUntilToday,
-          avgPerDay: dayOfMonth > 0 ? Math.round(totalActualMonth / dayOfMonth) : 0,
-        },
-        achievement: {
-          monthly: monthAchievement,
-          daily: dayOfMonth > 0 ? Math.round((totalActualMonth / targetUntilToday) * 100) : 0,
-        },
-        remaining: {
-          days: remainingDays,
-          target: remainingTarget,
-          neededPerDay,
-        },
-        status,
-        dailyData,
+    // PRODUCTION: strip all financial data — only operational status
+    const safeData = {
+      month: {
+        name: now.toLocaleString('id-ID', { month: 'long', year: 'numeric' }),
+        year: now.getFullYear(),
+        month: now.getMonth() + 1,
       },
-    });
+      dailyData: isProduksi
+        ? dailyData.map(d => ({
+            date: d.date,
+            day: d.day,
+            transactions: d.actual > 0 ? 1 : 0, // count days with transactions
+            isToday: d.isToday,
+            isPast: d.isPast,
+            isFuture: d.isFuture,
+          }))
+        : dailyData,
+      status: isProduksi ? 'on_track' : status,
+    };
+    return res.status(200).json({ success: true, data: safeData });
   } catch (err) {
     logger.error('Get target tracking failed', { error: err.message, stack: err.stack });
     return res.status(500).json({ success: false, message: 'Gagal memuat data target.' });

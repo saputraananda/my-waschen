@@ -107,9 +107,9 @@ export const PAYMENT_METHODS = {
   qris:        { label: 'QRIS',           icon: '📱', color: '#185fa5' },
   gopay:       { label: 'GoPay',          icon: '💚', color: '#0f6e56' },
   shopeepay:   { label: 'ShopeePay',      icon: '🛒', color: '#ba7517' },
-  ovo:         { label: 'OVO',            icon: '🟣', color: '#6e2e78' },
+  ovo:         { label: 'OVO',            icon: '🟣', color: '#5B005F' },
   dana:        { label: 'DANA',           icon: '🔵', color: '#185fa5' },
-  deposit:     { label: 'Deposit Member', icon: '💎', color: '#6e2e78' },
+  deposit:     { label: 'Deposit Member', icon: '💎', color: '#5B005F' },
   edc:         { label: 'EDC',            icon: '💳', color: '#5a5a5a' },
   mixed:       { label: 'Gabungan',       icon: '🔀', color: '#ba7517' },
 };

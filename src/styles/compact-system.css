@@ -11,10 +11,10 @@
 /* ─── CSS Variables ──────────────────────────────────────────────────────────── */
 :root {
   /* Color Palette */
-  --primary: #6e2e78;
-  --primary-hover: #8B5CF6;
+  --primary: #5B005F;
+  --primary-hover: #7C3AED;
   --primary-light: #A78BFA;
-  --primary-soft: rgba(110, 46, 120, 0.12);
+  --primary-soft: rgba(91, 0, 95, 0.12);
 
   --secondary: #3C0A63;
   --success: #0f6e56;

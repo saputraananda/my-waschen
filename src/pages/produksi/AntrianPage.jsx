@@ -25,7 +25,7 @@ const STAGE_DOTS = {
 };
 
 // ─── Enhanced per-item card with avatar and full info ─────────────────────────────────────────
-function AntrianItemCard({ item, nota, onPress }) {
+function AntrianItemCard({ item, nota, onPress, priorityNum }) {
   const { isMobile } = useResponsive();
   const custName  = nota?.customerName || 'Customer';
   const custPhone = nota?.customerPhone;
@@ -35,7 +35,7 @@ function AntrianItemCard({ item, nota, onPress }) {
   const isOverdue = sla?.color === C.danger;
   const stage     = item.currentStage || 'Diterima';
   const tag       = STAGE_TAGS[stage] || STAGE_TAGS['Diterima'];
-  
+
   // Progress: calculate filled based on stage index
   const stageOrder = ['Diterima', 'Packing'];
   const stageIdx = stageOrder.indexOf(stage);
@@ -46,7 +46,7 @@ function AntrianItemCard({ item, nota, onPress }) {
   const avColor  = getAvatarColor(custName);
 
   const badges = [];
-  if (isExpress) badges.push({ label: '⚡ Express', bg: C.validationWarningBg, color: C.validationWarningText });
+  if (isExpress) badges.push({ label: '⭐ PRIORITAS', bg: '#FFF3E0', color: '#E65100' });
   if (nota?.pickupType === 'pickup')   badges.push({ label: '🚗 Jemput', bg: C.validationInfoBg, color: C.validationInfoText });
   if (nota?.pickupType === 'delivery') badges.push({ label: '🛵 Antar',  bg: C.successBg, color: C.successDark });
 
@@ -54,12 +54,12 @@ function AntrianItemCard({ item, nota, onPress }) {
     <div
       onClick={onPress}
       style={{
-        background: CARD_BG,
+        background: isExpress ? '#FFF8E1' : CARD_BG,  // Yellow tint for Express
         borderRadius: 14,
-        border: `1px solid ${isOverdue ? C.danger : 'rgba(0,0,0,0.07)'}`,
-        boxShadow: isOverdue
-          ? '0 2px 12px rgba(239,68,68,0.18)'
-          : '0 1px 4px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)',
+        border: isExpress ? '2px solid #FFB300' : `1px solid ${isOverdue ? C.danger : 'rgba(0,0,0,0.07)'}`,
+        boxShadow: isExpress
+          ? '0 4px 16px rgba(255,179,0,0.25)'
+          : (isOverdue ? '0 2px 12px rgba(239,68,68,0.18)' : '0 1px 4px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)'),
         marginBottom: 10,
         position: 'relative',
         overflow: 'hidden',
@@ -70,8 +70,26 @@ function AntrianItemCard({ item, nota, onPress }) {
       onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
       onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
     >
+      {/* Priority Number Badge for Express */}
+      {isExpress && priorityNum && priorityNum <= 3 && (
+        <div style={{
+          position: 'absolute',
+          top: -1, right: 10,
+          background: '#FF6D00',
+          color: 'white',
+          fontFamily: 'Poppins',
+          fontSize: 10,
+          fontWeight: 700,
+          padding: '2px 8px',
+          borderRadius: '0 0 8px 8px',
+          boxShadow: '0 2px 6px rgba(255,109,0,0.4)',
+        }}>
+          #{priorityNum}
+        </div>
+      )}
+
       {/* Left accent bar */}
-      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: tag.accent }} />
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: isExpress ? 5 : 3, background: isExpress ? '#FF6D00' : tag.accent }} />
 
       <div style={{ padding: isMobile ? '10px 10px 8px 14px' : '12px 12px 10px 16px' }}>
 
@@ -668,14 +686,26 @@ export default function AntrianPage({ navigate, goBack }) {
             }
           />
         ) : (
-          filtered.map(({ item, nota }, idx) => (
-            <AntrianItemCard
-              key={`${nota.id}-${item.itemId}`}
-              item={item}
-              nota={nota}
-              onPress={() => handleItemPress({ item, nota })}
-            />
-          ))
+          filtered.map(({ item, nota }, idx) => {
+            // Calculate priority number for Express items
+            const isExpress = item.isExpress || nota.isExpress;
+            let priorityNum = null;
+            if (isExpress) {
+              // Count how many express items come before this one
+              priorityNum = filtered.slice(0, idx + 1).filter(
+                ({ item: i, nota: n }) => i.isExpress || n.isExpress
+              ).length;
+            }
+            return (
+              <AntrianItemCard
+                key={`${nota.id}-${item.itemId}`}
+                item={item}
+                nota={nota}
+                priorityNum={priorityNum}
+                onPress={() => handleItemPress({ item, nota })}
+              />
+            );
+          })
         )}
       </div>
 

@@ -22,6 +22,7 @@ const CATEGORY_LABEL = {
 export const getDrawerEntries = async (req, res) => {
   try {
     const userId = req.user?.userId;
+    const roleCode = req.user?.roleCode;
     const { sessionId } = req.query;
 
     let targetSessionId = sessionId;
@@ -36,6 +37,18 @@ export const getDrawerEntries = async (req, res) => {
         return res.json({ success: true, data: [], sessionId: null, summary: null });
       }
       targetSessionId = sessions[0].id;
+    } else {
+      // sessionId diberikan — hanya admin yang boleh akses sesi orang lain
+      const isAdmin = ['admin'].includes(roleCode);
+      if (!isAdmin) {
+        const [sessions] = await poolWaschenPos.execute(
+          `SELECT id FROM tr_cashier_session WHERE id = ? AND cashier_id = ?`,
+          [targetSessionId, userId]
+        );
+        if (sessions.length === 0) {
+          return res.status(403).json({ success: false, message: 'Anda tidak memiliki akses ke sesi ini.' });
+        }
+      }
     }
 
     const [entries] = await poolWaschenPos.execute(

@@ -74,20 +74,20 @@ const GlassButton = ({
   // Variant configurations - Standard
   const standardVariants = {
     primary: {
-      background: 'linear-gradient(135deg, #8B5CF6, #6e2e78)',
+      background: 'linear-gradient(135deg, #8B5CF6, #5B005F)',
       color: '#FFFFFF',
       border: 'none',
       boxShadow: '0 4px 12px rgba(110, 46, 120, 0.35)',
     },
     secondary: {
       background: '#FFFFFF',
-      color: '#6e2e78',
-      border: '1.5px solid #6e2e78',
+      color: '#5B005F',
+      border: '1.5px solid #5B005F',
       boxShadow: '0 2px 8px rgba(110, 46, 120, 0.1)',
     },
     ghost: {
       background: 'transparent',
-      color: '#6e2e78',
+      color: '#5B005F',
       border: 'none',
       boxShadow: 'none',
     },
@@ -125,7 +125,7 @@ const GlassButton = ({
       background: 'rgba(255, 255, 255, 0.7)',
       backdropFilter: 'blur(8px)',
       WebkitBackdropFilter: 'blur(8px)',
-      color: '#6e2e78',
+      color: '#5B005F',
       border: '1px solid rgba(110, 46, 120, 0.3)',
       boxShadow: '0 4px 15px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
     },
@@ -133,7 +133,7 @@ const GlassButton = ({
       background: 'rgba(255, 255, 255, 0.5)',
       backdropFilter: 'blur(8px)',
       WebkitBackdropFilter: 'blur(8px)',
-      color: '#6e2e78',
+      color: '#5B005F',
       border: '1px solid rgba(255, 255, 255, 0.5)',
       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
     },
@@ -269,7 +269,7 @@ export const GlassIconButton = ({
   onClick,
   size = 40,
   variant = 'ghost', // 'primary' | 'secondary' | 'ghost' | 'glass'
-  color = '#6e2e78',
+  color = '#5B005F',
   glassVariant = true,
   disabled = false,
 }) => {

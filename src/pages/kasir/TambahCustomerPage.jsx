@@ -8,32 +8,62 @@ import { useResponsive } from '../../utils/hooks';
 import AddressCascadingPicker from '../../components/AddressCascadingPicker';
 import { inferRegionFromHousing } from '../../data/housingSeed';
 
+const DRAFT_KEY = 'draft_customer_form';
+
 export default function TambahCustomerPage({ navigate, screenParams }) {
   const { setNotaCustomer } = useApp();
   const { isMobile } = useResponsive();
   const isEdit = !!screenParams?.id;
 
-  const initialPhone = (screenParams?.phone || '').replace(/^\+?62/, '').replace(/^0/, '');
-  
+  // ─── Draft Management ──────────────────────────────────────────────────────────
+  const loadDraft = () => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveDraft = (data) => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+    } catch {
+      // Storage full or unavailable — silent fail
+    }
+  };
+
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // Silent fail
+    }
+  };
+
+  // Get initial values: draft > screenParams > defaults
+  const draft = !isEdit ? loadDraft() : null;
+  const initialPhone = (screenParams?.phone || draft?.phone || '').replace(/^\+?62/, '').replace(/^0/, '');
+
   const [form, setForm] = useState({
-    name: screenParams?.name || '',
+    name: screenParams?.name || draft?.name || '',
     phone: initialPhone,
-    email: screenParams?.email || '',
-    gender: screenParams?.gender || '',
-    greeting: screenParams?.greeting || '',
-    instansi: screenParams?.instansi || '',
-    birthDate: screenParams?.birthDate || '',
-    religion: screenParams?.religion || '',
-    awareness_source_id: screenParams?.awareness_source_id || '',
-    awareness_other_text: screenParams?.awareness_other_text || '',
-    area_zone_id: screenParams?.area_zone_id || '',
-    area_zone_other_text: screenParams?.area_zone_other_text || '',
-    housing_region: screenParams?.housing_region || screenParams?.housingRegion || '',
-    address_housing: screenParams?.address_housing || screenParams?.addressHousing || '',
-    address_block: screenParams?.address_block || screenParams?.addressBlock || '',
-    address_no: screenParams?.address_no || screenParams?.addressNo || '',
-    address_detail: screenParams?.address_detail || screenParams?.addressDetail || '',
-    notes: screenParams?.notes || '',
+    email: screenParams?.email || draft?.email || '',
+    gender: screenParams?.gender || draft?.gender || '',
+    greeting: screenParams?.greeting || draft?.greeting || '',
+    instansi: screenParams?.instansi || draft?.instansi || '',
+    birthDate: screenParams?.birthDate || draft?.birthDate || '',
+    religion: screenParams?.religion || draft?.religion || '',
+    awareness_source_id: screenParams?.awareness_source_id || draft?.awareness_source_id || '',
+    awareness_other_text: screenParams?.awareness_other_text || draft?.awareness_other_text || '',
+    area_zone_id: screenParams?.area_zone_id || draft?.area_zone_id || '',
+    area_zone_other_text: screenParams?.area_zone_other_text || draft?.area_zone_other_text || '',
+    housing_region: screenParams?.housing_region || screenParams?.housingRegion || draft?.housing_region || '',
+    address_housing: screenParams?.address_housing || screenParams?.addressHousing || draft?.address_housing || '',
+    address_block: screenParams?.address_block || screenParams?.addressBlock || draft?.address_block || '',
+    address_no: screenParams?.address_no || screenParams?.addressNo || draft?.address_no || '',
+    address_detail: screenParams?.address_detail || screenParams?.addressDetail || draft?.address_detail || '',
+    notes: screenParams?.notes || draft?.notes || '',
   });
 
   const [errors, setErrors] = useState({});
@@ -41,9 +71,32 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
   const [optionalOpen, setOptionalOpen] = useState(false);
   const [exitGuard, setExitGuard] = useState(false);
   const isDirty = useRef(false);
-  
+  const isDraftRestored = useRef(!!draft && !isEdit);
+  const draftRestoredShown = useRef(false);
+
   const [awarenessSources, setAwarenessSources] = useState([]);
   const [areaZones, setAreaZones] = useState([]);
+
+  // Show toast if draft was restored
+  useEffect(() => {
+    if (isDraftRestored.current && !draftRestoredShown.current) {
+      draftRestoredShown.current = true;
+      alertWarning('Data draft ditemukan. Form telah dipulihkan dari penyimpanan browser.');
+    }
+  }, []);
+
+  // Save to localStorage on every form change (only for new customer)
+  useEffect(() => {
+    if (!isEdit && Object.keys(form).length > 0) {
+      saveDraft(form);
+    }
+  }, [form, isEdit]);
+
+  // Clear draft on successful save
+  const clearFormAndDraft = () => {
+    clearDraft();
+    isDirty.current = false;
+  };
 
   const markDirty = () => { isDirty.current = true; };
 
@@ -82,6 +135,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
   };
 
   const handleBack = () => {
+    if (!isEdit) clearDraft(); // Clear draft on back navigation
     if (isDirty.current) {
       setExitGuard(true);
     } else {
@@ -93,7 +147,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Wajib diisi';
     if (!form.phone.trim()) errs.phone = 'Wajib diisi';
-    else if (!/^8\d{7,12}$/.test(form.phone)) errs.phone = 'Nomor tidak valid (08xxxxxxxxxx,8-13 digit)';
+    else if (!/^0?8\d{7,12}$/.test(form.phone)) errs.phone = 'Nomor tidak valid (08xxxxxxxxxx, 8-13 digit)';
     // Semua field lain opsional — sesuai kebutuhan customer menengah ke atas yang ga banyak waktu
 
     if (Object.keys(errs).length) { 
@@ -104,7 +158,9 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
 
     setLoading(true);
     try {
-      const fullPhone = '0' + form.phone.replace(/^0+/, '');
+      // Normalize phone: strip +62/62 prefix, then leading zeros, ensure starts with 0
+      const cleaned = form.phone.replace(/^(\+?62)/, '').replace(/^0+/, '');
+      const fullPhone = '0' + cleaned;
       const payload = {
         name: form.name.trim(),
         phone: fullPhone,
@@ -132,6 +188,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
       }
 
       if (res?.data?.success) {
+        clearFormAndDraft(); // Clear draft on successful save
         alertSuccess(isEdit ? 'Pelanggan berhasil diupdate' : 'Pelanggan berhasil ditambahkan');
         setTimeout(() => {
           if (!isEdit && res.data.data) {
@@ -372,7 +429,7 @@ export default function TambahCustomerPage({ navigate, screenParams }) {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <Btn variant="secondary" onClick={() => setExitGuard(false)} style={{ flex: 1 }}>Kembali</Btn>
-          <Btn variant="secondary" onClick={() => { setExitGuard(false); navigate('customer'); }} style={{ flex: 1, fontWeight: 600 }}>Ya, Tetap Keluar</Btn>
+          <Btn variant="secondary" onClick={() => { setExitGuard(false); if (!isEdit) clearDraft(); navigate('customer'); }} style={{ flex: 1, fontWeight: 600 }}>Ya, Tetap Keluar</Btn>
         </div>
       </Modal>
     </div>

@@ -173,7 +173,7 @@ export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCou
                   width: 56,
                   height: 56,
                   borderRadius: 28,
-                  background: 'linear-gradient(145deg, #8B5CF6, #6e2e78)',
+                  background: 'linear-gradient(145deg, #8B5CF6, #5B005F)',
                   border: 'none',
                   cursor: 'pointer',
                   display: 'flex',
@@ -374,7 +374,7 @@ export const Input = ({ label, value, onChange, type = 'text', error, placeholde
             height: style?.height || 46,
             borderRadius: style?.borderRadius || 10,
             padding: rightIcon ? '0 44px 0 14px' : '0 14px',
-            border: `${focused ? 2 : 1.5}px solid ${error ? C.danger : focused ? '#6e2e78' : C.n300}`,
+            border: `${focused ? 2 : 1.5}px solid ${error ? C.danger : focused ? '#5B005F' : C.n300}`,
             fontFamily: 'Poppins',
             fontSize: 14,
             color: C.n900,
@@ -410,7 +410,7 @@ const _dateInputStyles = `
 .wdp .react-datepicker__month-container{background:#F8FAFC;width:252px}
 
 /* Header */
-.wdp-hdr{display:flex;align-items:center;justify-content:space-between;gap:6px;background:linear-gradient(135deg,#8B5CF6,#6e2e78);color:#fff;padding:8px 10px}
+.wdp-hdr{display:flex;align-items:center;justify-content:space-between;gap:6px;background:linear-gradient(135deg,#8B5CF6,#5B005F);color:#fff;padding:8px 10px}
 .wdp-ml{font-size:11px;font-weight:700;text-transform:capitalize}
 .wdp-nav{width:24px;height:24px;border:none;border-radius:999px;background:rgba(255,255,255,0.2);color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
 .wdp-nav:hover{background:rgba(255,255,255,0.3)}
@@ -436,7 +436,7 @@ const _dateInputStyles = `
 .wdp .react-datepicker__day.wdp-wknd:not(.react-datepicker__day--selected):not(.react-datepicker__day--keyboard-selected){color:#5B21B6;background:#EDE9FE}
 .wdp .react-datepicker__day--outside-month{opacity:0.3}
 .wdp .react-datepicker__day--disabled{opacity:0.25!important;cursor:not-allowed!important;text-decoration:line-through;background:transparent!important}
-.wdp .react-datepicker__day--selected,.wdp .react-datepicker__day--keyboard-selected{background:#6e2e78;color:#fff;font-weight:700}
+.wdp .react-datepicker__day--selected,.wdp .react-datepicker__day--keyboard-selected{background:#5B005F;color:#fff;font-weight:700}
 
 /* Day content — simple, no badge */
 .wdp-dw{display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -494,7 +494,7 @@ const DateInputCustom = forwardRef(({ value, onClick, placeholder, focused, icon
         aria-label="Pilih tanggal"
         style={{
           width: '100%', height: h, borderRadius: 10,
-          border: `${focused ? 2 : 1.5}px solid ${focused ? '#6e2e78' : C.n300}`,
+          border: `${focused ? 2 : 1.5}px solid ${focused ? '#5B005F' : C.n300}`,
           background: focused ? `${C.primary}08` : C.white,
           outline: 'none', boxSizing: 'border-box',
           transition: 'border-color 0.2s, background 0.2s',
@@ -512,7 +512,7 @@ const DateInputCustom = forwardRef(({ value, onClick, placeholder, focused, icon
     <div onClick={onClick} ref={ref} style={{
       width: '100%', height: h, borderRadius: 10,
       padding: '0 12px',
-      border: `${focused ? 2 : 1.5}px solid ${focused ? '#6e2e78' : C.n300}`,
+      border: `${focused ? 2 : 1.5}px solid ${focused ? '#5B005F' : C.n300}`,
       fontFamily: 'Poppins', fontSize: compact ? 13 : 14,
       color: value ? C.n900 : '#3a3a3a',
       background: C.white, outline: 'none', boxSizing: 'border-box',
@@ -601,7 +601,7 @@ export const Textarea = ({ label, value, onChange, placeholder, rows = 3 }) => {
       <textarea
         value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        style={{ width: '100%', borderRadius: 10, padding: '12px 14px', border: `${focused ? 2 : 1.5}px solid ${focused ? '#6e2e78' : C.n300}`, fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: C.white, outline: 'none', resize: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+        style={{ width: '100%', borderRadius: 10, padding: '12px 14px', border: `${focused ? 2 : 1.5}px solid ${focused ? '#5B005F' : C.n300}`, fontFamily: 'Poppins', fontSize: 14, color: C.n900, background: C.white, outline: 'none', resize: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
       />
     </div>
   );

@@ -205,7 +205,7 @@ export default function DashboardKasirTemplate({
           value={formatCurrency(stats.omset)}
           trend={trend.omset}
           icon={<MoneyIcon />}
-          iconColor="#6e2e78"
+          iconColor="#5B005F"
           compact={isMobile}
           onClick={() => navigate('laporan')}
         />
@@ -359,7 +359,7 @@ export default function DashboardKasirTemplate({
             fontFamily: 'Poppins',
             fontSize: 13,
             fontWeight: 600,
-            color: '#6e2e78',
+            color: '#5B005F',
             cursor: 'pointer',
             padding: '8px 16px',
           }}

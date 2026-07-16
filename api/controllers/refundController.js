@@ -770,8 +770,9 @@ export const cancelRefund = async (req, res) => {
     }
 
     // Only requester or admin can cancel
-    if (String(refund.requesterId) !== String(userId) && !userRole !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Anda tidak memiliki权限 untuk membatalkan refund ini.' });
+    const canCancel = String(refund.requesterId) === String(userId) || userRole === 'admin';
+    if (!canCancel) {
+      return res.status(403).json({ success: false, message: 'Anda tidak memiliki hak untuk membatalkan refund ini.' });
     }
 
     await poolWaschenPos.execute(

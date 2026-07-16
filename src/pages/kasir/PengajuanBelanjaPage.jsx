@@ -36,10 +36,18 @@ const STATUS_CONFIG = {
 
 const AUTO_APPROVE_LIMIT = 500000;
 
+// Tab types
+const TABS = [
+  { key: 'uang_kas', label: 'Uang Kas', groupType: 'operasional', color: '#F59E0B', bg: '#FEF3C7', icon: '💰' },
+  { key: 'biaya_ap', label: 'Biaya AP', groupType: 'tagihan', color: '#3B82F6', bg: '#DBEAFE', icon: '📄' },
+];
+
 export default function PengajuanBelanjaPage() {
   const navigate = useNavigate();
   const { isMobile, isTablet } = useResponsive();
 
+  // Active tab state
+  const [activeTab, setActiveTab] = useState('uang_kas');
   const [pengajuans, setPengajuans] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,17 +75,21 @@ export default function PengajuanBelanjaPage() {
     periodYear: new Date().getFullYear(),
   });
 
+  // Get current tab config
+  const currentTab = TABS.find(t => t.key === activeTab) || TABS[0];
+
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load categories
-      const catRes = await axios.get('/api/pengajuan-belanja/categories');
+      // Load categories filtered by groupType (tab)
+      const catRes = await axios.get(`/api/pengajuan-belanja/categories?groupType=${currentTab.groupType}`);
       if (catRes.data.success) {
         setCategories(catRes.data.data);
       }
 
-      // Load pengajuans
+      // Load pengajuans filtered by groupType (tab)
       const params = new URLSearchParams();
+      params.set('groupType', currentTab.groupType);
       if (filters.status !== 'all') params.set('status', filters.status);
       if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
       if (filters.dateTo) params.set('dateTo', filters.dateTo);
@@ -108,7 +120,7 @@ export default function PengajuanBelanjaPage() {
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+  }, [filters, activeTab]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -236,7 +248,7 @@ export default function PengajuanBelanjaPage() {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8F4FF', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{
-        background: 'linear-gradient(135deg, #6e2e78 0%, #5B005F 100%)',
+        background: 'linear-gradient(135deg, #5B005F 0%, #5B005F 100%)',
         padding: 12,
         position: 'sticky',
         top: 0,
@@ -244,7 +256,7 @@ export default function PengajuanBelanjaPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: isMobile ? 10 : 11, color: 'rgba(255,255,255,0.7)' }}>Manajemen Kas</div>
+            <div style={{ fontSize: isMobile ? 10 : 11, color: 'rgba(255,255,255,0.7)' }}>{currentTab.icon} {currentTab.label}</div>
             <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: 'white' }}>Pengajuan Belanja</div>
           </div>
           <button
@@ -262,15 +274,50 @@ export default function PengajuanBelanjaPage() {
         </div>
       </div>
 
+      {/* Tab Filter */}
+      <div style={{
+        display: 'flex',
+        gap: isMobile ? 6 : 8,
+        padding: `0 ${isMobile ? 8 : 12}px`,
+        marginBottom: 8,
+      }}>
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              padding: isMobile ? '8px 12px' : '10px 16px',
+              borderRadius: 10,
+              border: activeTab === tab.key ? 'none' : `2px solid ${tab.color}40`,
+              background: activeTab === tab.key ? `linear-gradient(135deg, ${tab.color}, ${tab.color}CC)` : 'white',
+              color: activeTab === tab.key ? 'white' : tab.color,
+              fontWeight: 600,
+              fontSize: isMobile ? 12 : 14,
+              cursor: 'pointer',
+              boxShadow: activeTab === tab.key ? `0 4px 12px ${tab.color}40` : 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span style={{ fontSize: isMobile ? 14 : 16 }}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Summary Cards */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
         gap: isMobile ? 6 : 8,
-        padding: isMobile ? 8 : 12,
+        padding: `0 ${isMobile ? 8 : 12}px ${isMobile ? 8 : 12}px`,
       }}>
         <div style={{
-          background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+          background: `linear-gradient(135deg, ${currentTab.color}, ${currentTab.color}CC)`,
           borderRadius: 12,
           padding: isMobile ? 10 : 14,
           textAlign: 'center',
@@ -288,7 +335,7 @@ export default function PengajuanBelanjaPage() {
           <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: 'white' }}>{stats.approved}</div>
         </div>
         <div style={{
-          background: 'linear-gradient(135deg, #6e2e78, #5B005F)',
+          background: 'linear-gradient(135deg, #5B005F, #5B005F)',
           borderRadius: 12,
           padding: isMobile ? 10 : 14,
           textAlign: 'center',
@@ -517,7 +564,7 @@ export default function PengajuanBelanjaPage() {
           width: 56,
           height: 56,
           borderRadius: 28,
-          background: 'linear-gradient(135deg, #6e2e78, #5B005F)',
+          background: 'linear-gradient(135deg, #5B005F, #5B005F)',
           border: 'none',
           boxShadow: '0 4px 12px rgba(110, 46, 120, 0.4)',
           cursor: 'pointer',
@@ -585,7 +632,7 @@ export default function PengajuanBelanjaPage() {
                   onClick={addItem}
                   style={{
                     fontSize: 11,
-                    color: '#6e2e78',
+                    color: '#5B005F',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
@@ -769,7 +816,7 @@ export default function PengajuanBelanjaPage() {
                 width: '100%',
                 height: 52,
                 borderRadius: 12,
-                background: submitting ? '#D1D5DB' : 'linear-gradient(135deg, #6e2e78, #5B005F)',
+                background: submitting ? '#D1D5DB' : 'linear-gradient(135deg, #5B005F, #5B005F)',
                 border: 'none',
                 color: 'white',
                 fontSize: 15,

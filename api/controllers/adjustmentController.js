@@ -318,7 +318,9 @@ export const getAdjustments = async (req, res) => {
     const whereClause = conditions.join(' AND ');
 
     // Get adjustments with pagination
-    const [rows] = await poolWaschenPos.execute(
+    // Use pool.query() instead of pool.execute() for LIMIT/OFFSET
+    // MySQL prepared statements via execute() don't support ? placeholders for LIMIT/OFFSET
+    const [rows] = await poolWaschenPos.query(
       `SELECT a.*, t.transaction_no, t.total as transaction_total,
               c.name as customer_name, u.name as created_by_name
        FROM tr_transaction_adjustments a
@@ -327,8 +329,8 @@ export const getAdjustments = async (req, res) => {
        LEFT JOIN mst_user u ON a.created_by = u.id
        WHERE ${whereClause}
        ORDER BY a.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limitNum, offsetNum]
+       LIMIT ${limitNum} OFFSET ${offsetNum}`,
+      params
     );
 
     // Get total count
@@ -451,7 +453,9 @@ export const getAdjustmentAuditTrail = async (req, res) => {
 
     const whereClause = conditions.join(' AND ');
 
-    const [rows] = await poolWaschenPos.execute(
+    // Use pool.query() instead of pool.execute() for LIMIT/OFFSET
+    // MySQL prepared statements via execute() don't support ? placeholders for LIMIT/OFFSET
+    const [rows] = await poolWaschenPos.query(
       `SELECT a.*, t.transaction_no, o.name as outlet_name,
               c.name as customer_name, u.name as created_by_name,
               au.name as approved_by_name
@@ -463,8 +467,8 @@ export const getAdjustmentAuditTrail = async (req, res) => {
        LEFT JOIN mst_user au ON a.approved_by = au.id
        WHERE ${whereClause}
        ORDER BY a.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limitNum, offsetNum]
+       LIMIT ${limitNum} OFFSET ${offsetNum}`,
+      params
     );
 
     const [countResult] = await poolWaschenPos.execute(

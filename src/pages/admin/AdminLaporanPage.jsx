@@ -18,7 +18,7 @@ const METHOD_ICON = {
 };
 const METHOD_COLOR = {
   cash: C.success, transfer: C.info, qris: C.primary, deposit: C.warning,
-  ovo: '#6e2e78', gopay: '#22C55E', dana: '#3B82F6', shopeepay: '#F97316', mixed: '#EC4899',
+  ovo: '#5B005F', gopay: '#22C55E', dana: '#3B82F6', shopeepay: '#F97316', mixed: '#EC4899',
 };
 
 const F = { fontFamily: 'Poppins' };

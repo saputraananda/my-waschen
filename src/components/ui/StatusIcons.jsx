@@ -45,7 +45,7 @@ export const IconDone = ({ size = 14, color = '#059669' }) => (
   </span>
 );
 
-export const IconReady = ({ size = 14, color = '#6e2e78' }) => (
+export const IconReady = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
@@ -71,7 +71,7 @@ export const IconPickedUp = ({ size = 14, color = '#2563EB' }) => (
   </span>
 );
 
-export const IconDelivered = ({ size = 14, color = '#6e2e78' }) => (
+export const IconDelivered = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <rect x="1" y="3" width="15" height="13" rx="2" ry="2"
@@ -206,7 +206,7 @@ export const IconError = ({ size = 14, color = '#DC2626' }) => (
 
 // ─── Action Icons ─────────────────────────────────────────────────────────────
 
-export const IconEdit = ({ size = 14, color = '#6e2e78' }) => (
+export const IconEdit = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
@@ -217,7 +217,7 @@ export const IconEdit = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconPrint = ({ size = 14, color = '#6e2e78' }) => (
+export const IconPrint = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M6 9V2h12v7"
@@ -230,7 +230,7 @@ export const IconPrint = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconList = ({ size = 14, color = '#6e2e78' }) => (
+export const IconList = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
@@ -239,7 +239,7 @@ export const IconList = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconUsers = ({ size = 14, color = '#6e2e78' }) => (
+export const IconUsers = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
@@ -251,7 +251,7 @@ export const IconUsers = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconChart = ({ size = 14, color = '#6e2e78' }) => (
+export const IconChart = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M18 20V10M12 20V4M6 20v-6"
@@ -283,7 +283,7 @@ export const IconClock = ({ size = 14, color = '#64748B' }) => (
   </span>
 );
 
-export const IconPerson = ({ size = 14, color = '#6e2e78' }) => (
+export const IconPerson = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
@@ -336,7 +336,7 @@ export const IconCelebration = ({ size = 14, color = '#F59E0B' }) => (
   </span>
 );
 
-export const IconPackage = ({ size = 14, color = '#6e2e78' }) => (
+export const IconPackage = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
@@ -380,7 +380,7 @@ export const IconStar = ({ size = 14, color = '#F59E0B' }) => (
   </span>
 );
 
-export const IconHandshake = ({ size = 14, color = '#6e2e78' }) => (
+export const IconHandshake = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 0C1.46 6.7 1.33 10.28 4 13l8 8 8-8c2.67-2.72 2.54-6.3.42-8.42z"
@@ -389,7 +389,7 @@ export const IconHandshake = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconWavingHand = ({ size = 14, color = '#6e2e78' }) => (
+export const IconWavingHand = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M14.5 3.5c1.5 1 2.5 2.5 2.5 4.5 0 1.5-1 2.5-2 3l-1.5-1.5M8.5 7.5c1 0 2-1 2-2.5S8.5 2 7.5 2 5.5 3 5.5 5s1 2.5 3 2.5z"
@@ -400,7 +400,7 @@ export const IconWavingHand = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconScale = ({ size = 14, color = '#6e2e78' }) => (
+export const IconScale = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M12 3v18M5 8l7-5 7 5M5 8v6l7 7 7-7V8"
@@ -409,7 +409,7 @@ export const IconScale = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconCalendar = ({ size = 14, color = '#6e2e78' }) => (
+export const IconCalendar = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <rect x="3" y="4" width="18" height="18" rx="2" ry="2"
@@ -420,7 +420,7 @@ export const IconCalendar = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconStore = ({ size = 14, color = '#6e2e78' }) => (
+export const IconStore = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
@@ -431,7 +431,7 @@ export const IconStore = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconBell = ({ size = 14, color = '#6e2e78' }) => (
+export const IconBell = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"
@@ -442,7 +442,7 @@ export const IconBell = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconSearch = ({ size = 14, color = '#6e2e78' }) => (
+export const IconSearch = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="11" cy="11" r="8" stroke={color} strokeWidth="2"/>
@@ -451,7 +451,7 @@ export const IconSearch = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconHelp = ({ size = 14, color = '#6e2e78' }) => (
+export const IconHelp = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2"/>
@@ -463,7 +463,7 @@ export const IconHelp = ({ size = 14, color = '#6e2e78' }) => (
   </span>
 );
 
-export const IconLock = ({ size = 14, color = '#6e2e78' }) => (
+export const IconLock = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"
@@ -552,7 +552,7 @@ export const IconWallet = ({ size = 14, color = '#6B7280' }) => (
   </span>
 );
 
-export const IconReceipt = ({ size = 14, color = '#6e2e78' }) => (
+export const IconReceipt = ({ size = 14, color = '#5B005F' }) => (
   <span style={{ ...iconBaseStyle }}>
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2-3-2-3 2-3-2z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

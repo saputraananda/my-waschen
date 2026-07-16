@@ -7,6 +7,7 @@ import { useDebounce } from '../../utils/hooks';
 import { useApp } from '../../context/AppContext';
 import { motion } from 'framer-motion';
 import { getAvatarSource } from '../../utils/avatar';
+import { buildWaMeLink } from '../../utils/helpers';
 
 // Glass card CSS class - injected once
 const GLASS_STYLES = `
@@ -479,12 +480,7 @@ export default function CustomerListPage({ navigate }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {customers.map((c, idx) => {
               // Format nomor HP untuk WhatsApp (hapus semua non-digit, tambahkan 62 jika dimulai 0)
-              const waPhone = (() => {
-                const raw = String(c.phone || '').replace(/\D/g, '');
-                if (!raw) return null;
-                return raw.startsWith('0') ? `62${raw.slice(1)}` : raw;
-              })();
-              const waHref = waPhone ? `https://wa.me/${waPhone}` : null;
+              const waHref = buildWaMeLink(c.phone);
 
               return (
                 <AnimatedListItem

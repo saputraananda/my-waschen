@@ -119,10 +119,10 @@ function EmptyState() {
           margin: '0 auto',
           boxShadow: '8px 8px 20px rgba(109, 40, 217, 0.15)',
         }}>
-          <TrendingUp size={28} color="#6e2e78" />
+          <TrendingUp size={28} color="#5B005F" />
         </div>
       </motion.div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: '#6e2e78', marginBottom: 4 }}>Belum Ada Data Tren</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: '#5B005F', marginBottom: 4 }}>Belum Ada Data Tren</div>
       <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#9ca3af' }}>
         Data tren akan muncul setelah ada transaksi
       </div>
@@ -200,7 +200,7 @@ export default function PaymentTrendChart({ days = 14, height = 220, refreshInte
             boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)',
             flexShrink: 0,
           }}>
-            <TrendingUp size={18} color="#6e2e78" />
+            <TrendingUp size={18} color="#5B005F" />
           </div>
           <div>
             <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: '#1E293B' }}>💳 Tren Pembayaran</div>
@@ -219,7 +219,7 @@ export default function PaymentTrendChart({ days = 14, height = 220, refreshInte
               padding: '4px 10px',
             }}>
               <Banknote size={12} color="#8B5CF6" />
-              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: '#6e2e78' }}>{cashPct}%</span>
+              <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: '#5B005F' }}>{cashPct}%</span>
             </div>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 4,
@@ -255,7 +255,7 @@ export default function PaymentTrendChart({ days = 14, height = 220, refreshInte
             style={{
               padding: '5px 12px', borderRadius: 999,
               border: 'none',
-              background: selectedDays === opt.key ? '#6e2e78' : '#F1F5F9',
+              background: selectedDays === opt.key ? '#5B005F' : '#F1F5F9',
               color: selectedDays === opt.key ? 'white' : '#64748B',
               fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
               cursor: 'pointer',
@@ -316,7 +316,7 @@ export default function PaymentTrendChart({ days = 14, height = 220, refreshInte
             <Banknote size={14} color="#8B5CF6" />
             <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: '#64748B' }}>Total Tunai</span>
           </div>
-          <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: '#6e2e78' }}>{rp(totalCash)}</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: '#5B005F' }}>{rp(totalCash)}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
             <div style={{
               height: 4, background: '#E2E8F0', borderRadius: 2, flex: 1, overflow: 'hidden',

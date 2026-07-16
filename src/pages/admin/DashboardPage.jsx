@@ -936,7 +936,7 @@ export default function AdminDashboardPage({ user, navigate }) {
                       borderRadius: isMobile ? 8 : 10,
                       border: 'none',
                       background: active
-                        ? 'linear-gradient(145deg, #8B5CF6, #6e2e78)'
+                        ? 'linear-gradient(145deg, #8B5CF6, #5B005F)'
                         : 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
                       color: active ? C.white : C.primaryDark,
                       fontFamily: 'Poppins',

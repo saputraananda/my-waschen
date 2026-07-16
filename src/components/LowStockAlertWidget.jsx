@@ -110,7 +110,7 @@ function EmptyState({ onRefresh }) {
           background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
           border: '1px solid rgba(139, 92, 246, 0.15)',
           cursor: 'pointer',
-          fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: '#6e2e78',
+          fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: '#5B005F',
         }}
       >
         <RefreshCw size={12} />
@@ -373,7 +373,7 @@ export default function LowStockAlertWidget({ compact = false, maxItems = 5, onV
             background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
             border: '1px solid rgba(139, 92, 246, 0.15)',
             borderRadius: 12, cursor: 'pointer',
-            fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: '#6e2e78',
+            fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: '#5B005F',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}
         >
@@ -397,7 +397,7 @@ export default function LowStockAlertWidget({ compact = false, maxItems = 5, onV
           style={{
             width: '100%', marginTop: 10, padding: '8px',
             background: 'transparent', border: 'none', cursor: 'pointer',
-            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#6e2e78',
+            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#5B005F',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
           }}
         >

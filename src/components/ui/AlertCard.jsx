@@ -159,13 +159,13 @@ const AlertActionButton = ({
       color: '#374151',
     },
     primary: {
-      backgroundColor: '#6e2e78',
+      backgroundColor: '#5B005F',
       color: '#FFFFFF',
       boxShadow: '0 2px 8px rgba(110, 46, 120, 0.3)',
     },
     ghost: {
       backgroundColor: 'transparent',
-      color: '#6e2e78',
+      color: '#5B005F',
     },
   };
 

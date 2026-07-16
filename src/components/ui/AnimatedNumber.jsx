@@ -61,7 +61,7 @@ export function AnimatedNumber({ value, duration = 800, enabled = true, prefix =
 /**
  * Progress ring / arc component for dashboard KPIs
  */
-export function ProgressRing({ progress = 0, size = 80, strokeWidth = 8, color = '#6e2e78', bgColor = '#f0ecf2', children }) {
+export function ProgressRing({ progress = 0, size = 80, strokeWidth = 8, color = '#5B005F', bgColor = '#f0ecf2', children }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (Math.min(Math.max(progress, 0), 100) / 100) * circumference;
@@ -94,7 +94,7 @@ export function ProgressRing({ progress = 0, size = 80, strokeWidth = 8, color =
 /**
  * Pulse indicator dot — for live/active status
  */
-export function PulseDot({ color = '#6e2e78', size = 10, active = true }) {
+export function PulseDot({ color = '#5B005F', size = 10, active = true }) {
   if (!active) return null;
   return (
     <span style={{ position: 'relative', display: 'inline-flex', width: size, height: size, flexShrink: 0 }}>

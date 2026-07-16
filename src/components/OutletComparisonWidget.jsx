@@ -118,10 +118,10 @@ function EmptyState() {
           margin: '0 auto',
           boxShadow: '8px 8px 20px rgba(109, 40, 217, 0.15)',
         }}>
-          <Building2 size={28} color="#6e2e78" />
+          <Building2 size={28} color="#5B005F" />
         </div>
       </motion.div>
-      <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: '#6e2e78', marginBottom: 4 }}>Belum Ada Outlet</div>
+      <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: '#5B005F', marginBottom: 4 }}>Belum Ada Outlet</div>
       <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#9ca3af' }}>
         Data outlet akan muncul setelah ada transaksi
       </div>
@@ -224,7 +224,7 @@ export default function OutletComparisonWidget({ onSelectOutlet, compact = false
             boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)',
             flexShrink: 0,
           }}>
-            <Building2 size={18} color="#6e2e78" />
+            <Building2 size={18} color="#5B005F" />
           </div>
           <div>
             <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: '#1E293B' }}>📊 Perbandingan Outlet</div>
@@ -256,7 +256,7 @@ export default function OutletComparisonWidget({ onSelectOutlet, compact = false
             style={{
               padding: '5px 12px', borderRadius: 999,
               border: 'none',
-              background: period === p.key ? '#6e2e78' : '#F1F5F9',
+              background: period === p.key ? '#5B005F' : '#F1F5F9',
               color: period === p.key ? 'white' : '#64748B',
               fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
               cursor: 'pointer',

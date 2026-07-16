@@ -91,21 +91,20 @@ export async function updateItemUnitStatus(req, res) {
 
     const oldStatus = itemUnit.production_status;
 
-    // ── Validate stage progression (no backward unless admin) ─────────────────
-    const isAdmin = user.roleCode !== 'admin';
+    // ── Validate stage progression ──────────────────────────────────────────────
+    // Hanya role 'produksi' yang boleh update, tidak boleh mundur stage
+    const isProduksi = user.roleCode === 'produksi';
     const oldIndex = STAGE_ORDER.indexOf(oldStatus);
     const newIndex = STAGE_ORDER.indexOf(status);
 
-    if (!isAdmin && newIndex < oldIndex - 1) {
-      // Can only revert one step at a time
-      if (newIndex < oldIndex) {
-        await conn.rollback();
-        conn.release();
-        return res.status(400).json({
-          success: false,
-          message: 'Tidak dapat mundur lebih dari satu tahap. Hubungi admin untuk koreksi.',
-        });
-      }
+    // Packing team TIDAK boleh mundur stage (hanya maju)
+    if (isProduksi && newIndex < oldIndex) {
+      await conn.rollback();
+      conn.release();
+      return res.status(400).json({
+        success: false,
+        message: 'Tidak dapat mundur tahap produksi. Hubungi admin untuk koreksi.',
+      });
     }
 
     // ── Update item unit status ──────────────────────────────────────────────

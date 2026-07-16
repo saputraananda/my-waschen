@@ -6,10 +6,11 @@
  * This script runs all new migrations:
  * - 009_create_adjustments_table.sql
  * - 010_create_outstandings_table.sql
- * - 011_create_petty_cash_table.sql
+ * - 011_create_petty_cash_table.sql (DEPRECATED - use tr_pengajuan_belanja)
  * - 012_create_merge_table.sql
  * - 013_create_daily_report_table.sql
  * - 014_create_ap_request_table.sql
+ * - 028_deprecate_petty_cash_tables.sql
  */
 
 import 'dotenv/config';
@@ -220,71 +221,20 @@ async function run() {
     }
 
     // =====================================================
-    // 011 - Petty Cash
+    // 011 - Petty Cash (DEPRECATED - migrated to 028)
     // =====================================================
-    const m011_exists = await tableExists('tr_petty_cash');
+    // This migration is now deprecated. Tables have been renamed to:
+    // _deprecated_mst_petty_cash_category
+    // _deprecated_tr_petty_cash
+    // _deprecated_tr_petty_cash_summary
+    // _deprecated_tr_petty_cash_reimbursement
+    // Use tr_pengajuan_belanja with group_type='operasional' instead.
+    const m011_exists = await tableExists('_deprecated_tr_petty_cash') || await tableExists('tr_petty_cash');
 
     if (!m011_exists) {
-      await runMigration('011 - Petty Cash Tables', `
-        CREATE TABLE IF NOT EXISTS \`mst_petty_cash_category\` (
-          \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-          \`name\` VARCHAR(50) NOT NULL,
-          \`code\` VARCHAR(20) NOT NULL,
-          \`icon\` VARCHAR(50) DEFAULT NULL,
-          \`color\` VARCHAR(7) DEFAULT '#6B7280',
-          \`is_active\` TINYINT(1) DEFAULT 1,
-          \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (\`id\`),
-          UNIQUE KEY \`uk_category_code\` (\`code\`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-        INSERT IGNORE INTO \`mst_petty_cash_category\` (\`name\`, \`code\`, \`icon\`, \`color\`) VALUES
-          ('Biaya Makan', 'makan', '🍽️', '#F59E0B'),
-          ('BBM/Transportasi', 'transport', '🚗', '#6366F1'),
-          ('Biaya Kantor', 'kantor', '📦', '#10B981'),
-          ('Biaya Lain', 'lain', '📝', '#8B5CF6');
-
-        CREATE TABLE IF NOT EXISTS \`tr_petty_cash\` (
-          \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-          \`outlet_id\` BIGINT UNSIGNED NOT NULL,
-          \`session_id\` BIGINT UNSIGNED DEFAULT NULL,
-          \`category_id\` BIGINT UNSIGNED NOT NULL,
-          \`amount\` DECIMAL(15,2) NOT NULL,
-          \`description\` VARCHAR(255) NOT NULL,
-          \`receipt_path\` VARCHAR(255) DEFAULT NULL,
-          \`expense_date\` DATE NOT NULL,
-          \`created_by\` BIGINT UNSIGNED NOT NULL,
-          \`pic_name\` VARCHAR(100) DEFAULT NULL,
-          \`status\` ENUM('pending', 'approved', 'rejected', 'reimbursed') DEFAULT 'pending',
-          \`approved_by\` BIGINT UNSIGNED DEFAULT NULL,
-          \`approved_at\` DATETIME DEFAULT NULL,
-          \`notes\` TEXT,
-          \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP,
-          \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          PRIMARY KEY (\`id\`),
-          KEY \`idx_outlet_id\` (\`outlet_id\`),
-          KEY \`idx_category_id\` (\`category_id\`),
-          KEY \`idx_expense_date\` (\`expense_date\`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-        CREATE TABLE IF NOT EXISTS \`tr_petty_cash_summary\` (
-          \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-          \`outlet_id\` BIGINT UNSIGNED NOT NULL,
-          \`period_start\` DATE NOT NULL,
-          \`period_end\` DATE NOT NULL,
-          \`total_makan\` DECIMAL(15,2) DEFAULT 0,
-          \`total_transport\` DECIMAL(15,2) DEFAULT 0,
-          \`total_kantor\` DECIMAL(15,2) DEFAULT 0,
-          \`total_lain\` DECIMAL(15,2) DEFAULT 0,
-          \`transaction_count\` INT UNSIGNED DEFAULT 0,
-          \`status\` ENUM('draft', 'submitted', 'approved', 'rejected') DEFAULT 'draft',
-          \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (\`id\`),
-          KEY \`idx_outlet_period\` (\`outlet_id\`, \`period_start\`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-      `);
+      log('011 - Petty Cash: Tables not found (may have been deprecated already)', 'warning');
     } else {
-      log('011 - Petty Cash: Already exists', 'warning');
+      log('011 - Petty Cash: Tables found (deprecated in migration 028)', 'warning');
     }
 
     // =====================================================
@@ -452,6 +402,32 @@ async function run() {
       `);
     } else {
       log('014 - AP Request: Already exists', 'warning');
+    }
+
+    // =====================================================
+    // 028 - Deprecate Old Petty Cash Tables
+    // =====================================================
+    const m028_exists = await tableExists('_deprecated_tr_petty_cash');
+
+    if (!m028_exists) {
+      // Check if old tables still exist and rename them
+      const old_tr_petty_exists = await tableExists('tr_petty_cash');
+      const old_mst_petty_exists = await tableExists('mst_petty_cash_category');
+
+      if (old_tr_petty_exists || old_mst_petty_exists) {
+        await runMigration('028 - Deprecate Petty Cash Tables', `
+          RENAME TABLE
+            \`mst_petty_cash_category\` TO \`_deprecated_mst_petty_cash_category\`,
+            \`tr_petty_cash\` TO \`_deprecated_tr_petty_cash\`,
+            \`tr_petty_cash_summary\` TO \`_deprecated_tr_petty_cash_summary\`,
+            \`tr_petty_cash_reimbursement\` TO \`_deprecated_tr_petty_cash_reimbursement\`;
+        `);
+        log('028 - Old petty cash tables renamed to deprecated prefix', 'success');
+      } else {
+        log('028 - Petty cash tables already deprecated or do not exist', 'warning');
+      }
+    } else {
+      log('028 - Petty cash deprecation: Already done', 'warning');
     }
 
     console.log('\n' + '='.repeat(50));

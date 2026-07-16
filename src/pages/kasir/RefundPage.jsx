@@ -88,7 +88,7 @@ const REFUND_METHODS = [
     value: 'deposit',
     label: 'Deposit / Saldo',
     icon: Wallet,
-    color: '#6e2e78',
+    color: '#5B005F',
     description: 'Langsung masuk ke saldo member',
     available: true,
   },

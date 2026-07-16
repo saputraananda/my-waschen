@@ -76,7 +76,7 @@ const METHOD_LABELS = {
 
 const METHOD_COLORS = {
   cash: '#059669',
-  qris: '#6e2e78',
+  qris: '#5B005F',
   edc: '#7C3AED',
   transfer: '#2563EB',
   deposit: '#D97706',
@@ -292,6 +292,9 @@ function promoDiscountPreview(promo, subtotal) {
 export default function NotaStep3Page({ goBack }) {
   const { navigate, user, notaCustomer, notaCart, setNotaCart, setNotaCustomer } = useApp();
 
+  // Navigation guard state - must be BEFORE any useEffect that uses it
+  const [isNavigatingAway, setIsNavigatingAway] = useState(false);
+
   // PIC Selection - track who is responsible for this transaction
   const {
     currentPIC,
@@ -308,12 +311,17 @@ export default function NotaStep3Page({ goBack }) {
 
   // ── State Validation: Ensure customer and cart exist ──
   useEffect(() => {
+    // Skip validation if we're navigating away after successful checkout
+    console.log('[USEFFECT-VALIDATION] isNavigatingAway:', isNavigatingAway, '| notaCustomer:', !!notaCustomer, '| notaCart length:', notaCart?.length);
+    if (isNavigatingAway) return;
     if (!notaCustomer?.id) {
+      console.log('[USEFFECT-VALIDATION] Redirecting to nota_step1 - no customer');
       navigate('nota_step1', null, { replace: true });
     } else if (!notaCart || notaCart.length === 0) {
+      console.log('[USEFFECT-VALIDATION] Redirecting to nota_step2 - no cart');
       navigate('nota_step2', null, { replace: true });
     }
-  }, [notaCustomer, notaCart, navigate]);
+  }, [notaCustomer, notaCart, navigate, isNavigatingAway]);
 
   // Responsive hooks
   const { isMobile, isTablet } = useResponsive();
@@ -321,8 +329,11 @@ export default function NotaStep3Page({ goBack }) {
 
   // pickupType: 'self' | 'pickup' | 'delivery' | 'both'
   const [pickupType, setPickupType] = useState('self');
-  const [scheduleDate, setScheduleDate] = useState(null);
-  const [scheduleTime, setScheduleTime] = useState('');
+  // Separate schedules for pickup (jemput cucian kotor) and delivery (antar cucian bersih)
+  const [pickupScheduleDate, setPickupScheduleDate] = useState(null);
+  const [pickupScheduleTime, setPickupScheduleTime] = useState('');
+  const [deliveryScheduleDate, setDeliveryScheduleDate] = useState(null);
+  const [deliveryScheduleTime, setDeliveryScheduleTime] = useState('');
   const [areaZoneId, setAreaZoneId] = useState('');
   const [areaZones, setAreaZones] = useState([]);
   const [courierName, setCourierName] = useState('');
@@ -474,8 +485,8 @@ export default function NotaStep3Page({ goBack }) {
       return;
     }
     setLoading(true);
-    try {
-      const formatDate = (d) => {
+
+    const formatDate = (d) => {
         if (!d) return null;
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -535,53 +546,105 @@ export default function NotaStep3Page({ goBack }) {
         delivery: pickupType === 'delivery' || pickupType === 'both',
         pickupType,
         areaZoneId: areaZoneId || null,
-        scheduleAt: (scheduleDate && scheduleTime) ? `${formatDate(scheduleDate)}T${scheduleTime}:00` : null,
+        // Send separate schedules for pickup and delivery
+        scheduleAt: (pickupType === 'pickup' || pickupType === 'both') && pickupScheduleDate && pickupScheduleTime
+          ? `${formatDate(pickupScheduleDate)}T${pickupScheduleTime}:00`
+          : (pickupType === 'delivery') && deliveryScheduleDate && deliveryScheduleTime
+          ? `${formatDate(deliveryScheduleDate)}T${deliveryScheduleTime}:00`
+          : null,
+        pickupScheduleAt: (pickupType === 'pickup' || pickupType === 'both') && pickupScheduleDate && pickupScheduleTime
+          ? `${formatDate(pickupScheduleDate)}T${pickupScheduleTime}:00`
+          : null,
+        deliveryScheduleAt: (pickupType === 'delivery' || pickupType === 'both') && deliveryScheduleDate && deliveryScheduleTime
+          ? `${formatDate(deliveryScheduleDate)}T${deliveryScheduleTime}:00`
+          : null,
         courierName: (pickupType === 'delivery' || pickupType === 'both') ? (courierName.trim() || null) : null,
         deliveryNotes: (pickupType === 'delivery' || pickupType === 'both') ? (deliveryNotes.trim() || null) : null,
         notes,
         dueDate: (dueDate && dueDate.trim()) ? dueDate.slice(0, 10) : null,
       };
 
-      const res = await axios.post('/api/transactions/checkout', payload);
-      const data = res?.data?.data;
+      // DEBUG: Log full payload
+      console.log('[CHECKOUT] 🚀 Sending checkout payload:', JSON.stringify(payload, null, 2));
+      console.log('[CHECKOUT]   customerId:', payload.customerId, '| type:', typeof payload.customerId);
+      console.log('[CHECKOUT]   items count:', payload.items.length);
+      payload.items.forEach((item, i) => {
+        console.log(`[CHECKOUT]   item[${i}]: serviceId=${item.serviceId} (type=${typeof item.serviceId}) | unit=${item.unit} | qty=${item.qty} | carpetPanjangCm=${item.carpetPanjangCm} | carpetLebarCm=${item.carpetLebarCm}`);
+      });
+      console.log('[CHECKOUT]   pickupType:', payload.pickupType, '| pickup:', payload.pickup, '| delivery:', payload.delivery);
+      console.log('[CHECKOUT]   pickupScheduleAt:', payload.pickupScheduleAt);
+      console.log('[CHECKOUT]   deliveryScheduleAt:', payload.deliveryScheduleAt);
+      console.log('[CHECKOUT]   payment:', JSON.stringify(payload.payment));
 
-      if (data) {
-        const nota = {
-          id:            data.transactionNo,
-          customerName:  data.customerName,
-          customerPhone: data.customerPhone,
-          items:         data.items || [],
-          total:         Number(data.total) || 0,
-          payMethod:     data.payment?.method || payMethod,
-          paidAmount:    data.payment?.paidAmount ?? finalPaidAmount,
-          changeAmount:  data.payment?.changeAmount ?? finalChangeAmount,
-          pickup: pickupType === 'pickup' || pickupType === 'both',
-          delivery: pickupType === 'delivery' || pickupType === 'both',
-          notes,
-          dueDate,
-          status: 'baru',
-          date:   new Date().toISOString().slice(0, 10),
-        };
-
-        if (returnData) return data;
-        setNotaCart([]);
-        setNotaCustomer(null);
-        navigate('nota_berhasil', nota);
-      } else {
-        if (!silent) {
-          hapticError();
-          alertError(res?.data?.message || 'Gagal membuat nota');
+      let res;
+      try {
+        res = await axios.post('/api/transactions/checkout', payload, { timeout: 30000 });
+        console.log('[CHECKOUT] ✅ Response received:', { status: res?.status, data: res?.data });
+        const data = res?.data?.data;
+        console.log('[CHECKOUT] data value:', data, 'typeof:', typeof data, 'keys:', data ? Object.keys(data) : 'N/A');
+        if (!data) {
+          console.error('[CHECKOUT] FATAL: data is null/undefined! Response:', res?.data);
         }
-        return null;
+
+        if (data) {
+          const isExpressOrder = notaCart.some(c => c.express);
+          const nota = {
+            transactionId: data.id,
+            transactionNo: data.transactionNo,
+            sessionId: data.sessionId,
+            subSessionId: data.subSessionId,
+            customerId: notaCustomer?.id,
+            customerName: notaCustomer?.name,
+            customerPhone: notaCustomer?.phone,
+            items: notaCart.map((c) => ({ id: c.id, name: c.name, qty: c.qty, unit: c.unit })),
+            total,
+            subtotal,
+            paidAmount: finalPaidAmount,
+            changeAmount: finalChangeAmount,
+            payMethod,
+            paymentStatus,
+            pickupType,
+            dueDate: payload.dueDate,
+            notes,
+            isExpress: isExpressOrder,
+            promoDiscount,
+            birthdayDiscount: data.birthdayDiscount || 0,
+            deliveryFee: logisticFee,
+          };
+
+          if (returnData) return data;
+          // Set navigating flag BEFORE clearing state to prevent guard from triggering
+          console.log('[CHECKOUT] 🚀 Navigating to nota_berhasil, setting isNavigatingAway=true');
+          setIsNavigatingAway(true);
+          setNotaCart([]);
+          setNotaCustomer(null);
+          navigate('nota_berhasil', nota);
+          console.log('[CHECKOUT] ✅ navigate() called');
+        } else {
+          if (!silent) {
+            hapticError();
+            alertError(res?.data?.message || 'Gagal membuat nota');
+          }
+          return null;
+        }
+      } catch (error) {
+        if (!silent) hapticError();
+        console.error('[CHECKOUT] ❌ Checkout failed:', {
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          message: error?.response?.data?.message,
+          errors: error?.response?.data?.errors,
+          fullResponse: error?.response?.data,
+          isNetworkError: error.isAxiosError && !error.response,
+          networkErrorCode: error.code,
+          stack: error.stack,
+        });
+        const msg = error?.response?.data?.message || 'Gagal membuat nota. Silakan coba lagi.';
+        if (!silent) alertError(msg);
+        else throw error;
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      if (!silent) hapticError();
-      const msg = error?.response?.data?.message || 'Gagal membuat nota. Silakan coba lagi.';
-      if (!silent) alertError(msg);
-      else throw error;
-    } finally {
-      setLoading(false);
-    }
   };
 
   const externalMethods = ['qris', 'edc', 'transfer'];
@@ -590,7 +653,9 @@ export default function NotaStep3Page({ goBack }) {
     (externalMethods.includes(payMethod) && (effectivePaid < total || !kasirConfirmedReceived)) ||
     (payMethod === 'transfer' && (!selectedBankAccountId || !paymentPhoto)) ||
     (payMethod === 'deposit' && Number(notaCustomer?.depositBalance ?? notaCustomer?.deposit ?? 0) < total) ||
-    ((pickupType === 'pickup' || pickupType === 'delivery') && (!scheduleDate || !scheduleTime))
+    // Only require schedule for pure pickup or pure delivery (not "both")
+    (pickupType === 'pickup' && (!pickupScheduleDate || !pickupScheduleTime)) ||
+    (pickupType === 'delivery' && (!deliveryScheduleDate || !deliveryScheduleTime))
   );
 
   const handleConfirm = () => {
@@ -600,13 +665,13 @@ export default function NotaStep3Page({ goBack }) {
     }
 
     if (pickupType === 'pickup') {
-      if (!scheduleDate || !scheduleTime) {
+      if (!pickupScheduleDate || !pickupScheduleTime) {
         alertError('Jadwal jemput cucian kotor wajib diisi.');
         hapticError();
         return;
       }
     } else if (pickupType === 'delivery') {
-      if (!scheduleDate || !scheduleTime) {
+      if (!deliveryScheduleDate || !deliveryScheduleTime) {
         alertError('Jadwal antar cucian bersih wajib diisi.');
         hapticError();
         return;
@@ -653,7 +718,9 @@ export default function NotaStep3Page({ goBack }) {
   const filterPastDates = (d) => dateKeyWib(d) >= todayKeyWib();
 
   // Guard: kalau customer atau cart hilang (misal page refresh), redirect
-  if (!notaCustomer && !loading) {
+  // But don't redirect if we're navigating away after successful checkout
+  console.log('[GUARD] notaCustomer:', !!notaCustomer, '| loading:', loading, '| isNavigatingAway:', isNavigatingAway);
+  if (!notaCustomer && !loading && !isNavigatingAway) {
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32, background: C.n50 }}>
         <div style={{ fontSize: 48 }}>⚠️</div>
@@ -835,7 +902,7 @@ export default function NotaStep3Page({ goBack }) {
 
           {pickupType !== 'self' && (
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(pickupType === 'pickup' || pickupType === 'delivery') && (!scheduleDate || !scheduleTime) && (
+              {(pickupType === 'pickup' && (!pickupScheduleDate || !pickupScheduleTime)) && (
                 <div style={{
                   background: C.scheduleErrorBg,
                   borderRadius: 10,
@@ -862,9 +929,40 @@ export default function NotaStep3Page({ goBack }) {
                       color: C.scheduleErrorText,
                       lineHeight: 1.4
                     }}>
-                      Untuk layanan {
-                        pickupType === 'pickup' ? 'jemput cucian kotor' : 'antar cucian bersih'
-                      }, jadwal harus dipilih terlebih dahulu.
+                      Untuk layanan jemput cucian kotor, jadwal harus dipilih terlebih dahulu.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(pickupType === 'delivery' && (!deliveryScheduleDate || !deliveryScheduleTime)) && (
+                <div style={{
+                  background: C.scheduleErrorBg,
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  border: `1.5px solid ${C.scheduleErrorBorder}`,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 8
+                }}>
+                  <span style={{ fontSize: 16 }}>⚠️</span>
+                  <div>
+                    <div style={{
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: C.scheduleErrorText,
+                      marginBottom: 2
+                    }}>
+                      Jadwal Wajib Diisi
+                    </div>
+                    <div style={{
+                      fontFamily: 'Poppins',
+                      fontSize: 10,
+                      color: C.scheduleErrorText,
+                      lineHeight: 1.4
+                    }}>
+                      Untuk layanan antar cucian bersih, jadwal harus dipilih terlebih dahulu.
                     </div>
                   </div>
                 </div>
@@ -890,21 +988,21 @@ export default function NotaStep3Page({ goBack }) {
                   <DateTimeInput
                     label={`📅 Jadwal Jemput${pickupType === 'both' ? ' (Kotor)' : ''} *`}
                     value={
-                      scheduleDate && scheduleTime
-                        ? `${scheduleDate.getFullYear()}-${String(scheduleDate.getMonth()+1).padStart(2,'0')}-${String(scheduleDate.getDate()).padStart(2,'0')}T${scheduleTime}:00`
+                      pickupScheduleDate && pickupScheduleTime
+                        ? `${pickupScheduleDate.getFullYear()}-${String(pickupScheduleDate.getMonth()+1).padStart(2,'0')}-${String(pickupScheduleDate.getDate()).padStart(2,'0')}T${pickupScheduleTime}:00`
                         : null
                     }
                     onChange={(iso) => {
                       if (!iso) {
-                        setScheduleDate(null);
-                        setScheduleTime('');
+                        setPickupScheduleDate(null);
+                        setPickupScheduleTime('');
                         return;
                       }
                       const d = new Date(iso);
-                      setScheduleDate(d);
+                      setPickupScheduleDate(d);
                       const hh = String(d.getHours()).padStart(2, '0');
                       const mm = String(d.getMinutes()).padStart(2, '0');
-                      setScheduleTime(`${hh}:${mm}`);
+                      setPickupScheduleTime(`${hh}:${mm}`);
                     }}
                     minDate={minDateForPicker}
                     required
@@ -928,21 +1026,21 @@ export default function NotaStep3Page({ goBack }) {
                   <DateTimeInput
                     label={`📅 Jadwal Antar${pickupType === 'both' ? ' (Bersih)' : ''} *`}
                     value={
-                      scheduleDate && scheduleTime
-                        ? `${scheduleDate.getFullYear()}-${String(scheduleDate.getMonth()+1).padStart(2,'0')}-${String(scheduleDate.getDate()).padStart(2,'0')}T${scheduleTime}:00`
+                      deliveryScheduleDate && deliveryScheduleTime
+                        ? `${deliveryScheduleDate.getFullYear()}-${String(deliveryScheduleDate.getMonth()+1).padStart(2,'0')}-${String(deliveryScheduleDate.getDate()).padStart(2,'0')}T${deliveryScheduleTime}:00`
                         : null
                     }
                     onChange={(iso) => {
                       if (!iso) {
-                        setScheduleDate(null);
-                        setScheduleTime('');
+                        setDeliveryScheduleDate(null);
+                        setDeliveryScheduleTime('');
                         return;
                       }
                       const d = new Date(iso);
-                      setScheduleDate(d);
+                      setDeliveryScheduleDate(d);
                       const hh = String(d.getHours()).padStart(2, '0');
                       const mm = String(d.getMinutes()).padStart(2, '0');
-                      setScheduleTime(`${hh}:${mm}`);
+                      setDeliveryScheduleTime(`${hh}:${mm}`);
                     }}
                     minDate={minDateForPicker}
                     required
@@ -1292,14 +1390,14 @@ export default function NotaStep3Page({ goBack }) {
           {payMethod === 'qris' && (
             <div style={{ marginTop: 4, background: C.n50, borderRadius: 12, padding: '16px', border: `1px solid ${C.n200}` }}>
               <div style={{
-                background: '#6e2e7810',
+                background: '#5B005F10',
                 borderRadius: 12,
                 padding: '20px',
                 textAlign: 'center',
                 marginBottom: 12,
-                border: '2px dashed #6e2e7840',
+                border: '2px dashed #5B005F40',
               }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#6e2e78', marginBottom: 6 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#5B005F', marginBottom: 6 }}>
                   📱 Tunjukkan QRIS ke Customer
                 </div>
               </div>
@@ -1321,10 +1419,10 @@ export default function NotaStep3Page({ goBack }) {
                 <button type="button" onClick={() => setKasirConfirmedReceived(true)}
                   disabled={effectivePaid < total} style={{
                     width: '100%', padding: '14px', borderRadius: 12,
-                    border: `2px solid ${kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#6e2e78' : C.n300)}`,
-                    background: kasirConfirmedReceived ? C.successBg : (effectivePaid >= total ? '#6e2e7810' : C.n50),
+                    border: `2px solid ${kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#5B005F' : C.n300)}`,
+                    background: kasirConfirmedReceived ? C.successBg : (effectivePaid >= total ? '#5B005F10' : C.n50),
                     fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
-                    color: kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#6e2e78' : C.n500),
+                    color: kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#5B005F' : C.n500),
                     cursor: effectivePaid >= total ? 'pointer' : 'not-allowed',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   }}>

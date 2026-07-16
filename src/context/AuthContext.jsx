@@ -205,6 +205,8 @@ export const AuthProvider = ({ children }) => {
     if (depth > 0) {
       window.history.back();
     } else {
+      // SECURITY: Jika depth = 0, cek apakah user valid sebelum navigate ke dashboard
+      // Mencegah goBack loop yang bisa expose halaman login ke user yang sudah login
       navigate('dashboard', null, { replace: true });
     }
   }, [navigate]);

@@ -42,7 +42,7 @@ export async function calculateCustomerSegment(customerId) {
     const [rows] = await db.execute(`
       SELECT
         COUNT(DISTINCT t.id) AS tx_count,
-        COALESCE(SUM(t.total_amount), 0) AS total_spending,
+        COALESCE(SUM(t.total), 0) AS total_spending,
         MAX(DATE(t.created_at)) AS last_tx_date,
         MAX(t.created_at) AS last_tx_at
       FROM tr_transaction t

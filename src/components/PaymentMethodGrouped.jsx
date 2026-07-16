@@ -59,10 +59,10 @@ const PaymentMethodIcon = ({ type, size = 22 }) => {
       return (
         <span style={baseStyle}>
           <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="7" height="7" rx="1" fill="#6e2e78"/>
-            <rect x="14" y="3" width="7" height="7" rx="1" fill="#6e2e78"/>
-            <rect x="3" y="14" width="7" height="7" rx="1" fill="#6e2e78"/>
-            <rect x="17" y="17" width="4" height="4" fill="#6e2e78"/>
+            <rect x="3" y="3" width="7" height="7" rx="1" fill="#5B005F"/>
+            <rect x="14" y="3" width="7" height="7" rx="1" fill="#5B005F"/>
+            <rect x="3" y="14" width="7" height="7" rx="1" fill="#5B005F"/>
+            <rect x="17" y="17" width="4" height="4" fill="#5B005F"/>
           </svg>
         </span>
       );
@@ -71,8 +71,8 @@ const PaymentMethodIcon = ({ type, size = 22 }) => {
       return (
         <span style={baseStyle}>
           <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <rect x="1" y="4" width="22" height="16" rx="2" stroke="#6e2e78" strokeWidth="2"/>
-            <path d="M1 10h22" stroke="#6e2e78" strokeWidth="2"/>
+            <rect x="1" y="4" width="22" height="16" rx="2" stroke="#5B005F" strokeWidth="2"/>
+            <path d="M1 10h22" stroke="#5B005F" strokeWidth="2"/>
           </svg>
         </span>
       );

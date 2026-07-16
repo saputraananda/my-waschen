@@ -84,15 +84,19 @@ export const generateDailyReport = async (req, res) => {
       [targetOutletId, reportDate]
     );
 
-    // Get petty cash expenses
-    const [pettyCashSummary] = await poolWaschenPos.execute(
+    // Get uang kas expenses from unified pengajuan system (tr_pengajuan_belanja)
+    // group_type = 'operasional' = uang makan, bbm_transport, biaya_kantor, biaya_lain
+    const [uangKasSummary] = await poolWaschenPos.execute(
       `SELECT
         c.code as category_code,
-        COALESCE(SUM(p.amount), 0) as total
-       FROM mst_petty_cash_category c
-       LEFT JOIN tr_petty_cash p ON c.id = p.category_id
-         AND p.outlet_id = ? AND p.expense_date = ?
-       WHERE c.is_active = 1
+        COALESCE(SUM(i.total_price), 0) as total
+       FROM mst_pengajuan_category c
+       LEFT JOIN tr_pengajuan_belanja_item i ON c.id = i.category_id
+       LEFT JOIN tr_pengajuan_belanja pb ON i.pengajuan_id = pb.id
+         AND pb.outlet_id = ? AND DATE(pb.created_at) = ?
+         AND pb.status IN ('approved', 'auto_approved')
+         AND pb.source_type = 'operasional'
+       WHERE c.is_active = 1 AND c.group_type = 'operasional'
        GROUP BY c.code`,
       [targetOutletId, reportDate]
     );
@@ -116,12 +120,12 @@ export const generateDailyReport = async (req, res) => {
     );
 
     // Build category amounts
-    const pettyCash = {};
-    pettyCashSummary.forEach(row => {
-      pettyCash[row.category_code] = parseFloat(row.total || 0);
+    const uangKas = {};
+    uangKasSummary.forEach(row => {
+      uangKas[row.category_code] = parseFloat(row.total || 0);
     });
 
-    const totalExpenses = Object.values(pettyCash).reduce((sum, val) => sum + val, 0);
+    const totalExpenses = Object.values(uangKas).reduce((sum, val) => sum + val, 0);
     const totalNonCash = parseFloat(txSummary[0].debit_amount || 0) + parseFloat(txSummary[0].qris_amount || 0) + parseFloat(txSummary[0].mix_amount || 0) / 2;
 
     // Generate report content
@@ -144,10 +148,10 @@ export const generateDailyReport = async (req, res) => {
 
 📤 *PENGELUARAN*
 ━━━━━━━━━━━━━━━━━━
-🍽️ Biaya Makan : Rp ${formatRp(pettyCash.makan || 0)}
-🚗 Transport : Rp ${formatRp(pettyCash.transport || 0)}
-📦 Biaya Kantor : Rp ${formatRp(pettyCash.kantor || 0)}
-📝 Biaya Lain : Rp ${formatRp(pettyCash.lain || 0)}
+🍽️ Biaya Makan : Rp ${formatRp(uangKas.uang_makan || 0)}
+🚗 Transport : Rp ${formatRp(uangKas.bbm_transport || 0)}
+📦 Biaya Kantor : Rp ${formatRp(uangKas.biaya_kantor || 0)}
+📝 Biaya Lain : Rp ${formatRp(uangKas.biaya_lain || 0)}
 ━━━━━━━━━━━━━━━━━━
 💸 Total Pengeluaran : Rp ${formatRp(totalExpenses)}
 ━━━━━━━━━━━━━━━━━━
@@ -179,14 +183,14 @@ _${outlet.name}_`;
       non_cash_amount: formatRp(totalNonCash),
       qris_amount: formatRp(txSummary[0].qris_amount),
       total_sales: formatRp(txSummary[0].total_sales),
-      makan_amount: formatRp(pettyCash.makan || 0),
-      transport_amount: formatRp(pettyCash.transport || 0),
-      kantor_amount: formatRp(pettyCash.kantor || 0),
-      lain_amount: formatRp(pettyCash.lain || 0),
+      makan_amount: formatRp(uangKas.uang_makan || 0),
+      transport_amount: formatRp(uangKas.bbm_transport || 0),
+      kantor_amount: formatRp(uangKas.biaya_kantor || 0),
+      lain_amount: formatRp(uangKas.biaya_lain || 0),
       total_expense: formatRp(totalExpenses),
       deposit_amount: formatRp(depositSummary[0].total),
       cash_balance: formatRp(cashBalance[0]?.current_balance || 0),
-      petty_cash_balance: formatRp(totalExpenses),
+      uang_kas_balance: formatRp(totalExpenses),
       lunas_count: txSummary[0].lunas_count || 0,
       unpaid_count: txSummary[0].unpaid_count || 0,
       generated_at: formatTime(new Date()),
@@ -199,7 +203,7 @@ _${outlet.name}_`;
         formatted: reportData,
         raw: {
           transactions: txSummary[0],
-          petty_cash: pettyCash,
+          uang_kas: uangKas,
           sessions: sessionRows,
         },
       },

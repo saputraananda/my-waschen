@@ -102,13 +102,16 @@ router.post('/:id/payments', authenticate, requireRole('frontline', 'admin'), re
 router.patch('/:id/cancel', authenticate, requireRole('frontline', 'admin'), approvalLimiter, invalidateTx, cancelTransaction);
 
 // PATCH /api/transactions/:id/production-stage — catat progress produksi
-router.patch('/:id/production-stage', authenticate, requireRole('produksi', 'admin'), writeLimiter, invalidateTx, updateProductionStage);
+// PERUBAHAN: Hanya role 'produksi' yang boleh update
+router.patch('/:id/production-stage', authenticate, requireRole('produksi'), writeLimiter, invalidateTx, updateProductionStage);
 
 // PATCH /api/transactions/:id/production-stage/revert — rollback stage (handle salah pencet)
-router.patch('/:id/production-stage/revert', authenticate, requireRole('produksi', 'admin'), writeLimiter, invalidateTx, revertProductionStage);
+// PERUBAHAN: Hanya role 'produksi' yang boleh revert
+router.patch('/:id/production-stage/revert', authenticate, requireRole('produksi'), writeLimiter, invalidateTx, revertProductionStage);
 
 // POST /api/transactions/:id/condition — catat kondisi pakaian (auto invalidate cache supaya foto langsung visible)
-router.post('/:id/condition', authenticate, requireRole('frontline', 'produksi', 'admin'), writeLimiter, invalidateTx, saveItemCondition);
+// PERUBAHAN: Frontline boleh catat kondisi saat terima, Produksi catat saat packing
+router.post('/:id/condition', authenticate, requireRole('frontline', 'produksi'), writeLimiter, invalidateTx, saveItemCondition);
 
 // GET /api/transactions/:id/photos — debug: lihat semua foto yang tersimpan (no cache, debug)
 router.get('/:id/photos', authenticate, readLimiter, getTransactionPhotos);

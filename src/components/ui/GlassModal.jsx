@@ -61,7 +61,7 @@ const GlassModal = ({
   position = 'center', // 'center' | 'bottom' | 'top'
 
   // Styling
-  color = '#6e2e78',
+  color = '#5B005F',
 
   // Animation
   enableAnimation = true,
@@ -337,7 +337,7 @@ export const ConfirmModal = ({
 }) => {
   const buttonColors = {
     danger: { bg: '#EF4444', hover: '#DC2626' },
-    primary: { bg: '#6e2e78', hover: '#8B5CF6' },
+    primary: { bg: '#5B005F', hover: '#8B5CF6' },
     warning: { bg: '#F59E0B', hover: '#D97706' },
   };
 
@@ -432,7 +432,7 @@ export const AlertModal = ({
             height: 44,
             borderRadius: 10,
             border: 'none',
-            background: '#6e2e78',
+            background: '#5B005F',
             cursor: 'pointer',
             fontFamily: 'Poppins, sans-serif',
             fontSize: 14,

@@ -17,8 +17,9 @@ export const getOutletsAdmin = async (req, res) => {
 
     // Enrich with stats
     const enriched = await Promise.all(outlets.map(async (o) => {
+      // Service count: global now (same for all outlets)
       const [[svc]] = await poolWaschenPos.execute(
-        'SELECT COUNT(*) AS cnt FROM mst_service WHERE outlet_id = ? AND is_active = 1', [o.id]
+        'SELECT COUNT(*) AS cnt FROM mst_service WHERE is_active = 1 AND deleted_at IS NULL'
       );
       const [[team]] = await poolWaschenPos.execute(
         'SELECT COUNT(*) AS cnt FROM mst_user WHERE outlet_id = ? AND is_active = 1', [o.id]
@@ -228,43 +229,15 @@ export const createOutlet = async (req, res) => {
       );
     }
 
-    // 4. Copy services dari outlet pertama (ref) — biar outlet baru langsung ada layanan
-    const [refOutlets] = await conn.execute(
-      `SELECT id FROM mst_outlet
-       WHERE id != ? AND deleted_at IS NULL AND is_active = 1
-       ORDER BY id ASC LIMIT 1`,
+    // 4. Seed tr_outlet_service for the new outlet (services are global now)
+    const [svcResult] = await conn.execute(
+      `INSERT IGNORE INTO tr_outlet_service (outlet_id, service_id, sort_order_override)
+       SELECT ?, s.id, s.sort_order
+       FROM mst_service s
+       WHERE s.is_active = 1 AND s.deleted_at IS NULL`,
       [newOutletId]
     );
-    let copiedServices = 0;
-    if (refOutlets.length > 0) {
-      const refOutletId = refOutlets[0].id;
-      const [refServices] = await conn.execute(
-        `SELECT category_id, service_code, name, unit_type, price, min_qty,
-                express_multiplier, is_express_eligible, sla_regular_hours, sla_express_hours,
-                service_kind, sort_order
-           FROM mst_service WHERE outlet_id = ? AND is_active = 1 AND deleted_at IS NULL`,
-        [refOutletId]
-      );
-      for (const s of refServices) {
-        try {
-          await conn.execute(
-            `INSERT INTO mst_service
-             (outlet_id, category_id, service_code, name, unit_type, price, min_qty,
-              express_multiplier, is_express_eligible, sla_regular_hours, sla_express_hours,
-              service_kind, sort_order, is_active, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
-            [
-              newOutletId, s.category_id, s.service_code, s.name, s.unit_type, s.price, s.min_qty,
-              s.express_multiplier, s.is_express_eligible, s.sla_regular_hours, s.sla_express_hours,
-              s.service_kind, s.sort_order,
-            ]
-          );
-          copiedServices++;
-        } catch (e) {
-          // skip duplicate
-        }
-      }
-    }
+    const copiedServices = svcResult.affectedRows;
 
     // 5. Copy inventory stock awal dari semua inventory item aktif
     let copiedStock = 0;
@@ -334,8 +307,7 @@ export const getOutletDetail = async (req, res) => {
 
     // Count services (active & not deleted)
     const [[svcCount]] = await poolWaschenPos.execute(
-      'SELECT COUNT(*) AS cnt FROM mst_service WHERE outlet_id = ? AND is_active = 1 AND deleted_at IS NULL',
-      [id]
+      'SELECT COUNT(*) AS cnt FROM mst_service WHERE is_active = 1 AND deleted_at IS NULL'
     );
 
     // Count team members (active & not deleted)

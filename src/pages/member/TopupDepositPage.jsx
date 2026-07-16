@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, MoneyInput, Modal } from '../../components/ui';
+import { TopBar, Btn, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { useResponsive } from '../../utils/hooks';
 
@@ -14,7 +14,7 @@ const PAY_METHODS = [
   { key: 'qris',     label: '📱 QRIS Statis',     desc: 'QR cetak / EDC manual' },
 ];
 
-// Membership tier configurations for opt-in
+// Membership tier configurations
 const TIERS = {
   gold: {
     id: 'gold',
@@ -26,6 +26,7 @@ const TIERS = {
     duration: '6 bulan',
     discount: '20%',
     benefits: ['Diskon 20%', 'Prioritas antrian'],
+    bonusAmount: 25000,
   },
   diamond: {
     id: 'diamond',
@@ -37,12 +38,14 @@ const TIERS = {
     duration: '12 bulan',
     discount: '25%',
     benefits: ['Diskon 25%', 'Priority support', 'Free pickup'],
+    bonusAmount: 50000,
   },
 };
 
 export default function TopupDepositPage({ navigate, goBack, screenParams }) {
   const customer = screenParams;
   const { isMobile } = useResponsive();
+
   const [amount, setAmount] = useState('');
   const [payMethod, setPayMethod] = useState('cash');
   const [loading, setLoading] = useState(false);
@@ -53,11 +56,30 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
   const [membershipLoading, setMembershipLoading] = useState(false);
   const [selectedTier, setSelectedTier] = useState('gold');
   const [registeringMembership, setRegisteringMembership] = useState(false);
-  const [bonusEnabled, setBonusEnabled] = useState(true); // Default to true
+  const [bonusEnabled, setBonusEnabled] = useState(true);
 
-  // Fetch membership status on mount
+  // If no customer provided, show error state
+  if (!customer?.id) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C.n50, padding: 24 }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>😕</div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n800, marginBottom: 8 }}>
+          Customer tidak ditemukan
+        </div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600, textAlign: 'center', marginBottom: 20 }}>
+          Silakan pilih customer dari menu Top Up Deposit
+        </div>
+        <Btn variant="primary" onClick={goBack}>
+          Kembali
+        </Btn>
+      </div>
+    );
+  }
+
+  const enteredAmount = Number(amount) || 0;
+
+  // Fetch membership status
   useEffect(() => {
-    if (!customer?.id) return;
     const fetchStatus = async () => {
       try {
         const res = await axios.get(`/api/membership/status/${customer.id}`);
@@ -69,9 +91,9 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
       }
     };
     fetchStatus();
-  }, [customer?.id]);
+  }, [customer.id]);
 
-  // Fetch tier info (including bonus status)
+  // Fetch bonus status
   useEffect(() => {
     const fetchTierInfo = async () => {
       try {
@@ -85,14 +107,6 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
     };
     fetchTierInfo();
   }, []);
-
-  if (!customer) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Btn onClick={() => navigate('customer')}>Kembali</Btn>
-    </div>
-  );
-
-  const enteredAmount = Number(amount) || 0;
 
   const handleTopUp = async () => {
     if (enteredAmount < 1000) {
@@ -126,7 +140,6 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
 
     setRegisteringMembership(true);
     try {
-      // Register membership with this top-up
       const res = await axios.post('/api/membership/register', {
         customerId: customer.id,
         tier: selectedTier,
@@ -186,20 +199,40 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
     }
   };
 
-  // Determine if customer can register membership
+  // Membership logic
   const canRegisterMembership = !membershipStatus?.hasMembership;
   const canRenewMembership = membershipStatus?.hasMembership && !membershipStatus?.isActive && membershipStatus?.canRenew;
   const tier = TIERS[selectedTier];
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Top Up Deposit" subtitle={customer.name} onBack={goBack} />
+      <TopBar
+        title="Top Up Deposit"
+        subtitle={customer.name}
+        onBack={goBack}
+      />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 20 }}>
+
         {/* Current Balance */}
-        <div style={{ background: C.white, borderRadius: isMobile ? 12 : 16, padding: isMobile ? '14px 16px' : '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 4 }}>Saldo Deposit Saat Ini</div>
-          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 20 : 24, fontWeight: 700, color: C.success }}>{rp(customer.deposit || 0)}</div>
+        <div style={{
+          background: C.white,
+          borderRadius: isMobile ? 12 : 16,
+          padding: isMobile ? '14px 16px' : '16px 20px',
+          marginBottom: 16,
+          boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
+        }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 4 }}>
+            Saldo Deposit Saat Ini
+          </div>
+          <div style={{
+            fontFamily: 'Poppins',
+            fontSize: isMobile ? 20 : 24,
+            fontWeight: 700,
+            color: C.success
+          }}>
+            {rp(customer.deposit || 0)}
+          </div>
         </div>
 
         {/* Membership Status Banner */}
@@ -208,7 +241,10 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
             background: membershipStatus.isActive
               ? 'linear-gradient(135deg, #5B005F, #4D0051)'
               : 'linear-gradient(135deg, #DC2626, #991B1B)',
-            borderRadius: isMobile ? 10 : 12, padding: isMobile ? '10px 14px' : '12px 16px', marginBottom: 16, color: 'white',
+            borderRadius: isMobile ? 10 : 12,
+            padding: isMobile ? '10px 14px' : '12px 16px',
+            marginBottom: 16,
+            color: 'white',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 28 }}>{membershipStatus.tier === 'diamond' ? '💎' : '🥇'}</span>
@@ -241,8 +277,12 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
         {/* Membership Registration Banner (for non-members) */}
         {canRegisterMembership && (
           <div style={{
-            background: C.validationWarningBg, borderRadius: isMobile ? 10 : 12, padding: isMobile ? '12px 14px' : '14px 16px', marginBottom: 16,
-            border: `1px solid ${C.validationWarningBorder}`, cursor: 'pointer',
+            background: C.validationWarningBg,
+            borderRadius: isMobile ? 10 : 12,
+            padding: isMobile ? '12px 14px' : '14px 16px',
+            marginBottom: 16,
+            border: `1px solid ${C.validationWarningBorder}`,
+            cursor: 'pointer',
           }} onClick={() => setShowMembershipModal(true)}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 28 }}>🎁</span>
@@ -254,24 +294,38 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
                   Nikmati diskon 20-25% + benefit eksklusif
                 </div>
               </div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.validationWarningText} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.validationWarningText} strokeWidth="2" strokeLinecap="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </div>
           </div>
         )}
 
         {/* Amount Selection */}
-        <div style={{ background: C.white, borderRadius: isMobile ? 12 : 16, padding: isMobile ? '14px 16px' : '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Nominal Top Up</div>
+        <div style={{
+          background: C.white,
+          borderRadius: isMobile ? 12 : 16,
+          padding: isMobile ? '14px 16px' : '16px 20px',
+          marginBottom: 16,
+          boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
+        }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
+            Nominal Top Up
+          </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             {PRESETS.map((p) => (
               <button
                 key={p}
                 onClick={() => setAmount(p)}
                 style={{
-                  padding: isMobile ? '8px 10px' : '8px 14px', borderRadius: 10,
+                  padding: isMobile ? '8px 10px' : '8px 14px',
+                  borderRadius: 10,
                   border: `1.5px solid ${amount === p ? C.primary : C.n300}`,
                   background: amount === p ? C.primaryLight : C.white,
-                  cursor: 'pointer', fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: isMobile ? 11 : 12,
+                  fontWeight: 600,
                   color: amount === p ? C.primary : C.n600,
                 }}
               >
@@ -288,8 +342,16 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
         </div>
 
         {/* Payment Method */}
-        <div style={{ background: C.white, borderRadius: isMobile ? 12 : 16, padding: isMobile ? '14px 16px' : '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(15,23,42,0.06)' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Metode Pembayaran</div>
+        <div style={{
+          background: C.white,
+          borderRadius: isMobile ? 12 : 16,
+          padding: isMobile ? '14px 16px' : '16px 20px',
+          marginBottom: 16,
+          boxShadow: '0 2px 8px rgba(15,23,42,0.06)'
+        }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
+            Metode Pembayaran
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {PAY_METHODS.map((m) => {
               const active = payMethod === m.key;
@@ -298,11 +360,15 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
                   key={m.key}
                   onClick={() => setPayMethod(m.key)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: isMobile ? '10px' : '10px 12px', borderRadius: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: isMobile ? '10px' : '10px 12px',
+                    borderRadius: 10,
                     border: `1.5px solid ${active ? C.primary : C.n200}`,
                     background: active ? `${C.primary}08` : C.white,
-                    cursor: 'pointer', textAlign: 'left',
+                    cursor: 'pointer',
+                    textAlign: 'left',
                     transition: 'all 0.15s',
                   }}
                 >
@@ -343,7 +409,14 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
             </div>
           </div>
         ) : (
-          <Btn variant="primary" fullWidth size="lg" loading={loading} onClick={handleTopUp} disabled={!amount || enteredAmount < 1000}>
+          <Btn
+            variant="primary"
+            fullWidth
+            size="lg"
+            loading={loading}
+            onClick={handleTopUp}
+            disabled={!amount || enteredAmount < 1000}
+          >
             Top Up {amount ? rp(enteredAmount) : ''}
           </Btn>
         )}
@@ -351,17 +424,70 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
 
       {/* Membership Registration Modal */}
       {showMembershipModal && (
-        <Modal visible onClose={() => setShowMembershipModal(false)} title="Daftar WPC Membership">
-          <div style={{ padding: '8px 0 0' }}>
+        <div
+          onClick={() => setShowMembershipModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15,23,42,0.55)',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 400,
+              background: 'white',
+              borderRadius: 18,
+              padding: 22,
+              boxShadow: '0 12px 36px rgba(15,23,42,0.25)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n800 }}>
+                Daftar WPC Membership
+              </div>
+              <button
+                onClick={() => setShowMembershipModal(false)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  border: 'none',
+                  background: C.n100,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 18,
+                  color: C.n600,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
             {/* Info Banner */}
             <div style={{
-              background: C.primaryTint2, borderRadius: isMobile ? 8 : 10, padding: isMobile ? '10px 12px' : '12px 14px', marginBottom: 16,
-              fontFamily: 'Poppins', fontSize: isMobile ? 10 : 11, color: C.primary,
+              background: C.primaryTint2,
+              borderRadius: isMobile ? 8 : 10,
+              padding: isMobile ? '10px 12px' : '12px 14px',
+              marginBottom: 16,
+              fontFamily: 'Poppins',
+              fontSize: isMobile ? 10 : 11,
+              color: C.primary,
             }}>
               Top-up pertama sekaligus jadi deposit membership. Saldo tetap bisa dipakai untuk pembayaran!
               {bonusEnabled && (
                 <div style={{ marginTop: 6, fontWeight: 600 }}>
-                  Bonus aktif! {tier.name}: +{rp(tier.id === 'gold' ? 25000 : 50000)}
+                  Bonus aktif! {tier.name}: +{rp(tier.bonusAmount)}
                 </div>
               )}
             </div>
@@ -371,51 +497,58 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
               <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, fontWeight: 600, color: C.n600, marginBottom: 10 }}>
                 Pilih Tier Membership
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 10 }}>
-                {Object.values(TIERS).map((t) => {
-                  const bonusAmount = t.id === 'gold' ? 25000 : 50000;
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => setSelectedTier(t.id)}
-                      style={{
-                        padding: isMobile ? 12 : 14, borderRadius: 12,
-                        border: `2px solid ${selectedTier === t.id ? t.color : C.n200}`,
-                        background: selectedTier === t.id ? t.bgColor : C.white,
-                        cursor: 'pointer', textAlign: 'center',
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      <div style={{ fontSize: isMobile ? 24 : 28, marginBottom: 4 }}>{t.icon}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                {Object.values(TIERS).map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTier(t.id)}
+                    style={{
+                      padding: isMobile ? 12 : 14,
+                      borderRadius: 12,
+                      border: `2px solid ${selectedTier === t.id ? t.color : C.n200}`,
+                      background: selectedTier === t.id ? t.bgColor : C.white,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{ fontSize: isMobile ? 24 : 28, marginBottom: 4 }}>{t.icon}</div>
+                    <div style={{
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: selectedTier === t.id ? t.color : C.n900,
+                    }}>
+                      {t.name}
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: selectedTier === t.id ? t.color : C.n600 }}>
+                      {t.discount} Diskon
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, marginTop: 2 }}>
+                      {t.duration}
+                    </div>
+                    {bonusEnabled && (
                       <div style={{
-                        fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
-                        color: selectedTier === t.id ? t.color : C.n900,
+                        fontFamily: 'Poppins',
+                        fontSize: 9,
+                        fontWeight: 600,
+                        color: C.success,
+                        marginTop: 4,
                       }}>
-                        {t.name}
+                        +Bonus {rp(t.bonusAmount)}
                       </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: selectedTier === t.id ? t.color : C.n600 }}>
-                        {t.discount} Diskon
-                      </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n600, marginTop: 2 }}>
-                        {t.duration}
-                      </div>
-                      {bonusEnabled && (
-                        <div style={{
-                          fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
-                          color: C.success, marginTop: 4,
-                        }}>
-                          +Bonus {rp(bonusAmount)}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Benefits */}
             <div style={{
-              background: C.n50, borderRadius: 10, padding: '12px 14px', marginBottom: 16,
+              background: C.n50,
+              borderRadius: 10,
+              padding: '12px 14px',
+              marginBottom: 16,
             }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>
                 ✨ Benefit {tier.name}
@@ -433,8 +566,11 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
             {/* Amount Check */}
             <div style={{
               background: enteredAmount >= tier.minTopup ? C.successBg : C.validationErrorBg,
-              borderRadius: 10, padding: '12px 14px', marginBottom: 16,
-              fontFamily: 'Poppins', fontSize: 11,
+              borderRadius: 10,
+              padding: '12px 14px',
+              marginBottom: 16,
+              fontFamily: 'Poppins',
+              fontSize: 11,
               color: enteredAmount >= tier.minTopup ? C.successDark : C.validationErrorText,
             }}>
               {enteredAmount >= tier.minTopup ? (
@@ -460,7 +596,7 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
               </Btn>
             </div>
           </div>
-        </Modal>
+        </div>
       )}
     </div>
   );

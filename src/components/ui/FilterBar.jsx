@@ -136,7 +136,7 @@ const DateRangePicker = ({
           height: compact ? 40 : 44,
           padding: '0 12px',
           background: '#FFFFFF',
-          border: `1.5px solid ${isOpen ? '#6e2e78' : '#E5E7EB'}`,
+          border: `1.5px solid ${isOpen ? '#5B005F' : '#E5E7EB'}`,
           borderRadius: 10,
           fontFamily: 'Poppins, sans-serif',
           fontSize: 13,
@@ -147,7 +147,7 @@ const DateRangePicker = ({
           minWidth: compact ? 140 : 180,
         }}
       >
-        <span style={{ color: '#6e2e78' }}><CalendarIcon /></span>
+        <span style={{ color: '#5B005F' }}><CalendarIcon /></span>
         <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {displayValue}
         </span>
@@ -277,7 +277,7 @@ const DateRangePicker = ({
                   padding: '8px 0',
                   borderRadius: 8,
                   border: 'none',
-                  background: 'linear-gradient(135deg, #8B5CF6, #6e2e78)',
+                  background: 'linear-gradient(135deg, #8B5CF6, #5B005F)',
                   fontFamily: 'Poppins',
                   fontSize: 12,
                   fontWeight: 600,
@@ -341,7 +341,7 @@ const OutletDropdown = ({
           height: compact ? 40 : 44,
           padding: '0 12px',
           background: '#FFFFFF',
-          border: `1.5px solid ${isOpen ? '#6e2e78' : selectedIds.length > 0 ? '#6e2e78' : '#E5E7EB'}`,
+          border: `1.5px solid ${isOpen ? '#5B005F' : selectedIds.length > 0 ? '#5B005F' : '#E5E7EB'}`,
           borderRadius: 10,
           fontFamily: 'Poppins, sans-serif',
           fontSize: 13,
@@ -352,7 +352,7 @@ const OutletDropdown = ({
           minWidth: compact ? 120 : 150,
         }}
       >
-        <span style={{ color: '#6e2e78' }}><OutletIcon /></span>
+        <span style={{ color: '#5B005F' }}><OutletIcon /></span>
         <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {displayValue}
         </span>
@@ -426,7 +426,7 @@ const OutletDropdown = ({
                       gap: 10,
                       padding: '10px 12px',
                       borderRadius: 8,
-                      background: isSelected ? '#6e2e7810' : 'transparent',
+                      background: isSelected ? '#5B005F10' : 'transparent',
                       cursor: 'pointer',
                     }}
                   >
@@ -435,8 +435,8 @@ const OutletDropdown = ({
                         width: 18,
                         height: 18,
                         borderRadius: 4,
-                        border: `2px solid ${isSelected ? '#6e2e78' : '#D1D5DB'}`,
-                        background: isSelected ? '#6e2e78' : 'transparent',
+                        border: `2px solid ${isSelected ? '#5B005F' : '#D1D5DB'}`,
+                        background: isSelected ? '#5B005F' : 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -453,7 +453,7 @@ const OutletDropdown = ({
                         fontFamily: 'Poppins',
                         fontSize: 13,
                         fontWeight: isSelected ? 600 : 400,
-                        color: isSelected ? '#6e2e78' : '#111827',
+                        color: isSelected ? '#5B005F' : '#111827',
                       }}
                     >
                       {outlet.name}
@@ -594,7 +594,7 @@ const StatusDropdown = ({
           height: compact ? 40 : 44,
           padding: '0 12px',
           background: '#FFFFFF',
-          border: `1.5px solid ${isOpen || selected !== 'all' ? '#6e2e78' : '#E5E7EB'}`,
+          border: `1.5px solid ${isOpen || selected !== 'all' ? '#5B005F' : '#E5E7EB'}`,
           borderRadius: 10,
           fontFamily: 'Poppins, sans-serif',
           fontSize: 13,
@@ -604,7 +604,7 @@ const StatusDropdown = ({
           whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ color: '#6e2e78' }}><FilterIcon /></span>
+        <span style={{ color: '#5B005F' }}><FilterIcon /></span>
         <span style={{ flex: 1, textAlign: 'left' }}>{displayValue}</span>
         <span style={{ color: '#9CA3AF' }}><ChevronDownIcon /></span>
       </motion.button>
@@ -654,7 +654,7 @@ const StatusDropdown = ({
                       gap: 10,
                       padding: '10px 12px',
                       borderRadius: 8,
-                      background: isSelected ? '#6e2e7810' : 'transparent',
+                      background: isSelected ? '#5B005F10' : 'transparent',
                       cursor: 'pointer',
                     }}
                   >
@@ -673,7 +673,7 @@ const StatusDropdown = ({
                         fontFamily: 'Poppins',
                         fontSize: 13,
                         fontWeight: isSelected ? 600 : 400,
-                        color: isSelected ? '#6e2e78' : '#111827',
+                        color: isSelected ? '#5B005F' : '#111827',
                       }}
                     >
                       {option.label}
@@ -711,7 +711,7 @@ const ExportButton = ({
           gap: 6,
           height: compact ? 40 : 44,
           padding: '0 14px',
-          background: 'linear-gradient(135deg, #8B5CF6, #6e2e78)',
+          background: 'linear-gradient(135deg, #8B5CF6, #5B005F)',
           border: 'none',
           borderRadius: 10,
           fontFamily: 'Poppins, sans-serif',

@@ -63,7 +63,7 @@ const ChartCard = ({
   children,
 
   // Styling
-  color = '#6e2e78',
+  color = '#5B005F',
   compact = false,
 
   // Glassmorphism effect
