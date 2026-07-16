@@ -84,20 +84,28 @@ export const getMe = async (req, res) => {
 // ─── Controller: PATCH /api/users/me/profile ──────────────────────────────────
 export const updateMyProfile = async (req, res) => {
   try {
-    const { name, phone, email, photo } = req.body;
+    const { name, phone, email, photo, gender } = req.body;
     const { userId } = req.user;
+
+    // Validate gender if provided
+    const validGenders = ['male', 'female', 'other', null];
+    if (gender !== undefined && !validGenders.includes(gender)) {
+      return res.status(400).json({ success: false, message: 'Jenis kelamin tidak valid.' });
+    }
 
     if (!name?.trim()) {
       return res.status(400).json({ success: false, message: 'Nama tidak boleh kosong.' });
     }
 
     try {
+      // Try update with gender column
       await poolWaschenPos.execute(
-        `UPDATE mst_user SET name = ?, phone = ?, email = ?, photo = ?, updated_at = NOW() WHERE id = ?`,
-        [name.trim(), phone?.trim() || null, email?.trim() || null, photo || null, userId]
+        `UPDATE mst_user SET name = ?, phone = ?, email = ?, photo = ?, gender = ?, updated_at = NOW() WHERE id = ?`,
+        [name.trim(), phone?.trim() || null, email?.trim() || null, photo || null, gender || null, userId]
       );
     } catch (colErr) {
       if (colErr.code === 'ER_BAD_FIELD_ERROR') {
+        // Fallback: gender column not yet migrated
         await poolWaschenPos.execute(
           `UPDATE mst_user SET name = ?, phone = ?, email = ?, updated_at = NOW() WHERE id = ?`,
           [name.trim(), phone?.trim() || null, email?.trim() || null, userId]
@@ -112,7 +120,7 @@ export const updateMyProfile = async (req, res) => {
     return res.json({
       success: true,
       message: 'Profil berhasil diperbarui.',
-      data: { name: name.trim(), phone: phone?.trim() || null, email: email?.trim() || null, photo: photo || null },
+      data: { name: name.trim(), phone: phone?.trim() || null, email: email?.trim() || null, photo: photo || null, gender: gender || null },
     });
   } catch (err) {
     logger.error('Gagal memperbarui profil', { error: err.message });

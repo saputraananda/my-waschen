@@ -272,7 +272,7 @@ export const AuthProvider = ({ children }) => {
     navigate('dashboard', null, { replace: true });
   }, [navigate]);
 
-  const updateUserProfile = useCallback(({ name, phone, email, photo }) => {
+  const updateUserProfile = useCallback(({ name, phone, email, photo, gender }) => {
     setUser((prev) => {
       const updatedUser = {
         ...prev,
@@ -280,6 +280,7 @@ export const AuthProvider = ({ children }) => {
         phone: phone ?? prev?.phone,
         email: email ?? prev?.email,
         photo: photo !== undefined ? photo : prev?.photo,
+        gender: gender !== undefined ? gender : prev?.gender,
         avatar: name ? name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() : prev?.avatar,
       };
       try { localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser)); } catch { }

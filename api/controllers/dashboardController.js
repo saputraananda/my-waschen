@@ -39,26 +39,41 @@ export const getDashboardStats = async (req, res) => {
     const outletFilter = isAllOutlets ? '' : 'AND outlet_id = ?';
     const params = isAllOutlets ? [] : [effectiveOutlet];
 
+    const DONE_STATUSES = "('completed', 'ready_for_pickup', 'ready_for_delivery')";
+
     // Single query — semua bucket dalam 1 round-trip
     const [statsRows] = await poolWaschenPos.execute(
       `SELECT
-        -- All-time totals (status not cancelled)
+        -- All-time totals (status not cancelled = PROYEK)
         COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN total ELSE 0 END), 0)        AS total_omset,
+        COALESCE(SUM(CASE WHEN status IN ${DONE_STATUSES} THEN total ELSE 0 END), 0)    AS total_omset_real,
         SUM(CASE WHEN status <> 'cancelled' THEN 1 ELSE 0 END)                          AS total_transaksi,
         COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN paid_amount ELSE 0 END), 0)  AS total_pelunasan,
 
-        -- Today
+        -- Today PROYEK (all non-cancelled)
         COALESCE(SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = CURDATE() THEN total ELSE 0 END), 0)        AS omset_today,
         SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = CURDATE() THEN 1 ELSE 0 END)                          AS transaksi_today,
         COALESCE(SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = CURDATE() THEN paid_amount ELSE 0 END), 0)  AS pelunasan_today,
 
-        -- This month
+        -- Today REAL (completed only = cash received)
+        COALESCE(SUM(CASE WHEN status IN ${DONE_STATUSES} AND DATE(created_at) = CURDATE() THEN total ELSE 0 END), 0)  AS omset_today_real,
+        SUM(CASE WHEN status IN ${DONE_STATUSES} AND DATE(created_at) = CURDATE() THEN 1 ELSE 0 END)                          AS transaksi_today_real,
+
+        -- Yesterday PROYEK (for trend calculation)
+        COALESCE(SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) THEN total ELSE 0 END), 0)        AS omset_yesterday,
+        SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) THEN 1 ELSE 0 END)                          AS transaksi_yesterday,
+
+        -- This month PROYEK
         COALESCE(SUM(CASE WHEN status <> 'cancelled' AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN total ELSE 0 END), 0)        AS omset_month,
         SUM(CASE WHEN status <> 'cancelled' AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN 1 ELSE 0 END)                          AS transaksi_month,
         COALESCE(SUM(CASE WHEN status <> 'cancelled' AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN paid_amount ELSE 0 END), 0)  AS pelunasan_month,
 
-        -- Pending workload (active queue)
-        SUM(CASE WHEN status IN ('pending', 'process', 'ready_for_pickup', 'ready_for_delivery') THEN 1 ELSE 0 END) AS pending_transactions
+        -- This month REAL (completed only = cash received)
+        COALESCE(SUM(CASE WHEN status IN ${DONE_STATUSES} AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN total ELSE 0 END), 0)  AS omset_month_real,
+        SUM(CASE WHEN status IN ${DONE_STATUSES} AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN 1 ELSE 0 END)                          AS transaksi_month_real,
+
+        -- Pending workload (active queue = not done yet)
+        SUM(CASE WHEN status NOT IN ${DONE_STATUSES} AND status <> 'cancelled' THEN 1 ELSE 0 END) AS pending_transactions
        FROM tr_transaction
        WHERE deleted_at IS NULL ${outletFilter}`,
       params
@@ -103,19 +118,43 @@ export const getDashboardStats = async (req, res) => {
       // Non-financial: semua role dapat operational stats
       total_transaksi: Number(r.total_transaksi ?? 0),
       transaksi_today: Number(r.transaksi_today ?? 0),
+      transaksi_today_real: Number(r.transaksi_today_real ?? 0),
+      transaksi_yesterday: Number(r.transaksi_yesterday ?? 0),
       transaksi_month: Number(r.transaksi_month ?? 0),
+      transaksi_month_real: Number(r.transaksi_month_real ?? 0),
       pending_transactions: Number(r.pending_transactions ?? 0),
       total_customers: Number(customerRow?.total_customers ?? 0),
     };
     // Financial fields: frontline & admin ONLY — produksi gets empty financial data
     if (!isProduksi) {
+      // PROYEK = all non-cancelled (order value)
       safeData.total_omset = Number(r.total_omset ?? 0);
-      safeData.total_pelunasan = Number(r.total_pelunasan ?? 0);
       safeData.omset_today = Number(r.omset_today ?? 0);
-      safeData.pelunasan_today = Number(r.pelunasan_today ?? 0);
+      safeData.omset_yesterday = Number(r.omset_yesterday ?? 0);
       safeData.omset_month = Number(r.omset_month ?? 0);
+      // REAL = only completed/ready (cash received)
+      safeData.total_omset_real = Number(r.total_omset_real ?? 0);
+      safeData.omset_today_real = Number(r.omset_today_real ?? 0);
+      safeData.omset_month_real = Number(r.omset_month_real ?? 0);
+      // Pelunasan
+      safeData.total_pelunasan = Number(r.total_pelunasan ?? 0);
+      safeData.pelunasan_today = Number(r.pelunasan_today ?? 0);
       safeData.pelunasan_month = Number(r.pelunasan_month ?? 0);
       safeData.outlet_comparison = outletComparison;
+
+      // Calculate trend vs yesterday
+      const omsetYesterday = Number(r.omset_yesterday ?? 0);
+      const omsetToday = Number(r.omset_today ?? 0);
+      const transaksiYesterday = Number(r.transaksi_yesterday ?? 0);
+      const transaksiToday = Number(r.transaksi_today ?? 0);
+
+      // Trend percentage: (today - yesterday) / yesterday * 100
+      safeData.trend_omset = omsetYesterday > 0
+        ? Math.round(((omsetToday - omsetYesterday) / omsetYesterday) * 100)
+        : (omsetToday > 0 ? 100 : 0);
+      safeData.trend_transaksi = transaksiYesterday > 0
+        ? Math.round(((transaksiToday - transaksiYesterday) / transaksiYesterday) * 100)
+        : (transaksiToday > 0 ? 100 : 0);
     }
     return res.status(200).json({ success: true, data: safeData });
   } catch (err) {

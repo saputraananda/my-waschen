@@ -397,32 +397,42 @@ export const getTodaySummary = async (req, res) => {
     const daysInMonth = new Date(year, month, 0).getDate();
     const dailyTarget = Math.round(monthlyTarget / daysInMonth);
 
-    // 2. Actual hari ini
+    // 2. Actual hari ini - DUA METRIK
+    // REAL = only completed/ready statuses (cash received)
+    // PROYEK = all non-cancelled (order value, including pending/in-progress)
     const [todayRows] = await poolWaschenPos.execute(
-      `SELECT COALESCE(SUM(total), 0) AS actual,
-              COUNT(*) AS txCount
-         FROM tr_transaction
-        WHERE outlet_id = ?
-          AND status IN ${DONE_STATUSES}
-          AND deleted_at IS NULL
-          AND DATE(created_at) = CURDATE()`,
+      `SELECT
+         COALESCE(SUM(CASE WHEN status IN ${DONE_STATUSES} THEN total ELSE 0 END), 0) AS actual,
+         COALESCE(SUM(CASE WHEN status <> 'cancelled' AND status NOT IN ${DONE_STATUSES} THEN total ELSE 0 END), 0) AS proyek_pending,
+         COUNT(CASE WHEN status IN ${DONE_STATUSES} THEN 1 END) AS doneCount,
+         COUNT(CASE WHEN status <> 'cancelled' THEN 1 END) AS allCount
+       FROM tr_transaction
+       WHERE outlet_id = ?
+         AND deleted_at IS NULL
+         AND DATE(created_at) = CURDATE()`,
       [userOutletId]
     );
     const todayActual = Number(todayRows[0]?.actual || 0);
-    const todayTxCount = Number(todayRows[0]?.txCount || 0);
+    const todayProyekPending = Number(todayRows[0]?.proyek_pending || 0);
+    const todayProyek = todayActual + todayProyekPending;
+    const todayTxCount = Number(todayRows[0]?.doneCount || 0);
+    const todayAllTxCount = Number(todayRows[0]?.allCount || 0);
 
-    // 3. Actual bulan ini sampai hari ini (akumulasi)
+    // 3. Actual bulan ini - DUA METRIK
     const [monthRows] = await poolWaschenPos.execute(
-      `SELECT COALESCE(SUM(total), 0) AS actual
-         FROM tr_transaction
-        WHERE outlet_id = ?
-          AND status IN ${DONE_STATUSES}
-          AND deleted_at IS NULL
-          AND YEAR(created_at) = ?
-          AND MONTH(created_at) = ?`,
+      `SELECT
+         COALESCE(SUM(CASE WHEN status IN ${DONE_STATUSES} THEN total ELSE 0 END), 0) AS actual,
+         COALESCE(SUM(CASE WHEN status <> 'cancelled' AND status NOT IN ${DONE_STATUSES} THEN total ELSE 0 END), 0) AS proyek_pending
+       FROM tr_transaction
+       WHERE outlet_id = ?
+         AND deleted_at IS NULL
+         AND YEAR(created_at) = ?
+         AND MONTH(created_at) = ?`,
       [userOutletId, year, month]
     );
     const monthActual = Number(monthRows[0]?.actual || 0);
+    const monthProyekPending = Number(monthRows[0]?.proyek_pending || 0);
+    const monthProyek = monthActual + monthProyekPending;
 
     // 4. Target kumulatif sampai hari ini (berapa seharusnya sudah masuk)
     const cumulativeTargetToToday = dailyTarget * day;
@@ -457,24 +467,36 @@ export const getTodaySummary = async (req, res) => {
         monthName: MONTH_NAMES[month],
         // Hari ini
         dailyTarget,
-        todayActual,
-        todayTxCount,
-        todayDiff,
-        todayPct,
+        todayActual,           // REAL: cash received (completed)
+        todayProyek,           // PROYEK: all orders (including pending)
+        todayProyekPending,    // PROYEK pending: still in progress
+        todayTxCount,          // Done transactions count
+        todayAllTxCount,       // All transactions count
+        todayDiff: todayActual - dailyTarget,
+        todayPct: todayPct,
+        todayProyekPct: dailyTarget > 0 ? Math.round((todayProyek / dailyTarget) * 100) : 0,
         // Bulanan
         monthlyTarget,
-        monthActual,
+        monthActual,           // REAL: cash received
+        monthProyek,           // PROYEK: all orders
+        monthProyekPending,    // PROYEK pending
         monthPct: Math.round((monthActual / monthlyTarget) * 100),
+        monthProyekPct: Math.round((monthProyek / monthlyTarget) * 100),
+        // Cumulative tracking
         cumulativeTargetToToday,
         cumulativeGap,
         isOnTrack: cumulativeGap >= 0,
         // Sisa
         remaining: Math.max(0, monthlyTarget - monthActual),
+        remainingProyek: Math.max(0, monthlyTarget - monthProyek),
         daysLeftInMonth: daysInMonth - day + 1,
         requiredDailyForRest: Math.round(Math.max(0, monthlyTarget - monthActual) / Math.max(1, daysInMonth - day)),
         // Motivational
         mood,
         message,
+        messageProyek: todayProyek >= dailyTarget
+          ? `📈 Proyek: ${formatRp(todayProyek)} (+${formatRp(todayProyekPending)} pending)`
+          : `📊 Proyek: ${formatRp(todayProyek)} dari ${formatRp(dailyTarget)} target`,
       },
     });
   } catch (err) {

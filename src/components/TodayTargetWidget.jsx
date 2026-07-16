@@ -1,29 +1,57 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// TodayTargetWidget — capaian harian kasir (dashboard widget)
-// Redesigned: Premium claymorphism with 3D assets
+// TodayTargetWidget — Real-time target tracking widget for kasir dashboard
+//
+// Shows TWO metrics:
+//   PROYEK = All orders (order_masuk) — opportunity tracking
+//   REAL   = Only completed/ready — actual cash received
+//
+// Data Source: /api/targets/today-summary
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { C } from '../utils/theme';
-import { rp } from '../utils/helpers';
 
-// Mood themes — Purple brand gradient with claymorphism
-const MOOD_THEME = {
-  great:   { gradient: `linear-gradient(145deg, ${C.primary}, ${C.primaryDark})`, icon: '🎉', label: 'Luar biasa!', accent: '#c084fc' },
-  good:    { gradient: `linear-gradient(145deg, ${C.primary}, #5B21B6)`, icon: '💪', label: 'On track!', accent: '#a78bfa' },
-  warning: { gradient: `linear-gradient(145deg, #92400E, #B45309)`, icon: '⚠️', label: 'Hampir sampai', accent: '#fbbf24' },
-  low:     { gradient: `linear-gradient(145deg, ${C.dangerDark}, ${C.danger})`, icon: '📉', label: 'Perlu effort', accent: '#f87171' },
-  zero:    { gradient: `linear-gradient(145deg, ${C.primary}, ${C.primaryDark})`, icon: '🔥', label: 'Mulai sekarang!', accent: '#E85D00' },
+const rp = (n) => {
+  if (n == null) return 'Rp 0';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(n);
 };
 
-// Target badge styles
+const fmtK = (n) => {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}Jt`;
+  if (n >= 1000) return `${(n / 1000).toFixed(0)}Rb`;
+  return n.toString();
+};
+
+// Mood based on PROYEK achievement (more realistic for laundry)
+const getMood = (todayProyek, dailyTarget, todayActual) => {
+  if (todayProyek >= dailyTarget) return 'great';
+  const pct = dailyTarget > 0 ? (todayProyek / dailyTarget) * 100 : 0;
+  if (pct >= 80) return 'good';
+  if (pct >= 50) return 'warning';
+  if (todayActual > 0) return 'low';
+  return 'zero';
+};
+
+const MOOD_THEME = {
+  great: { gradient: `linear-gradient(145deg, #059669, #047857)`, icon: '🎉', label: 'Luar biasa!', accent: '#34d399' },
+  good:  { gradient: `linear-gradient(145deg, #5B005F, #4D0051)`, icon: '💪', label: 'On track!', accent: '#a78bfa' },
+  warning: { gradient: `linear-gradient(145deg, #92400E, #B45309)`, icon: '⚠️', label: 'Hampir sampai', accent: '#fbbf24' },
+  low:   { gradient: `linear-gradient(145deg, #DC2626, #B91C1C)`, icon: '📉', label: 'Perlu effort', accent: '#f87171' },
+  zero:  { gradient: `linear-gradient(145deg, #5B005F, #4D0051)`, icon: '🔥', label: 'Mulai sekarang!', accent: '#E85D00' },
+};
+
 const TARGET_BADGE = {
-  great:   { bg: '#c084fc', color: '#1a1a1a' },
-  good:    { bg: '#a78bfa', color: '#1a1a1a' },
+  great:   { bg: '#34d399', color: '#fff' },
+  good:    { bg: '#a78bfa', color: '#fff' },
   warning: { bg: '#fbbf24', color: '#1a1a1a' },
-  low:     { bg: '#f87171', color: '#1a1a1a' },
-  zero:    { bg: '#E85D00', color: 'white' },
+  low:     { bg: '#f87171', color: '#fff' },
+  zero:    { bg: '#E85D00', color: '#fff' },
 };
 
 export default function TodayTargetWidget({ onClick }) {
@@ -45,7 +73,7 @@ export default function TodayTargetWidget({ onClick }) {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         style={{
-          height: 140,
+          height: 160,
           background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
           borderRadius: 24,
           marginBottom: 12,
@@ -55,7 +83,7 @@ export default function TodayTargetWidget({ onClick }) {
     );
   }
 
-  // Empty state — card elevated dengan shadow dan claymorphism
+  // Empty state — no target set
   if (!data) {
     return (
       <motion.div
@@ -76,34 +104,27 @@ export default function TodayTargetWidget({ onClick }) {
           border: '1px solid rgba(124, 58, 237, 0.1)',
         }}
       >
-        {/* Claymorphism icon container */}
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.15, type: 'spring', stiffness: 300 }}
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
-            background: 'linear-gradient(145deg, #F3E8FF, #EDE7F6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '4px 4px 10px rgba(60, 10, 99, 0.1), -2px -2px 8px rgba(255, 255, 255, 0.9)',
-            fontSize: 28,
-          }}
-        >
+        <div style={{
+          width: 56,
+          height: 56,
+          borderRadius: 16,
+          background: 'linear-gradient(145deg, #F3E8FF, #EDE7F6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '4px 4px 10px rgba(60, 10, 99, 0.1), -2px -2px 8px rgba(255, 255, 255, 0.9)',
+          fontSize: 28,
+        }}>
           🎯
-        </motion.div>
+        </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>
-            Belum ada target bulan ini
+            Target belum di-set
           </div>
           <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, marginTop: 4 }}>
             Hubungi admin untuk set target outlet
           </div>
         </div>
-        {/* Arrow indicator */}
         <div style={{
           width: 32,
           height: 32,
@@ -112,7 +133,6 @@ export default function TodayTargetWidget({ onClick }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '2px 2px 6px rgba(60, 10, 99, 0.08), -1px -1px 4px rgba(255, 255, 255, 0.9)',
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round">
             <polyline points="9 18 15 12 9 6" />
@@ -122,10 +142,27 @@ export default function TodayTargetWidget({ onClick }) {
     );
   }
 
-  const mood = data.mood || 'zero';
+  const {
+    dailyTarget = 0,
+    todayActual = 0,       // REAL: cash received
+    todayProyek = 0,       // PROYEK: all orders
+    todayProyekPending = 0,
+    todayTxCount = 0,
+    todayAllTxCount = 0,
+    monthlyTarget = 0,
+    monthActual = 0,        // REAL: cash received
+    monthProyek = 0,        // PROYEK: all orders
+    monthProyekPending = 0,
+    monthPct = 0,
+    monthProyekPct = 0,
+  } = data;
+
+  const mood = getMood(todayProyek, dailyTarget, todayActual);
   const theme = MOOD_THEME[mood] || MOOD_THEME.zero;
   const badge = TARGET_BADGE[mood] || TARGET_BADGE.zero;
-  const todayPctClamped = Math.min(100, Math.max(0, data.todayPct));
+
+  // Progress based on PROYEK (more realistic)
+  const proyekPct = dailyTarget > 0 ? Math.min(100, Math.round((todayProyek / dailyTarget) * 100)) : 0;
 
   return (
     <motion.div
@@ -145,7 +182,7 @@ export default function TodayTargetWidget({ onClick }) {
         boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.25), -4px -4px 12px rgba(255, 255, 255, 0.15)',
       }}
     >
-      {/* Decorative circles - claymorphism effect */}
+      {/* Decorative circles */}
       <div style={{
         position: 'absolute',
         top: -30,
@@ -166,20 +203,9 @@ export default function TodayTargetWidget({ onClick }) {
         background: 'rgba(255,255,255,0.06)',
         filter: 'blur(15px)',
       }} />
-      {/* Orange accent */}
-      <div style={{
-        position: 'absolute',
-        top: 20,
-        right: 80,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        background: 'rgba(232, 93, 0, 0.2)',
-        filter: 'blur(10px)',
-      }} />
 
       <div style={{ position: 'relative' }}>
-        {/* Header row */}
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
             <div style={{
@@ -193,15 +219,15 @@ export default function TodayTargetWidget({ onClick }) {
             }}>
               🎯 Target Hari Ini
             </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 24, fontWeight: 700, marginTop: 4, letterSpacing: '-0.5px' }}>
-              {rp(data.todayActual)}
-              <span style={{ fontSize: 13, opacity: 0.75, fontWeight: 400, marginLeft: 8 }}>
-                / {rp(data.dailyTarget)}
+            <div style={{ fontFamily: 'Poppins', fontSize: 22, fontWeight: 700, marginTop: 4 }}>
+              {rp(todayProyek)}
+              <span style={{ fontSize: 12, opacity: 0.75, fontWeight: 400, marginLeft: 8 }}>
+                / {rp(dailyTarget)}
               </span>
             </div>
           </div>
 
-          {/* Claymorphism badge — Framer Motion */}
+          {/* Mood Badge */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -209,39 +235,36 @@ export default function TodayTargetWidget({ onClick }) {
             style={{
               background: badge.bg,
               color: badge.color,
-              padding: '8px 16px',
-              borderRadius: 16,
+              padding: '8px 14px',
+              borderRadius: 14,
               fontFamily: 'Poppins',
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              boxShadow: `4px 4px 10px rgba(0,0,0,0.15), -2px -2px 6px rgba(255,255,255,0.1)`,
             }}
           >
-            <span style={{ fontSize: 16 }}>{theme.icon}</span>
-            {data.todayPct}%
+            <span style={{ fontSize: 15 }}>{theme.icon}</span>
+            {proyekPct}%
           </motion.div>
         </div>
 
-        {/* Progress bar - Framer Motion */}
+        {/* Progress bar */}
         <div style={{
           background: 'rgba(255,255,255,0.15)',
           height: 10,
           borderRadius: 5,
           overflow: 'hidden',
-          boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1)',
         }}>
           <motion.div
             initial={{ width: 0 }}
-            animate={{ width: `${todayPctClamped}%` }}
+            animate={{ width: `${proyekPct}%` }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
             style={{
               background: `linear-gradient(90deg, ${theme.accent}, #E85D00)`,
               height: '100%',
               borderRadius: 5,
-              boxShadow: `0 0 12px ${theme.accent}60`,
             }}
           />
         </div>
@@ -249,55 +272,115 @@ export default function TodayTargetWidget({ onClick }) {
         {/* Motivational message */}
         <div style={{
           fontFamily: 'Poppins',
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 600,
-          marginTop: 14,
-          opacity: 0.95,
+          marginTop: 10,
+          opacity: 0.9,
           color: theme.accent,
         }}>
-          {theme.icon} {data.message || theme.label}
+          {theme.icon} {data.messageProyek || theme.label}
         </div>
 
-        {/* Footer stats - claymorphism cards */}
+        {/* Stats Row */}
         <div style={{
-          marginTop: 16,
-          paddingTop: 14,
+          marginTop: 14,
+          paddingTop: 12,
           borderTop: '1px solid rgba(255,255,255,0.15)',
-          display: 'flex',
-          gap: 12,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 8,
+        }}>
+          {/* Proyek (Order Masuk) */}
+          <div style={{
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: 10,
+            padding: '8px 10px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700 }}>
+              {rp(todayProyek)}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8, marginTop: 2 }}>
+              📥 Proyek
+            </div>
+          </div>
+
+          {/* Real (Cash Received) */}
+          <div style={{
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: 10,
+            padding: '8px 10px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700 }}>
+              {rp(todayActual)}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8, marginTop: 2 }}>
+              💰 Real
+            </div>
+          </div>
+
+          {/* Pending */}
+          <div style={{
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: 10,
+            padding: '8px 10px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700 }}>
+              {rp(todayProyekPending)}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8, marginTop: 2 }}>
+              ⏳ Pending
+            </div>
+          </div>
+        </div>
+
+        {/* Monthly Stats Row */}
+        <div style={{
+          marginTop: 8,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 8,
         }}>
           <div style={{
-            flex: 1,
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: 12,
-            padding: '10px 12px',
+            background: 'rgba(255,255,255,0.08)',
+            borderRadius: 10,
+            padding: '8px 10px',
             textAlign: 'center',
-            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1)',
           }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700 }}>{data.monthPct}%</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8, marginTop: 2 }}>Bulan Ini</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700 }}>
+              {monthProyekPct}%
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginTop: 2 }}>
+              Proyek Bulanan
+            </div>
           </div>
           <div style={{
-            flex: 1,
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: 12,
-            padding: '10px 12px',
+            background: 'rgba(255,255,255,0.08)',
+            borderRadius: 10,
+            padding: '8px 10px',
             textAlign: 'center',
-            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1)',
           }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700 }}>{rp(data.monthActual)}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8, marginTop: 2 }}>Total Bulan</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700 }}>
+              {rp(monthProyek)}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginTop: 2 }}>
+              Total Bulan
+            </div>
           </div>
           <div style={{
-            flex: 1,
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: 12,
-            padding: '10px 12px',
+            background: 'rgba(255,255,255,0.08)',
+            borderRadius: 10,
+            padding: '8px 10px',
             textAlign: 'center',
-            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.1)',
           }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700 }}>{data.todayTxCount}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.8, marginTop: 2 }}>Transaksi</div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700 }}>
+              {todayAllTxCount}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 9, opacity: 0.7, marginTop: 2 }}>
+              Transaksi
+            </div>
           </div>
         </div>
       </div>

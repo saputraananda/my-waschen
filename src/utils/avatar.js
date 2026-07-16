@@ -3,17 +3,17 @@
 // Phase 8: Technical Debt & Optimization
 //
 // Rules:
-// - Customer: Laki-laki → customer-male-1.webp, Perempuan → customer-girl.webp
+// - Customer: Laki-laki → customer-male-2.webp, Perempuan → customer-girl.webp
 // - Staff/Frontliner/Produksi: Laki-laki → staff-boy.webp, Perempuan → staff-girl.webp
-// - Admin: admin-laptop.webp (fixed)
+// - Admin: admin3.webp (fixed)
 // - Delivery: staff-boy-thumbs-up.webp (fixed)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import staffGirl from '../assets/Avatar set/staff-girl.webp';
 import staffBoy from '../assets/Avatar set/staff-boy.webp';
 import customerGirl from '../assets/Avatar set/customer-girl.webp';
-import customerMale from '../assets/Avatar set/customer-male-1.webp';
-import adminLaptop from '../assets/Avatar set/admin-laptop.webp';
+import customerMale from '../assets/Avatar set/customer-male-2.webp';
+import adminLaptop from '../assets/Avatar set/admin3.webp';
 import staffBoyThumbsUp from '../assets/Avatar set/staff-boy-thumbs-up.webp';
 
 /**
@@ -97,9 +97,9 @@ export const AVATAR_CONFIG = {
     default: staffGirl,
   },
   admin: {
-    male: adminLaptop,
-    female: adminLaptop,
-    default: adminLaptop,
+    male: admin3,
+    female: admin3,
+    default: admin3,
   },
   delivery: {
     male: staffBoyThumbsUp,
@@ -129,6 +129,6 @@ export const AVATARS = {
   staffBoy,
   customerGirl,
   customerMale,
-  adminLaptop,
+  admin3: adminLaptop,
   staffBoyThumbsUp,
 };

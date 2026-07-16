@@ -153,18 +153,25 @@ function ModalBackdrop({ children, onClose }) {
 // ═════════════════════════════════════════════════════════════════════════════════
 // Edit Profile Modal
 // ═════════════════════════════════════════════════════════════════════════════════
-function EditProfileModal({ name, phone, email, saving, onSave, onClose }) {
+function EditProfileModal({ name, phone, email, gender, saving, onSave, onClose }) {
   const [localName, setLocalName] = useState(name);
   const [localPhone, setLocalPhone] = useState(phone);
   const [localEmail, setLocalEmail] = useState(email);
+  const [localGender, setLocalGender] = useState(gender || '');
 
   const handleSave = () => {
     if (!localName.trim()) {
       alertWarning('Nama tidak boleh kosong');
       return;
     }
-    onSave(localName, localPhone, localEmail);
+    onSave(localName, localPhone, localEmail, localGender || null);
   };
+
+  const genderOptions = [
+    { value: 'male', label: '👨 Laki-laki' },
+    { value: 'female', label: '👩 Perempuan' },
+    { value: 'other', label: '⚧️ Lainnya' },
+  ];
 
   return (
     <ModalBackdrop onClose={onClose}>
@@ -290,6 +297,56 @@ function EditProfileModal({ name, phone, email, saving, onSave, onClose }) {
                 boxSizing: 'border-box',
               }}
             />
+          </div>
+
+          {/* Jenis Kelamin */}
+          <div>
+            <label style={{
+              display: 'block',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#475569',
+              marginBottom: 8,
+            }}>
+              Jenis Kelamin
+            </label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {genderOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setLocalGender(opt.value)}
+                  style={{
+                    flex: 1,
+                    height: 44,
+                    borderRadius: 10,
+                    border: `2px solid ${localGender === opt.value ? '#5B005F' : '#E2E8F0'}`,
+                    background: localGender === opt.value ? '#F4EDF4' : '#fff',
+                    fontFamily: "'Poppins', sans-serif",
+                    fontSize: 12,
+                    fontWeight: localGender === opt.value ? 700 : 500,
+                    color: localGender === opt.value ? '#5B005F' : '#64748B',
+                    cursor: 'pointer',
+                    transition: 'all .15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 11,
+              color: '#94A3B8',
+              marginTop: 6,
+            }}>
+              Untuk menampilkan avatar yang sesuai
+            </div>
           </div>
         </div>
 
@@ -1191,6 +1248,7 @@ export default function ProfilePage({ navigate, goBack }) {
   const [phone, setPhone] = useState(user?.phone || '');
   const [email, setEmail] = useState(user?.email || '');
   const [photo, setPhoto] = useState(user?.photo || null);
+  const [gender, setGender] = useState(user?.gender || '');
 
   const [saving, setSaving]   = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
@@ -1240,20 +1298,28 @@ export default function ProfilePage({ navigate, goBack }) {
   const initials = (name || user?.name || 'US')
     .split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
-  const handleSaveProfile = async (newName, newPhone, newEmail) => {
+  const handleSaveProfile = async (newName, newPhone, newEmail, newGender) => {
     if (!newName.trim()) { alertWarning('Nama tidak boleh kosong'); return; }
     setSaving(true);
     try {
-      await axios.patch('/api/users/me/profile', {
+      const res = await axios.patch('/api/users/me/profile', {
         name: newName.trim(),
         phone: newPhone.trim() || null,
         email: newEmail.trim() || null,
         photo,
+        gender: newGender,
       });
       setName(newName.trim());
       setPhone(newPhone.trim() || null);
       setEmail(newEmail.trim() || null);
-      updateUserProfile({ name: newName.trim(), phone: newPhone.trim() || null, email: newEmail.trim() || null, photo });
+      const updatedData = {
+        name: newName.trim(),
+        phone: newPhone.trim() || null,
+        email: newEmail.trim() || null,
+        photo,
+        gender: newGender,
+      };
+      updateUserProfile(updatedData);
       alertSuccess('Profil berhasil disimpan');
       setShowEditModal(false);
     } catch (err) {
@@ -1392,6 +1458,7 @@ export default function ProfilePage({ navigate, goBack }) {
             name={name}
             phone={phone}
             email={email}
+            gender={gender}
             saving={saving}
             onSave={handleSaveProfile}
             onClose={() => setShowEditModal(false)}

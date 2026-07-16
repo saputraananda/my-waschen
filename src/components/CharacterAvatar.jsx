@@ -21,11 +21,9 @@ import avatarVariant5 from '../assets/karakter Perempuan/half-body-say-hi.webp'
 import avatarWaving2 from '../assets/karakter Perempuan/full-say-hi.webp'
 
 // Avatar set imports (only files that exist)
-import avatarSet1 from '../assets/Avatar set/admin.webp'
 import avatarSet4 from '../assets/Avatar set/admin3.webp'
 import avatarSet7 from '../assets/Avatar set/customer-girl.webp'
-import avatarSet10 from '../assets/Avatar set/customer-male-1.webp'
-import avatarSet13 from '../assets/Avatar set/driver.webp'
+import avatarSet8 from '../assets/Avatar set/customer-male-2.webp'
 
 // Process icons
 import iconReception from '../assets/Icon and Asset Laundry/2.webp'
@@ -62,11 +60,9 @@ const AVATAR_PATHS = {
   variant4: avatarVariant4,
   variant5: avatarVariant5,
   waving2: avatarWaving2,
-  avatar1: avatarSet1,
   avatar4: avatarSet4,
   avatar7: avatarSet7,
-  avatar10: avatarSet10,
-  avatar13: avatarSet13,
+  avatar8: avatarSet8,
   van: vehicleVan,
   scooter: vehicleScooter,
 };

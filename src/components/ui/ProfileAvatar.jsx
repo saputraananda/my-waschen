@@ -18,8 +18,8 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { getAvatarSource } from '../../utils/avatar';
 
-// Avatar fallback (circular initials for when no user data)
-function InitialsFallback({ name, size, style }) {
+// Avatar fallback (gender-aware character avatar when no photo)
+function GenderedFallback({ name, gender, role, size, style }) {
   const initials = (name || 'US')
     .split(' ')
     .map(w => w[0])
@@ -27,25 +27,52 @@ function InitialsFallback({ name, size, style }) {
     .slice(0, 2)
     .toUpperCase();
 
+  const fallbackSrc = getAvatarSource({ name, gender, roleCode: role });
+
   return (
     <div
       style={{
-        width: size,
-        height: size,
+        position: 'absolute',
+        inset: 0,
         borderRadius: size / 2,
-        background: 'linear-gradient(135deg, #AD80AF 0%, #5B005F 100%)',
+        overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontFamily: "'Poppins', sans-serif",
-        fontSize: size * 0.35,
-        fontWeight: 700,
-        color: '#fff',
-        flexShrink: 0,
         ...style,
       }}
     >
-      {initials}
+      <img
+        src={fallbackSrc}
+        alt={initials}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+        }}
+        onError={(e) => {
+          e.target.style.display = 'none';
+          e.target.nextSibling.style.display = 'flex';
+        }}
+      />
+      {/* Final fallback to initials if image also fails */}
+      <div
+        style={{
+          display: 'none',
+          position: 'absolute',
+          inset: 0,
+          borderRadius: size / 2,
+          background: 'linear-gradient(135deg, #AD80AF 0%, #5B005F 100%)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: "'Poppins', sans-serif",
+          fontSize: size * 0.35,
+          fontWeight: 700,
+          color: '#fff',
+        }}
+      >
+        {initials}
+      </div>
     </div>
   );
 }
@@ -62,7 +89,7 @@ function InitialsFallback({ name, size, style }) {
  * @param {string} className - Additional CSS class
  * @param {string} onClick - Click handler
  */
-export default function ProfileAvatar({
+function ProfileAvatar({
   user,
   size = 40,
   showBorder = true,
@@ -78,6 +105,8 @@ export default function ProfileAvatar({
   }, [user]);
 
   const avatarName = user?.name;
+  const avatarGender = user?.gender;
+  const avatarRole = user?.roleCode || user?.originalRoleCode || user?.role;
   const borderSize = Math.max(1, size * 0.05);
 
   const Wrapper = clickable ? motion.div : 'div';
@@ -116,14 +145,13 @@ export default function ProfileAvatar({
             boxShadow: '2px 2px 8px rgba(91,0,95,0.15), -1px -1px 4px rgba(255,255,255,0.5)',
           }}
           onError={(e) => {
-            // Fallback to initials on image error
             e.target.style.display = 'none';
             e.target.nextSibling.style.display = 'flex';
           }}
         />
       ) : null}
 
-      {/* Fallback initials (shown if no avatar image) */}
+      {/* Fallback avatar (shown if no photo uploaded) */}
       <div
         style={{
           position: 'absolute',
@@ -134,9 +162,10 @@ export default function ProfileAvatar({
           borderRadius: size / 2,
           border: showBorder ? `${borderSize}px solid rgba(255,255,255,0.5)` : 'none',
           boxShadow: '2px 2px 8px rgba(91,0,95,0.15), -1px -1px 4px rgba(255,255,255,0.5)',
+          overflow: 'hidden',
         }}
       >
-        <InitialsFallback name={avatarName} size={size} />
+        <GenderedFallback name={avatarName} gender={avatarGender} role={avatarRole} size={size} />
       </div>
 
       {/* Notification Dot */}
@@ -163,14 +192,8 @@ export default function ProfileAvatar({
 
 /**
  * ProfileAvatarButton — Avatar styled as a clickable button
- *
- * @param {object} user - User object
- * @param {number} size - Avatar size (default: 40)
- * @param {boolean} notificationDot - Show notification dot
- * @param {function} onClick - Click handler
- * @param {object} style - Additional styles
  */
-export function ProfileAvatarButton({ user, size = 40, notificationDot = false, onClick, style = {} }) {
+function ProfileAvatarButton({ user, size = 40, notificationDot = false, onClick, style = {} }) {
   return (
     <motion.button
       onClick={onClick}
@@ -198,12 +221,8 @@ export function ProfileAvatarButton({ user, size = 40, notificationDot = false, 
 
 /**
  * CompactProfileAvatar — Smaller avatar with role badge
- *
- * @param {object} user - User object
- * @param {number} size - Avatar size (default: 36)
- * @param {boolean} showBadge - Show role badge (default: false)
  */
-export function CompactProfileAvatar({ user, size = 36, showBadge = false }) {
+function CompactProfileAvatar({ user, size = 36, showBadge = false }) {
   return (
     <div style={{ position: 'relative', display: 'inline-flex' }}>
       <ProfileAvatar user={user} size={size} />
@@ -228,14 +247,8 @@ export function CompactProfileAvatar({ user, size = 36, showBadge = false }) {
 
 /**
  * AvatarGroup — Stack of overlapping avatars
- *
- * @param {array} users - Array of user objects
- * @param {number} size - Each avatar size (default: 36)
- * @param {number} overlap - Overlap percentage (default: 0.3 = 30%)
- * @param {number} max - Maximum visible avatars (default: 4)
- * @param {string} moreLabel - Label for overflow count
  */
-export function AvatarGroup({ users = [], size = 36, overlap = 0.3, max = 4, moreLabel = '+' }) {
+function AvatarGroup({ users = [], size = 36, overlap = 0.3, max = 4, moreLabel = '+' }) {
   const visible = users.slice(0, max);
   const overflow = users.length - max;
 
@@ -280,3 +293,7 @@ export function AvatarGroup({ users = [], size = 36, overlap = 0.3, max = 4, mor
     </div>
   );
 }
+
+// Named exports for compatibility with named imports
+export default ProfileAvatar;
+export { ProfileAvatar, ProfileAvatarButton, CompactProfileAvatar, AvatarGroup };

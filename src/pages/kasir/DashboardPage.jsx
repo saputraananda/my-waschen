@@ -719,10 +719,17 @@ export default function KasirDashboardPage({ user, navigate }) {
   const styles = getResponsiveStyles(bp);
 
   const [stats, setStats] = useState({
-    total: 0, omset: 0, target: null, completed: 0,
-    express: 0, pending: 0, customers: 0, lunasRate: 0,
-    targetMonth: null, omsetMonth: 0,
-    // Nota count stats
+    total: 0,
+    omset: 0,
+    omset_real: 0,      // REAL: cash received (completed)
+    target: null,
+    targetMonth: null,
+    omsetMonth: 0,      // PROYEK: all orders
+    omsetMonthReal: 0,   // REAL: cash received
+    express: 0,
+    pending: 0,
+    completed: 0,
+    lunasRate: 0,
     notaCount: {
       dibuat: 0, lunas: 0, dp: 0, selesai: 0
     },
@@ -792,29 +799,34 @@ export default function KasirDashboardPage({ user, navigate }) {
 
         if (statsRes?.data?.data) {
           const d = statsRes.data.data;
-          // Calculate lunas rate
-          const lunasRate = d.today?.omset > 0 && d.today?.omsetLunas > 0
-            ? Math.round((d.today.omsetLunas / d.today.omset) * 100)
+          // Calculate lunas rate based on REAL omset (cash received)
+          const omsetReal = d.omset_today_real ?? 0;
+          const pelunasanToday = d.pelunasan_today ?? 0;
+          const lunasRate = omsetReal > 0 && pelunasanToday > 0
+            ? Math.round((pelunasanToday / omsetReal) * 100)
             : 0;
-          // Calculate DP count (transactions with partial payment)
-          const dpCount = d.today?.total > 0 ? Math.max(0, d.today.total - (d.today.completed || 0) - (d.today.pending || 0)) : 0;
 
           setStats(prev => ({
             ...prev,
-            total: d.today?.total || 0,
-            omset: d.today?.omset || 0,
+            // PROYEK = all non-cancelled orders
+            total: d.transaksi_today ?? 0,
+            omset: d.omset_today ?? 0,         // PROYEK omset today
+            omset_real: omsetReal,              // REAL omset today (completed)
+            // From target API
             target: targetRes?.data?.data?.dailyTarget ?? null,
             targetMonth: targetRes?.data?.data?.monthlyTarget ?? null,
-            omsetMonth: targetRes?.data?.data?.monthActual ?? 0,
-            express: d.today?.express ?? 0,
-            pending: d.today?.pending ?? 0,
-            completed: d.today?.completed ?? 0,
-            lunasRate: lunasRate ?? 0,
+            omsetMonth: targetRes?.data?.data?.monthProyek ?? 0,  // PROYEK bulan ini
+            omsetMonthReal: targetRes?.data?.data?.monthActual ?? 0, // REAL bulan ini
+            // Transaction counts
+            express: d.express_today ?? 0,
+            pending: d.pending_transactions ?? 0,
+            completed: d.transaksi_today_real ?? 0,   // Done tx today
+            lunasRate: lunasRate,
             notaCount: {
-              dibuat: d.today?.total || 0,
-              lunas: d.today?.completed || 0,
-              dp: dpCount,
-              selesai: d.today?.completed || 0,
+              dibuat: d.transaksi_today ?? 0,
+              lunas: d.transaksi_today_real ?? 0,
+              dp: 0, // DP calculated from payment status
+              selesai: d.transaksi_today_real ?? 0,
             },
             timeMetrics: d.timeMetrics || { avgProcessingHours: 0, oldestWaitingHours: 0, expressProcessing: 0, overduePickup: 0 },
           }));
@@ -1167,45 +1179,45 @@ export default function KasirDashboardPage({ user, navigate }) {
           gap: bp.isMobile ? 8 : 10,
           marginBottom: styles.spacing.md
         }}>
+          {/* PROYEK Omset - All orders value */}
           <ClayStatCard
             icon={<TrendingUp size={16} />}
-            label="Omset"
+            label="Proyek Omset"
             value={loading ? '...' : fmtK(stats.omset)}
-            subValue="hari ini"
-            trend={stats.omset > 0 ? 12 : undefined}
-            trendValue={stats.omset > 0 ? '+12%' : undefined}
+            subValue="order masuk"
             color={COLORS.primary}
             sparkData={sparkData.omset}
             delay={0.1}
             styles={componentStyles}
           />
+          {/* REAL Omset - Cash received */}
+          <ClayStatCard
+            icon={<DollarSign size={16} />}
+            label="Real Omset"
+            value={loading ? '...' : fmtK(stats.omset_real)}
+            subValue="cash masuk"
+            color={COLORS.success}
+            sparkData={null}
+            delay={0.15}
+            styles={componentStyles}
+          />
+          {/* Nota count */}
           <ClayStatCard
             icon={<FileText size={16} />}
             label="Nota"
             value={loading ? '...' : stats.total}
-            subValue={`Dibuat hari ini`}
-            trend={stats.total > 0 ? 3 : undefined}
-            trendValue={stats.total > 0 ? '+3' : undefined}
+            subValue={`${stats.completed} selesai`}
             color={COLORS.info}
             sparkData={sparkData.transaksi}
-            delay={0.15}
-            styles={componentStyles}
-          />
-          <ClayStatCard
-            icon={<Check size={16} />}
-            label="Selesai"
-            value={loading ? '...' : stats.completed}
-            subValue={`${stats.lunasRate}% lunas`}
-            color={COLORS.success}
-            sparkData={sparkData.selesai}
             delay={0.2}
             styles={componentStyles}
           />
+          {/* Target Progress */}
           <ClayStatCard
             icon={<Target size={16} />}
             label="Target"
             value={loading ? '...' : `${targetHariPercent}%`}
-            subValue={stats.target != null ? `Tersisa ${fmtK(Math.max(0, stats.target - stats.omset))}` : 'Belum ada target'}
+            subValue={stats.target != null ? `${fmtK(stats.omset)} / ${fmtK(stats.target)}` : 'Belum ada target'}
             color={COLORS.warning}
             sparkData={sparkData.target}
             delay={0.25}
