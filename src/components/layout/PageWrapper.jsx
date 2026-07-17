@@ -108,11 +108,14 @@ export function PageWrapper({
     ...style,
   };
 
+  // Safe area aware padding-bottom for BottomNav
+  const bottomNavPadding = withBottomNav ? getBottomNavPadding(isMobile) : 0;
+
   const contentStyleFinal = {
     flex: 1,
     overflowY: 'auto',
     overflowX: 'hidden',
-    paddingBottom: withBottomNav ? getBottomNavPadding(isMobile) : 0,
+    paddingBottom: bottomNavPadding,
     paddingLeft: withPadding ? (isMobile ? LAYOUT.padding.sm : LAYOUT.padding.md) : 0,
     paddingRight: withPadding ? (isMobile ? LAYOUT.padding.sm : LAYOUT.padding.md) : 0,
     paddingTop: withPadding ? (isMobile ? LAYOUT.padding.sm : LAYOUT.padding.md) : 0,

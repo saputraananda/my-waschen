@@ -137,20 +137,23 @@ export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCou
       : () => navigate('approval');
 
   return (
-    <div style={{
-      height: 76,
-      background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.65))',
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
-      borderTop: '1px solid rgba(255, 255, 255, 0.4)',
-      boxShadow: '0 -4px 30px rgba(110, 46, 120, 0.08), 0 -1px 0px rgba(0, 0, 0, 0.05)',
-      display: 'flex',
-      alignItems: 'center',
-      paddingBottom: 8,
-      flexShrink: 0,
-      position: 'relative',
-      zIndex: 20,
-    }}>
+    <div
+      className="bottom-nav"
+      style={{
+        height: 76,
+        background: 'linear-gradient(145deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.65))',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderTop: '1px solid rgba(255, 255, 255, 0.4)',
+        boxShadow: '0 -4px 30px rgba(110, 46, 120, 0.08), 0 -1px 0px rgba(0, 0, 0, 0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        paddingBottom: 8,
+        flexShrink: 0,
+        position: 'relative',
+        zIndex: 20,
+      }}
+    >
       {/* Glass effect overlay */}
       <div style={{
         position: 'absolute',

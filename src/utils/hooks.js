@@ -33,6 +33,26 @@ export function useWindowSize() {
 }
 
 /**
+ * useOrientation — returns current orientation state.
+ * Updates on resize (orientationchange event).
+ *
+ * Usage:
+ *   const { isLandscape, isPortrait, orientation } = useOrientation();
+ */
+export function useOrientation() {
+  const { width, height } = useWindowSize();
+
+  const isLandscape = width > height;
+  const isPortrait = height > width;
+  const isSquare = width === height;
+
+  // 'landscape-primary', 'landscape-secondary', 'portrait-primary', 'portrait-secondary', 'square'
+  const orientation = isLandscape ? 'landscape' : isPortrait ? 'portrait' : 'square';
+
+  return { isLandscape, isPortrait, isSquare, orientation, width, height };
+}
+
+/**
  * useResponsive — returns responsive breakpoints state.
  *
  * Usage:
@@ -40,7 +60,7 @@ export function useWindowSize() {
  *   const padding = isMobile ? 12 : isTablet ? 16 : 24;
  */
 export function useResponsive() {
-  const { width } = useWindowSize();
+  const { width, height } = useWindowSize();
 
   const isMobile = width < 640;       // Mobile S/M/L (< 640px)
   const isTablet = width >= 640 && width < 1024;  // Tablet (640-1023px)

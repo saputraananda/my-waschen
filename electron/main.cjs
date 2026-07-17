@@ -14,6 +14,187 @@ const execAsync = promisify(exec);
 let mainWindow = null;
 const BAUD_RATES = [9600, 19200, 38400, 115200];
 
+// ─── ESC/POS Receipt Builder ─────────────────────────────────────────────────────
+const CHAR_PER_LINE = 32; // 58mm thermal
+
+function rp(n) { return 'Rp ' + (Number(n) || 0).toLocaleString('id-ID'); }
+function fmt(n) { return (Number(n) || 0).toLocaleString('id-ID'); }
+function center(t, w = CHAR_PER_LINE) { return ' '.repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t; }
+function padR(t, len) { return String(t).padEnd(len).substring(0, len); }
+function padL(t, len) { return String(t).padStart(len).substring(0, len); }
+function two(l, r, w = CHAR_PER_LINE) {
+  const half = Math.floor(w / 2) - 1;
+  return padR(l, half) + ' ' + padL(r, half);
+}
+
+function buildReceipt(data) {
+  const w = data.charPerLine || CHAR_PER_LINE;
+  const chunks = [];
+
+  // Init
+  chunks.push(Buffer.from([0x1B, 0x40]));
+  chunks.push(Buffer.from([0x1B, 0x74, 0x00]));
+
+  // Header
+  chunks.push(Buffer.from([0x1B, 0x61, 0x01])); // center
+  chunks.push(Buffer.from([0x1B, 0x45, 0x01])); // bold on
+  chunks.push(Buffer.from([0x1B, 0x21, 0x10])); // double height
+  chunks.push(Buffer.from((data.outletName || 'MY WASCHEN') + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x21, 0x00]));
+  chunks.push(Buffer.from([0x1B, 0x45, 0x00]));
+
+  if (data.outletTagline) chunks.push(Buffer.from(data.outletTagline + '\n', 'ascii'));
+  if (data.outletAddress) chunks.push(Buffer.from(data.outletAddress + '\n', 'ascii'));
+  if (data.outletPhone) chunks.push(Buffer.from('Telp: ' + data.outletPhone + '\n', 'ascii'));
+
+  // Divider
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x01]));
+  chunks.push(Buffer.from('-'.repeat(w) + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x00]));
+
+  // Transaksi
+  chunks.push(Buffer.from([0x1B, 0x61, 0x00]));
+  chunks.push(Buffer.from([0x1B, 0x45, 0x01]));
+  chunks.push(Buffer.from(two('No. Nota:', data.transactionNo || '-', w) + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x45, 0x00]));
+
+  if (data.showDate !== false && data.transactionDate)
+    chunks.push(Buffer.from(two('Tgl:', data.transactionDate, w) + '\n', 'ascii'));
+  if (data.showCashier !== false && data.cashierName)
+    chunks.push(Buffer.from(two('Kasir:', data.cashierName, w) + '\n', 'ascii'));
+  if (data.showEstDone !== false && data.estimatedDone)
+    chunks.push(Buffer.from(two('Est. Selesai:', data.estimatedDone, w) + '\n', 'ascii'));
+
+  // Customer
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x01]));
+  chunks.push(Buffer.from('-'.repeat(w) + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x00]));
+
+  if (data.showCustomer !== false && data.customerName) {
+    chunks.push(Buffer.from([0x1B, 0x45, 0x01]));
+    chunks.push(Buffer.from(center(data.customerName, w) + '\n', 'ascii'));
+    chunks.push(Buffer.from([0x1B, 0x45, 0x00]));
+  }
+  if (data.showPhone !== false && data.customerPhone)
+    chunks.push(Buffer.from(two('HP:', data.customerPhone, w) + '\n', 'ascii'));
+
+  // Items
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x01]));
+  chunks.push(Buffer.from('-'.repeat(w) + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x00]));
+
+  chunks.push(Buffer.from([0x1B, 0x45, 0x01]));
+  chunks.push(Buffer.from(center('LAYANAN', w) + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x45, 0x00]));
+
+  if (data.items && Array.isArray(data.items)) {
+    for (const item of data.items) {
+      const name = (item.name || item.serviceName || '').substring(0, w);
+      chunks.push(Buffer.from(padR(name + (item.isExpress ? ' *' : ''), w) + '\n', 'ascii'));
+      if (item.fragrance && data.showFragrance !== false)
+        chunks.push(Buffer.from(padR('  Par: ' + item.fragrance, w) + '\n', 'ascii'));
+      const priceLine = padR('  ' + item.qty + 'x' + fmt(item.price), Math.floor(w/2)-1) + padL(fmt(item.subtotal || item.price), Math.floor(w/2)-1);
+      chunks.push(Buffer.from(priceLine + '\n', 'ascii'));
+    }
+  }
+
+  // Totals
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x01]));
+  chunks.push(Buffer.from('-'.repeat(w) + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x00]));
+
+  if (data.subtotal)
+    chunks.push(Buffer.from(two('Subtotal:', rp(data.subtotal), w) + '\n', 'ascii'));
+  if (data.memberDiscount > 0)
+    chunks.push(Buffer.from(two('Diskon:', '-' + rp(data.memberDiscount), w) + '\n', 'ascii'));
+  if (data.deliveryFee > 0)
+    chunks.push(Buffer.from(two('Ongkir:', rp(data.deliveryFee), w) + '\n', 'ascii'));
+
+  // TOTAL
+  chunks.push(Buffer.from([0x1B, 0x45, 0x01]));
+  chunks.push(Buffer.from([0x1B, 0x21, 0x10]));
+  chunks.push(Buffer.from(two('TOTAL:', rp(data.total || 0), w) + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x21, 0x00]));
+  chunks.push(Buffer.from([0x1B, 0x45, 0x00]));
+
+  // Pembayaran
+  if (data.payMethod) {
+    chunks.push(Buffer.from(two('Bayar(' + data.payMethod + '):', rp(data.paidAmount || 0), w) + '\n', 'ascii'));
+  }
+  if (data.changeAmount > 0)
+    chunks.push(Buffer.from(two('Kembalian:', rp(data.changeAmount), w) + '\n', 'ascii'));
+  if (data.balance > 0) {
+    chunks.push(Buffer.from([0x1B, 0x45, 0x01]));
+    chunks.push(Buffer.from(two('SISA:', rp(data.balance), w) + '\n', 'ascii'));
+    chunks.push(Buffer.from([0x1B, 0x45, 0x00]));
+  }
+
+  // Status
+  if (data.paymentStatus) {
+    chunks.push(Buffer.from([0x1B, 0x61, 0x01]));
+    chunks.push(Buffer.from('[' + data.paymentStatus + ']\n', 'ascii'));
+  }
+
+  // Footer
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x01]));
+  chunks.push(Buffer.from('-'.repeat(w) + '\n', 'ascii'));
+  chunks.push(Buffer.from([0x1B, 0x2D, 0x00]));
+  chunks.push(Buffer.from([0x1B, 0x61, 0x01]));
+  if (data.footerText) {
+    const lines = data.footerText.split('\n');
+    for (const line of lines) {
+      chunks.push(Buffer.from(line.substring(0, w) + '\n', 'ascii'));
+    }
+  }
+
+  // Feed + Cut
+  chunks.push(Buffer.from([0x1B, 0x64, 0x05]));
+  chunks.push(Buffer.from([0x1D, 0x56, 0x00]));
+
+  return Buffer.concat(chunks);
+}
+
+function buildTestReceipt() {
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 86400000);
+
+  return buildReceipt({
+    outletName: 'MY WASCHEN',
+    outletTagline: 'Clean, Fast, Reliable',
+    outletAddress: 'Jl. Kemang Raya No.45',
+    outletPhone: '021-1234-5678',
+    transactionNo: 'TEST-' + Date.now().toString(36).toUpperCase(),
+    transactionDate: now.toLocaleString('id-ID', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }),
+    cashierName: 'Admin Kasir',
+    showDate: true,
+    showCashier: true,
+    showCustomer: true,
+    customerName: 'Budi Santoso',
+    showPhone: true,
+    customerPhone: '0812-3456-7890',
+    showEstDone: true,
+    estimatedDone: tomorrow.toLocaleString('id-ID', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }),
+    showFragrance: true,
+    items: [
+      { name: 'Cuci Setrika', qty: 2, price: 7000, subtotal: 14000, fragrance: 'Lavender', isExpress: true },
+      { name: 'Dry Clean Jas', qty: 1, price: 45000, subtotal: 45000 },
+    ],
+    subtotal: 59000,
+    total: 59000,
+    payMethod: 'Tunai',
+    paidAmount: 60000,
+    changeAmount: 1000,
+    balance: 0,
+    paymentStatus: 'LUNAS',
+    footerText: 'Terima kasih!\n>30 hari bukan tanggung jawab kami',
+    charPerLine: CHAR_PER_LINE,
+  });
+}
+
 // ─── Bluetooth COM Ports via Windows API ─────────────────────────────────────────
 async function getBluetoothPorts() {
   try {
@@ -152,7 +333,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.cjs'),
+      preload: path.join(__dirname, 'preload.js'),
     },
     icon: path.join(__dirname, '../public/icon.png'),
   });
@@ -180,14 +361,31 @@ function createWindow() {
 
 // ─── IPC Handlers ───────────────────────────────────────────────────────────────
 function setupIPC() {
-  // Get Bluetooth COM ports
-  ipcMain.handle('print:getBluetoothPorts', async () => {
+  // Get COM ports (for Bluetooth/USB)
+  ipcMain.handle('print:getPorts', async () => {
     return await getBluetoothPorts();
   });
 
-  // Get Windows printers
-  ipcMain.handle('print:getWindowsPrinters', async () => {
-    return await getWindowsPrinters();
+  // Print nota to thermal printer
+  ipcMain.handle('print:nota', async (event, { comPort, notaData }) => {
+    try {
+      const receipt = buildReceipt(notaData);
+      const result = await printSerial(comPort, receipt);
+      return result;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Test print
+  ipcMain.handle('print:test', async (event, { comPort }) => {
+    try {
+      const testData = buildTestReceipt();
+      const result = await printSerial(comPort, testData);
+      return result;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   });
 
   // Print via Serial (Bluetooth/USB)

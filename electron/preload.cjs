@@ -6,25 +6,23 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronPrint', {
-  // Get Bluetooth COM ports
-  getBluetoothPorts: () => ipcRenderer.invoke('print:getBluetoothPorts'),
+  // Get COM ports
+  getPorts: () => ipcRenderer.invoke('print:getPorts'),
 
-  // Get Windows printers
-  getWindowsPrinters: () => ipcRenderer.invoke('print:getWindowsPrinters'),
+  // Print nota (to thermal printer via Serial)
+  printNota: (comPort, notaData) =>
+    ipcRenderer.invoke('print:nota', { comPort, notaData }),
 
-  // Print via Serial (Bluetooth/USB)
+  // Test print
+  testPrint: (comPort) =>
+    ipcRenderer.invoke('print:test', { comPort }),
+
+  // Print raw data via Serial
   printSerial: (comPort, data) =>
     ipcRenderer.invoke('print:printSerial', { comPort, data }),
-
-  // Print via Windows Print Spooler
-  printWindows: (printerName, data) =>
-    ipcRenderer.invoke('print:printWindows', { printerName, data }),
-
-  // Open Windows Print Dialog
-  openPrintDialog: () => ipcRenderer.invoke('print:openPrintDialog'),
 
   // Check if running in Electron
   isElectron: true,
 });
 
-console.log('[Preload] Print bridge exposed to renderer');
+console.log('[Preload] Print bridge exposed');

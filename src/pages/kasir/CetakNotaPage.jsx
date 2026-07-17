@@ -4,7 +4,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, EmptyState, QRCodeView } from '../../components/ui';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
-import { printReceipt, buildReceiptFromTransaction, checkServerStatus } from '../../utils/printService';
+import { printReceipt, buildNotaData, checkServerStatus } from '../../utils/printService';
 
 // ─── Payment Status Helper ───────────────────────────────────────────────────────
 function getPaymentStatus(paidAmount, total) {
@@ -71,7 +71,7 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
     if (printerConnected && data) {
       try {
         setPrinting(true);
-        const receiptData = buildReceiptFromTransaction(data, cfg);
+        const receiptData = buildNotaData(data, cfg);
         await printReceipt(receiptData);
         // Also trigger browser print as confirmation
         // window.print();
