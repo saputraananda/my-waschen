@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { TopBar, ErrorBoundary, SkeletonList, useAppRefresh } from '../components/ui';
+import { TopBar, ErrorBoundary, SkeletonList, useAppRefresh, ProfileAvatar } from '../components/ui';
 import { STAGES } from '../utils/helpers';
 import { STAGE_ICONS } from '../utils/productionDesign';
 
@@ -29,18 +29,6 @@ const AV_COLORS = [
   { bg: '#ccfbf1', text: '#0f766e' },
   { bg: '#fee2e2', text: '#b91c1c' },
 ];
-
-function getAvatarColor(name) {
-  let hash = 0;
-  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AV_COLORS[Math.abs(hash) % AV_COLORS.length];
-}
-
-function getInitials(name) {
-  const parts = (name || '?').trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return parts[0][0] + parts[parts.length - 1][0];
-}
 
 // ─── SLA ──────────────────────────────────────────────────────
 function formatSLA(estimatedDoneAt) {
@@ -309,9 +297,6 @@ export function AntrianItemCard({ item, onPress }) {
   const progress    = primaryItem?.progress || item.progress || [];
   const filled      = Math.min(4, Math.max(1, progress.length));
 
-  const avColor  = getAvatarColor(custName);
-  const initials = getInitials(custName);
-
   const badges = [];
   if (isExpress)                            badges.push({ label: '⚡ Express', bg: '#fef3c7', color: '#b45309' });
   if (item.pickupType === 'pickup')         badges.push({ label: '🚗 Jemput',  bg: '#dbeafe', color: '#1d4ed8' });
@@ -342,14 +327,11 @@ export function AntrianItemCard({ item, onPress }) {
 
         {/* Row 1: Avatar + Customer + badges + chevron */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: 20,
-            background: avColor.bg,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Inter, system-ui', fontSize: 13, fontWeight: 500,
-            color: avColor.text, flexShrink: 0,
-            boxShadow: `0 0 0 1px ${avColor.bg}80`,
-          }}>{initials}</div>
+          <ProfileAvatar
+            user={{ name: custName, photo: item.customerPhoto }}
+            size={38}
+            style={{ borderRadius: 20, flexShrink: 0 }}
+          />
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
@@ -542,4 +524,4 @@ export function RiwayatItemCard({ it, onPress }) {
 }
 
 // ─── Page Background ─────────────────────────────────────────────
-export { PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, STAGE_TAGS, PRIMARY, PRIMARY_SOFT, getAvatarColor, getInitials };
+export { PAGE_BG, CARD_BG, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, STAGE_TAGS, PRIMARY, PRIMARY_SOFT };

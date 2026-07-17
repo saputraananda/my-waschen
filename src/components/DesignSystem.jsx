@@ -735,7 +735,7 @@ export function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, con
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 500, // GlassModal level — above Premium Modal (400), below Select (9000)
             padding: 16,
           }}
         >

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { STAGES, photoTypeLabel } from '../../utils/helpers';
-import { TopBar, Avatar, Btn, PhotoLightbox } from '../../components/ui';
+import { TopBar, ProfileAvatar, Btn, PhotoLightbox } from '../../components/ui';
 import { useResponsive } from '../../utils/hooks';
 
 // ════════════════════════════════════════════════════════════════════
@@ -46,7 +46,6 @@ const fmtDuration = (start, end) => {
 // ════════════════════════════════════════════════════════════════════
 function HeroCustomerCard({ data }) {
   const { isMobile } = useResponsive();
-  const initials = (data.customerName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   return (
     <div style={{
       background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #0C4A6E 100%)',
@@ -60,7 +59,7 @@ function HeroCustomerCard({ data }) {
         filter: 'blur(20px)', pointerEvents: 'none',
       }} />
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12 }}>
-        <Avatar initials={initials} size={isMobile ? 44 : 50} />
+        <ProfileAvatar user={{ name: data.customerName, photo: data.customerPhoto }} size={isMobile ? 44 : 50} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 8 : 9, color: 'rgba(255,255,255,0.6)', letterSpacing: 0.5, fontWeight: 600 }}>
             📋 {data.id}

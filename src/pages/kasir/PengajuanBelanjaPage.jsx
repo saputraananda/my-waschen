@@ -25,11 +25,13 @@ import {
   ChevronRight, Plus, X, Check, RefreshCw, Search, ChevronLeft,
   FileSpreadsheet, FileText, Clock, CheckCircle, DollarSign, TrendingUp,
   Eye, Edit2, Trash2, ShoppingBag, Receipt, ArrowUpDown, Filter,
-  ChevronDown, Zap, Shield, TrendingDown,
+  ChevronDown, Zap, Shield, TrendingDown, Wallet, AlertTriangle,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getBalance } from '../../utils/outletCashApi';
+import { uploadImage } from '../../utils/imageUpload';
 
 // ─── Design Tokens (Waschen Theme) ───────────────────────────────────────────
 const DT = {
@@ -212,7 +214,7 @@ const TABS = [
     key: 'uang_kas',
     label: 'Uang Kas',
     subtitle: 'Dana operasional harian',
-    groupType: 'operational',
+    groupType: 'operasional', // Indonesian spelling to match DB
     alwaysAuto: true,
     color: DT.warning,
     categories: [
@@ -226,7 +228,7 @@ const TABS = [
     key: 'biaya_ap',
     label: 'Biaya AP',
     subtitle: 'Tagihan utilitas',
-    groupType: 'tagihan',
+    groupType: 'tagihan', // Indonesian spelling to match DB
     alwaysAuto: false,
     color: DT.info,
     categories: [
@@ -377,6 +379,10 @@ export default function PengajuanBelanjaPage({ goBack }) {
   // Summary stats
   const [summary, setSummary] = useState(null);
 
+  // Cash balance & pending tracking
+  const [cashBalance, setCashBalance] = useState(null);
+  const [pendingTotal, setPendingTotal] = useState(0);
+
   // Modals
   const [showForm, setShowForm] = useState(false);
   const [showDetail, setShowDetail] = useState(null);
@@ -433,7 +439,46 @@ export default function PengajuanBelanjaPage({ goBack }) {
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
-  const refresh = () => fetchData(page, pageSize);
+  // Fetch cash balance
+  const fetchCashBalance = useCallback(async () => {
+    try {
+      const data = await getBalance();
+      setCashBalance(data);
+    } catch { /* silent */ }
+  }, []);
+
+  // Fetch pending total for preview
+  const fetchPendingTotal = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set('groupType', currentTab.groupType);
+      params.set('status', 'pending');
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo)   params.set('dateTo', dateTo);
+      const res = await axios.get(`/api/pengajuan-belanja/summary?${params.toString()}`);
+      const summaryData = res.data.data || [];
+      const total = summaryData.reduce((s, row) => s + parseFloat(row.total_amount || 0), 0);
+      setPendingTotal(total);
+    } catch { /* silent */ }
+  }, [currentTab.groupType, dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (tab === 'uang_kas') {
+      fetchCashBalance();
+      fetchPendingTotal();
+    } else {
+      setCashBalance(null);
+      setPendingTotal(0);
+    }
+  }, [tab, fetchCashBalance, fetchPendingTotal]);
+
+  const refresh = () => {
+    fetchData(page, pageSize);
+    if (tab === 'uang_kas') {
+      fetchCashBalance();
+      fetchPendingTotal();
+    }
+  };
 
   // Compute stats from current data
   const stats = useMemo(() => {
@@ -625,6 +670,15 @@ export default function PengajuanBelanjaPage({ goBack }) {
             small
           />
         </div>
+
+        {/* Cash Balance Info Banner (Uang Kas only) */}
+        {tab === 'uang_kas' && (
+          <CashBalanceBanner
+            cashBalance={cashBalance}
+            pendingTotal={pendingTotal}
+            loading={loading}
+          />
+        )}
 
         {/* Info Banner */}
         <motion.div
@@ -821,22 +875,35 @@ export default function PengajuanBelanjaPage({ goBack }) {
       </div>
 
       {/* ── FAB ── */}
-      <motion.button
-        whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
-        onClick={() => setShowForm(true)}
-        style={{
-          position: 'fixed', bottom: 82, right: 16,
-          width: 54, height: 54, borderRadius: 27,
-          background: 'linear-gradient(145deg, #6B2D7E, #4A1A59)',
-          border: 'none',
-          boxShadow: '-4px -4px 12px rgba(255,255,255,.3), 6px 8px 20px rgba(93,0,95,.45)',
-          cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 50,
-        }}
-      >
-        <Plus size={22} color={DT.white} />
-      </motion.button>
+      {(() => {
+        const balanceAmt = Number(cashBalance?.balance || 0);
+        const previewAmt = balanceAmt - pendingTotal;
+        const isDisabled = tab === 'uang_kas' && previewAmt <= 0;
+        return (
+          <motion.button
+            whileHover={{ scale: isDisabled ? 1 : 1.08 }}
+            whileTap={{ scale: isDisabled ? 1 : 0.92 }}
+            onClick={() => !isDisabled && setShowForm(true)}
+            style={{
+              position: 'fixed', bottom: 82, right: 16,
+              width: 54, height: 54, borderRadius: 27,
+              background: isDisabled
+                ? `linear-gradient(145deg, ${DT.n400}, ${DT.n300})`
+                : 'linear-gradient(145deg, #6B2D7E, #4A1A59)',
+              border: 'none',
+              boxShadow: isDisabled
+                ? 'none'
+                : '-4px -4px 12px rgba(255,255,255,.3), 6px 8px 20px rgba(93,0,95,.45)',
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 50,
+              opacity: isDisabled ? 0.6 : 1,
+            }}
+          >
+            <Plus size={22} color={DT.white} />
+          </motion.button>
+        );
+      })()}
 
       {/* ── MODALS ── */}
       <AnimatePresence>
@@ -861,6 +928,112 @@ export default function PengajuanBelanjaPage({ goBack }) {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ─── Cash Balance Banner ──────────────────────────────────────────────────────
+function CashBalanceBanner({ cashBalance, pendingTotal, loading }) {
+  const balanceAmt = Number(cashBalance?.balance || 0);
+  const previewAmt = balanceAmt - pendingTotal;
+  const isZero = previewAmt <= 0;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{
+        background: isZero
+          ? 'linear-gradient(145deg, #FEF2F2, #FEE2E2)'
+          : 'linear-gradient(145deg, #ffffff, #F4EDF4)',
+        borderRadius: 18,
+        padding: '14px 16px',
+        boxShadow: '6px 6px 16px rgba(110,46,120,.1), -3px -3px 10px rgba(255,255,255,.95)',
+        border: `1.5px solid ${isZero ? DT.danger + '30' : DT.warning + '30'}`,
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: isZero ? DT.dangerBg : DT.warningBg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Wallet size={16} color={isZero ? DT.danger : DT.warning} />
+        </div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: DT.n500, textTransform: 'uppercase', letterSpacing: .5 }}>
+            Saldo Kas Outlet
+          </div>
+          {cashBalance?.outletName && (
+            <div style={{ fontSize: 11, color: DT.n600 }}>{cashBalance.outletName}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Balance */}
+      <div style={{ marginBottom: 12 }}>
+        {loading && !cashBalance ? (
+          <div className="pb-skeleton" style={{ height: 32, width: '60%', borderRadius: 8 }} />
+        ) : (
+          <div style={{
+            fontSize: 28, fontWeight: 800, color: isZero ? DT.danger : DT.n900,
+            fontFamily: "'Poppins', sans-serif",
+          }}>
+            {rp(balanceAmt)}
+          </div>
+        )}
+      </div>
+
+      {/* Breakdown */}
+      <div style={{
+        background: DT.n50,
+        borderRadius: 12,
+        padding: '10px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Clock size={12} color={DT.warning} />
+            <span style={{ fontSize: 11.5, color: DT.n700, fontWeight: 500 }}>Sedang Ditinjau</span>
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: DT.warning }}>
+            {loading && !pendingTotal ? '-' : rp(pendingTotal)}
+          </span>
+        </div>
+
+        <div style={{ height: 1, background: DT.n200 }} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <TrendingDown size={12} color={isZero ? DT.danger : DT.success} />
+            <span style={{ fontSize: 11.5, color: DT.n700, fontWeight: 600 }}>Sisa Tersedia</span>
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 800, color: isZero ? DT.danger : DT.success }}>
+            {loading && !cashBalance ? '-' : rp(previewAmt)}
+          </span>
+        </div>
+      </div>
+
+      {/* Warning */}
+      {isZero && (
+        <div style={{
+          marginTop: 10,
+          background: DT.dangerBg,
+          borderRadius: 10,
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <AlertTriangle size={14} color={DT.danger} />
+          <span style={{ fontSize: 11, color: DT.danger, fontWeight: 600 }}>
+            Saldo tidak cukup. Minta admin untuk top-up terlebih dahulu.
+          </span>
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -1355,6 +1528,9 @@ function FormModal({ tab, onClose, onSuccess }) {
   const [catId, setCatId] = useState('');
   const [items, setItems] = useState([{ name: '', qty: '1', price: '' }]);
   const [notes, setNotes] = useState('');
+  const [picName, setPicName] = useState('');
+  const [receiptPhoto, setReceiptPhoto] = useState(null); // { dataUrl, filename }
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const addItem = () => setItems(prev => [...prev, { name: '', qty: '1', price: '' }]);
@@ -1369,11 +1545,29 @@ function FormModal({ tab, onClose, onSuccess }) {
 
   const grandTotal = parsedItems.reduce((s, it) => s + it.numPrice * it.qtyNum, 0);
   const needsApproval = !tab.alwaysAuto && grandTotal > AUTO_APPROVE_LIMIT;
+  const isOperational = tab.key === 'uang_kas'; // uang kas requires photo, AP optional
+
+  // Upload photo
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const result = await uploadImage(file, 'receipt');
+      setReceiptPhoto({ dataUrl: result.dataUrl, filename: file.name });
+    } catch (err) {
+      alertError(err?.message || 'Gagal upload foto bukti. Pastikan format JPG/PNG dan ukuran maks 15MB.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!catId) { alertWarning('Pilih kategori'); return; }
     const validItems = parsedItems.filter(it => it.name.trim() && it.numPrice > 0);
     if (validItems.length === 0) { alertWarning('Tambahkan minimal 1 item dengan nama & harga'); return; }
+    if (!picName.trim()) { alertWarning('Nama PIC wajib diisi'); return; }
+    if (isOperational && !receiptPhoto) { alertWarning('Foto bukti wajib untuk uang kas'); return; }
 
     setLoading(true);
     try {
@@ -1387,6 +1581,8 @@ function FormModal({ tab, onClose, onSuccess }) {
           estimatedPrice: it.numPrice,
         })),
         description: notes.trim() || `${cat?.label}`,
+        picName: picName.trim(),
+        receiptPhotoUrl: receiptPhoto?.dataUrl || null,
       });
 
       if (res.data.success || res.data.created) {
@@ -1594,6 +1790,84 @@ function FormModal({ tab, onClose, onSuccess }) {
           />
         </div>
 
+        {/* PIC & Photo Row */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+          {/* PIC Name */}
+          <div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: DT.n700, marginBottom: 6 }}>
+              Nama PIC <span style={{ color: DT.danger }}>*</span>
+            </div>
+            <input
+              type="text"
+              value={picName}
+              onChange={e => setPicName(e.target.value)}
+              placeholder="Contoh: Sari"
+              style={{
+                width: '100%', height: 42, borderRadius: 10,
+                border: `1.5px solid ${picName ? DT.success : DT.n200}`,
+                padding: '0 12px', fontSize: 12.5, outline: 'none',
+                boxSizing: 'border-box', fontFamily: "'Poppins', sans-serif",
+                background: picName ? `${DT.success}08` : DT.white,
+              }}
+            />
+          </div>
+
+          {/* Receipt Photo */}
+          <div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: DT.n700, marginBottom: 6 }}>
+              Bukti Foto {isOperational ? <span style={{ color: DT.danger }}>*</span> : <span style={{ color: DT.n400 }}>(opsional)</span>}
+            </div>
+            {receiptPhoto ? (
+              <div style={{
+                height: 42, borderRadius: 10,
+                border: `1.5px solid ${DT.success}`,
+                background: `${DT.success}08`,
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '0 12px', boxSizing: 'border-box',
+              }}>
+                <CheckCircle size={14} color={DT.success} />
+                <span style={{ flex: 1, fontSize: 12, color: DT.success, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {receiptPhoto.filename || 'Foto tersimpan'}
+                </span>
+                <button
+                  onClick={() => setReceiptPhoto(null)}
+                  style={{
+                    width: 22, height: 22, borderRadius: 11, border: 'none',
+                    background: DT.dangerBg, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <X size={11} color={DT.danger} />
+                </button>
+              </div>
+            ) : (
+              <label style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                height: 42, borderRadius: 10,
+                border: `1.5px dashed ${DT.n300}`,
+                background: DT.n50, cursor: uploadingPhoto ? 'wait' : 'pointer',
+                fontSize: 12, fontWeight: 600, color: DT.primary,
+                boxSizing: 'border-box',
+              }}>
+                {uploadingPhoto ? (
+                  <RefreshCw size={13} style={{ animation: 'pbSpin 1s linear infinite' }} />
+                ) : (
+                  <span>Ambil Foto</span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoUpload}
+                  disabled={uploadingPhoto}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            )}
+          </div>
+        </div>
+
         {/* Total Banner */}
         <div style={{
           background: needsApproval ? DT.warningBg : DT.successBg,
@@ -1624,7 +1898,7 @@ function FormModal({ tab, onClose, onSuccess }) {
           size="lg"
           fullWidth
           loading={loading}
-          disabled={!catId || parsedItems.every(it => !it.name.trim() || it.numPrice <= 0)}
+          disabled={!catId || parsedItems.every(it => !it.name.trim() || it.numPrice <= 0) || !picName.trim() || (isOperational && !receiptPhoto)}
           onClick={handleSubmit}
         >
           <ShoppingBag size={16} />

@@ -443,8 +443,41 @@ const _dateInputStyles = `
 .wdp-dn{font-size:10px;font-weight:500;line-height:1}
 .wdp-tb{display:none}
 
-/* Popper z-index — must be above everything */
-.react-datepicker-popper{z-index:9999 !important}
+/* ── Z-INDEX LADDER (low → high) ─────────────────────────────
+   5    : Pull-to-refresh indicator
+   10   : TopBar
+   20   : BottomNav
+   50   : FAB
+   100  : BottomSheet backdrop
+   101  : BottomSheet content
+   200  : Standard Modal backdrop
+   201  : Standard Modal content
+   400  : Premium Modal backdrop (Adjustment, Category)
+   401  : Premium Modal content
+   500  : GlassModal backdrop (glassmorphism)
+   501  : GlassModal content
+   600  : High Priority Modal backdrop (ShiftPrompt)
+   601  : High Priority Modal content
+   900  : Topup/Customer Select backdrop
+   901  : Topup/Customer Select content
+   9000 : Select Dropdown (portal — above GlassModal)
+   9500 : ConfirmDialog backdrop
+   9501 : ConfirmDialog content
+   9800 : Toast / DatePicker popper
+   9900 : PhotoLightbox
+   99999: GlobalLoading (absolute top — above ALL)
+────────────────────────────────────────────────────────────── */
+
+/* BottomSheet z-index — must be above BottomNav (20) */
+.BottomSheet-backdrop{z-index:100 !important}
+.BottomSheet-content{z-index:101 !important}
+
+/* Standard Modal z-index — above BottomSheet */
+.Modal-backdrop{z-index:200 !important}
+.Modal-content{z-index:201 !important}
+
+/* DatePicker popper z-index — must be above most modals */
+.react-datepicker-popper{z-index:9800 !important}
 .react-datepicker-wrapper{width:100%}
 `;
 
@@ -837,7 +870,7 @@ export const Select = ({ label, value, onChange, options, error, placeholder, co
             borderRadius: 10,
             maxHeight: 220,
             overflowY: 'auto',
-            zIndex: 99999,
+            zIndex: 9000, // Above GlassModal (500) but below ConfirmDialog (9500)
             boxShadow: SHADOW.lg,
           }}
         >
@@ -963,14 +996,16 @@ export const Avatar = ({ initials, size = 40, photo, onClick }) => (
 );
 
 // ── Toast ─────────────────────────────────────────────────
+// z-index: 9800 — above ConfirmDialog (9500), below PhotoLightbox (9900)
 export const Toast = ({ message, type = 'success', visible }) => (
-  <div style={{ position: 'absolute', bottom: 90, left: 16, right: 16, zIndex: 9999, pointerEvents: visible ? 'auto' : 'none', background: type === 'success' ? C.success : type === 'error' ? C.danger : C.n900, color: C.white, borderRadius: 12, padding: '12px 16px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,0.28)', transform: visible ? 'translateY(0)' : 'translateY(80px)', opacity: visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', display: 'flex', alignItems: 'center', gap: 10 }}>
+  <div style={{ position: 'absolute', bottom: 90, left: 16, right: 16, zIndex: 9800, pointerEvents: visible ? 'auto' : 'none', background: type === 'success' ? C.success : type === 'error' ? C.danger : C.n900, color: C.white, borderRadius: 12, padding: '12px 16px', fontFamily: 'Poppins', fontSize: 13, fontWeight: 500, boxShadow: '0 8px 24px rgba(0,0,0,0.28)', transform: visible ? 'translateY(0)' : 'translateY(80px)', opacity: visible ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', display: 'flex', alignItems: 'center', gap: 10 }}>
     {type === 'success' && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>}
     {message}
   </div>
 );
 
 // ── BottomSheet ───────────────────────────────────────────
+// z-index: 100 backdrop, 101 content
 export const BottomSheet = ({ visible, onClose, title, children }) => (
   <>
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 100, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.25s' }} />
@@ -1176,10 +1211,11 @@ export const ProgressTimeline = ({ progress }) => {
 };
 
 // ── ConfirmDialog ────────────────────────────────────────
+// z-index: 9500 backdrop, 9501 content — above Select (9000), below Toast (9800)
 export const ConfirmDialog = ({ open, title, message, confirmLabel = 'Ya', cancelLabel = 'Batal', onConfirm, onCancel, danger = false }) => {
   if (!open) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.50)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.50)' }}>
       <div style={{ background: C.white, borderRadius: 20, padding: '28px 22px 20px', maxWidth: 320, width: '88%', textAlign: 'center', boxShadow: SHADOW.xl }}>
         <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 700, color: C.n900, marginBottom: 8 }}>{title || 'Konfirmasi'}</div>
         <div style={{ fontFamily: 'Poppins', fontSize: 13, color: '#3a3a3a', lineHeight: 1.6, marginBottom: 24 }}>{message}</div>
@@ -1276,7 +1312,7 @@ export const OfflineIndicator = ({ online }) => {
     <div style={{
       position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
       background: '#1E293B', color: 'white',
-      padding: '10px 18px', borderRadius: 999, zIndex: 9999,
+      padding: '10px 18px', borderRadius: 999, zIndex: 9800,
       display: 'flex', alignItems: 'center', gap: 8,
       fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
       boxShadow: '0 8px 24px rgba(15,23,42,0.30)',
@@ -1288,7 +1324,7 @@ export const OfflineIndicator = ({ online }) => {
 };
 
 // ── PhotoLightbox ────────────────────────────────────────
-// Reusable popup lightbox untuk lihat foto besar tanpa pindah tab.
+// z-index: 9900 — highest overlay, above all modals and dropdowns
 // Mendukung navigasi prev/next, swipe, escape close, klik backdrop close.
 //
 // Props:
@@ -1341,7 +1377,7 @@ export const PhotoLightbox = ({ visible, photos = [], index = 0, onClose, onInde
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       style={{
-        position: 'fixed', inset: 0, zIndex: 99999,
+        position: 'fixed', inset: 0, zIndex: 9900,
         background: 'rgba(0,0,0,0.94)',
         display: 'flex', flexDirection: 'column',
         animation: 'fadeIn 0.18s ease-out',
@@ -1549,6 +1585,10 @@ export { default as EmptyState, EmptyIllustration, EmptyStateList, EmptyStateCar
 // ── Glassmorphism Components (P2 Design System) ───────────────────────────────────
 export { default as GlassModal, ConfirmModal, AlertModal, SuccessModal, ErrorModal } from './GlassModal';
 export { default as GlassButton, GlassButtonGroup, GlassIconButton } from './GlassButton';
+
+// ── Service Icon (gambar dari Icon and Asset Laundry sebagai icon) ───────────
+export { default as ServiceIcon, ServiceIconBadge, ServiceIconGroup, ServiceIconList, SERVICE_ICON_PRESETS, SERVICE_ICON_NAMES } from './ServiceIcon';
+export { ServiceIconWrapper, HybridIcon, ServiceIconButton, QuickIconBadge, IconGrid, LUCIDE_TO_SERVICE } from './IconMapper';
 
 // ── Profile Avatar Components ─────────────────────────────────────────────────
 export { default as ProfileAvatar, ProfileAvatarButton, CompactProfileAvatar, AvatarGroup } from './ProfileAvatar';

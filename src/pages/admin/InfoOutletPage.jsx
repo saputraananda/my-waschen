@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Chip } from '../../components/ui';
+import { TopBar, Btn, Chip, ProfileAvatar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { useResponsive } from '../../utils/hooks';
 
@@ -389,13 +389,7 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                       </div>
                       {members.map((u) => (
                         <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: `1px solid ${C.n50}` }}>
-                          <div style={{
-                            width: 38, height: 38, borderRadius: 19, background: `${C.primary}15`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.primary, flexShrink: 0,
-                          }}>
-                            {u.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
-                          </div>
+                          <ProfileAvatar user={u} size={38} />
                           <div style={{ flex: 1 }}>
                             <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{u.name}</div>
                             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>

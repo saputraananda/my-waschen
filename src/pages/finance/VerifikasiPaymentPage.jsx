@@ -3,7 +3,7 @@ import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { useResponsive } from '../../utils/hooks';
-import { TopBar, Btn, Chip, Avatar, SearchBar, Modal } from '../../components/ui';
+import { TopBar, Btn, Chip, ProfileAvatar, SearchBar, Modal } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 import { alertError, alertSuccess } from '../../utils/alert';
 
@@ -141,7 +141,7 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
                     onClick={() => setDetailModal(p)}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, cursor: 'pointer' }}
                   >
-                    <Avatar initials={p.customerName?.split(' ').map((w) => w[0]).join('').slice(0, 2) || '??'} size={38} />
+                    <ProfileAvatar user={{ name: p.customerName, photo: p.customerPhoto }} size={38} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.customerName}</div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -243,7 +243,7 @@ export default function VerifikasiPaymentPage({ navigate, goBack }) {
         {detailModal && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <Avatar initials={detailModal.customerName?.split(' ').map((w) => w[0]).join('').slice(0, 2) || '??'} size={44} />
+              <ProfileAvatar user={{ name: detailModal.customerName, photo: detailModal.customerPhoto }} size={44} />
               <div>
                 <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n900 }}>{detailModal.customerName}</div>
                 <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600 }}>{detailModal.customerPhone}</div>

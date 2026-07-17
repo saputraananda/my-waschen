@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Avatar, Select, useAppRefresh } from '../../components/ui';
+import { TopBar, ProfileAvatar, Select, useAppRefresh } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
 import { exportLaporanRevenue } from '../../utils/excelExport';

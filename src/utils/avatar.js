@@ -5,7 +5,7 @@
 // Rules:
 // - Customer: Laki-laki → customer-male-2.webp, Perempuan → customer-girl.webp
 // - Staff/Frontliner/Produksi: Laki-laki → staff-boy.webp, Perempuan → staff-girl.webp
-// - Admin: admin3.webp (fixed)
+// - Admin: admin-laptop.webp (fixed)
 // - Delivery: staff-boy-thumbs-up.webp (fixed)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -97,9 +97,9 @@ export const AVATAR_CONFIG = {
     default: staffGirl,
   },
   admin: {
-    male: admin3,
-    female: admin3,
-    default: admin3,
+    male: adminLaptop,
+    female: adminLaptop,
+    default: adminLaptop,
   },
   delivery: {
     male: staffBoyThumbsUp,
@@ -129,6 +129,6 @@ export const AVATARS = {
   staffBoy,
   customerGirl,
   customerMale,
-  admin3: adminLaptop,
+  adminLaptop,
   staffBoyThumbsUp,
 };

@@ -11,7 +11,13 @@
     "start": "node server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "print-server": "node print-server.js",
+    "print-install": "npm install escpos escpos-network serialport --save",
+    "electron:dev": "powershell -Command \"$env:ELECTRON_RUN_AS_NODE = $null; node_modules/.bin/electron electron/main.cjs\"",
+    "electron:start": "concurrently \"npm run dev\" \"npm run electron:wait\"",
+    "electron:build": "vite build && electron-builder",
+    "electron:wait": "wait-on http://localhost:5173 && powershell -Command \"$env:ELECTRON_RUN_AS_NODE = $null; node_modules/.bin/electron electron/main.cjs\""
   },
   "dependencies": {
     "@fontsource/poppins": "^5.2.7",
@@ -43,6 +49,7 @@
     "react-easy-crop": "^5.5.7",
     "react-router-dom": "^6.23.1",
     "recharts": "^3.8.1",
+    "serialport": "^12.0.0",
     "sonner": "^2.0.7",
     "sweetalert2": "^11.26.24",
     "sweetalert2-react-content": "^5.1.2",
@@ -56,9 +63,36 @@
     "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "cross-env": "^10.1.0",
+    "electron": "^28.3.3",
     "eslint": "^10.3.0",
     "jsdom": "^29.1.1",
     "sharp": "^0.35.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "wait-on": "^9.0.10"
+  },
+  "build": {
+    "appId": "com.waschen.pos",
+    "productName": "Waschen POS",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "asar": true
   }
 }

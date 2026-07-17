@@ -4,7 +4,7 @@ import logger from '../utils/logger.js';
 
 const ADMIN_ROLES = ['admin'];
 const assertAdmin = (req, res) => {
-  if (!ADMIN_ROLES.has(req.user?.roleCode)) {
+  if (!ADMIN_ROLES.includes(req.user?.roleCode)) {
     return res.status(403).json({ success: false, message: 'Hanya admin/finance/owner.' });
   }
   return true;

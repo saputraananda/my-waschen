@@ -6,7 +6,7 @@ import { C, SHADOW } from '../../utils/theme';
 
 import { rp, txApiId } from '../../utils/helpers';
 
-import { TopBar, SearchBar, Badge, Chip, Avatar, EmptyState, Modal, SkeletonList, useAppRefresh, ListCard, ListCardGroup } from '../../components/ui';
+import { TopBar, SearchBar, Badge, Chip, EmptyState, Modal, SkeletonList, useAppRefresh, ListCard, ListCardGroup, ProfileAvatar } from '../../components/ui';
 
 import { AnimatedCard } from '../../components/AnimatedListCard';
 
@@ -14,8 +14,6 @@ import { useDebounce, useResponsive, useWindowSize } from '../../utils/hooks';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { useSavedFilter } from '../../utils/savedFilters';
 import { useRealtimeMulti } from '../../utils/realtime';
-import { getAvatarSource } from '../../utils/avatar';
-
 
 
 const PAGE_SIZE = 30;
@@ -139,28 +137,6 @@ function useGlassStyles() {
 // Transaction avatar with clay style
 function TransactionAvatar({ transaction, size = 52 }) {
   useGlassStyles();
-  const customerData = useMemo(() => ({
-    photo: transaction.customerPhoto,
-    gender: transaction.customerGender,
-    name: transaction.customerName,
-  }), [transaction]);
-
-  const avatarSrc = useMemo(() => getAvatarSource(customerData, 'customer'), [customerData]);
-  const initials = transaction.customerName?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
-
-  const getAvatarBg = (name) => {
-    if (!name) return 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
-    const first = name.charAt(0).toUpperCase();
-    const ranges = [
-      { chars: 'ABCDE', gradient: 'linear-gradient(145deg, #E9D3F2, #C77DCB)' },
-      { chars: 'FGHIJ', gradient: 'linear-gradient(145deg, #C8E6FF, #7BA7D4)' },
-      { chars: 'KLMNO', gradient: 'linear-gradient(145deg, #FFE0B2, #E4A87C)' },
-      { chars: 'PQRST', gradient: 'linear-gradient(145deg, #C8F7C5, #7DC97D)' },
-      { chars: 'UVWXYZ', gradient: 'linear-gradient(145deg, #FFD1DC, #E07A8F)' },
-    ];
-    const found = ranges.find(r => r.chars.includes(first));
-    return found?.gradient || 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
-  };
 
   return (
     <div
@@ -174,57 +150,20 @@ function TransactionAvatar({ transaction, size = 52 }) {
         justifyContent: 'center',
         flexShrink: 0,
         overflow: 'hidden',
-        position: 'relative',
         padding: 0,
       }}
     >
-      {transaction.customerPhoto ? (
-        <img
-          src={transaction.customerPhoto}
-          alt={transaction.customerName || 'avatar'}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            borderRadius: 18,
-          }}
-        />
-      ) : (
-        <>
-          <img
-            src={avatarSrc}
-            alt={transaction.customerName || 'avatar'}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              borderRadius: 18,
-            }}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'flex';
-            }}
-          />
-          <div
-            style={{
-              display: 'none',
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              background: getAvatarBg(transaction.customerName),
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'Poppins',
-              fontSize: size * 0.35,
-              fontWeight: 700,
-              color: '#3B0B47',
-              textShadow: '0 1px 2px rgba(0,0,0,0.1)',
-            }}
-          >
-            {initials}
-          </div>
-        </>
-      )}
+      <ProfileAvatar
+        user={{
+          name: transaction.customerName,
+          photo: transaction.customerPhoto,
+          gender: transaction.customerGender,
+          type: 'customer',
+        }}
+        size={size}
+        showBorder={false}
+        style={{ width: size, height: size }}
+      />
     </div>
   );
 }

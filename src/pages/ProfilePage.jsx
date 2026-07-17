@@ -124,7 +124,7 @@ function ModalBackdrop({ children, onClose }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 9999,
+        zIndex: 9500, // ConfirmDialog level — above Select (9000), below Toast (9800)
         padding: 16,
       }}
     >
@@ -154,10 +154,18 @@ function ModalBackdrop({ children, onClose }) {
 // Edit Profile Modal
 // ═════════════════════════════════════════════════════════════════════════════════
 function EditProfileModal({ name, phone, email, gender, saving, onSave, onClose }) {
-  const [localName, setLocalName] = useState(name);
-  const [localPhone, setLocalPhone] = useState(phone);
-  const [localEmail, setLocalEmail] = useState(email);
+  const [localName, setLocalName] = useState(name || '');
+  const [localPhone, setLocalPhone] = useState(phone || '');
+  const [localEmail, setLocalEmail] = useState(email || '');
   const [localGender, setLocalGender] = useState(gender || '');
+
+  // Reset form when modal opens with new data
+  useEffect(() => {
+    setLocalName(name || '');
+    setLocalPhone(phone || '');
+    setLocalEmail(email || '');
+    setLocalGender(gender || '');
+  }, [name, phone, email, gender]);
 
   const handleSave = () => {
     if (!localName.trim()) {
@@ -170,7 +178,6 @@ function EditProfileModal({ name, phone, email, gender, saving, onSave, onClose 
   const genderOptions = [
     { value: 'male', label: '👨 Laki-laki' },
     { value: 'female', label: '👩 Perempuan' },
-    { value: 'other', label: '⚧️ Lainnya' },
   ];
 
   return (
@@ -1305,19 +1312,19 @@ export default function ProfilePage({ navigate, goBack }) {
       const res = await axios.patch('/api/users/me/profile', {
         name: newName.trim(),
         phone: newPhone.trim() || null,
-        email: newEmail.trim() || null,
+        email: newEmail.trim() || '', // Send empty string instead of null for email
         photo,
-        gender: newGender,
+        gender: newGender || null,
       });
       setName(newName.trim());
       setPhone(newPhone.trim() || null);
-      setEmail(newEmail.trim() || null);
+      setEmail(newEmail.trim() || '');
       const updatedData = {
         name: newName.trim(),
         phone: newPhone.trim() || null,
-        email: newEmail.trim() || null,
+        email: newEmail.trim() || '',
         photo,
-        gender: newGender,
+        gender: newGender || null,
       };
       updateUserProfile(updatedData);
       alertSuccess('Profil berhasil disimpan');
@@ -1479,7 +1486,7 @@ export default function ProfilePage({ navigate, goBack }) {
 
       {/* Crop Modal */}
       {cropModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: '#000', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9900, background: '#000', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 16, background: '#111', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <span style={{ color: 'white', fontFamily: "'Poppins', sans-serif", fontWeight: 600 }}>Sesuaikan Foto Profil</span>
           </div>

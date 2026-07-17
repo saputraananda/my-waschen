@@ -10,8 +10,16 @@ import { sendProductionReadyNotification } from '../services/whatsappService.js'
 import { emitTransactionCheckout, emitProductionUpdate } from '../services/eventBus.js';
 import logger from '../utils/logger.js';
 
-// Production stage order
-const STAGE_ORDER = ['received', 'waiting', 'washing', 'drying', 'ironing', 'qc', 'packing', 'ready', 'done'];
+// Production stage order — simplified (washing/drying/ironing trimmed per user request)
+const STAGE_ORDER = ['received', 'packing', 'ready', 'delivered'];
+
+// Helper: Mask phone number for privacy (PDP Law No. 27/2022)
+function maskPhone(phone) {
+  if (!phone) return null;
+  const clean = String(phone).replace(/\D/g, '');
+  if (clean.length < 8) return '****';
+  return clean.slice(0, 4) + '****' + clean.slice(-3);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUT /api/production/item-unit/:id/status
@@ -89,6 +97,21 @@ export async function updateItemUnitStatus(req, res) {
       });
     }
 
+    // ── Outlet-Scoped Authorization (IDOR Fix) ─────────────────────
+    // Pastikan user hanya bisa akses item unit dari outlet mereka sendiri
+    const userOutletId = String(req.user?.outletId || '');
+    const itemOutletId = String(itemUnit.outlet_id || '');
+    const isAdmin = req.user?.roleCode === 'admin';
+
+    if (!isAdmin && userOutletId && itemOutletId && userOutletId !== itemOutletId) {
+      await conn.rollback();
+      conn.release();
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Anda hanya bisa mengakses data outlet Anda sendiri.',
+      });
+    }
+
     const oldStatus = itemUnit.production_status;
 
     // ── Validate stage progression ──────────────────────────────────────────────
@@ -116,8 +139,8 @@ export async function updateItemUnitStatus(req, res) {
     if (status === 'ready') {
       updateFields += ', ready_at = ?';
       updateParams.push(now);
-    } else if (status === 'done') {
-      updateFields += ', done_at = ?';
+    } else if (status === 'delivered') {
+      updateFields += ', delivered_at = ?';
       updateParams.push(now);
     }
 
@@ -139,9 +162,10 @@ export async function updateItemUnitStatus(req, res) {
     const [[statusCheck]] = await conn.execute(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN production_status IN ('ready', 'done') THEN 1 ELSE 0 END) as ready_count
+        SUM(CASE WHEN production_status IN ('ready', 'delivered') THEN 1 ELSE 0 END) as ready_count
       FROM tr_item_unit
       WHERE transaction_id = ?
+      FOR UPDATE
     `, [itemUnit.transaction_id]);
 
     const isFullyReady = statusCheck[0].total === statusCheck[0].ready_count;
@@ -191,9 +215,10 @@ export async function updateItemUnitStatus(req, res) {
     await conn.commit();
 
     // ── Emit events for real-time updates ───────────────────────────────────
-    // Emit production update event
+    // Emit production update event (FIX: add outletId to scope to relevant outlet only)
     emitProductionUpdate({
       type: 'status_change',
+      outletId: itemUnit.outlet_id, // FIX: scope event to correct outlet
       itemUnitId: id,
       unitNo: itemUnit.unit_no,
       transactionId: itemUnit.transaction_id,
@@ -203,14 +228,9 @@ export async function updateItemUnitStatus(req, res) {
       updatedBy: userId,
     });
 
-    // Emit transaction update if fully ready
+    // Emit transaction update if fully ready (FIX: use positional args)
     if (isFullyReady) {
-      emitTransactionCheckout({
-        type: 'production_complete',
-        transactionId: itemUnit.transaction_id,
-        transactionNo: itemUnit.transaction_no,
-        allItemsReady: true,
-      });
+      emitTransactionCheckout(itemUnit.outlet_id, itemUnit.transaction_no, itemUnit.transaction_id);
     }
 
     return res.json({
@@ -276,6 +296,18 @@ export async function getItemUnitDetail(req, res) {
 
     const item = rows[0];
 
+    // ── Outlet-Scoped Authorization (IDOR Fix) ─────────────────────
+    const userOutletId = String(req.user?.outletId || '');
+    const itemOutletId = String(item.outlet_id || '');
+    const isAdmin = req.user?.roleCode === 'admin';
+
+    if (!isAdmin && userOutletId && itemOutletId && userOutletId !== itemOutletId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Akses ditolak. Anda hanya bisa mengakses data outlet Anda sendiri.',
+      });
+    }
+
     // Get production history
     const [history] = await db.execute(`
       SELECT
@@ -295,14 +327,14 @@ export async function getItemUnitDetail(req, res) {
         labelCode: item.label_code,
         transactionNo: item.transaction_no,
         customerName: item.customer_name,
-        customerPhone: item.customer_phone,
+        customerPhone: maskPhone(item.customer_phone),
         serviceName: item.service_name_snapshot,
         unitType: item.unit_type_snapshot,
         qty: Number(item.qty_share),
         status: item.production_status,
         packingDone: item.packing_done === 1,
         readyAt: item.ready_at,
-        doneAt: item.done_at,
+        deliveredAt: item.delivered_at,
         history: history.map(h => ({
           id: h.id,
           stage: h.stage,

@@ -91,7 +91,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
           position: 'fixed',
           inset: 0,
           background: 'rgba(0,0,0,0.5)',
-          zIndex: 200,
+          zIndex: 400, // Premium Modal — above Standard (200), below GlassModal (500)
         }}
       />
 
@@ -105,7 +105,7 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
         borderRadius: '20px 20px 0 0',
         maxHeight: '90vh',
         overflow: 'auto',
-        zIndex: 201,
+        zIndex: 401,
         padding: '20px',
       }}>
         {/* Header */}

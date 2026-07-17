@@ -35,7 +35,7 @@ export default function ShiftPromptModal({ visible, onOpenShift, onClose }) {
             style={{
               position: 'fixed', inset: 0,
               background: 'rgba(15,23,42,0.6)',
-              zIndex: 400,
+              zIndex: 600, // High Priority Modal — above Premium Modal (400), below GlassModal (500)
               backdropFilter: 'blur(4px)',
             }}
             onClick={onClose}
@@ -56,7 +56,7 @@ export default function ShiftPromptModal({ visible, onOpenShift, onClose }) {
               borderRadius: 24,
               padding: '28px 24px 24px',
               boxShadow: '0 20px 60px rgba(15,23,42,0.25)',
-              zIndex: 401,
+              zIndex: 601, // High Priority Modal content
               textAlign: 'center',
             }}
             onClick={e => e.stopPropagation()}

@@ -110,7 +110,7 @@ export const GlobalPullToRefresh = ({ children, threshold = 70 }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 9999,
+            zIndex: 5, // Above TopBar content (1), below everything else
             pointerEvents: 'none',
             transition: refreshing ? 'none' : isPulling.current ? 'none' : 'height 0.25s ease',
           }}

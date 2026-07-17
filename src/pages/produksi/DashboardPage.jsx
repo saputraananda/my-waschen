@@ -3,7 +3,7 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { C } from '../../utils/theme';
 import { STAGES } from '../../utils/helpers';
-import { Avatar, Btn, ErrorBoundary, SkeletonList, useAppRefresh } from '../../components/ui';
+import { ProfileAvatar, Btn, ErrorBoundary, SkeletonList, useAppRefresh } from '../../components/ui';
 import { alertInfo, alertSuccess, alertWarning, alertError } from '../../utils/alert';
 import { useRealtimeMulti } from '../../utils/realtime';
 import { useResponsive } from '../../utils/hooks';
@@ -409,7 +409,7 @@ function HeroHeader({ user, allActive, allDone, activeItemCount, overdueCount, o
               <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
             </svg>
           </button>
-          <Avatar photo={user?.photo} initials={user?.avatar} size={32} onClick={onProfileClick} />
+          <ProfileAvatar user={user} size={32} onClick={onProfileClick} />
         </div>
       </div>
 
@@ -569,10 +569,6 @@ function ItemCard({ tx, item, onPress }) {
   // Progress data
   const progress = item.progress || [];
   const ACTIVE_STAGES = ['Diterima', 'Packing'];
-  
-  // Avatar initials
-  const customerName = tx.customerName || 'U';
-  const initials = customerName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
 <button
@@ -605,16 +601,11 @@ function ItemCard({ tx, item, onPress }) {
       {/* Header: Avatar + Customer Info + Badges */}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, marginBottom: 10, paddingLeft: 5 }}>
         {/* Avatar */}
-        <div style={{
-          width: isMobile ? 36 : 40, height: isMobile ? 36 : 40, borderRadius: isMobile ? 18 : 20,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: 'Poppins', fontSize: isMobile ? 11 : 13, fontWeight: 600,
-          color: '#ffffff', flexShrink: 0,
-          boxShadow: '0 2px 8px rgba(102,126,234,0.25)',
-        }}>
-          {initials}
-        </div>
+        <ProfileAvatar
+          user={{ name: tx.customerName, photo: tx.customerPhoto }}
+          size={isMobile ? 36 : 40}
+          style={{ borderRadius: isMobile ? 18 : 20, flexShrink: 0 }}
+        />
 
         {/* Customer Info */}
         <div style={{ flex: 1, minWidth: 0 }}>

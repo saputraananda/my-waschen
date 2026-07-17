@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { C, T } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { useResponsive } from '../../utils/hooks';
-import { Avatar, Badge, StatCard, Btn, SectionHeader } from '../../components/ui';
+import { ProfileAvatar, Badge, StatCard, Btn, SectionHeader } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 
 // ─── Premium Animation Assets ───────────────────────────────────────────────
@@ -146,7 +146,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
                 <div style={{ position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRadius: 5, background: C.danger, border: `2px solid ${C.n800}` }} />
               )}
             </button>
-            <Avatar photo={user.photo} initials={user.avatar} size={40} onClick={() => navigate('profil')} />
+            <ProfileAvatar user={user} size={40} onClick={() => navigate('profil')} />
           </div>
         </div>
 
@@ -307,7 +307,7 @@ export default function FinanceDashboardPage({ user, navigate }) {
                       background: C.n50, borderRadius: 12, cursor: 'pointer',
                       transition: 'background 0.2s',
                     }}>
-                      <Avatar initials={tx.customerName?.split(' ').map((w) => w[0]).join('').slice(0, 2) || '??'} size={34} />
+                      <ProfileAvatar user={{ name: tx.customerName, photo: tx.customerPhoto }} size={34} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.customerName}</div>
                         <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600 }}>{tx.id} · {tx.date}</div>

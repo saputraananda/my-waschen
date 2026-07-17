@@ -279,7 +279,7 @@ export function Combobox({
             border: `1px solid ${C.n200}`,
             borderRadius: 10,
             boxShadow: '0 10px 30px rgba(15,23,42,0.12)',
-            zIndex: 9999,
+            zIndex: 9000, // Same as Select dropdown — above GlassModal (500), below ConfirmDialog (9500)
           }}
         >
           {filtered.length === 0 ? (

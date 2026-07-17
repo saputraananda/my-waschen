@@ -59,10 +59,6 @@ export const getDashboardStats = async (req, res) => {
         COALESCE(SUM(CASE WHEN status IN ${DONE_STATUSES} AND DATE(created_at) = CURDATE() THEN total ELSE 0 END), 0)  AS omset_today_real,
         SUM(CASE WHEN status IN ${DONE_STATUSES} AND DATE(created_at) = CURDATE() THEN 1 ELSE 0 END)                          AS transaksi_today_real,
 
-        -- Yesterday PROYEK (for trend calculation)
-        COALESCE(SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) THEN total ELSE 0 END), 0)        AS omset_yesterday,
-        SUM(CASE WHEN status <> 'cancelled' AND DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) THEN 1 ELSE 0 END)                          AS transaksi_yesterday,
-
         -- This month PROYEK
         COALESCE(SUM(CASE WHEN status <> 'cancelled' AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN total ELSE 0 END), 0)        AS omset_month,
         SUM(CASE WHEN status <> 'cancelled' AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE()) THEN 1 ELSE 0 END)                          AS transaksi_month,
@@ -119,7 +115,6 @@ export const getDashboardStats = async (req, res) => {
       total_transaksi: Number(r.total_transaksi ?? 0),
       transaksi_today: Number(r.transaksi_today ?? 0),
       transaksi_today_real: Number(r.transaksi_today_real ?? 0),
-      transaksi_yesterday: Number(r.transaksi_yesterday ?? 0),
       transaksi_month: Number(r.transaksi_month ?? 0),
       transaksi_month_real: Number(r.transaksi_month_real ?? 0),
       pending_transactions: Number(r.pending_transactions ?? 0),
@@ -130,7 +125,6 @@ export const getDashboardStats = async (req, res) => {
       // PROYEK = all non-cancelled (order value)
       safeData.total_omset = Number(r.total_omset ?? 0);
       safeData.omset_today = Number(r.omset_today ?? 0);
-      safeData.omset_yesterday = Number(r.omset_yesterday ?? 0);
       safeData.omset_month = Number(r.omset_month ?? 0);
       // REAL = only completed/ready (cash received)
       safeData.total_omset_real = Number(r.total_omset_real ?? 0);
@@ -141,21 +135,48 @@ export const getDashboardStats = async (req, res) => {
       safeData.pelunasan_today = Number(r.pelunasan_today ?? 0);
       safeData.pelunasan_month = Number(r.pelunasan_month ?? 0);
       safeData.outlet_comparison = outletComparison;
-
-      // Calculate trend vs yesterday
-      const omsetYesterday = Number(r.omset_yesterday ?? 0);
-      const omsetToday = Number(r.omset_today ?? 0);
-      const transaksiYesterday = Number(r.transaksi_yesterday ?? 0);
-      const transaksiToday = Number(r.transaksi_today ?? 0);
-
-      // Trend percentage: (today - yesterday) / yesterday * 100
-      safeData.trend_omset = omsetYesterday > 0
-        ? Math.round(((omsetToday - omsetYesterday) / omsetYesterday) * 100)
-        : (omsetToday > 0 ? 100 : 0);
-      safeData.trend_transaksi = transaksiYesterday > 0
-        ? Math.round(((transaksiToday - transaksiYesterday) / transaksiYesterday) * 100)
-        : (transaksiToday > 0 ? 100 : 0);
     }
+
+    // Recent transactions for dashboard (last 5, excluding cancelled)
+    try {
+      let recentSql = `
+        SELECT
+          t.id,
+          t.transaction_no AS transactionNo,
+          t.status AS dbStatus,
+          t.payment_status AS paymentStatus,
+          t.total,
+          t.paid_amount AS paidAmount,
+          t.created_at AS createdAt,
+          c.name AS customerName,
+          c.phone AS customerPhone
+        FROM tr_transaction t
+        JOIN mst_customer c ON c.id = t.customer_id
+        WHERE t.deleted_at IS NULL AND t.status <> 'cancelled'
+      `;
+      const recentParams = [];
+      if (!isAllOutlets) {
+        recentSql += ' AND t.outlet_id = ?';
+        recentParams.push(effectiveOutlet);
+      }
+      recentSql += ' ORDER BY t.created_at DESC LIMIT 5';
+      const [recentRows] = await poolWaschenPos.execute(recentSql, recentParams);
+      safeData.recent = recentRows.map(tx => ({
+        id: tx.id,
+        transactionNo: tx.transactionNo,
+        customerName: tx.customerName || 'Non-member',
+        customerPhone: tx.customerPhone || '',
+        total: Number(tx.total || 0),
+        paidAmount: Number(tx.paidAmount || 0),
+        paymentStatus: tx.paymentStatus,
+        createdAt: tx.createdAt,
+        time: tx.createdAt ? new Date(tx.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '',
+      }));
+    } catch (err) {
+      logger.warn('Failed to fetch recent transactions:', err.message);
+      safeData.recent = [];
+    }
+
     return res.status(200).json({ success: true, data: safeData });
   } catch (err) {
     logger.error('Get dashboard stats failed', { error: err.message, stack: err.stack });

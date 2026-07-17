@@ -10,7 +10,7 @@ const PRESETS = ['50000', '100000', '200000', '500000'];
 
 const PAY_METHODS = [
   { key: 'cash',     label: '💵 Tunai',            desc: 'Customer bayar langsung di kasir' },
-  { key: 'transfer', label: '🏦 Transfer Bank',      desc: 'Konfirmasi transfer manual oleh finance' },
+  { key: 'transfer', label: '🏦 Transfer Bank',      desc: 'Konfirmasi transfer manual' },
   { key: 'qris',     label: '📱 QRIS Statis',      desc: 'Konfirmasi QRIS statis (cetak/EDC)' },
   { key: 'edc',      label: '💳 Mesin EDC',         desc: 'Konfirmasi pembayaran via mesin EDC' },
 ];
@@ -131,9 +131,9 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
       });
 
       if (res?.data?.status === 'pending') {
-        // Non-cash payment: waiting for finance confirmation
+        // Non-cash payment: waiting for confirmation
         await alertSuccess(
-          `Top up ${paymentLabels[payMethod]} berhasil dicatat.\nMenunggu konfirmasi finance.\nID: ${res.data.data?.pendingId}`,
+          `Top up ${paymentLabels[payMethod]} berhasil dicatat.\nMenunggu konfirmasi.\nID: ${res.data.data?.pendingId}`,
           { title: 'Menunggu Konfirmasi' }
         );
         navigate('detail_customer', { ...customer });
@@ -427,10 +427,10 @@ export default function TopupDepositPage({ navigate, goBack, screenParams }) {
             <span style={{ fontSize: 20 }}>⏳</span>
             <div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>
-                Menunggu Konfirmasi Finance
+                Menunggu Konfirmasi
               </div>
               <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#B45309' }}>
-                Deposit akan bertambah setelah finance mengkonfirmasi pembayaran.
+                Deposit akan bertambah setelah mengkonfirmasi pembayaran.
               </div>
             </div>
           </div>

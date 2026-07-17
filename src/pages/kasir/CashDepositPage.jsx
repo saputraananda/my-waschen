@@ -1,17 +1,55 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
-import { C, T, SHADOW } from '../../utils/theme';
+import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, MoneyInput, EmptyState } from '../../components/ui';
 import { alertError, alertSuccess, confirmAction } from '../../utils/alert';
-import { useResponsive, useWindowSize } from '../../utils/hooks';
+import { useResponsive } from '../../utils/hooks';
 import PICSelector from '../../components/PICSelector';
 import { usePICSelector } from '../../hooks/usePIC';
 
+// ─── Clay Card ────────────────────────────────────────────────────────────────
+const ClayCard = ({ children, style, padding = 16 }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.3 }}
+    style={{
+      background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+      borderRadius: 20,
+      padding: padding,
+      boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+      border: '1px solid rgba(139, 92, 246, 0.08)',
+      ...style,
+    }}
+  >
+    {children}
+  </motion.div>
+);
+
+// ─── Glass Styles ─────────────────────────────────────────────────────────────
+const useGlassStyles = () => {
+  useEffect(() => {
+    const styleId = 'cash-deposit-glass';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        :root { --glass-bg: #F3EEF7; }
+      `;
+      document.head.appendChild(style);
+    }
+    return () => {
+      const existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+    };
+  }, []);
+};
+
 export default function CashDepositPage({ navigate, goBack }) {
-  const { isMobile, isTablet } = useResponsive();
-  const { width } = useWindowSize();
-  // PIC Selection - track who is responsible for this deposit
+  useGlassStyles();
+  const { isMobile } = useResponsive();
   const {
     currentPIC,
     setCurrentPIC,
@@ -20,10 +58,7 @@ export default function CashDepositPage({ navigate, goBack }) {
     isLoading: picLoading,
   } = usePICSelector();
 
-  // Fetch available users for PIC on mount
-  useEffect(() => {
-    refreshUsers();
-  }, [refreshUsers]);
+  useEffect(() => { refreshUsers(); }, [refreshUsers]);
 
   const [depositDate, setDepositDate] = useState(new Date().toISOString().split('T')[0]);
   const [cashSalesTotal, setCashSalesTotal] = useState(0);
@@ -40,8 +75,7 @@ export default function CashDepositPage({ navigate, goBack }) {
     try {
       const res = await axios.get(`/api/cash-deposits/cash-sales/${date}`);
       setCashSalesTotal(res?.data?.data?.total || 0);
-    } catch (e) {
-      // Silent fail - cash sales total is optional
+    } catch {
       setCashSalesTotal(0);
     } finally {
       setLoadingTotal(false);
@@ -53,8 +87,7 @@ export default function CashDepositPage({ navigate, goBack }) {
     try {
       const res = await axios.get('/api/cash-deposits');
       setDeposits(res?.data?.data || []);
-    } catch (e) {
-      // Silent fail - deposits list is optional
+    } catch {
       setDeposits([]);
     } finally {
       setLoadingDeposits(false);
@@ -62,14 +95,10 @@ export default function CashDepositPage({ navigate, goBack }) {
   };
 
   useEffect(() => {
-    if (depositDate) {
-      loadCashSalesTotal(depositDate);
-    }
+    if (depositDate) loadCashSalesTotal(depositDate);
   }, [depositDate]);
 
-  useEffect(() => {
-    loadDeposits();
-  }, []);
+  useEffect(() => { loadDeposits(); }, []);
 
   const handleDocumentAdd = (e) => {
     const files = Array.from(e.target.files || []);
@@ -78,11 +107,7 @@ export default function CashDepositPage({ navigate, goBack }) {
       reader.onload = (event) => {
         setDocuments((prev) => [
           ...prev,
-          {
-            file,
-            preview: event.target.result,
-            label: file.name,
-          },
+          { file, preview: event.target.result, label: file.name },
         ]);
       };
       reader.readAsDataURL(file);
@@ -102,10 +127,7 @@ export default function CashDepositPage({ navigate, goBack }) {
 
     setLoading(true);
     try {
-      const proofDocs = documents.map((doc) => ({
-        label: doc.label,
-        url: doc.preview,
-      }));
+      const proofDocs = documents.map((doc) => ({ label: doc.label, url: doc.preview }));
 
       await axios.post('/api/cash-deposits', {
         deposit_date: depositDate,
@@ -142,51 +164,88 @@ export default function CashDepositPage({ navigate, goBack }) {
 
   const getStatusBadge = (status) => {
     const config = {
-      pending: { bg: C.validationWarningBg, color: C.validationWarningText, label: 'Menunggu' },
-      approved: { bg: C.successBg, color: C.successDark, label: 'Disetujui' },
-      rejected: { bg: C.validationErrorBg, color: C.validationErrorText, label: 'Ditolak' },
+      pending: { bg: C.warning + '15', color: C.warning, label: 'Menunggu' },
+      approved: { bg: C.success + '15', color: C.success, label: 'Disetujui' },
+      rejected: { bg: C.danger + '10', color: C.danger, label: 'Ditolak' },
     };
     const cfg = config[status] || config.pending;
     return (
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, padding: '4px 10px', background: cfg.bg }}>
-        <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: cfg.color }}>{cfg.label}</span>
-      </div>
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        borderRadius: 999,
+        padding: '4px 10px',
+        background: cfg.bg,
+        fontFamily: "'Poppins'",
+        fontSize: 11,
+        fontWeight: 600,
+        color: cfg.color,
+      }}>
+        {cfg.label}
+      </span>
     );
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'var(--glass-bg, #F3EEF7)',
+      overflow: 'hidden',
+    }}>
       <TopBar title="Setoran Kas" subtitle="Catat setoran tunai ke bank" onBack={goBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 10 : 16, paddingBottom: isMobile ? 'calc(16px + env(safe-area-inset-bottom) + 80px)' : 16 }}>
-        {/* Form Setoran dengan animasi fade in */}
-        <div
-          style={{
-            ...T.card,
-            marginBottom: 16,
-            animation: 'fadeInUp 0.5s ease-out forwards',
-            opacity: 0,
-            animationDelay: '0.1s',
-            padding: isMobile ? 12 : undefined,
-          }}
-        >
-          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 13 : 14, fontWeight: 600, color: C.n900, marginBottom: isMobile ? 10 : 14 }}>Buat Setoran Kas</div>
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: isMobile ? 12 : 16,
+        paddingBottom: isMobile ? 100 : 16,
+      }}>
+        {/* Form Setoran */}
+        <ClayCard padding={isMobile ? 16 : 20} style={{ marginBottom: 12 }}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 14 }}>
+            Buat Setoran Kas
+          </div>
 
           {/* Tanggal */}
-          <div style={{ marginBottom: isMobile ? 10 : 12 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Tanggal <span style={{ color: '#DC2626' }}>*</span></div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 6 }}>
+              Tanggal <span style={{ color: C.danger }}>*</span>
+            </div>
             <input
               type="date"
               value={depositDate}
               onChange={(e) => setDepositDate(e.target.value)}
-              style={{ ...T.input, width: '100%', boxSizing: 'border-box' }}
+              style={{
+                width: '100%',
+                height: 46,
+                borderRadius: 10,
+                border: `1.5px solid ${C.n200}`,
+                padding: '0 14px',
+                fontFamily: "'Poppins'",
+                fontSize: 14,
+                color: C.n900,
+                boxSizing: 'border-box',
+                outline: 'none',
+                background: C.white,
+              }}
             />
           </div>
 
           {/* Total Penjualan Tunai */}
-          <div style={{ background: C.infoBg, borderRadius: 12, padding: '12px 14px', marginBottom: 14, border: `1px solid ${C.info}` }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.infoDark, marginBottom: 2 }}>Total Penjualan Tunai</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 800, color: C.infoDark }}>
+          <div style={{
+            background: C.primary + '08',
+            borderRadius: 12,
+            padding: '12px 14px',
+            marginBottom: 14,
+            border: `1px solid ${C.primary}20`,
+          }}>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 11, fontWeight: 600, color: C.primary, marginBottom: 2 }}>
+              Total Penjualan Tunai
+            </div>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 20, fontWeight: 800, color: C.primary }}>
               {loadingTotal ? 'Memuat...' : rp(cashSalesTotal)}
             </div>
           </div>
@@ -200,19 +259,32 @@ export default function CashDepositPage({ navigate, goBack }) {
           />
 
           {/* Catatan */}
-          <div style={{ marginTop: 12, marginBottom: isMobile ? 10 : 12 }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 4 }}>Catatan (opsional)</div>
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 6 }}>
+              Catatan (opsional)
+            </div>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={isMobile ? 2 : 3}
+              rows={2}
               placeholder="Contoh: Setoran ke BCA a.n. Waschen Laundry"
-              style={{ ...T.input, height: 'auto', minHeight: 80, resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                borderRadius: 10,
+                border: `1.5px solid ${C.n200}`,
+                padding: 12,
+                fontFamily: "'Poppins'",
+                fontSize: 13,
+                color: C.n900,
+                resize: 'vertical',
+                outline: 'none',
+              }}
             />
           </div>
 
           {/* PIC Selector */}
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginTop: 14 }}>
             <PICSelector
               currentPIC={currentPIC}
               onChange={setCurrentPIC}
@@ -222,28 +294,79 @@ export default function CashDepositPage({ navigate, goBack }) {
           </div>
 
           {/* Bukti Dokumen */}
-          <div style={{ marginBottom: isMobile ? 10 : 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: C.infoBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📄</div>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                background: C.primary + '10',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 14,
+              }}>
+                📄
+              </div>
               <div>
-                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 600, color: C.n800 }}>Bukti Dokumen</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700 }}>Upload bukti setoran (opsional)</div>
+                <div style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n800 }}>
+                  Bukti Dokumen
+                </div>
+                <div style={{ fontFamily: "'Poppins'", fontSize: 10, color: C.n600 }}>
+                  Upload bukti setoran (opsional)
+                </div>
               </div>
             </div>
 
-            <label style={{ display: 'flex', height: 40, padding: '0 14px', borderRadius: 10, border: `1.5px solid ${C.primary}`, background: `${C.primary}10`, fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, cursor: 'pointer', alignItems: 'center', gap: 4 }}>
-              📷 Upload
+            <label style={{
+              display: 'inline-flex',
+              height: 40,
+              padding: '0 14px',
+              borderRadius: 10,
+              border: `1.5px solid ${C.primary}`,
+              background: `${C.primary}10`,
+              fontFamily: "'Poppins'",
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.primary,
+              cursor: 'pointer',
+              alignItems: 'center',
+              gap: 4,
+            }}>
+              Upload
               <input type="file" accept="image/*" multiple onChange={handleDocumentAdd} style={{ display: 'none' }} />
             </label>
 
             {documents.length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                 {documents.map((doc, i) => (
-                  <div key={i} style={{ position: 'relative', width: 80, height: 80, borderRadius: 10, overflow: 'hidden', border: `1.5px solid ${C.n200}` }}>
+                  <div key={i} style={{
+                    position: 'relative',
+                    width: 80,
+                    height: 80,
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    border: `1.5px solid ${C.n200}`,
+                  }}>
                     <img src={doc.preview} alt={doc.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     <button
                       onClick={() => handleDocumentRemove(i)}
-                      style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                      style={{
+                        position: 'absolute',
+                        top: 2,
+                        right: 2,
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        background: 'rgba(0,0,0,0.5)',
+                        border: 'none',
+                        color: 'white',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
                     >
                       ×
                     </button>
@@ -253,23 +376,40 @@ export default function CashDepositPage({ navigate, goBack }) {
             )}
           </div>
 
-          <Btn variant="success" fullWidth loading={loading} onClick={handleSubmit}>
-            Simpan Setoran Kas
-          </Btn>
-        </div>
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{
+              width: '100%',
+              height: 48,
+              borderRadius: 14,
+              border: 'none',
+              background: loading
+                ? C.n300
+                : `linear-gradient(145deg, ${C.success}, ${C.successDark})`,
+              color: C.white,
+              fontFamily: "'Poppins'",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              marginTop: 16,
+              boxShadow: loading ? 'none' : '-4px -4px 10px rgba(255, 255, 255, 0.4), 5px 6px 14px rgba(5, 150, 105, 0.3)',
+            }}
+          >
+            {loading ? 'Memproses...' : 'Simpan Setoran Kas'}
+          </motion.button>
+        </ClayCard>
 
-        {/* Riwayat Setoran dengan animasi fade in */}
-        <div 
-          style={{ 
-            ...T.card,
-            animation: 'fadeInUp 0.5s ease-out forwards',
-            opacity: 0,
-            animationDelay: '0.3s'
-          }}
-        >
-          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Riwayat Setoran</div>
+        {/* Riwayat Setoran */}
+        <ClayCard padding={16}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
+            Riwayat Setoran
+          </div>
           {loadingDeposits ? (
-            <div style={{ textAlign: 'center', padding: 16, color: C.n700, fontFamily: 'Poppins', fontSize: 12 }}>Memuat...</div>
+            <div style={{ textAlign: 'center', padding: 16, fontFamily: "'Poppins'", fontSize: 12, color: C.n600 }}>
+              Memuat...
+            </div>
           ) : deposits.length === 0 ? (
             <EmptyState
               type="reports"
@@ -282,57 +422,81 @@ export default function CashDepositPage({ navigate, goBack }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {deposits.map((dep, index) => (
-                <div 
-                  key={dep.id} 
-                  className="deposit-item"
-                  style={{ 
-                    background: C.n50, 
-                    borderRadius: 12, 
-                    padding: 12, 
-                    border: `1px solid ${C.n200}`,
-                    animationDelay: `${0.4 + index * 0.1}s`
+                <motion.div
+                  key={dep.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  style={{
+                    background: C.n50,
+                    borderRadius: 14,
+                    padding: 14,
+                    border: `1px solid ${C.n100}`,
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                     <div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700 }}>{dep.deposit_date}</div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 800, color: C.n900 }}>{rp(dep.deposit_amount)}</div>
+                      <div style={{ fontFamily: "'Poppins'", fontSize: 11, fontWeight: 600, color: C.n700 }}>
+                        {dep.deposit_date}
+                      </div>
+                      <div style={{ fontFamily: "'Poppins'", fontSize: 16, fontWeight: 800, color: C.n900 }}>
+                        {rp(dep.deposit_amount)}
+                      </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                       {getStatusBadge(dep.status)}
                       {dep.status === 'pending' && (
                         <button
                           onClick={() => handleDelete(dep.id)}
-                          style={{ fontFamily: 'Poppins', fontSize: 10, color: C.danger, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          style={{
+                            fontFamily: "'Poppins'",
+                            fontSize: 10,
+                            color: C.danger,
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
                         >
                           hapus
                         </button>
                       )}
                     </div>
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', marginBottom: 4 }}>
+                  <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n700 }}>
                     Penjualan tunai: <strong>{rp(dep.cash_sales_total)}</strong>
                   </div>
-                  {/* PIC Info */}
                   {dep.picName && (
                     <div style={{
                       background: `${C.primary}08`,
                       borderRadius: 6,
                       padding: '4px 10px',
                       marginTop: 6,
-                      fontFamily: 'Poppins',
+                      fontFamily: "'Poppins'",
                       fontSize: 10,
                       color: C.primary,
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 4,
                     }}>
-                      👤 PIC: <strong>{dep.picName}</strong>
+                      PIC: <strong>{dep.picName}</strong>
                     </div>
                   )}
-                  {dep.notes && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#3a3a3a', marginBottom: 4 }}>{dep.notes}</div>}
+                  {dep.notes && (
+                    <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n700, marginTop: 4 }}>
+                      {dep.notes}
+                    </div>
+                  )}
                   {dep.reject_reason && (
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.danger, marginTop: 4, padding: 8, background: C.validationErrorBg, borderRadius: 8 }}>
+                    <div style={{
+                      fontFamily: "'Poppins'",
+                      fontSize: 11,
+                      color: C.danger,
+                      marginTop: 4,
+                      padding: 8,
+                      background: C.danger + '10',
+                      borderRadius: 8,
+                    }}>
                       Alasan ditolak: {dep.reject_reason}
                     </div>
                   )}
@@ -348,46 +512,15 @@ export default function CashDepositPage({ navigate, goBack }) {
                       ))}
                     </div>
                   )}
-                  <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginTop: 6 }}>
+                  <div style={{ fontFamily: "'Poppins'", fontSize: 10, color: C.n500, marginTop: 6 }}>
                     Dibuat: {new Date(dep.created_at).toLocaleString('id-ID')}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
-        </div>
+        </ClayCard>
       </div>
-
-      {/* Definisi animasi CSS */}
-      <style>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        /* Animate each deposit item with staggered delay */
-        .deposit-item {
-          animation: fadeInUp 0.4s ease-out forwards;
-          opacity: 0;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .deposit-item:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-
-        /* Smooth hover for buttons and inputs */
-        input, textarea, button {
-          transition: all 0.2s ease;
-        }
-      `}</style>
     </div>
   );
 }

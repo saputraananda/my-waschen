@@ -4,6 +4,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, EmptyState, QRCodeView } from '../../components/ui';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
+import { printReceipt, buildReceiptFromTransaction, checkServerStatus } from '../../utils/printService';
 
 // ─── Payment Status Helper ───────────────────────────────────────────────────────
 function getPaymentStatus(paidAmount, total) {
@@ -51,8 +52,41 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [printing, setPrinting] = useState(false);
+  const [printerConnected, setPrinterConnected] = useState(false);
   const cfg = loadPrinterCfg();
   const pageSize = getPageSize(cfg);
+
+  // Check printer server status on mount
+  useEffect(() => {
+    const checkPrinter = async () => {
+      const status = await checkServerStatus();
+      setPrinterConnected(status.connected);
+    };
+    checkPrinter();
+  }, []);
+
+  // Print handler - try direct print first, fallback to browser print
+  const handlePrint = async () => {
+    if (printerConnected && data) {
+      try {
+        setPrinting(true);
+        const receiptData = buildReceiptFromTransaction(data, cfg);
+        await printReceipt(receiptData);
+        // Also trigger browser print as confirmation
+        // window.print();
+      } catch (err) {
+        console.error('Direct print failed:', err);
+        // Fallback to browser print
+        window.print();
+      } finally {
+        setPrinting(false);
+      }
+    } else {
+      // No printer server - use browser print
+      window.print();
+    }
+  };
 
   // Responsive hooks
   const { isMobile, isTablet } = useResponsive();
@@ -120,7 +154,9 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
       <div className="no-print">
         <TopBar title="Cetak Nota & Label" onBack={goBack} />
         <div style={{ padding: isMobile ? '8px 12px' : 12, background: C.white, borderBottom: `1px solid ${C.n200}`, display: 'flex', gap: isMobile ? 6 : 8, alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-          <Btn variant="primary" onClick={() => window.print()} style={{ flex: isMobile ? 1 : 'initial', minWidth: isMobile ? '100%' : 'auto' }}>🖨️ Cetak Sekarang</Btn>
+          <Btn variant="primary" onClick={handlePrint} style={{ flex: isMobile ? 1 : 'initial', minWidth: isMobile ? '100%' : 'auto' }} disabled={printing}>
+            {printing ? '⏳ Mencetak...' : '🖨️ Cetak Sekarang'}
+          </Btn>
           <button
             onClick={() => navigate('printer_settings')}
             style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}

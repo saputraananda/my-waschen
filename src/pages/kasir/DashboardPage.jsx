@@ -7,6 +7,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { C } from '../../utils/theme';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
+import { ProfileAvatar } from '../../components/ui';
 import TodayTargetWidget from '../../components/TodayTargetWidget';
 import RevenueTrendChart from '../../components/RevenueTrendChart';
 import TopServicesChart from '../../components/TopServicesChart';
@@ -502,8 +503,8 @@ function LowStockAlertsCard({ alerts, loading, onClick, styles }) {
   );
 }
 
-/** ClayTransactionRow — Premium Transaction Row */
-function ClayTransactionRow({ tx, onClick, index = 0, styles }) {
+/** ClayTransactionRow — Premium Transaction Row (Responsive) */
+function ClayTransactionRow({ tx, onClick, index = 0, styles, isMobile = false }) {
   const { fonts, spacing } = styles || {};
   const statusConfig = {
     paid: { bg: C.success, label: 'Lunas' },
@@ -511,6 +512,23 @@ function ClayTransactionRow({ tx, onClick, index = 0, styles }) {
     unpaid: { bg: '#6B7280', label: 'Nanti' },
   };
   const status = statusConfig[tx.paymentStatus] || statusConfig.unpaid;
+
+  // Format ID untuk display - gunakan transactionNo jika ada
+  const displayId = tx.transactionNo
+    ? tx.transactionNo.split('-').slice(-2).join('-')
+    : tx.id?.slice(-6) || tx.id || '-';
+
+  // Format time
+  const displayTime = tx.time || (tx.createdAt
+    ? new Date(tx.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    : '-');
+
+  // Responsive sizing
+  const dotSize = isMobile ? 8 : 10;
+  const infoWidth = isMobile ? 70 : 80;
+  const badgePadding = isMobile ? '2px 8px' : '3px 10px';
+  const amountWidth = isMobile ? 65 : 75;
+  const iconSize = isMobile ? 14 : 16;
 
   return (
     <motion.div
@@ -521,46 +539,100 @@ function ClayTransactionRow({ tx, onClick, index = 0, styles }) {
       whileHover={{ x: 4, backgroundColor: `${C.primarySoft || '#F8F4FF'}` }}
       whileTap={{ scale: 0.99 }}
       style={{
-        display: 'flex', alignItems: 'center', gap: spacing?.md || 12,
-        padding: `${spacing?.md || 12}px ${spacing?.md || 14}px`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: isMobile ? 8 : (spacing?.md || 12),
+        padding: isMobile ? '10px 12px' : `${spacing?.md || 12}px ${spacing?.md || 14}px`,
         background: `linear-gradient(145deg, ${C.white}, ${C.primarySoft || '#F8F4FF'})`,
-        borderRadius: 14,
+        borderRadius: isMobile ? 12 : 14,
         cursor: 'pointer',
         boxShadow: `4px 4px 10px rgba(110, 46, 120, 0.06), -2px -2px 8px rgba(255, 255, 255, 0.95)`,
         border: `1px solid rgba(139, 92, 246, 0.06)`,
+        minHeight: isMobile ? 56 : 64,
       }}
     >
+      {/* Status indicator dot */}
       <div style={{
-        width: 10, height: 10, borderRadius: '50%',
-        background: status.bg, flexShrink: 0,
-        boxShadow: `0 0 8px ${status.bg}50`,
+        width: dotSize,
+        height: dotSize,
+        borderRadius: '50%',
+        background: status.bg,
+        flexShrink: 0,
+        boxShadow: `0 0 6px ${status.bg}50`,
       }} />
-      <div style={{ width: 80, flexShrink: 0 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.sm || 11, fontWeight: 600, color: COLORS.n800 }}>
-          #{tx.id?.slice(-6) || tx.id}
+
+      {/* Transaction info - left side */}
+      <div style={{ width: infoWidth, flexShrink: 0 }}>
+        <div style={{
+          fontFamily: 'Poppins',
+          fontSize: isMobile ? 9 : (fonts?.sm || 11),
+          fontWeight: 600,
+          color: COLORS.n800,
+          lineHeight: 1.2,
+        }}>
+          {displayId}
         </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n500 }}>{tx.time || '08:30'}</div>
+        <div style={{
+          fontFamily: 'Poppins',
+          fontSize: isMobile ? 8 : (fonts?.xs || 10),
+          color: COLORS.n500,
+        }}>
+          {displayTime}
+        </div>
       </div>
+
+      {/* Customer name - center (flexible) */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.md || 12, fontWeight: 600, color: COLORS.n800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {tx.customerName}
+        <div style={{
+          fontFamily: 'Poppins',
+          fontSize: isMobile ? 11 : (fonts?.md || 12),
+          fontWeight: 600,
+          color: COLORS.n800,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          lineHeight: 1.3,
+        }}>
+          {tx.customerName || 'Non-member'}
         </div>
-        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.xs || 10, color: COLORS.n500 }}>
-          {tx.services || '1 layanan'} {tx.items ? `• ${tx.items} item` : ''}
-        </div>
+        {tx.customerPhone && !isMobile && (
+          <div style={{
+            fontFamily: 'Poppins',
+            fontSize: fonts?.xs || 10,
+            color: COLORS.n500,
+          }}>
+            {tx.customerPhone}
+          </div>
+        )}
       </div>
+
+      {/* Status badge */}
       <div style={{
-        padding: '3px 10px', borderRadius: 8,
-        background: status.bg, color: 'white',
+        padding: badgePadding,
+        borderRadius: isMobile ? 6 : 8,
+        background: status.bg,
+        color: 'white',
         fontFamily: 'Poppins',
-        fontSize: fonts?.xs || 9, fontWeight: 600, flexShrink: 0,
+        fontSize: isMobile ? 8 : (fonts?.xs || 9),
+        fontWeight: 600,
+        flexShrink: 0,
       }}>
         {status.label}
       </div>
-      <div style={{ width: 75, textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontFamily: 'Poppins', fontSize: fonts?.md || 12, fontWeight: 700, color: COLORS.n800 }}>{rp(tx.total)}</div>
+
+      {/* Amount - right side */}
+      <div style={{ width: amountWidth, textAlign: 'right', flexShrink: 0 }}>
+        <div style={{
+          fontFamily: 'Poppins',
+          fontSize: isMobile ? 11 : (fonts?.md || 12),
+          fontWeight: 700,
+          color: COLORS.n800,
+        }}>
+          {rp(tx.total)}
+        </div>
       </div>
-      <ChevronRight size={16} color={COLORS.n400} style={{ flexShrink: 0 }} />
+
+      <ChevronRight size={iconSize} color={COLORS.n400} style={{ flexShrink: 0 }} />
     </motion.div>
   );
 }
@@ -1095,9 +1167,7 @@ export default function KasirDashboardPage({ user, navigate }) {
               {user.photo ? (
                 <img src={user.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 11 : 13, fontWeight: 700, color: 'white' }}>
-                  {user.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                </span>
+                <ProfileAvatar user={user} size={bp.isMobile ? 36 : 42} />
               )}
             </motion.button>
           </div>
@@ -1543,25 +1613,25 @@ export default function KasirDashboardPage({ user, navigate }) {
             </motion.button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: styles.spacing.sm }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: bp.isMobile ? 6 : styles.spacing.sm }}>
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} style={{
-                  height: 52,
+                  height: bp.isMobile ? 48 : 56,
                   background: 'linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%)',
                   backgroundSize: '200% 100%',
-                  borderRadius: styles.radius.md,
+                  borderRadius: bp.isMobile ? 10 : 12,
                   animation: 'shimmer 1.5s infinite',
                 }} />
               ))
             ) : recent.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: styles.spacing.lg }}>
-                <div style={{ fontSize: bp.isMobile ? 28 : 32, marginBottom: styles.spacing.sm }}>📋</div>
-                <div style={{ fontFamily: 'Poppins', fontSize: styles.fonts.md, fontWeight: 600, color: COLORS.n500 }}>Belum Ada Transaksi</div>
+              <div style={{ textAlign: 'center', padding: bp.isMobile ? 24 : styles.spacing.lg }}>
+                <div style={{ fontSize: bp.isMobile ? 24 : 32, marginBottom: bp.isMobile ? 8 : styles.spacing.sm }}>📋</div>
+                <div style={{ fontFamily: 'Poppins', fontSize: bp.isMobile ? 12 : styles.fonts.md, fontWeight: 600, color: COLORS.n500 }}>Belum Ada Transaksi</div>
               </div>
             ) : (
               recent.slice(0, 4).map((tx, i) => (
-                <ClayTransactionRow key={tx.id || i} tx={tx} index={i} onClick={() => navigate('detail_transaksi', tx)} styles={componentStyles} />
+                <ClayTransactionRow key={tx.id || i} tx={tx} index={i} onClick={() => navigate('detail_transaksi', tx)} styles={componentStyles} isMobile={bp.isMobile} />
               ))
             )}
           </div>

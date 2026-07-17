@@ -7,6 +7,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useResponsive } from '../utils/hooks';
 import { useApp } from '../context/AppContext';
+import { ProfileAvatar } from '../components/ui';
 import {
   Printer, Home, Bell, Users, HelpCircle, Lock, LogOut,
   Plus, Square, ChevronRight, Clock, Building
@@ -32,11 +33,6 @@ const ROLE_LABEL = {
   frontline: 'Frontliner',
   produksi: 'Produksi',
   finance: 'Finance'
-};
-
-const getInitials = (name) => {
-  if (!name) return 'U';
-  return name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 };
 
 const formatShiftDate = (dateStr) => {
@@ -131,6 +127,129 @@ function ClayButton({ icon, label, subLabel, variant = 'success', onClick, disab
         {subLabel}
       </div>
     </motion.button>
+  );
+}
+
+// ─── Logout Confirmation Modal ────────────────────────────────────────────────
+function LogoutModal({ onClose, onConfirm }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.55)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9500, // ConfirmDialog level — above Select (9000), below Toast (9800)
+        padding: 16,
+      }}
+    >
+      <motion.div
+        initial={{ scale: 0.88, opacity: 0, y: 24 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.88, opacity: 0, y: 24 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff',
+          borderRadius: 24,
+          padding: 28,
+          width: '100%',
+          maxWidth: 320,
+          textAlign: 'center',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.08)',
+        }}
+      >
+        {/* Icon */}
+        <div style={{
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          background: 'linear-gradient(145deg, #FFE5EA, #FFDCE3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto 20px',
+          boxShadow: '0 8px 20px rgba(222,50,85,0.18)',
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#DE3255" strokeWidth="2.2">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </div>
+
+        {/* Text */}
+        <h3 style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: 22,
+          fontWeight: 700,
+          color: '#2B1130',
+          margin: '0 0 10px',
+          letterSpacing: 0.1,
+        }}>
+          Keluar Aplikasi?
+        </h3>
+        <p style={{
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          fontSize: 13.5,
+          color: '#7A6584',
+          margin: '0 0 28px',
+          lineHeight: 1.6,
+        }}>
+          Kamu yakin ingin keluar dari aplikasi ini.
+        </p>
+
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <motion.button
+            onClick={onClose}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              flex: 1,
+              padding: '14px 20px',
+              borderRadius: 14,
+              background: 'linear-gradient(150deg, #F5F5FA, #EEEEF5)',
+              border: 'none',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 13.5,
+              fontWeight: 700,
+              color: '#2B1130',
+              cursor: 'pointer',
+              boxShadow: '-3px -3px 8px rgba(255,255,255,0.7), 3px 4px 10px rgba(59,11,71,0.08)',
+            }}
+          >
+            Batal
+          </motion.button>
+          <motion.button
+            onClick={onConfirm}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              flex: 1,
+              padding: '14px 20px',
+              borderRadius: 14,
+              background: 'linear-gradient(150deg, #FF8B9E, #DE3255)',
+              border: 'none',
+              color: '#fff',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: '-3px -3px 8px rgba(255,255,255,0.25), 4px 8px 20px rgba(222,50,85,0.38)',
+            }}
+          >
+            Ya, Keluar
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -397,21 +516,13 @@ export default function SettingsPage({ navigate }) {
             <div style={{
               width: 68, height: 68,
               borderRadius: 26,
-              background: 'linear-gradient(145deg, #F6E4FF 0%, #E4B8F0 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: "'Outfit', sans-serif",
-              fontWeight: 700,
-              fontSize: 22,
-              color: '#3B0B47',
-              boxShadow: '-6px -6px 14px rgba(255,255,255,0.5), 6px 8px 18px rgba(20,4,26,0.45), inset 0 0 0 1px rgba(255,255,255,0.4)',
               overflow: 'hidden',
+              boxShadow: '-6px -6px 14px rgba(255,255,255,0.5), 6px 8px 18px rgba(20,4,26,0.45), inset 0 0 0 1px rgba(255,255,255,0.4)',
             }}>
               {user?.photo ? (
                 <img src={user.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                getInitials(user?.name)
+                <ProfileAvatar user={user} size={68} showBorder={false} />
               )}
             </div>
           </div>
@@ -833,114 +944,7 @@ export default function SettingsPage({ navigate }) {
       {/* ── LOGOUT CONFIRMATION MODAL ── */}
       <AnimatePresence>
         {showLogoutConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowLogoutConfirm(false)}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1000,
-              padding: 16,
-              backdropFilter: 'blur(4px)',
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                background: '#fff',
-                borderRadius: 24,
-                padding: 24,
-                width: '100%',
-                maxWidth: 340,
-                textAlign: 'center',
-                boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
-              }}
-            >
-              <div style={{
-                width: 72,
-                height: 72,
-                borderRadius: '50%',
-                background: 'linear-gradient(145deg, #FF8B9E20, #DE325510)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px',
-              }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#DE3255" strokeWidth="2">
-                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-              </div>
-              <h3 style={{
-                fontFamily: "'Poppins', sans-serif",
-                fontSize: 20,
-                fontWeight: 700,
-                color: '#2B1130',
-                margin: '0 0 8px',
-              }}>
-                Keluar Aplikasi?
-              </h3>
-              <p style={{
-                fontFamily: "'Poppins', sans-serif",
-                fontSize: 13,
-                color: '#7A6584',
-                margin: '0 0 24px',
-                lineHeight: 1.5,
-              }}>
-                Kamu yakin ingin keluar dari aplikasi ini.
-              </p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <motion.button
-                  onClick={() => setShowLogoutConfirm(false)}
-                  whileTap={{ scale: 0.97 }}
-                  style={{
-                    flex: 1,
-                    padding: '14px 20px',
-                    borderRadius: 14,
-                    background: '#F0F0F5',
-                    border: 'none',
-                    fontFamily: "'Poppins', sans-serif",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#2B1130',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Batal
-                </motion.button>
-                <motion.button
-                  onClick={confirmLogout}
-                  whileTap={{ scale: 0.97 }}
-                  style={{
-                    flex: 1,
-                    padding: '14px 20px',
-                    borderRadius: 14,
-                    background: 'linear-gradient(150deg, #FF8B9E, #DE3255)',
-                    border: 'none',
-                    color: '#fff',
-                    fontFamily: "'Poppins', sans-serif",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    boxShadow: '0 8px 24px rgba(222,50,85,0.35)',
-                  }}
-                >
-                  Ya, Keluar
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
+          <LogoutModal onClose={() => setShowLogoutConfirm(false)} onConfirm={confirmLogout} />
         )}
       </AnimatePresence>
     </div>

@@ -804,7 +804,7 @@ function RequestsTab() {
             exit={{ opacity: 0 }}
             style={{
               position: 'fixed', inset: 0, background: 'rgba(59,11,71,0.5)',
-              zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center',
               padding: 16,
             }}
             onClick={() => setActionModal(null)}

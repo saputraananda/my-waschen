@@ -120,8 +120,6 @@ function ApprovalCardCompact({ item, typeMeta, onApprove, onReject, actionLoadin
   const isPending = item.status === 'pending';
   const statusMeta = STATUS_META[item.status] || STATUS_META.pending;
   const urgency = item.urgency ? URGENCY_META[item.urgency] : null;
-  const initials = (item.requesterName || item.requester || item.submittedBy || 'US')
-    .split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <motion.div
@@ -300,7 +298,7 @@ function RejectModal({ visible, item, typeMeta, onConfirm, onClose, loading }) {
   if (!visible || !item) return null;
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
+      position: 'fixed', inset: 0, zIndex: 9500,
       background: 'rgba(15,23,42,0.55)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20,

@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { C, T, SHADOW } from '../../utils/theme';
+import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, MoneyInput, Modal, Badge } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
@@ -70,13 +70,54 @@ const fmtCurrency = (num) => {
   }).format(num).replace('Rp', '').trim();
 };
 
+// ─── Clay Card ────────────────────────────────────────────────────────────────
+const ClayCard = ({ children, style, padding = 16 }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.3 }}
+    style={{
+      background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+      borderRadius: 20,
+      padding: padding,
+      boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+      border: '1px solid rgba(139, 92, 246, 0.08)',
+      ...style,
+    }}
+  >
+    {children}
+  </motion.div>
+);
+
+// ─── Clay Icon ────────────────────────────────────────────────────────────────
+const ClayIcon = ({ icon: IconComp, color = C.primary, size = 32 }) => (
+  <div
+    style={{
+      width: size,
+      height: size,
+      borderRadius: size * 0.25,
+      background: `linear-gradient(145deg, ${color}15, ${color}05)`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      boxShadow: `3px 3px 8px ${color}15, -1px -1px 4px rgba(255, 255, 255, 0.9)`,
+    }}
+  >
+    {typeof icon === 'string' ? (
+      <span style={{ fontSize: size * 0.4 }}>{icon}</span>
+    ) : (
+      <IconComp size={size * 0.45} color={color} />
+    )}
+  </div>
+);
+
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 const StatusBadge = ({ status }) => {
   const config = {
-    open: { bg: '#ECFDF5', color: '#059669', text: '● Aktif', pulse: true },
+    open: { bg: C.success + '15', color: C.success, text: '● Aktif', pulse: true },
     closed: { bg: C.n100, color: C.n500, text: 'Tutup', pulse: false },
-    handover: { bg: '#FEF3C7', color: '#D97706', text: '● Dioper', pulse: true },
-    'belum-buka': { bg: '#FEE2E2', color: '#DC2626', text: 'Belum Aktif', pulse: false },
+    handover: { bg: C.warning + '15', color: C.warning, text: '● Dioper', pulse: true },
+    'belum-buka': { bg: C.danger + '10', color: C.danger, text: 'Belum Aktif', pulse: false },
   };
   const c = config[status] || config.closed;
   return (
@@ -96,9 +137,32 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+// ─── Glass Styles ─────────────────────────────────────────────────────────────
+const useGlassStyles = () => {
+  useEffect(() => {
+    const styleId = 'shift-page-glass';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        :root { --glass-bg: #F3EEF7; }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    return () => {
+      const existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+    };
+  }, []);
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function KasirShiftPage({ navigate, goBack }) {
-  // ── State ──────────────────────────────────────────────────────────────────
+  useGlassStyles();
   const componentNavigate = navigate || ((path) => window.location.href = path);
   const componentGoBack = goBack || (() => window.history.back());
   const { isMobile, isTablet } = useResponsive();
@@ -129,13 +193,10 @@ export default function KasirShiftPage({ navigate, goBack }) {
   const [openingCash, setOpeningCash] = useState('');
   const [closingCash, setClosingCash] = useState('');
   const [closeNotes, setCloseNotes] = useState('');
-  // Handover 3 inputs: Saldo, Kas Modal, Revenue
   const [handoverSaldo, setHandoverSaldo] = useState('');
   const [handoverKasModal, setHandoverKasModal] = useState('');
   const [handoverRevenue, setHandoverRevenue] = useState('');
-  const [handoverAmount, setHandoverAmount] = useState('');
   const [handoverNotes, setHandoverNotes] = useState('');
-  const [selectedSubSession, setSelectedSubSession] = useState(null);
   const [subSessionCash, setSubSessionCash] = useState('');
 
   // ── Close/Handover Result ─────────────────────────────────────────────────
@@ -147,7 +208,6 @@ export default function KasirShiftPage({ navigate, goBack }) {
       const res = await axios.get('/api/shifts/status');
       setShiftStatus(res.data);
     } catch (e) {
-      // Silent fail - shift status optional
       setShiftStatus(null);
     }
   }, []);
@@ -158,7 +218,6 @@ export default function KasirShiftPage({ navigate, goBack }) {
       const res = await axios.get('/api/shifts/current-summary');
       setShiftSummary(res.data?.data || null);
     } catch (e) {
-      // Silent fail - summary optional
       setShiftSummary(null);
     } finally {
       setLoadingSummary(false);
@@ -174,7 +233,6 @@ export default function KasirShiftPage({ navigate, goBack }) {
       const res = await axios.get(`/api/shifts/sub-session/${shiftStatus.session.id}/all`);
       setSubSessions(res.data?.data || []);
     } catch (e) {
-      // Silent fail - sub-sessions optional
       setSubSessions([]);
     }
   }, [shiftStatus?.session?.id]);
@@ -185,7 +243,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       const res = await axios.get(`/api/transactions?session_id=${shiftStatus.session.id}&limit=10`);
       setRecentTransactions(res.data?.data || []);
     } catch (e) {
-      // Silent fail - transactions optional
+      // Silent fail
     }
   }, [shiftStatus?.session?.id]);
 
@@ -222,7 +280,6 @@ export default function KasirShiftPage({ navigate, goBack }) {
   const hasSubSession = !!subSession;
   const shiftOpt = SHIFT_OPTIONS.find(s => s.value === session?.shift) || SHIFT_OPTIONS[3];
 
-  // Calculate cash position
   const cashPosition = shiftSummary ? {
     opening: shiftSummary.openingCash || 0,
     sales: shiftSummary.cashSales || 0,
@@ -243,7 +300,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       setOpeningCash('');
       setShowBukaShift(false);
       await loadAll();
-      alertSuccess('Shift berhasil dibuka! 💪');
+      alertSuccess('Shift berhasil dibuka!');
     } catch (e) {
       alertError(e?.response?.data?.message || 'Gagal buka shift');
     } finally {
@@ -258,14 +315,14 @@ export default function KasirShiftPage({ navigate, goBack }) {
     }
     setLoading(true);
     try {
-      const res = await axios.post('/api/shifts/sub-session/open', {
+      await axios.post('/api/shifts/sub-session/open', {
         sessionId: session.id,
         beginningCash: Number(String(openingCash).replace(/\D/g, '') || 0),
       });
       setOpeningCash('');
       setShowGabungShift(false);
       await loadAll();
-      alertSuccess('Berhasil bergabung dengan shift! 🎉');
+      alertSuccess('Berhasil bergabung dengan shift!');
     } catch (e) {
       alertError(e?.response?.data?.message || 'Gagal gabung shift');
     } finally {
@@ -306,7 +363,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       await loadAll();
       const d = res.data.data;
       if (d.variance === 0) {
-        alertSuccess('Sub-session ditutup. Kas rapi! ✅');
+        alertSuccess('Sub-session ditutup. Kas rapi!');
       } else {
         alertWarning(`Sub-session ditutup. Ada selisih Rp ${fmtCurrency(Math.abs(d.variance))}`);
       }
@@ -318,7 +375,6 @@ export default function KasirShiftPage({ navigate, goBack }) {
   };
 
   const handleHandover = async () => {
-    // Validate 3 inputs required
     const saldo = Number(String(handoverSaldo).replace(/\D/g, '') || 0);
     const kasModal = Number(String(handoverKasModal).replace(/\D/g, '') || 0);
     const revenue = Number(String(handoverRevenue).replace(/\D/g, '') || 0);
@@ -344,7 +400,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       setHandoverRevenue('');
       setHandoverNotes('');
       await loadAll();
-      alertSuccess('Shift berhasil dioper! 🎉');
+      alertSuccess('Shift berhasil dioper!');
     } catch (e) {
       alertError(e?.response?.data?.message || 'Gagal oper shift');
     } finally {
@@ -354,13 +410,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
   // ─── Render: Header ────────────────────────────────────────────────────────
   const renderHeader = () => (
-    <div style={{
-      background: 'linear-gradient(145deg, ' + C.primaryTint + ', white)',
-      borderRadius: 20,
-      padding: 20,
-      marginBottom: 16,
-      border: '1px solid ' + C.primary + '15',
-    }}>
+    <ClayCard padding={isMobile ? 16 : 20} style={{ marginBottom: 12 }}>
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -368,7 +418,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
         marginBottom: 12,
       }}>
         <StatusBadge status={isOpen ? (session?.status === 'handover' ? 'handover' : 'open') : 'belum-buka'} />
-        <span style={{ fontSize: 12, color: C.n500 }}>{fmtDate()}</span>
+        <span style={{ fontSize: 12, color: C.n500, fontFamily: "'Poppins'" }}>{fmtDate()}</span>
       </div>
 
       {isOpen && session ? (
@@ -376,10 +426,10 @@ export default function KasirShiftPage({ navigate, goBack }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
             <span style={{ fontSize: 28 }}>{shiftOpt.icon}</span>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: C.n800 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.n800, fontFamily: "'Poppins'" }}>
                 Shift {shiftOpt.label}
               </div>
-              <div style={{ fontSize: 12, color: C.n500 }}>
+              <div style={{ fontSize: 12, color: C.n500, fontFamily: "'Poppins'" }}>
                 {fmtTime(session.openedAt)}
               </div>
             </div>
@@ -395,26 +445,27 @@ export default function KasirShiftPage({ navigate, goBack }) {
       ) : (
         <div style={{ textAlign: 'center', padding: 12 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>😴</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700, marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700, fontFamily: "'Poppins'", marginBottom: 4 }}>
             Shift Belum Aktif
           </div>
-          <div style={{ fontSize: 12, color: C.n500 }}>
+          <div style={{ fontSize: 12, color: C.n500, fontFamily: "'Poppins'" }}>
             Buka atau gabung shift untuk mulai bertransaksi
           </div>
         </div>
       )}
-    </div>
+    </ClayCard>
   );
 
   // ─── Render: Tabs ──────────────────────────────────────────────────────────
   const renderTabs = () => (
     <div style={{
       display: 'flex',
-      gap: 8,
-      marginBottom: 16,
+      gap: 6,
+      marginBottom: 12,
       padding: 4,
-      background: C.n50,
-      borderRadius: 12,
+      background: C.white,
+      borderRadius: 14,
+      boxShadow: '6px 6px 16px rgba(110, 46, 120, 0.08), -3px -3px 8px rgba(255, 255, 255, 0.95)',
     }}>
       {TABS.map(tab => {
         const Icon = tab.icon;
@@ -429,22 +480,23 @@ export default function KasirShiftPage({ navigate, goBack }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 6,
-              padding: '10px 12px',
+              gap: 4,
+              padding: '8px 8px',
               borderRadius: 10,
               border: 'none',
-              background: isActive ? 'white' : 'transparent',
-              color: isActive ? C.primary : C.n500,
-              fontFamily: 'Poppins',
-              fontSize: 12,
+              background: isActive
+                ? 'linear-gradient(145deg, ' + C.primary + ', ' + C.primaryDark + ')'
+                : 'transparent',
+              color: isActive ? C.white : C.n500,
+              fontFamily: "'Poppins'",
+              fontSize: 11,
               fontWeight: isActive ? 600 : 500,
               cursor: 'pointer',
-              boxShadow: isActive ? SHADOW.sm : 'none',
               transition: 'all 0.2s ease',
             }}
           >
-            <Icon size={16} color={isActive ? C.primary : C.n500} />
-            {tab.label}
+            <Icon size={14} color={isActive ? C.white : C.n500} />
+            {!isMobile && tab.label}
           </motion.button>
         );
       })}
@@ -464,7 +516,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
   // ─── Tab: Status ────────────────────────────────────────────────────────────
   const renderStatusTab = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {isOpen && shiftSummary && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           <StatBox label="Transaksi" value={shiftSummary.totalTransactions || 0} suffix="nota" color={C.primary} />
@@ -473,28 +525,28 @@ export default function KasirShiftPage({ navigate, goBack }) {
         </div>
       )}
 
-      <div style={{ background: C.white, borderRadius: 16, padding: 16, boxShadow: SHADOW.md }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+      <ClayCard padding={16}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 12, fontFamily: "'Poppins'" }}>
           Aksi Cepat
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <ActionButton icon={<IconReceipt size={18} />} label="Lihat Semua Transaksi" onClick={() => navigate('transaksi')} color={C.primary} />
+          <ActionButton icon={<IconReceipt size={18} />} label="Lihat Semua Transaksi" onClick={() => componentNavigate('transaksi')} color={C.primary} />
           {isOpen && (
             <ActionButton icon={<IconRefresh size={18} />} label="Refresh Data" onClick={loadAll} color={C.n500} />
           )}
         </div>
-      </div>
+      </ClayCard>
     </div>
   );
 
   // ─── Tab: Kas ────────────────────────────────────────────────────────────────
   const renderKasTab = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {isOpen && shiftSummary ? (
-        <div style={{ background: 'linear-gradient(145deg, ' + C.primaryTint + ', white)', border: '1px solid ' + C.primary + '20' }}>
+        <ClayCard padding={16}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.primary, textTransform: 'uppercase' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.primary, fontFamily: "'Poppins'" }}>
                 Posisi Kas Sekarang
               </div>
             </div>
@@ -502,7 +554,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
               <span style={{ fontSize: 10, color: C.n400 }}>Memuat...</span>
             ) : (
               <motion.button whileTap={{ scale: 0.9 }} onClick={loadSummary} style={{
-                background: 'rgba(255,255,255,0.8)', border: 'none', borderRadius: 8,
+                background: C.n50, border: 'none', borderRadius: 8,
                 padding: '6px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
               }}>
                 <IconRefresh size={14} color={C.primary} />
@@ -510,7 +562,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
             )}
           </div>
 
-          <div style={{ fontSize: 32, fontWeight: 800, color: C.n800, marginBottom: 16 }}>
+          <div style={{ fontSize: 32, fontWeight: 800, color: C.n800, marginBottom: 16, fontFamily: "'Poppins'" }}>
             Rp {fmtCurrency(cashPosition.expected)}
           </div>
 
@@ -521,17 +573,19 @@ export default function KasirShiftPage({ navigate, goBack }) {
             <div style={{ height: 1, background: C.n100, margin: '4px 0' }} />
             <CashRow label="Seharusnya Ada" value={cashPosition.expected} color={C.n800} bold />
           </div>
-        </div>
+        </ClayCard>
       ) : (
-        <div style={{ textAlign: 'center', padding: 24 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700 }}>
-            {isOpen ? 'Memuat data kas...' : 'Buka Shift Dulu'}
+        <ClayCard padding={24}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.n700, fontFamily: "'Poppins'" }}>
+              {isOpen ? 'Memuat data kas...' : 'Buka Shift Dulu'}
+            </div>
+            <div style={{ fontSize: 12, color: C.n500, marginTop: 4, fontFamily: "'Poppins'" }}>
+              {isOpen ? 'Posisi kas akan muncul di sini' : 'Shift harus aktif untuk melihat posisi kas'}
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: C.n500, marginTop: 4 }}>
-            {isOpen ? 'Posisi kas akan muncul di sini' : 'Shift harus aktif untuk melihat posisi kas'}
-          </div>
-        </div>
+        </ClayCard>
       )}
 
       {isOpen && shiftSummary?.paymentSummary?.length > 0 && (
@@ -539,82 +593,84 @@ export default function KasirShiftPage({ navigate, goBack }) {
       )}
 
       {isOpen && shiftSummary?.setorSummary?.hasPending && (
-        <div style={{ background: C.warningBg, border: '1px solid ' + C.warning + '30' }}>
+        <ClayCard padding={14}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <IconWarning size={24} color={C.warning} />
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.warning }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.warning, fontFamily: "'Poppins'" }}>
                 {shiftSummary.setorSummary.pendingCount} Setoran Pending
               </div>
-              <div style={{ fontSize: 11, color: C.n600 }}>
+              <div style={{ fontSize: 11, color: C.n600, fontFamily: "'Poppins'" }}>
                 Total: Rp {fmtCurrency(shiftSummary.setorSummary.totalPending)}
               </div>
             </div>
           </div>
-        </div>
+        </ClayCard>
       )}
     </div>
   );
 
   // ─── Tab: Sub-Session ────────────────────────────────────────────────────────
   const renderSubSessionTab = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {!session ? (
-        <div style={{ textAlign: 'center', padding: 24 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>👥</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700 }}>
-            Belum Ada Shift Utama
+        <ClayCard padding={24}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>👥</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.n700, fontFamily: "'Poppins'" }}>
+              Belum Ada Shift Utama
+            </div>
+            <div style={{ fontSize: 12, color: C.n500, marginTop: 4, fontFamily: "'Poppins'" }}>
+              Buka shift utama terlebih dahulu
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: C.n500, marginTop: 4 }}>
-            Buka shift utama terlebih dahulu
-          </div>
-        </div>
+        </ClayCard>
       ) : (
         <>
           {/* Current User's Sub-Session */}
           {hasSubSession ? (
-            <div style={{ border: '2px solid ' + C.success + '30' }}>
+            <ClayCard padding={16} style={{ border: '2px solid ' + C.success + '30' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <IconPerson size={20} color={C.success} />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: C.n800 }}>Sub-Session Anda</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.n800, fontFamily: "'Poppins'" }}>Sub-Session Anda</span>
                 </div>
                 <Badge variant="success">Aktif</Badge>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
                 <div style={{ background: C.n50, borderRadius: 8, padding: 10 }}>
-                  <div style={{ fontSize: 10, color: C.n500 }}>Modal</div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>Rp {fmtCurrency(subSession.beginningCash)}</div>
+                  <div style={{ fontSize: 10, color: C.n500, fontFamily: "'Poppins'" }}>Modal</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'Poppins'" }}>Rp {fmtCurrency(subSession.beginningCash)}</div>
                 </div>
                 <div style={{ background: C.n50, borderRadius: 8, padding: 10 }}>
-                  <div style={{ fontSize: 10, color: C.n500 }}>Transaksi</div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{subSession.transactionCount || 0} nota</div>
+                  <div style={{ fontSize: 10, color: C.n500, fontFamily: "'Poppins'" }}>Transaksi</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "'Poppins'" }}>{subSession.transactionCount || 0} nota</div>
                 </div>
               </div>
               <Btn variant="danger" size="sm" fullWidth onClick={() => setShowTutupSubSession(true)}>
                 Tutup Sub-Session
               </Btn>
-            </div>
+            </ClayCard>
           ) : (
-            <div style={{ border: '2px solid ' + C.warning + '30', background: C.warningBg }}>
+            <ClayCard padding={16} style={{ border: '2px solid ' + C.warning + '30', background: C.warning + '08' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.n800, marginBottom: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.n800, fontFamily: "'Poppins'", marginBottom: 4 }}>
                   Belum Bergabung
                 </div>
-                <div style={{ fontSize: 12, color: C.n600, marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: C.n600, marginBottom: 12, fontFamily: "'Poppins'" }}>
                   Gabung shift untuk bisa bertransaksi
                 </div>
                 <Btn variant="warning" fullWidth onClick={() => setShowGabungShift(true)}>
                   Gabung Shift
                 </Btn>
               </div>
-            </div>
+            </ClayCard>
           )}
 
-          {/* All Sub-Sessions in this Shift */}
+          {/* All Sub-Sessions */}
           {subSessions.length > 0 && (
             <>
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.n600, marginTop: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.n600, marginTop: 8, fontFamily: "'Poppins'" }}>
                 Semua Sub-Session dalam Shift Ini
               </div>
               {subSessions.map((ss, i) => (
@@ -629,25 +685,27 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
   // ─── Tab: Riwayat ───────────────────────────────────────────────────────────
   const renderRiwayatTab = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {recentTransactions.length > 0 ? (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.n600 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.n600, fontFamily: "'Poppins'" }}>
               {recentTransactions.length} transaksi terakhir
             </span>
-            <ActionButton label="Lihat Semua" onClick={() => navigate('transaksi')} color={C.primary} size="sm" />
+            <ActionButton label="Lihat Semua" onClick={() => componentNavigate('transaksi')} color={C.primary} size="sm" />
           </div>
           {recentTransactions.map((tx, i) => (
-            <TransactionRow key={tx.id} transaction={tx} index={i} onClick={() => navigate('transaksi_detail', { id: tx.id })} />
+            <TransactionRow key={tx.id} transaction={tx} index={i} onClick={() => componentNavigate('transaksi_detail', { id: tx.id })} />
           ))}
         </>
       ) : (
-        <div style={{ textAlign: 'center', padding: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.n700 }}>Belum Ada Transaksi</div>
-          <div style={{ fontSize: 12, color: C.n500, marginTop: 4 }}>Transaksi akan muncul di sini</div>
-        </div>
+        <ClayCard padding={32}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📋</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.n700, fontFamily: "'Poppins'" }}>Belum Ada Transaksi</div>
+            <div style={{ fontSize: 12, color: C.n500, marginTop: 4, fontFamily: "'Poppins'" }}>Transaksi akan muncul di sini</div>
+          </div>
+        </ClayCard>
       )}
     </div>
   );
@@ -657,31 +715,41 @@ export default function KasirShiftPage({ navigate, goBack }) {
     <div style={{
       display: 'flex',
       gap: 10,
-      padding: 16,
+      padding: isMobile ? '12px 16px' : '16px',
       background: C.white,
-      borderTop: '1px solid ' + C.n100,
-      boxShadow: SHADOW.nav,
+      borderTop: '1px solid ' + C.n200,
+      boxShadow: isMobile ? '0 -4px 12px rgba(0,0,0,0.08)' : 'none',
     }}>
       {!session ? (
-        <Btn variant="success" fullWidth size="lg" onClick={() => setShowBukaShift(true)}>
-          🟢 Buka Shift Sekarang
-        </Btn>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setShowBukaShift(true)}
+          style={{
+            flex: 1, height: 48, borderRadius: 14, border: 'none',
+            background: 'linear-gradient(145deg, #16A34A, #15803D)',
+            color: 'white', fontFamily: "'Poppins'", fontSize: 14, fontWeight: 600,
+            cursor: 'pointer',
+            boxShadow: '-4px -4px 10px rgba(255, 255, 255, 0.4), 5px 6px 14px rgba(21, 128, 61, 0.35)',
+          }}
+        >
+          Buka Shift Sekarang
+        </motion.button>
       ) : session.status === 'handover' ? (
-        <div style={{ flex: 1, textAlign: 'center', padding: 12, background: C.warningBg }}>
-          <span style={{ fontSize: 12, color: C.warning }}>Menunggu konfirmasi handover...</span>
+        <div style={{ flex: 1, textAlign: 'center', padding: 12, background: C.warning + '15', borderRadius: 14 }}>
+          <span style={{ fontSize: 12, color: C.warning, fontFamily: "'Poppins'" }}>Menunggu konfirmasi handover...</span>
         </div>
       ) : (
         <>
           {!hasSubSession && (
             <Btn variant="secondary" style={{ flex: 1 }} size="lg" onClick={() => setShowGabungShift(true)}>
-              👥 Gabung
+              Gabung
             </Btn>
           )}
           <Btn variant="secondary" style={{ flex: 1 }} size="lg" onClick={() => setShowHandover(true)}>
-            🔄 Oper
+            Oper
           </Btn>
           <Btn variant="danger" style={{ flex: 1 }} size="lg" onClick={() => setShowTutup(true)}>
-            🚪 Tutup
+            Tutup
           </Btn>
         </>
       )}
@@ -693,10 +761,10 @@ export default function KasirShiftPage({ navigate, goBack }) {
     if (!closeResult) return null;
     const isBalanced = closeResult.isBalanced || closeResult.difference === 0;
     return (
-      <Modal visible={true} onClose={() => setCloseResult(null)} title="📊 Hasil Tutup Shift">
+      <Modal visible={true} onClose={() => setCloseResult(null)} title="Hasil Tutup Shift">
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 48, marginBottom: 8 }}>{isBalanced ? '✅' : '⚠️'}</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.n800 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.n800, fontFamily: "'Poppins'" }}>
             {isBalanced ? 'Kas Rapi!' : 'Ada Selisih Kas'}
           </div>
         </div>
@@ -710,8 +778,8 @@ export default function KasirShiftPage({ navigate, goBack }) {
         </div>
 
         {closeResult.pendingSetorWarning && (
-          <div style={{ background: C.warningBg, padding: 12, borderRadius: 10, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: C.warning }}>{closeResult.pendingSetorWarning.message}</div>
+          <div style={{ background: C.warning + '15', padding: 12, borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: C.warning, fontFamily: "'Poppins'" }}>{closeResult.pendingSetorWarning.message}</div>
           </div>
         )}
 
@@ -722,13 +790,13 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
   // ─── Buka Shift Modal ────────────────────────────────────────────────────────
   const renderBukaShiftModal = () => (
-    <Modal visible={showBukaShift} onClose={() => setShowBukaShift(false)} title="🟢 Buka Shift Baru">
-      <div style={{ background: C.infoBg, padding: 12, borderRadius: 10, marginBottom: 16, textAlign: 'center' }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: C.infoDark }}>{fmtDate()}</div>
+    <Modal visible={showBukaShift} onClose={() => setShowBukaShift(false)} title="Buka Shift Baru">
+      <div style={{ background: C.primaryTint, padding: 12, borderRadius: 10, marginBottom: 16, textAlign: 'center' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.primary, fontFamily: "'Poppins'" }}>{fmtDate()}</div>
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 10 }}>Pilih Jenis Shift</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 10, fontFamily: "'Poppins'" }}>Pilih Jenis Shift</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {SHIFT_OPTIONS.map(opt => (
             <motion.button key={opt.value} whileTap={{ scale: 0.95 }} onClick={() => setShiftType(opt.value)} style={{
@@ -738,14 +806,14 @@ export default function KasirShiftPage({ navigate, goBack }) {
               cursor: 'pointer', textAlign: 'center',
             }}>
               <div style={{ fontSize: 24, marginBottom: 4 }}>{opt.icon}</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: shiftType === opt.value ? C.primary : C.n700, marginBottom: 2 }}>{opt.label}</div>
-              <div style={{ fontSize: 10, color: C.n500 }}>{opt.jam}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: shiftType === opt.value ? C.primary : C.n700, marginBottom: 2, fontFamily: "'Poppins'" }}>{opt.label}</div>
+              <div style={{ fontSize: 10, color: C.n500, fontFamily: "'Poppins'" }}>{opt.jam}</div>
             </motion.button>
           ))}
         </div>
       </div>
 
-      <MoneyInput label="💰 Modal Awal Kas Laci" value={openingCash} onChange={setOpeningCash} placeholder="0" />
+      <MoneyInput label="Modal Awal Kas Laci" value={openingCash} onChange={setOpeningCash} placeholder="0" />
 
       <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
         <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setShowBukaShift(false)}>Batal</Btn>
@@ -756,17 +824,17 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
   // ─── Gabung Shift Modal ─────────────────────────────────────────────────────
   const renderGabungShiftModal = () => (
-    <Modal visible={showGabungShift} onClose={() => setShowGabungShift(false)} title="👥 Gabung Shift">
+    <Modal visible={showGabungShift} onClose={() => setShowGabungShift(false)} title="Gabung Shift">
       <div style={{ background: C.success + '15', padding: 12, borderRadius: 10, marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: C.success, fontWeight: 600 }}>
+        <div style={{ fontSize: 12, color: C.success, fontWeight: 600, fontFamily: "'Poppins'" }}>
           Bergabung dengan shift yang sudah ada
         </div>
-        <div style={{ fontSize: 11, color: C.n600, marginTop: 4 }}>
+        <div style={{ fontSize: 11, color: C.n600, marginTop: 4, fontFamily: "'Poppins'" }}>
           Shift {shiftOpt.label} • {session?.openedAt ? fmtTime(session.openedAt) : '-'}
         </div>
       </div>
 
-      <MoneyInput label="💰 Modal Awal Sub-Session" value={openingCash} onChange={setOpeningCash} placeholder="0" />
+      <MoneyInput label="Modal Awal Sub-Session" value={openingCash} onChange={setOpeningCash} placeholder="0" />
 
       <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
         <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setShowGabungShift(false)}>Batal</Btn>
@@ -777,16 +845,16 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
   // ─── Tutup Shift Modal ─────────────────────────────────────────────────────
   const renderTutupModal = () => (
-    <Modal visible={showTutup} onClose={() => setShowTutup(false)} title="🚪 Tutup Shift">
+    <Modal visible={showTutup} onClose={() => setShowTutup(false)} title="Tutup Shift">
       <div style={{ background: C.n50, padding: 12, borderRadius: 10, marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: C.n600, marginBottom: 4 }}>Seharusnya Ada</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: C.n800 }}>Rp {fmtCurrency(cashPosition.expected)}</div>
+        <div style={{ fontSize: 12, color: C.n600, marginBottom: 4, fontFamily: "'Poppins'" }}>Seharusnya Ada</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: C.n800, fontFamily: "'Poppins'" }}>Rp {fmtCurrency(cashPosition.expected)}</div>
       </div>
 
-      <MoneyInput label="💵 Total Uang Fisik di Laci" value={closingCash} onChange={setClosingCash} placeholder="0" />
+      <MoneyInput label="Total Uang Fisik di Laci" value={closingCash} onChange={setClosingCash} placeholder="0" />
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>Catatan (opsional)</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6, fontFamily: "'Poppins'" }}>Catatan (opsional)</div>
         <textarea value={closeNotes} onChange={e => setCloseNotes(e.target.value)} rows={2} placeholder="Contoh: selisih karena kembalian kurang" style={{
           width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid ' + C.n200,
           fontFamily: 'Poppins', fontSize: 13, resize: 'none', boxSizing: 'border-box',
@@ -802,13 +870,13 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
   // ─── Tutup Sub-Session Modal ────────────────────────────────────────────────
   const renderTutupSubSessionModal = () => (
-    <Modal visible={showTutupSubSession} onClose={() => setShowTutupSubSession(false)} title="📋 Tutup Sub-Session">
+    <Modal visible={showTutupSubSession} onClose={() => setShowTutupSubSession(false)} title="Tutup Sub-Session">
       <div style={{ background: C.n50, padding: 12, borderRadius: 10, marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: C.n600, marginBottom: 4 }}>Kas Anda</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: C.n800 }}>Rp {fmtCurrency(subSessionCash || subSession?.beginningCash)}</div>
+        <div style={{ fontSize: 12, color: C.n600, marginBottom: 4, fontFamily: "'Poppins'" }}>Kas Anda</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: C.n800, fontFamily: "'Poppins'" }}>Rp {fmtCurrency(subSessionCash || subSession?.beginningCash)}</div>
       </div>
 
-      <MoneyInput label="💵 Total Uang Fisik" value={subSessionCash} onChange={setSubSessionCash} placeholder="0" />
+      <MoneyInput label="Total Uang Fisik" value={subSessionCash} onChange={setSubSessionCash} placeholder="0" />
 
       <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
         <Btn variant="secondary" style={{ flex: 1 }} onClick={() => setShowTutupSubSession(false)}>Batal</Btn>
@@ -817,49 +885,46 @@ export default function KasirShiftPage({ navigate, goBack }) {
     </Modal>
   );
 
-  // ─── Handover Modal - 3 Input Wajib ─────────────────────────────────────
+  // ─── Handover Modal ─────────────────────────────────────────────────────────
   const renderHandoverModal = () => (
-    <Modal visible={showHandover} onClose={() => setShowHandover(false)} title="🔄 Oper Shift">
-      <div style={{ background: C.warningBg, padding: 12, borderRadius: 10, marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: C.warning, fontWeight: 600 }}>
+    <Modal visible={showHandover} onClose={() => setShowHandover(false)} title="Oper Shift">
+      <div style={{ background: C.warning + '15', padding: 12, borderRadius: 10, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: C.warning, fontWeight: 600, fontFamily: "'Poppins'" }}>
           Serahkan kas ke penanggung jawab berikutnya
         </div>
       </div>
 
-      {/* Summary from previous shift */}
       <div style={{ background: C.n50, padding: 12, borderRadius: 10, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <div>
-            <div style={{ fontSize: 11, color: C.n600 }}>Seharusnya Ada</div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Rp {fmtCurrency(cashPosition.expected)}</div>
+            <div style={{ fontSize: 11, color: C.n600, fontFamily: "'Poppins'" }}>Seharusnya Ada</div>
+            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'Poppins'" }}>Rp {fmtCurrency(cashPosition.expected)}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, color: C.n600 }}>Revenue Shift Ini</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.success }}>+Rp {fmtCurrency(cashPosition.revenue || 0)}</div>
+            <div style={{ fontSize: 11, color: C.n600, fontFamily: "'Poppins'" }}>Revenue Shift Ini</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.success, fontFamily: "'Poppins'" }}>+Rp {fmtCurrency(cashPosition.revenue || 0)}</div>
           </div>
         </div>
       </div>
 
-      {/* 3 Input Wajib: Saldo, Kas Modal, Total Dioper */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>💰 Saldo Terakhir *</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6, fontFamily: "'Poppins'" }}>Saldo Terakhir *</div>
         <MoneyInput value={handoverSaldo} onChange={setHandoverSaldo} placeholder="0" />
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>🏦 Kas Modal *</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6, fontFamily: "'Poppins'" }}>Kas Modal *</div>
         <MoneyInput value={handoverKasModal} onChange={setHandoverKasModal} placeholder="0" />
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>📊 Total Revenue *</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6, fontFamily: "'Poppins'" }}>Total Revenue *</div>
         <MoneyInput value={handoverRevenue} onChange={setHandoverRevenue} placeholder="0" />
       </div>
 
-      {/* Calculated Expected */}
-      <div style={{ background: '#F0FDF4', padding: 12, borderRadius: 10, marginBottom: 16, border: '1px solid #86EFAC' }}>
-        <div style={{ fontSize: 11, color: '#166534' }}>Total yang Dioper (Otomatis)</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#15803D' }}>
+      <div style={{ background: C.success + '15', padding: 12, borderRadius: 10, marginBottom: 16, border: '1px solid ' + C.success + '30' }}>
+        <div style={{ fontSize: 11, color: C.success, fontFamily: "'Poppins'" }}>Total yang Dioper (Otomatis)</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: C.success, fontFamily: "'Poppins'" }}>
           Rp {fmtCurrency(
             parseInt(String(handoverSaldo).replace(/\D/g, '') || 0) +
             parseInt(String(handoverKasModal).replace(/\D/g, '') || 0) +
@@ -869,7 +934,7 @@ export default function KasirShiftPage({ navigate, goBack }) {
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6 }}>📝 Catatan (Opsional)</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 6, fontFamily: "'Poppins'" }}>Catatan (Opsional)</div>
         <textarea value={handoverNotes} onChange={e => setHandoverNotes(e.target.value)} rows={2} placeholder="Contoh: ada PR yang belum di-approve" style={{
           width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid ' + C.n200,
           fontFamily: 'Poppins', fontSize: 13, resize: 'none', boxSizing: 'border-box',
@@ -885,13 +950,20 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
   // ─── Main Render ────────────────────────────────────────────────────────────
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
-      <TopBar title="Shift Kasir" subtitle="Kelola shift & kas" onBack={goBack} />
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column',
+      background: 'var(--glass-bg, #F3EEF7)',
+    }}>
+      <TopBar title="Shift Kasir" subtitle="Kelola shift & kas" onBack={componentGoBack} />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+      <div style={{
+        flex: 1, overflowY: 'auto',
+        padding: isMobile ? 12 : 16,
+        paddingBottom: isMobile ? 100 : 16,
+      }}>
         {loading && !shiftStatus ? (
           <div style={{ textAlign: 'center', padding: 40 }}>
-            <div style={{ fontSize: 14, color: C.n500 }}>Memuat...</div>
+            <div style={{ fontSize: 14, color: C.n500, fontFamily: "'Poppins'" }}>Memuat...</div>
           </div>
         ) : (
           <>
@@ -920,9 +992,15 @@ export default function KasirShiftPage({ navigate, goBack }) {
 
 function StatBox({ label, value, suffix, color, isCurrency }) {
   return (
-    <div style={{ background: color + '10', borderRadius: 12, padding: '12px 10px', textAlign: 'center' }}>
-      <div style={{ fontSize: 10, color: C.n500, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 800, color: color }}>
+    <div style={{
+      background: color + '12',
+      borderRadius: 14,
+      padding: '12px 10px',
+      textAlign: 'center',
+      boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)',
+    }}>
+      <div style={{ fontSize: 10, color: C.n500, marginBottom: 4, fontFamily: "'Poppins'" }}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: color, fontFamily: "'Poppins'" }}>
         {isCurrency ? 'Rp ' + fmtCurrency(value) : value}
         {suffix && <span style={{ fontSize: 10, fontWeight: 500 }}> {suffix}</span>}
       </div>
@@ -933,8 +1011,8 @@ function StatBox({ label, value, suffix, color, isCurrency }) {
 function CashRow({ label, value, color, prefix = '', bold }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ fontSize: 12, color }}>{label}</span>
-      <span style={{ fontSize: bold ? 14 : 13, fontWeight: bold ? 700 : 500, color }}>
+      <span style={{ fontSize: 12, color, fontFamily: "'Poppins'" }}>{label}</span>
+      <span style={{ fontSize: bold ? 14 : 13, fontWeight: bold ? 700 : 500, color, fontFamily: "'Poppins'" }}>
         {prefix}{value ? 'Rp ' + fmtCurrency(value) : '-'}
       </span>
     </div>
@@ -944,13 +1022,20 @@ function CashRow({ label, value, color, prefix = '', bold }) {
 function ActionButton({ icon, label, onClick, color, size = 'md' }) {
   return (
     <motion.button whileTap={{ scale: 0.98 }} onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 10, padding: size === 'sm' ? '6px 0' : '10px 12px',
-      background: 'transparent', border: 'none', borderRadius: 10, cursor: 'pointer', width: '100%', textAlign: 'left',
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: size === 'sm' ? '6px 0' : '10px 12px',
+      background: 'transparent', border: 'none', borderRadius: 10,
+      cursor: 'pointer', width: '100%', textAlign: 'left',
     }}>
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 10,
+        background: color + '12',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '2px 2px 6px rgba(110, 46, 120, 0.08)',
+      }}>
         {icon}
       </div>
-      <span style={{ flex: 1, fontSize: size === 'sm' ? 11 : 13, fontWeight: 600, color }}>{label}</span>
+      <span style={{ flex: 1, fontSize: size === 'sm' ? 11 : 13, fontWeight: 600, color, fontFamily: "'Poppins'" }}>{label}</span>
       <IconChevronRight size={16} color={C.n400} />
     </motion.button>
   );
@@ -958,36 +1043,46 @@ function ActionButton({ icon, label, onClick, color, size = 'md' }) {
 
 function SubSessionCard({ subSession, index }) {
   const statusColors = {
-    open: { bg: '#ECFDF5', color: '#059669', text: 'Aktif' },
+    open: { bg: C.success + '15', color: C.success, text: 'Aktif' },
     closed: { bg: C.n100, color: C.n500, text: 'Tutup' },
-    handed_over: { bg: '#FEF3C7', color: '#D97706', text: 'Dioper' },
+    handed_over: { bg: C.warning + '15', color: C.warning, text: 'Dioper' },
   };
   const sc = statusColors[subSession.status] || statusColors.closed;
 
   return (
-    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
-      style={{ background: C.white, borderRadius: 12, padding: 14, boxShadow: SHADOW.smSoft }}>
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.05 }}
+      style={{
+        background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+        borderRadius: 16,
+        padding: 14,
+        boxShadow: '8px 8px 20px rgba(110, 46, 120, 0.08), -4px -4px 10px rgba(255, 255, 255, 0.95)',
+        border: '1px solid rgba(139, 92, 246, 0.06)',
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <IconPerson size={16} color={C.n500} />
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{subSession.cashierName || 'Kasir'}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Poppins'" }}>{subSession.cashierName || 'Kasir'}</span>
         </div>
-        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.color }}>
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.color, fontFamily: "'Poppins'" }}>
           {sc.text}
         </span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
         <div>
-          <div style={{ fontSize: 9, color: C.n500 }}>Modal</div>
-          <div style={{ fontSize: 11, fontWeight: 500 }}>Rp {fmtCurrency(subSession.beginningCash)}</div>
+          <div style={{ fontSize: 9, color: C.n500, fontFamily: "'Poppins'" }}>Modal</div>
+          <div style={{ fontSize: 11, fontWeight: 500, fontFamily: "'Poppins'" }}>Rp {fmtCurrency(subSession.beginningCash)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 9, color: C.n500 }}>Transaksi</div>
-          <div style={{ fontSize: 11, fontWeight: 500 }}>{subSession.transactionCount || 0}</div>
+          <div style={{ fontSize: 9, color: C.n500, fontFamily: "'Poppins'" }}>Transaksi</div>
+          <div style={{ fontSize: 11, fontWeight: 500, fontFamily: "'Poppins'" }}>{subSession.transactionCount || 0}</div>
         </div>
         <div>
-          <div style={{ fontSize: 9, color: C.n500 }}>Selisih</div>
-          <div style={{ fontSize: 11, fontWeight: 500, color: subSession.variance !== 0 ? C.danger : C.success }}>
+          <div style={{ fontSize: 9, color: C.n500, fontFamily: "'Poppins'" }}>Selisih</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: subSession.variance !== 0 ? C.danger : C.success, fontFamily: "'Poppins'" }}>
             {subSession.variance !== null ? 'Rp ' + fmtCurrency(subSession.variance) : '-'}
           </div>
         </div>
@@ -1000,19 +1095,28 @@ function TransactionRow({ transaction, index, onClick }) {
   const methodIcons = { cash: '💵', qris: '📱', transfer: '🏦', deposit: '👤' };
 
   return (
-    <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}
-      onClick={onClick} style={{
-        display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: C.white,
-        borderRadius: 12, boxShadow: SHADOW.smSoft, cursor: 'pointer',
-      }}>
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.05 }}
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: 12,
+        background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+        borderRadius: 14,
+        boxShadow: '6px 6px 16px rgba(110, 46, 120, 0.08), -3px -3px 8px rgba(255, 255, 255, 0.95)',
+        border: '1px solid rgba(139, 92, 246, 0.06)',
+        cursor: 'pointer',
+      }}
+    >
       <div style={{ fontSize: 24 }}>{methodIcons[transaction.primary_payment_method] || '💳'}</div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.n800 }}>{transaction.transaction_no}</div>
-        <div style={{ fontSize: 11, color: C.n500 }}>{transaction.customer_name || 'Customer'}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.n800, fontFamily: "'Poppins'" }}>{transaction.transaction_no}</div>
+        <div style={{ fontSize: 11, color: C.n500, fontFamily: "'Poppins'" }}>{transaction.customer_name || 'Customer'}</div>
       </div>
       <div style={{ textAlign: 'right' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.n800 }}>Rp {fmtCurrency(transaction.total)}</div>
-        <div style={{ fontSize: 10, color: C.n400 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.n800, fontFamily: "'Poppins'" }}>Rp {fmtCurrency(transaction.total)}</div>
+        <div style={{ fontSize: 10, color: C.n400, fontFamily: "'Poppins'" }}>
           {new Date(transaction.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false })}
         </div>
       </div>
@@ -1023,9 +1127,14 @@ function TransactionRow({ transaction, index, onClick }) {
 
 function ResultBox({ label, value, isCurrency, color }) {
   return (
-    <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
-      <div style={{ fontSize: 10, color: C.n500, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: color || C.n800 }}>
+    <div style={{
+      background: C.n50,
+      borderRadius: 10,
+      padding: '10px 12px',
+      boxShadow: 'inset 2px 2px 4px rgba(110, 46, 120, 0.04)',
+    }}>
+      <div style={{ fontSize: 10, color: C.n500, marginBottom: 2, fontFamily: "'Poppins'" }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: color || C.n800, fontFamily: "'Poppins'" }}>
         {isCurrency ? 'Rp ' + fmtCurrency(value) : value}
       </div>
     </div>

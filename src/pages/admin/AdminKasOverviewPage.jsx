@@ -201,7 +201,8 @@ export default function AdminKasOverviewPage({ goBack, navigate }) {
 
       {/* Topup Modal */}
       {showTopup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* 1050 = Priority Modal level — above GlassModal (500), below Select (9000) */}
           <div style={{ background: 'white', borderRadius: 20, padding: '24px 20px', maxWidth: 400, width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, marginBottom: 16 }}>Top-up Kas Outlet</div>
 

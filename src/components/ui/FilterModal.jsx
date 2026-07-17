@@ -67,7 +67,7 @@ export default function FilterModal({
               inset: 0,
               background: 'rgba(15, 23, 42, 0.5)',
               backdropFilter: 'blur(4px)',
-              zIndex: 1000,
+              zIndex: 500, // GlassModal level — above Premium Modal (400), below Select (9000)
             }}
           />
 
@@ -85,7 +85,7 @@ export default function FilterModal({
               maxHeight: '85vh',
               background: 'white',
               borderRadius: '24px 24px 0 0',
-              zIndex: 1001,
+              zIndex: 501,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',

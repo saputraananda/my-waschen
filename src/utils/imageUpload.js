@@ -11,6 +11,8 @@ export const UPLOAD_PRESETS = {
   avatar:        { maxWidth: 400,  maxHeight: 400,  quality: 0.85, maxBytes: 200 * 1024 },
   // Photo kondisi laundry — medium, decent quality (untuk dokumentasi)
   documentation: { maxWidth: 1024, maxHeight: 1024, quality: 0.75, maxBytes: 800 * 1024 },
+  // Receipt / bukti transaksi — small to avoid data URL overflow
+  receipt:      { maxWidth: 640,  maxHeight: 640,  quality: 0.65, maxBytes: 400 * 1024 },
   // Damage report — high quality (bukti hukum/klaim)
   damage:        { maxWidth: 1600, maxHeight: 1600, quality: 0.85, maxBytes: 2 * 1024 * 1024 },
   // Thumbnail — sangat kecil
@@ -45,8 +47,18 @@ export async function uploadImage(file, preset = 'documentation') {
 
   const originalSizeKb = Math.round(file.size / 1024);
 
-  // Compress
-  let dataUrl = await compressImage(file, cfg.maxWidth, cfg.maxHeight, cfg.quality);
+  // Compress — try catch wrapper for better error messages
+  let dataUrl;
+  try {
+    dataUrl = await compressImage(file, cfg.maxWidth, cfg.maxHeight, cfg.quality);
+  } catch (e) {
+    throw new Error(e?.message || 'Gagal memproses gambar. Coba lagi dengan foto lain.');
+  }
+
+  // Validate result
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+    throw new Error('Hasil kompresi gambar tidak valid. Coba lagi.');
+  }
 
   // Verify size
   const sizeKb = Math.round((dataUrl.length * 3 / 4) / 1024); // base64 → bytes ≈ length * 3/4

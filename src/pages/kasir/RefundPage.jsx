@@ -2,140 +2,90 @@
 // RefundPage.jsx — Refund Request Form with Suggested Reasons
 // Phase 1.2: Refund System
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import axios from 'axios';
-import { C, SHADOW } from '../../utils/theme';
-import { rp, formatDate } from '../../utils/helpers';
-import { TopBar, Btn, Input, Select, MoneyInput, Modal } from '../../components/ui';
-import { alertError, alertSuccess, alertWarning, alertConfirm } from '../../utils/alert';
+import { motion, AnimatePresence } from 'framer-motion';
+import { C } from '../../utils/theme';
+import { rp } from '../../utils/helpers';
+import { TopBar, Btn, Input, MoneyInput } from '../../components/ui';
+import { alertError, alertSuccess, alertConfirm } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
-import { useResponsive, useWindowSize } from '../../utils/hooks';
-import {
-  ArrowLeft, AlertTriangle, Check, ChevronRight, Loader2,
-  CreditCard, Wallet, Banknote, Clock, CheckCircle2, XCircle
-} from 'lucide-react';
+import { useResponsive } from '../../utils/hooks';
+import { Check, AlertTriangle, ChevronRight, Loader2, CreditCard, Wallet, Banknote } from 'lucide-react';
 
-// ─── Suggested Refund Reasons (from SPEC.md) ────────────────────────────────
+// ─── Clay Card ────────────────────────────────────────────────────────────────
+const ClayCard = ({ children, style, padding = 16 }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    style={{
+      background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+      borderRadius: 20,
+      padding: padding,
+      boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+      border: '1px solid rgba(139, 92, 246, 0.08)',
+      ...style,
+    }}
+  >
+    {children}
+  </motion.div>
+);
+
+// ─── Glass Styles ─────────────────────────────────────────────────────────────
+const useGlassStyles = () => {
+  useEffect(() => {
+    const styleId = 'refund-glass';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        :root { --glass-bg: #F3EEF7; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `;
+      document.head.appendChild(style);
+    }
+    return () => {
+      const existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+    };
+  }, []);
+};
+
+// ─── Suggested Refund Reasons ────────────────────────────────────────────────
 const SUGGESTED_REASONS = [
-  {
-    id: 'customer_request',
-    label: 'Permintaan Customer',
-    icon: '🙋',
-    description: 'Customer meminta refund',
-    recommended: false,
-  },
-  {
-    id: 'produk_rusak',
-    label: 'Produk Rusak / Cacat',
-    icon: '💔',
-    description: 'Item laundry rusak atau cacat',
-    recommended: true, // (Recommended)
-  },
-  {
-    id: 'salah_layanan',
-    label: 'Salah Input Layanan',
-    icon: '✏️',
-    description: 'Kesalahan dalam input layanan',
-    recommended: false,
-  },
-  {
-    id: 'tidak_sesuai',
-    label: 'Tidak Sesuai Pesanan',
-    icon: '📋',
-    description: 'Hasil laundry tidak sesuai ekspektasi',
-    recommended: false,
-  },
-  {
-    id: 'batal_order',
-    label: 'Pelanggan Tidak Jadi',
-    icon: '⏰',
-    description: 'Customer batal sebelum laundry diproses',
-    recommended: false,
-  },
-  {
-    id: 'item_tidak_ada',
-    label: 'Item Tidak Ditemukan',
-    icon: '📦',
-    description: 'Item laundry tidak ditemukan di outlet',
-    recommended: false,
-  },
-  {
-    id: 'kompensasi',
-    label: 'Kompensasi / Diskon',
-    icon: '🎁',
-    description: 'Kompensasi karena kesalahan layanan',
-    recommended: false,
-  },
-  {
-    id: 'double_charge',
-    label: 'Double Charge',
-    icon: '💳',
-    description: 'Customer dikenakan biaya dua kali',
-    recommended: false,
-  },
-  {
-    id: 'lainnya',
-    label: 'Lainnya',
-    icon: '📝',
-    description: 'Alasan lain yang tidak tercantum',
-    recommended: false,
-  },
+  { id: 'customer_request', label: 'Permintaan Customer', icon: '🙋', description: 'Customer meminta refund', recommended: false },
+  { id: 'produk_rusak', label: 'Produk Rusak / Cacat', icon: '💔', description: 'Item laundry rusak atau cacat', recommended: true },
+  { id: 'salah_layanan', label: 'Salah Input Layanan', icon: '✏️', description: 'Kesalahan dalam input layanan', recommended: false },
+  { id: 'tidak_sesuai', label: 'Tidak Sesuai Pesanan', icon: '📋', description: 'Hasil laundry tidak sesuai ekspektasi', recommended: false },
+  { id: 'batal_order', label: 'Pelanggan Tidak Jadi', icon: '⏰', description: 'Customer batal sebelum laundry diproses', recommended: false },
+  { id: 'item_tidak_ada', label: 'Item Tidak Ditemukan', icon: '📦', description: 'Item laundry tidak ditemukan di outlet', recommended: false },
+  { id: 'kompensasi', label: 'Kompensasi / Diskon', icon: '🎁', description: 'Kompensasi karena kesalahan layanan', recommended: false },
+  { id: 'double_charge', label: 'Double Charge', icon: '💳', description: 'Customer dikenakan biaya dua kali', recommended: false },
+  { id: 'lainnya', label: 'Lainnya', icon: '📝', description: 'Alasan lain yang tidak tercantum', recommended: false },
 ];
 
 // ─── Refund Methods ──────────────────────────────────────────────────────────
 const REFUND_METHODS = [
-  {
-    value: 'deposit',
-    label: 'Deposit / Saldo',
-    icon: Wallet,
-    color: '#5B005F',
-    description: 'Langsung masuk ke saldo member',
-    available: true,
-  },
-  {
-    value: 'cash',
-    label: 'Tunai',
-    icon: Banknote,
-    color: '#059669',
-    description: 'Cash refund di outlet',
-    available: false, // Memerlukan approval
-  },
-  {
-    value: 'transfer',
-    label: 'Transfer Bank',
-    icon: CreditCard,
-    color: '#0284c7',
-    description: 'Transfer ke rekening customer',
-    available: false, // Memerlukan approval
-  },
+  { value: 'deposit', label: 'Deposit / Saldo', icon: Wallet, color: C.primary, description: 'Langsung masuk ke saldo member', available: true },
+  { value: 'cash', label: 'Tunai', icon: Banknote, color: C.success, description: 'Cash refund di outlet', available: false },
+  { value: 'transfer', label: 'Transfer Bank', icon: CreditCard, color: '#0284c7', description: 'Transfer ke rekening customer', available: false },
 ];
 
-// ─── Loading State ───────────────────────────────────────────────────────────
+// ─── Loading State ────────────────────────────────────────────────────────────
 function LoadingState({ message = 'Memuat...' }) {
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '48px 20px',
-      gap: 12,
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', gap: 12 }}>
       <Loader2 size={36} color={C.primary} style={{ animation: 'spin 1s linear infinite' }} />
-      <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>
-        {message}
-      </span>
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+      <span style={{ fontFamily: "'Poppins'", fontSize: 13, color: C.n600 }}>{message}</span>
     </div>
   );
 }
 
-// ─── Reason Card Component ───────────────────────────────────────────────────
+// ─── Reason Card ─────────────────────────────────────────────────────────────
 function ReasonCard({ reason, selected, onClick }) {
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: 0.98 }}
       onClick={() => onClick(reason.id)}
       style={{
         width: '100%',
@@ -143,16 +93,15 @@ function ReasonCard({ reason, selected, onClick }) {
         alignItems: 'center',
         gap: 12,
         padding: '14px 16px',
-        background: selected ? `${C.primary}12` : C.white,
+        background: selected ? `${C.primary}10` : C.white,
         border: `2px solid ${selected ? C.primary : C.n200}`,
-        borderRadius: 12,
+        borderRadius: 14,
         cursor: 'pointer',
         textAlign: 'left',
         transition: 'all 0.15s ease',
         position: 'relative',
       }}
     >
-      {/* Recommended Badge */}
       {reason.recommended && (
         <div style={{
           position: 'absolute',
@@ -161,7 +110,7 @@ function ReasonCard({ reason, selected, onClick }) {
           background: C.success,
           color: 'white',
           fontSize: 9,
-          fontFamily: 'Poppins',
+          fontFamily: "'Poppins'",
           fontWeight: 600,
           padding: '2px 8px',
           borderRadius: 10,
@@ -170,12 +119,11 @@ function ReasonCard({ reason, selected, onClick }) {
         </div>
       )}
 
-      {/* Icon */}
       <div style={{
         width: 44,
         height: 44,
         borderRadius: 12,
-        background: selected ? `${C.primary}20` : C.n100,
+        background: selected ? `${C.primary}15` : C.n100,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -185,27 +133,15 @@ function ReasonCard({ reason, selected, onClick }) {
         {reason.icon}
       </div>
 
-      {/* Text */}
       <div style={{ flex: 1 }}>
-        <div style={{
-          fontFamily: 'Poppins',
-          fontSize: 14,
-          fontWeight: 600,
-          color: selected ? C.primary : C.n900,
-          marginBottom: 2,
-        }}>
+        <div style={{ fontFamily: "'Poppins'", fontSize: 14, fontWeight: 600, color: selected ? C.primary : C.n900, marginBottom: 2 }}>
           {reason.label}
         </div>
-        <div style={{
-          fontFamily: 'Poppins',
-          fontSize: 11,
-          color: C.n500,
-        }}>
+        <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n500 }}>
           {reason.description}
         </div>
       </div>
 
-      {/* Checkmark */}
       {selected && (
         <div style={{
           width: 24,
@@ -220,15 +156,16 @@ function ReasonCard({ reason, selected, onClick }) {
           <Check size={14} color="white" />
         </div>
       )}
-    </button>
+    </motion.button>
   );
 }
 
-// ─── Refund Method Card ──────────────────────────────────────────────────────
+// ─── Method Card ─────────────────────────────────────────────────────────────
 function MethodCard({ method, selected, onClick, disabled }) {
   const Icon = method.icon;
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: disabled ? 1 : 0.98 }}
       onClick={() => !disabled && onClick(method.value)}
       disabled={disabled}
       style={{
@@ -237,21 +174,20 @@ function MethodCard({ method, selected, onClick, disabled }) {
         alignItems: 'center',
         gap: 14,
         padding: '16px',
-        background: disabled ? C.n50 : (selected ? `${method.color}12` : C.white),
+        background: disabled ? C.n50 : (selected ? `${method.color}10` : C.white),
         border: `2px solid ${selected ? method.color : 'transparent'}`,
-        borderRadius: 12,
+        borderRadius: 14,
         cursor: disabled ? 'not-allowed' : 'pointer',
         textAlign: 'left',
-        opacity: disabled ? 0.5 : 1,
+        opacity: disabled ? 0.6 : 1,
         transition: 'all 0.15s ease',
       }}
     >
-      {/* Icon */}
       <div style={{
         width: 48,
         height: 48,
         borderRadius: 12,
-        background: disabled ? C.n200 : `${method.color}20`,
+        background: disabled ? C.n200 : `${method.color}15`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -260,64 +196,43 @@ function MethodCard({ method, selected, onClick, disabled }) {
         <Icon size={24} color={disabled ? C.n400 : method.color} />
       </div>
 
-      {/* Text */}
       <div style={{ flex: 1 }}>
-        <div style={{
-          fontFamily: 'Poppins',
-          fontSize: 14,
-          fontWeight: 600,
-          color: disabled ? C.n400 : C.n900,
-          marginBottom: 2,
-        }}>
+        <div style={{ fontFamily: "'Poppins'", fontSize: 14, fontWeight: 600, color: disabled ? C.n400 : C.n900, marginBottom: 2 }}>
           {method.label}
         </div>
-        <div style={{
-          fontFamily: 'Poppins',
-          fontSize: 11,
-          color: disabled ? C.n400 : C.n500,
-        }}>
+        <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: disabled ? C.n400 : C.n500 }}>
           {disabled ? 'Memerlukan approval admin' : method.description}
         </div>
       </div>
 
-      {/* Arrow */}
-      {!disabled && (
-        <ChevronRight size={20} color={method.color} />
-      )}
-    </button>
+      {!disabled && <ChevronRight size={20} color={method.color} />}
+    </motion.button>
   );
 }
 
-// ─── Main RefundPage Component ───────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function RefundPage({ navigate, goBack, screenParams }) {
-  const { isMobile, isTablet } = useResponsive();
-  // Transaction data from navigation params
+  useGlassStyles();
+  const { isMobile } = useResponsive();
   const transaction = screenParams?.transaction || screenParams || {};
   const { user } = useApp();
 
-  // Step state: 1=reason, 2=method, 3=confirm
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Form state
   const [selectedReason, setSelectedReason] = useState('');
   const [reasonDetail, setReasonDetail] = useState('');
   const [selectedMethod, setSelectedMethod] = useState('deposit');
   const [notes, setNotes] = useState('');
-
-  // Transaction detail
   const [txDetail, setTxDetail] = useState(null);
 
-  // Calculated refund values
   const txTotal = Number(transaction.total || txDetail?.total || 0);
   const paidAmount = Number(transaction.paidAmount || transaction.paid_amount || txDetail?.paidAmount || 0);
-  const balanceDue = txTotal - paidAmount;
-  const maxRefund = paidAmount; // Max refund = what was paid
+  const maxRefund = paidAmount;
   const [refundAmount, setRefundAmount] = useState(paidAmount);
 
-  // Fetch transaction detail
   useEffect(() => {
     if (!transaction?.id && !transaction?.transactionNo) return;
 
@@ -331,7 +246,7 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
           setTxDetail(data);
           setRefundAmount(Number(data.paidAmount || 0));
         }
-      } catch (err) {
+      } catch {
         setError('Gagal memuat detail transaksi.');
       } finally {
         setLoading(false);
@@ -341,25 +256,18 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
     fetchDetail();
   }, [transaction?.id, transaction?.transactionNo]);
 
-  // Handle reason selection
   const handleReasonSelect = (reasonId) => {
     setSelectedReason(reasonId);
-    if (reasonId !== 'lainnya') {
-      setReasonDetail('');
-    }
+    if (reasonId !== 'lainnya') setReasonDetail('');
     setError('');
   };
 
-  // Navigation
   const canProceedStep1 = selectedReason && (selectedReason !== 'lainnya' || reasonDetail.trim().length >= 10);
   const canProceedStep2 = selectedMethod && refundAmount > 0 && refundAmount <= maxRefund;
 
   const handleNext = () => {
-    if (step === 1 && canProceedStep1) {
-      setStep(2);
-    } else if (step === 2 && canProceedStep2) {
-      setStep(3);
-    }
+    if (step === 1 && canProceedStep1) setStep(2);
+    else if (step === 2 && canProceedStep2) setStep(3);
   };
 
   const handleBack = () => {
@@ -371,9 +279,7 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
     }
   };
 
-  // Submit refund request
   const handleSubmit = async () => {
-    const reason = SUGGESTED_REASONS.find(r => r.id === selectedReason);
     const confirmed = await alertConfirm(
       `Konfirmasi Pengajuan Refund`,
       `Apakah Anda yakin ingin mengajukan refund ${rp(refundAmount)} untuk transaksi ${transaction.transactionNo || transaction.id}?`
@@ -397,7 +303,6 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
 
       if (res?.data?.success) {
         alertSuccess(res.data.message || 'Refund berhasil diajukan.');
-        // Navigate back or to refund list
         goBack?.();
       } else {
         setError(res?.data?.message || 'Gagal memproses refund.');
@@ -413,52 +318,24 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
   const renderStep1 = () => (
     <div>
       {/* Header */}
-      <div style={{
-        background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primary}CC 100%)`,
-        borderRadius: 16,
-        padding: '20px',
-        marginBottom: 20,
-        color: 'white',
-      }}>
-        <div style={{
-          fontFamily: 'Poppins',
-          fontSize: 12,
-          fontWeight: 500,
-          opacity: 0.9,
-          marginBottom: 4,
-        }}>
+      <ClayCard padding={20} style={{ marginBottom: 16 }}>
+        <div style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.primary, marginBottom: 4 }}>
           Ajukan Refund
         </div>
-        <div style={{
-          fontFamily: 'Poppins',
-          fontSize: 22,
-          fontWeight: 700,
-        }}>
+        <div style={{ fontFamily: "'Poppins'", fontSize: 20, fontWeight: 700, color: C.n900 }}>
           {transaction.transactionNo || transaction.id || '-'}
         </div>
-        <div style={{
-          fontFamily: 'Poppins',
-          fontSize: 13,
-          opacity: 0.85,
-          marginTop: 8,
-        }}>
+        <div style={{ fontFamily: "'Poppins'", fontSize: 13, color: C.n600, marginTop: 8 }}>
           {transaction.customerName || txDetail?.customerName || 'Customer'} · {rp(txTotal)}
         </div>
-      </div>
+      </ClayCard>
 
-      {/* Section Title */}
-      <div style={{
-        fontFamily: 'Poppins',
-        fontSize: 14,
-        fontWeight: 600,
-        color: C.n800,
-        marginBottom: 12,
-      }}>
+      {/* Reason List */}
+      <div style={{ fontFamily: "'Poppins'", fontSize: 14, fontWeight: 600, color: C.n800, marginBottom: 12 }}>
         Pilih Alasan Refund
       </div>
 
-      {/* Reason List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
         {SUGGESTED_REASONS.map(reason => (
           <ReasonCard
             key={reason.id}
@@ -470,59 +347,47 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
       </div>
 
       {/* Detail for "Lainnya" */}
-      {selectedReason === 'lainnya' && (
-        <div style={{
-          background: C.n50,
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 20,
-        }}>
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 12,
-            fontWeight: 600,
-            color: C.n700,
-            marginBottom: 8,
-          }}>
-            Jelaskan Alasan *
-          </div>
-          <textarea
-            value={reasonDetail}
-            onChange={(e) => setReasonDetail(e.target.value)}
-            placeholder="Jelaskan secara detail alasan refund..."
-            rows={3}
-            style={{
-              width: '100%',
-              padding: '12px',
-              fontFamily: 'Poppins',
-              fontSize: 13,
-              border: `2px solid ${reasonDetail.length >= 10 ? C.success : C.n200}`,
-              borderRadius: 10,
-              resize: 'none',
-              outline: 'none',
-            }}
-          />
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 10,
-            color: reasonDetail.length >= 10 ? C.success : C.n400,
-            marginTop: 6,
-            textAlign: 'right',
-          }}>
-            {reasonDetail.length}/10 karakter minimum
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {selectedReason === 'lainnya' && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <ClayCard padding={16} style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
+                Jelaskan Alasan *
+              </div>
+              <textarea
+                value={reasonDetail}
+                onChange={(e) => setReasonDetail(e.target.value)}
+                placeholder="Jelaskan secara detail alasan refund..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  fontFamily: "'Poppins'",
+                  fontSize: 13,
+                  border: `2px solid ${reasonDetail.length >= 10 ? C.success : C.n200}`,
+                  borderRadius: 10,
+                  resize: 'none',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  color: C.n900,
+                  background: C.white,
+                }}
+              />
+              <div style={{ fontFamily: "'Poppins'", fontSize: 10, color: reasonDetail.length >= 10 ? C.success : C.n400, marginTop: 6, textAlign: 'right' }}>
+                {reasonDetail.length}/10 karakter minimum
+              </div>
+            </ClayCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Notes (Optional) */}
+      {/* Notes */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{
-          fontFamily: 'Poppins',
-          fontSize: 12,
-          fontWeight: 600,
-          color: C.n700,
-          marginBottom: 8,
-        }}>
+        <div style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>
           Catatan Tambahan (Opsional)
         </div>
         <textarea
@@ -532,13 +397,16 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
           rows={2}
           style={{
             width: '100%',
-            padding: '12px',
-            fontFamily: 'Poppins',
+            padding: 12,
+            fontFamily: "'Poppins'",
             fontSize: 13,
             border: `2px solid ${C.n200}`,
             borderRadius: 10,
             resize: 'none',
             outline: 'none',
+            boxSizing: 'border-box',
+            color: C.n900,
+            background: C.white,
           }}
         />
       </div>
@@ -552,98 +420,47 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
     return (
       <div>
         {/* Reason Summary */}
-        <div style={{
-          background: `${C.primary}10`,
-          borderRadius: 12,
-          padding: 14,
-          marginBottom: 20,
-          border: `1px solid ${C.primary}30`,
-        }}>
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 11,
-            color: C.n600,
-            marginBottom: 4,
-          }}>
+        <ClayCard padding={14} style={{ marginBottom: 16, background: `${C.primary}08`, border: `1px solid ${C.primary}20` }}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n600, marginBottom: 4 }}>
             Alasan yang Dipilih
           </div>
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 14,
-            fontWeight: 600,
-            color: C.primary,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 14, fontWeight: 600, color: C.primary, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span>{selectedReasonObj?.icon}</span>
             <span>{selectedReasonObj?.label}</span>
           </div>
-        </div>
+        </ClayCard>
 
         {/* Refund Amount */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 12,
-            fontWeight: 600,
-            color: C.n700,
-            marginBottom: 8,
-          }}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 12 }}>
             Nominal Refund *
           </div>
 
-          {/* Amount Display */}
-          <div style={{
-            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-            borderRadius: 12,
-            padding: '20px',
-            textAlign: 'center',
-            marginBottom: 12,
-          }}>
-            <div style={{
-              fontFamily: 'Poppins',
-              fontSize: 12,
-              color: '#92400e',
-              marginBottom: 4,
-            }}>
+          <ClayCard padding={20} style={{ marginBottom: 12, background: `${C.warning}08`, border: `1px solid ${C.warning}30` }}>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.warning, marginBottom: 4 }}>
               Nominal Refund
             </div>
-            <div style={{
-              fontFamily: 'Poppins',
-              fontSize: 32,
-              fontWeight: 800,
-              color: '#b45309',
-            }}>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 32, fontWeight: 800, color: C.warning }}>
               {rp(refundAmount)}
             </div>
-            <div style={{
-              fontFamily: 'Poppins',
-              fontSize: 11,
-              color: '#d97706',
-              marginTop: 6,
-            }}>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.warning, marginTop: 6 }}>
               Maksimal: {rp(maxRefund)} (dari yang sudah dibayar)
             </div>
-          </div>
+          </ClayCard>
 
           {/* Quick Amount Buttons */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr',
-            gap: 8,
-            marginBottom: 12,
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
             {[maxRefund, Math.round(maxRefund * 0.5), Math.round(maxRefund * 0.25)].map((amount, idx) => (
-              <button
+              <motion.button
                 key={idx}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setRefundAmount(amount)}
                 style={{
                   padding: '10px 8px',
                   borderRadius: 10,
                   border: `2px solid ${refundAmount === amount ? C.primary : C.n200}`,
-                  background: refundAmount === amount ? `${C.primary}15` : C.white,
-                  fontFamily: 'Poppins',
+                  background: refundAmount === amount ? `${C.primary}10` : C.white,
+                  fontFamily: "'Poppins'",
                   fontSize: 12,
                   fontWeight: 600,
                   color: refundAmount === amount ? C.primary : C.n700,
@@ -653,11 +470,10 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
                 {idx === 0 ? 'Full' : idx === 1 ? '50%' : '25%'}
                 <br />
                 <span style={{ fontSize: 10, fontWeight: 400 }}>{rp(amount)}</span>
-              </button>
+              </motion.button>
             ))}
           </div>
 
-          {/* Manual Input */}
           <MoneyInput
             value={String(refundAmount)}
             onChange={(v) => {
@@ -670,13 +486,7 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
 
         {/* Refund Method */}
         <div>
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 12,
-            fontWeight: 600,
-            color: C.n700,
-            marginBottom: 12,
-          }}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 12 }}>
             Metode Pengembalian
           </div>
 
@@ -692,26 +502,19 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
             ))}
           </div>
 
-          {/* Info Box */}
           <div style={{
             marginTop: 12,
             padding: '12px 14px',
-            background: '#fff7ed',
+            background: `${C.warning}08`,
             borderRadius: 10,
-            border: '1px solid #fed7aa',
+            border: `1px solid ${C.warning}30`,
             display: 'flex',
             gap: 10,
             alignItems: 'flex-start',
           }}>
-            <AlertTriangle size={18} color="#c2410c" style={{ flexShrink: 0, marginTop: 2 }} />
-            <div style={{
-              fontFamily: 'Poppins',
-              fontSize: 11,
-              color: '#9a3412',
-              lineHeight: 1.5,
-            }}>
-              Metode <strong>Tunai</strong> dan <strong>Transfer</strong> memerlukan persetujuan Admin.
-              Refund akan diproses setelah disetujui.
+            <AlertTriangle size={18} color={C.warning} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n700, lineHeight: 1.5 }}>
+              Metode <strong>Tunai</strong> dan <strong>Transfer</strong> memerlukan persetujuan Admin. Refund akan diproses setelah disetujui.
             </div>
           </div>
         </div>
@@ -727,198 +530,110 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
 
     return (
       <div>
-        {/* Summary Card */}
-        <div style={{
-          background: C.white,
-          borderRadius: 16,
-          padding: 20,
-          marginBottom: 16,
-          border: `1px solid ${C.n200}`,
-        }}>
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 12,
-            fontWeight: 600,
-            color: C.n600,
-            marginBottom: 16,
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}>
+        <ClayCard padding={20} style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n600, marginBottom: 16 }}>
             Ringkasan Refund
           </div>
 
-          {/* Transaction Info */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>No. Transaksi</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.n600 }}>No. Transaksi</span>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n900 }}>
                 {transaction.transactionNo || transaction.id}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Customer</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.n600 }}>Customer</span>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n900 }}>
                 {transaction.customerName || txDetail?.customerName || '-'}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Total Tagihan</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
-                {rp(txTotal)}
-              </span>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.n600 }}>Total Tagihan</span>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 600, color: C.n900 }}>{rp(txTotal)}</span>
             </div>
           </div>
 
-          <div style={{ height: 1, background: C.n200, margin: '12px 0' }} />
+          <div style={{ height: 1, background: C.n100, margin: '12px 0' }} />
 
-          {/* Refund Details */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Alasan</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900 }}>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.n600 }}>Alasan</span>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 500, color: C.n900 }}>
                 {selectedReasonObj?.icon} {selectedReasonObj?.label}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>Metode</span>
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 500, color: C.n900, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.n600 }}>Metode</span>
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, fontWeight: 500, color: C.n900, display: 'flex', alignItems: 'center', gap: 4 }}>
                 {Icon && <Icon size={14} color={selectedMethodObj?.color} />}
                 {selectedMethodObj?.label}
               </span>
             </div>
           </div>
 
-          <div style={{ height: 1, background: C.n200, margin: '12px 0' }} />
+          <div style={{ height: 1, background: C.n100, margin: '12px 0' }} />
 
-          {/* Total Refund */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '12px 0',
-          }}>
-            <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>
-              Total Refund
-            </span>
-            <span style={{
-              fontFamily: 'Poppins',
-              fontSize: 24,
-              fontWeight: 800,
-              color: C.primary,
-            }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
+            <span style={{ fontFamily: "'Poppins'", fontSize: 14, fontWeight: 600, color: C.n900 }}>Total Refund</span>
+            <span style={{ fontFamily: "'Poppins'", fontSize: 24, fontWeight: 800, color: C.primary }}>
               {rp(refundAmount)}
             </span>
           </div>
-        </div>
+        </ClayCard>
 
-        {/* Detail Reason */}
         {(selectedReason === 'lainnya' && reasonDetail) && (
-          <div style={{
-            background: C.n50,
-            borderRadius: 10,
-            padding: '12px 14px',
-            marginBottom: 16,
-          }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginBottom: 4 }}>
-              Detail Alasan:
-            </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n800 }}>
-              {reasonDetail}
-            </div>
-          </div>
+          <ClayCard padding={14} style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n600, marginBottom: 4 }}>Detail Alasan:</div>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.n800 }}>{reasonDetail}</div>
+          </ClayCard>
         )}
 
-        {/* Notes */}
         {notes && (
-          <div style={{
-            background: '#f0f9ff',
-            borderRadius: 10,
-            padding: '12px 14px',
-            marginBottom: 16,
-          }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#0369a1', marginBottom: 4 }}>
-              Catatan:
-            </div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: '#0c4a6e' }}>
-              {notes}
-            </div>
-          </div>
+          <ClayCard padding={14} style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n600, marginBottom: 4 }}>Catatan:</div>
+            <div style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.n800 }}>{notes}</div>
+          </ClayCard>
         )}
 
-        {/* Warning Box */}
-        <div style={{
-          background: '#fef2f2',
-          borderRadius: 12,
-          padding: '14px 16px',
-          border: '1px solid #fecaca',
-        }}>
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#dc2626',
-            marginBottom: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}>
+        <ClayCard padding={16} style={{ background: `${C.danger}08`, border: `1px solid ${C.danger}20` }}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: C.danger, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertTriangle size={18} />
             Perhatian
           </div>
-          <ul style={{
-            fontFamily: 'Poppins',
-            fontSize: 12,
-            color: '#991b1b',
-            margin: 0,
-            paddingLeft: 20,
-            lineHeight: 1.7,
-          }}>
+          <ul style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.n700, margin: 0, paddingLeft: 20, lineHeight: 1.7 }}>
             <li>Pengajuan refund akan dikirim untuk persetujuan</li>
             <li>Refund akan diproses setelah disetujui oleh Admin</li>
             <li>Dana akan dikembalikan sesuai metode yang dipilih</li>
           </ul>
-        </div>
+        </ClayCard>
       </div>
     );
   };
 
   // ─── Main Render ────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: C.n50 }}>
-      {/* Top Bar */}
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--glass-bg, #F3EEF7)',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
       <TopBar
         title="Ajukan Refund"
-        left={step > 1 ? (
-          <button
-            onClick={handleBack}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 12px',
-              background: 'transparent',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer',
-            }}
-          >
-            <ArrowLeft size={20} color={C.n700} />
-          </button>
-        ) : undefined}
+        onBack={handleBack}
       />
 
-      {/* Content */}
-      <div style={{ padding: isMobile ? 10 : 12, paddingBottom: isMobile ? 140 : 100 }}>
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: isMobile ? 12 : 16,
+        paddingBottom: isMobile ? 140 : 100,
+      }}>
         {/* Progress Steps */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: isMobile ? 4 : 8,
-          marginBottom: isMobile ? 16 : 24,
-          overflowX: 'auto',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 8, marginBottom: isMobile ? 16 : 24 }}>
           {[1, 2, 3].map((s) => (
-            <React.Fragment key={s}>
+            <Fragment key={s}>
               <div style={{
                 flex: s < 3 ? 1 : 'none',
                 height: 4,
@@ -926,29 +641,14 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
                 background: s <= step ? C.primary : C.n200,
                 transition: 'background 0.2s',
               }} />
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
 
         {/* Step Labels */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 20,
-        }}>
-          {[
-            { num: 1, label: 'Alasan' },
-            { num: 2, label: 'Nominal' },
-            { num: 3, label: 'Konfirmasi' },
-          ].map((item) => (
-            <div
-              key={item.num}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          {[{ num: 1, label: 'Alasan' }, { num: 2, label: 'Nominal' }, { num: 3, label: 'Konfirmasi' }].map((item) => (
+            <div key={item.num} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{
                 width: 24,
                 height: 24,
@@ -960,11 +660,12 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
                 fontSize: 11,
                 fontWeight: 600,
                 color: step >= item.num ? 'white' : C.n500,
+                fontFamily: "'Poppins'",
               }}>
                 {step > item.num ? <Check size={12} /> : item.num}
               </div>
               <span style={{
-                fontFamily: 'Poppins',
+                fontFamily: "'Poppins'",
                 fontSize: 12,
                 fontWeight: step === item.num ? 600 : 400,
                 color: step >= item.num ? C.primary : C.n400,
@@ -976,25 +677,30 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
         </div>
 
         {/* Error Message */}
-        {error && (
-          <div style={{
-            padding: '12px 14px',
-            background: '#fef2f2',
-            borderRadius: 10,
-            border: '1px solid #fecaca',
-            marginBottom: 16,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-          }}>
-            <AlertTriangle size={18} color="#dc2626" />
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: '#dc2626' }}>
-              {error}
-            </span>
-          </div>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              style={{
+                padding: '12px 14px',
+                background: `${C.danger}10`,
+                borderRadius: 10,
+                border: `1px solid ${C.danger}30`,
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <AlertTriangle size={18} color={C.danger} />
+              <span style={{ fontFamily: "'Poppins'", fontSize: 12, color: C.danger }}>{error}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Loading or Content */}
+        {/* Content */}
         {loading ? (
           <LoadingState message="Memuat detail transaksi..." />
         ) : (
@@ -1016,39 +722,74 @@ export default function RefundPage({ navigate, goBack, screenParams }) {
           background: C.white,
           padding: '12px 16px',
           paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
-          borderTop: `1px solid ${C.n100}`,
+          borderTop: `1px solid ${C.n200}`,
           display: 'flex',
           gap: 10,
           zIndex: 100,
-          boxShadow: '0 -2px 10px rgba(0,0,0,0.08)',
+          boxShadow: '0 -4px 12px rgba(0,0,0,0.08)',
         }}>
           {step > 1 && (
-            <Btn
-              variant="outline"
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               onClick={handleBack}
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+                height: 48,
+                borderRadius: 14,
+                border: `1.5px solid ${C.n200}`,
+                background: C.white,
+                fontFamily: "'Poppins'",
+                fontSize: 14,
+                fontWeight: 600,
+                color: C.n700,
+                cursor: 'pointer',
+              }}
             >
               Kembali
-            </Btn>
+            </motion.button>
           )}
           {step < 3 ? (
-            <Btn
-              variant="primary"
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               onClick={handleNext}
               disabled={step === 1 ? !canProceedStep1 : !canProceedStep2}
-              style={{ flex: step > 1 ? 2 : 1 }}
+              style={{
+                flex: step > 1 ? 2 : 1,
+                height: 48,
+                borderRadius: 14,
+                border: 'none',
+                background: (step === 1 ? canProceedStep1 : canProceedStep2)
+                  ? `linear-gradient(145deg, ${C.primary}, ${C.primaryDark})`
+                  : C.n300,
+                fontFamily: "'Poppins'",
+                fontSize: 14,
+                fontWeight: 600,
+                color: C.white,
+                cursor: (step === 1 ? canProceedStep1 : canProceedStep2) ? 'pointer' : 'not-allowed',
+              }}
             >
               Lanjut
-            </Btn>
+            </motion.button>
           ) : (
-            <Btn
-              variant="danger"
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               onClick={handleSubmit}
-              loading={submitting}
-              style={{ flex: 1 }}
+              disabled={submitting}
+              style={{
+                flex: 1,
+                height: 48,
+                borderRadius: 14,
+                border: 'none',
+                background: submitting ? C.n300 : `linear-gradient(145deg, ${C.danger}, ${C.dangerDark})`,
+                fontFamily: "'Poppins'",
+                fontSize: 14,
+                fontWeight: 600,
+                color: C.white,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+              }}
             >
-              Ajukan Refund
-            </Btn>
+              {submitting ? 'Memproses...' : 'Ajukan Refund'}
+            </motion.button>
           )}
         </div>
       )}

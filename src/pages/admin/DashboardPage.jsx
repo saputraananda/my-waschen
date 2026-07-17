@@ -3,7 +3,7 @@ import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { useResponsive } from '../../utils/hooks';
-import { Avatar, useAppRefresh, StatCard, StatCardGrid, ChartCard, ChartCardGrid } from '../../components/ui';
+import { ProfileAvatar, useAppRefresh, StatCard, StatCardGrid, ChartCard, ChartCardGrid } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -404,7 +404,7 @@ export default function AdminDashboardPage({ user, navigate }) {
                 cursor: 'pointer',
               }}
             >
-              <Avatar photo={user.photo} initials={user.avatar} size={isMobile ? 30 : 34} />
+              <ProfileAvatar user={user} size={isMobile ? 30 : 34} />
             </motion.div>
           </div>
         </motion.div>

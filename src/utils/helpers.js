@@ -141,11 +141,15 @@ export const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        try {
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } catch (e) {
+          reject(new Error('Gagal membuat data URL. File mungkin corrupt atau rusak.'));
+        }
       };
-      img.onerror = (err) => reject(err);
+      img.onerror = () => reject(new Error('Gagal memuat gambar. Pastikan format file valid (JPG/PNG/WebP).'));
     };
-    reader.onerror = (err) => reject(err);
+    reader.onerror = () => reject(new Error('Gagal membaca file gambar. File mungkin terlalu besar atau corrupt.'));
   });
 };
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { STAGES, txApiId, photoTypeLabel } from '../../utils/helpers';
-import { TopBar, Btn, Badge, Avatar, ErrorBoundary, PhotoLightbox } from '../../components/ui';
+import { TopBar, Btn, Badge, ProfileAvatar, ErrorBoundary, PhotoLightbox } from '../../components/ui';
 import { alertWarning } from '../../utils/alert';
 import { STAGE_STYLE, STAGE_ICONS, PROD_SHADOW, HEADER, CARD, getStageStyle } from '../../utils/productionDesign';
 import { uploadImage } from '../../utils/imageUpload';
@@ -416,7 +416,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
         {/* Nota & Customer Info (Simplified) */}
         <div style={{ background: 'white', borderRadius: 16, padding: isMobile ? '12px 14px' : '14px 16px', boxShadow: PROD_SHADOW.card }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 12, marginBottom: isMobile ? 8 : 10 }}>
-            <Avatar initials={(tx.customerName || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()} size={isMobile ? 40 : 46} />
+            <ProfileAvatar user={{ name: tx.customerName, photo: tx.customerPhoto }} size={isMobile ? 40 : 46} />
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 14 : 16, fontWeight: 600, color: C.n800 }}>{tx.customerName}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>

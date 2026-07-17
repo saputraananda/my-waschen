@@ -3,7 +3,7 @@ import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, inPeriod } from '../../utils/helpers';
 import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
-import { TopBar, Avatar, Btn, SearchBar, Chip, useAppRefresh } from '../../components/ui';
+import { TopBar, ProfileAvatar, Btn, SearchBar, Chip, useAppRefresh } from '../../components/ui';
 import { useInfiniteList } from '../../utils/useInfiniteList';
 import { alertError } from '../../utils/alert';
 
@@ -285,7 +285,7 @@ export default function ApprovalPage({ goBack }) {
                   transition: 'all 0.2s ease',
                 }} className="approval-card-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-                    <Avatar initials={a.requester?.split(' ').map((w) => w[0]).join('').slice(0, 2) || 'US'} size={40} />
+                    <ProfileAvatar user={{ name: a.requester, photo: a.requesterPhoto }} size={40} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{a.requester}</div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 1 }}>{a.date}</div>

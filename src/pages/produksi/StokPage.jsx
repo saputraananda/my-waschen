@@ -13,6 +13,7 @@ import {
   getSLALevel, formatSLA,
 } from '../../utils/productionDesign';
 import { Search, RefreshCw, Package, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { alertSuccess, alertError } from '../../utils/alert';
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 const rp = (n) => {
@@ -80,7 +81,7 @@ const FILTER_OPTIONS = [
 ];
 
 // ─── Stock Card Component ─────────────────────────────────────────────────────
-function StockCard({ item, onSendAlert }) {
+function StockCard({ item, onSendAlert, sendingId }) {
   const status = getStockStatus(item);
   const StatusIcon = status.icon;
   const stockPct = item.minStock > 0 ? Math.min(100, (item.stockQty / item.minStock) * 100) : 100;
@@ -110,7 +111,7 @@ function StockCard({ item, onSendAlert }) {
         background: status.accent,
       }} />
 
-      <div style={{ padding: `${CARD.padding} padding-left: ${CARD.accentBarWidth + 14}px` }}>
+      <div style={{ padding: `14px 14px 12px ${CARD.accentBarWidth + 14}px` }}>
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -207,15 +208,41 @@ function StockCard({ item, onSendAlert }) {
               {rp(item.lastCost)} / {item.unit || 'unit'}
             </div>
           )}
-          {item.lastUpdated && (
-            <div style={{
-              fontFamily: 'Inter, system-ui',
-              fontSize: 10,
-              color: C.n400,
-            }}>
-              Update: {new Date(item.lastUpdated).toLocaleDateString('id-ID')}
-            </div>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {item.lastUpdated && (
+              <div style={{
+                fontFamily: 'Inter, system-ui',
+                fontSize: 10,
+                color: C.n400,
+              }}>
+                Update: {new Date(item.lastUpdated).toLocaleDateString('id-ID')}
+              </div>
+            )}
+            {onSendAlert && (status.level === 'critical' || status.level === 'low') && (
+              <button
+                onClick={() => onSendAlert(item)}
+                disabled={sendingId === item.id}
+                style={{
+                  background: sendingId === item.id ? C.n400 : status.accent,
+                  color: C.white,
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '4px 10px',
+                  fontSize: 10,
+                  fontFamily: 'Poppins',
+                  fontWeight: 600,
+                  cursor: sendingId === item.id ? 'default' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  opacity: sendingId === item.id ? 0.7 : 1,
+                }}
+              >
+                <AlertTriangle size={10} />
+                {sendingId === item.id ? 'Mengirim...' : 'Kirim Alert'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -318,6 +345,7 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [summary, setSummary] = useState({ total: 0, out: 0, critical: 0, ok: 0 });
+  const [sendingId, setSendingId] = useState(null);
 
   // Get outlet ID from user
   const outletId = user?.outletId || authUser?.outletId;
@@ -359,6 +387,26 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
   const handleRefresh = useCallback(() => {
     fetchStock(true);
   }, [fetchStock]);
+
+  // Send low-stock alert to kasir
+  const handleSendAlert = useCallback(async (item) => {
+    setSendingId(item.id);
+    try {
+      await axios.post('/api/inventory/low-stock-alert', {
+        inventoryId: item.id,
+        outletId,
+        stockQty: item.stockQty,
+        minStock: item.minStock,
+        itemName: item.itemName || item.name,
+        unit: item.unit,
+      });
+      alertSuccess(`Alert stok ${item.itemName || item.name} sudah dikirim ke kasir!`);
+    } catch (err) {
+      alertError(err?.response?.data?.message || 'Gagal kirim alert');
+    } finally {
+      setSendingId(null);
+    }
+  }, [outletId]);
 
   // Filter items by search
   const filteredItems = items.filter(item => {
@@ -588,7 +636,7 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
               >
-                <StockCard item={item} />
+                <StockCard item={item} onSendAlert={handleSendAlert} sendingId={sendingId} />
               </motion.div>
             ))}
           </motion.div>

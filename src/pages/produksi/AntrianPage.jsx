@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { TopBar, SkeletonList, useAppRefresh, Chip, FilterModal, FilterSection, FilterChipGroup } from '../../components/ui';
+import { TopBar, SkeletonList, useAppRefresh, Chip, FilterModal, FilterSection, FilterChipGroup, ProfileAvatar } from '../../components/ui';
 import { C } from '../../utils/theme';
 import { useRealtimeMulti } from '../../utils/realtime';
 import { useResponsive } from '../../utils/hooks';
@@ -14,8 +14,6 @@ import {
   TEXT_PRIMARY,
   TEXT_SECONDARY,
   TEXT_MUTED,
-  getAvatarColor,
-  getInitials,
 } from '../../components/ProductionShared';
 import { STAGE_ICONS } from '../../utils/productionDesign';
 
@@ -40,10 +38,6 @@ function AntrianItemCard({ item, nota, onPress, priorityNum }) {
   const stageOrder = ['Diterima', 'Packing'];
   const stageIdx = stageOrder.indexOf(stage);
   const filled = stageIdx >= 0 ? stageIdx + 1 : 0;
-
-  // Avatar
-  const initials = getInitials(custName);
-  const avColor  = getAvatarColor(custName);
 
   const badges = [];
   if (isExpress) badges.push({ label: '⭐ PRIORITAS', bg: '#FFF3E0', color: '#E65100' });
@@ -96,16 +90,14 @@ function AntrianItemCard({ item, nota, onPress, priorityNum }) {
         {/* Header: Avatar + Customer + Phone */}
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, marginBottom: isMobile ? 8 : 10 }}>
           {/* Avatar */}
-          <div style={{
-            width: isMobile ? 38 : 42, height: isMobile ? 38 : 42, borderRadius: isMobile ? 19 : 21,
-            background: avColor.bg,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Poppins', fontSize: isMobile ? 12 : 14, fontWeight: 600,
-            color: avColor.text, flexShrink: 0,
-            boxShadow: `0 2px 6px ${avColor.bg}60`,
-          }}>
-            {initials}
-          </div>
+          <ProfileAvatar
+            user={{ name: custName, photo: nota?.customerPhoto }}
+            size={isMobile ? 38 : 42}
+            style={{
+              borderRadius: isMobile ? 19 : 21,
+              flexShrink: 0,
+            }}
+          />
 
           {/* Customer info */}
           <div style={{ flex: 1, minWidth: 0 }}>

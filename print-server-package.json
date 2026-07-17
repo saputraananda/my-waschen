@@ -1,0 +1,22 @@
+{
+  "name": "waschen-print-server",
+  "version": "1.0.0",
+  "description": "Local print bridge for Waschen POS - supports USB, LAN, Bluetooth printers",
+  "main": "print-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node print-server.js",
+    "dev": "node --watch print-server.js"
+  },
+  "dependencies": {
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-network": "^3.0.0-alpha.6",
+    "serialport": "^10.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "optionalDependencies": {
+    "escpos-usb": "^3.0.0-alpha.6"
+  }
+}

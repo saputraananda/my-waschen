@@ -126,6 +126,10 @@ export const createPengajuan = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Minimal harus ada 1 item' });
     }
 
+    // Resolve PIC
+    const resolvedPicName = picName?.trim() || req.user?.name || req.user?.fullName || 'Unknown';
+    const resolvedPicId = userId;
+
     // Validate and resolve each item's category
     const resolvedItems = [];
     for (const item of items) {
@@ -163,16 +167,13 @@ export const createPengajuan = async (req, res) => {
       'SELECT group_type FROM mst_pengajuan_category WHERE id = ?',
       [firstCat.categoryId]
     );
-    const groupType = catRows.length > 0 ? (catRows[0].group_type || 'operational') : 'operational';
-    const isOperational = groupType === 'operational';
+    // DB uses Indonesian spelling 'operasional', NOT English 'operational'
+    const groupType = catRows.length > 0 ? (catRows[0].group_type || 'operasional') : 'operasional';
+    const isOperational = groupType === 'operasional';
     const needsApproval = !isOperational && totalAmount > AUTO_APPROVE_LIMIT;
 
-    // Resolve PIC
-    const resolvedPicName = picName || req.user?.name || req.user?.fullName || 'Unknown';
-    const resolvedPicId = userId;
-
-    // Determine source type
-    const sourceType = isOperational ? 'operational' : 'tagihan';
+    // Determine source type (match DB enum: 'operational', 'inventory', 'tagihan', 'utility')
+    const sourceType = groupType; // 'operasional' → 'operasional', 'tagihan' → 'tagihan'
 
     // Insert main request
     const [insertResult] = await conn.execute(

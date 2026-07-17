@@ -179,7 +179,7 @@ const GlassModal = ({
               background: 'rgba(0, 0, 0, 0.4)',
               backdropFilter: 'blur(4px)',
               WebkitBackdropFilter: 'blur(4px)',
-              zIndex: 1000,
+              zIndex: 500, // GlassModal level — above Premium Modal (400), below Select (9000)
               ...(position === 'bottom' || position === 'top'
                 ? { display: 'flex', flexDirection: 'column', justifyContent: position === 'bottom' ? 'flex-end' : 'flex-start' }
                 : {}),
@@ -198,7 +198,7 @@ const GlassModal = ({
               WebkitBackdropFilter: 'blur(20px)',
               border: '1px solid rgba(255, 255, 255, 0.6)',
               boxShadow: '0 20px 60px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
-              zIndex: 1001,
+              zIndex: 501, // GlassModal content — one above backdrop
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',

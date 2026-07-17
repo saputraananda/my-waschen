@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, getCartLineSubtotal, getCartUnitPrice } from '../../utils/helpers';
-import { TopBar, Btn, Chip, Avatar, SearchBar, EmptyState, Select } from '../../components/ui';
+import { TopBar, Btn, Chip, SearchBar, EmptyState, Select, ProfileAvatar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError, alertWarning } from '../../utils/alert';
 import KeranjangPanel from '../../components/KeranjangPanel';
@@ -446,7 +446,14 @@ export default function NotaStep2Page({ goBack }) {
               boxShadow: '0 4px 16px ' + C.primary + '30',
               flexShrink: 0,
             }}>
-              <Avatar initials={notaCustomer.avatar} size={36} />
+              <div className="clay-avatar" style={{ width: 36, height: 36, borderRadius: 10, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ProfileAvatar
+                  user={{ ...notaCustomer, type: 'customer', photo: notaCustomer?.photo }}
+                  size={36}
+                  showBorder={false}
+                  style={{ borderRadius: 10, width: 36, height: 36 }}
+                />
+              </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: 'white' }}>{notaCustomer.name}</div>
                 <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)' }}>Deposit: {rp(notaCustomer.deposit || 0)}</div>
@@ -722,7 +729,8 @@ export default function NotaStep2Page({ goBack }) {
 
       {/* Category Modal */}
       {showCategoryModal && (
-        <div onClick={() => setShowCategoryModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+        <div onClick={() => setShowCategoryModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          {/* 400 = Premium Modal level (above Standard Modal 200, below GlassModal 500) */}
           <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', padding: '20px 16px 32px' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <div style={{ width: 40, height: 4, background: '#E9D3F2', borderRadius: 2 }} />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
   ArrowLeft, Copy, Check, Camera, Plus, Printer, RotateCcw,
@@ -8,12 +8,11 @@ import {
 } from 'lucide-react';
 import { C } from '../../utils/theme';
 import { rp, photoTypeLabel, getTransactionItemLineTotal } from '../../utils/helpers';
-import { TopBar, Btn, Badge, ProgressTimeline, Modal, Input, Select, MoneyInput, DateTimeInput } from '../../components/ui';
+import { TopBar, Btn, Badge, ProgressTimeline, Modal, Input, Select, MoneyInput, DateTimeInput, ProfileAvatar } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { uploadImage } from '../../utils/imageUpload';
 import RefundCancelModal from '../../components/RefundCancelModal';
 import { useResponsive } from '../../utils/hooks';
-import { getAvatarSource } from '../../utils/avatar';
 
 // ─── Design tokens (Waschen Design Template v3.0) ──────────────────────────
 const FONT = "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -132,22 +131,6 @@ function ClayIcon({ icon, color = C.primary, size = 44 }) {
       boxShadow: `3px 3px 8px ${color}15, -1px -1px 4px rgba(255,255,255,0.9)`,
     }}>
       {icon}
-    </div>
-  );
-}
-
-function ClayAvatar({ initials, size = 60 }) {
-  return (
-    <div style={{
-      width: size, height: size,
-      borderRadius: 18,
-      background: 'linear-gradient(145deg, #FFFFFF, #E9D3F2)',
-      boxShadow: '-4px -4px 10px rgba(255,255,255,0.7), 5px 6px 14px rgba(59,11,71,0.25), inset 0 1px 1px rgba(255,255,255,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: FONT, fontSize: size * 0.36, fontWeight: 700,
-      color: C.primary, flexShrink: 0,
-    }}>
-      {initials}
     </div>
   );
 }
@@ -580,24 +563,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
     } finally { setPelLoading(false); }
   };
 
-  // Avatar helpers (PRESERVED from original)
-  const customerInitials = (tx?.customerName || 'Unknown').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  const customerAvatarData = useMemo(() => ({ photo: tx?.customerPhoto, gender: tx?.customerGender, name: tx?.customerName }), [tx?.customerPhoto, tx?.customerGender, tx?.customerName]);
-  const customerAvatarSrc = useMemo(() => getAvatarSource(customerAvatarData, 'customer'), [customerAvatarData]);
-  const getAvatarBg = (name) => {
-    if (!name) return 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
-    const first = name.charAt(0).toUpperCase();
-    const ranges = [
-      { chars: 'ABCDE', gradient: 'linear-gradient(145deg, #E9D3F2, #C77DCB)' },
-      { chars: 'FGHIJ', gradient: 'linear-gradient(145deg, #C8E6FF, #7BA7D4)' },
-      { chars: 'KLMNO', gradient: 'linear-gradient(145deg, #FFE0B2, #E4A87C)' },
-      { chars: 'PQRST', gradient: 'linear-gradient(145deg, #C8F7C5, #7DC97D)' },
-      { chars: 'UVWXYZ', gradient: 'linear-gradient(145deg, #FFD1DC, #E07A8F)' },
-    ];
-    const found = ranges.find(r => r.chars.includes(first));
-    return found?.gradient || 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
-  };
-
   // Production steps
   const productionSteps = [
     { key: 'diterima', label: 'Diterima' },
@@ -661,10 +626,8 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       minHeight: '100vh',
       background: 'var(--glass-bg)',
       fontFamily: FONT,
-      display: 'flex',
-      justifyContent: 'center',
     }}>
-      <div style={{ width: '100%', maxWidth: 480, position: 'relative', paddingBottom: isMobile ? 210 : 200 }}>
+      <div style={{ width: '100%', paddingBottom: isMobile ? 210 : 200 }}>
 
         {/* ── Header hero with blob gradient ───────────────────────── */}
         <div className="wd-page-header">
@@ -672,7 +635,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
           <div className="wd-blob wd-blob-2" />
           <div className="wd-blob wd-blob-3" />
 
-          <div style={{ position: 'relative', zIndex: 1, padding: '18px 20px 26px' }}>
+          <div style={{ position: 'relative', zIndex: 1, padding: '18px 24px 26px', maxWidth: 1400, margin: '0 auto' }}>
             {/* Top bar */}
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 22 }}>
               <button
@@ -697,7 +660,11 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
             {/* Customer summary */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <ClayAvatar initials={customerInitials} size={58} />
+              <ProfileAvatar
+                user={{ name: tx.customerName, photo: tx.customerPhoto, gender: tx.customerGender, type: 'customer' }}
+                size={58}
+                style={{ borderRadius: 18, width: 58, height: 58 }}
+              />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontFamily: FONT, fontSize: 18, fontWeight: 700, color: '#fff' }}>
@@ -767,7 +734,11 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
 
         {/* ── Body ─────────────────────────────────────────────────── */}
-        <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: '18px 24px',
+        display: 'grid',
+        gap: 16,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+        alignItems: 'start' }}>
 
           {/* Status Pengerjaan */}
           <ClayCard delay={0.02}>
@@ -1142,7 +1113,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         {/* ── Sticky bottom actions ───────────────────────────────── */}
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 20 }}>
           <div style={{
-            width: '100%', maxWidth: 480,
+            width: '100%', maxWidth: 9999,
             background: C.white,
             borderTop: `1px solid ${C.n200}`,
             padding: `16px 18px calc(16px + env(safe-area-inset-bottom))`,
@@ -1241,7 +1212,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
               onClick={(e) => e.stopPropagation()}
               className="wd-sheet"
               style={{
-                width: '100%', maxWidth: 480, background: C.white,
+                width: '100%', maxWidth: 9999, background: C.white,
                 borderRadius: '24px 24px 0 0',
                 padding: `22px 18px calc(22px + env(safe-area-inset-bottom))`,
                 boxShadow: '0 -20px 40px rgba(59,11,71,0.25)',

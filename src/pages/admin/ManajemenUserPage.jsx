@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
-import { TopBar, Avatar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
+import { TopBar, ProfileAvatar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
-import { getAvatarSource } from '../../utils/avatar';
 
 const ROLE_COLORS = { frontline: C.primary, produksi: C.info, admin: C.primary, finance: C.success };
 const ROLE_LABELS = { frontline: 'Frontliner', produksi: 'Produksi', admin: 'Admin', finance: 'Finance' };
@@ -287,7 +286,6 @@ export default function ManajemenUserPage({ navigate, goBack }) {
             {filtered.map((u) => {
               const roleColor = ROLE_COLORS[u.role] || C.n500;
               const roleLabel = ROLE_LABELS[u.role] || u.role;
-              const initials = u.avatar || u.name?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '??';
               return (
                 <div key={u.id} style={{
                   background: C.white, borderRadius: 16, padding: '14px 16px',
@@ -296,25 +294,8 @@ export default function ManajemenUserPage({ navigate, goBack }) {
                   borderLeft: `4px solid ${roleColor}`,
                   transition: 'all 0.2s ease',
                 }} className="user-card-row">
-                  {/* Avatar with staff character */}
-                  <div style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 23,
-                    overflow: 'hidden',
-                    border: '2px solid #E6D9E7',
-                    flexShrink: 0,
-                  }}>
-                    <img
-                      src={getAvatarSource(u)}
-                      alt="avatar"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.parentNode.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:${C.primary}15;font-size:14px;font-weight:700;color:${C.primary};font-family:Poppins,sans-serif">${initials}</div>`;
-                      }}
-                    />
-                  </div>
+                  {/* Avatar */}
+                  <ProfileAvatar user={u} size={46} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{u.name}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>

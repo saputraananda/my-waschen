@@ -2,9 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Avatar, Divider, Chip, SearchBar, Modal } from '../../components/ui';
+import { TopBar, Btn, Divider, Chip, SearchBar, Modal, ProfileAvatar } from '../../components/ui';
 import { alertError, alertSuccess, confirmAction } from '../../utils/alert';
-import { getAvatarSource, getInitials } from '../../utils/avatar';
 import { useResponsive } from '../../utils/hooks';
 
 // Glass card CSS class - injected once
@@ -160,33 +159,10 @@ function useGlassStylesDetail() {
   }, []);
 }
 
-const customerInitials = (c) => {
-  if (c?.avatar) return c.avatar;
-  const name = c?.name || '';
-  return name.split(' ').filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
-};
-
 // Customer avatar component with clay style + editable
 function CustomerAvatar({ customer, size = 80, editable = false, onEdit }) {
   useGlassStylesDetail();
-  const avatarSrc = useMemo(() => getAvatarSource(customer, 'customer'), [customer]);
-  const initials = customerInitials(customer);
   const fileInputRef = useRef(null);
-
-  // Avatar initials bg based on first letter ranges (deterministic)
-  const getAvatarBg = (name) => {
-    if (!name) return 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
-    const first = name.charAt(0).toUpperCase();
-    const ranges = [
-      { chars: 'ABCDE', gradient: 'linear-gradient(145deg, #E9D3F2, #C77DCB)' },
-      { chars: 'FGHIJ', gradient: 'linear-gradient(145deg, #C8E6FF, #7BA7D4)' },
-      { chars: 'KLMNO', gradient: 'linear-gradient(145deg, #FFE0B2, #E4A87C)' },
-      { chars: 'PQRST', gradient: 'linear-gradient(145deg, #C8F7C5, #7DC97D)' },
-      { chars: 'UVWXYZ', gradient: 'linear-gradient(145deg, #FFD1DC, #E07A8F)' },
-    ];
-    const found = ranges.find(r => r.chars.includes(first));
-    return found?.gradient || 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
-  };
 
   const handleAvatarClick = () => {
     if (editable && onEdit) {
@@ -221,40 +197,12 @@ function CustomerAvatar({ customer, size = 80, editable = false, onEdit }) {
           }}
         />
       ) : (
-        <>
-          <img
-            src={avatarSrc}
-            alt={customer?.name || 'avatar'}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'flex';
-            }}
-          />
-          {/* Fallback initials */}
-          <div
-            style={{
-              display: 'none',
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              background: getAvatarBg(customer?.name),
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'Poppins',
-              fontSize: size * 0.35,
-              fontWeight: 700,
-              color: '#3B0B47',
-              textShadow: '0 1px 2px rgba(0,0,0,0.1)',
-            }}
-          >
-            {initials}
-          </div>
-        </>
+        <ProfileAvatar
+          user={{ ...customer, type: 'customer' }}
+          size={size}
+          showBorder={false}
+          style={{ width: size, height: size }}
+        />
       )}
 
       {/* Edit overlay */}
@@ -1239,7 +1187,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
             background: 'rgba(0,0,0,0.5)',
             display: 'flex',
             alignItems: 'flex-end',
-            zIndex: 1000,
+            zIndex: 500, // GlassModal level
             animation: 'fadeIn 0.2s ease-out',
           }}
         >

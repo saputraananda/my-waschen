@@ -11,7 +11,7 @@ const ADMIN_ROLES = ['admin'];
 
 // ─── Helper: Admin assertion ─────────────────────────────────────────────────
 const assertAdmin = (req, res) => {
-  if (!ADMIN_ROLES.has(req.user?.roleCode)) {
+  if (!ADMIN_ROLES.includes(req.user?.roleCode)) {
     res.status(403).json({ success: false, message: 'Hanya admin/finance/owner.' });
     return false;
   }

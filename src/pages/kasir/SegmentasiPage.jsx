@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, SearchBar, Avatar } from '../../components/ui';
+import { TopBar, Btn, SearchBar, ProfileAvatar } from '../../components/ui';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
 import { getSegmentationOverview, getSegmentedCustomers, SEGMENT_OPTIONS, SEGMENT_LABELS } from '../../utils/segmentationApi';
 import { alertError } from '../../utils/alert';
@@ -194,7 +194,7 @@ export default function SegmentasiPage({ goBack }) {
                   background: C.white, borderRadius: 10, padding: 12,
                   boxShadow: SHADOW.sm, display: 'flex', alignItems: 'center', gap: 10,
                 }}>
-                  <Avatar name={c.name} size={40} />
+                  <ProfileAvatar user={{ name: c.name, photo: c.photo, gender: c.gender, type: 'customer' }} size={40} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.n900 }}>{c.name}</div>
                     <div style={{ fontSize: 10, color: C.n600 }}>{c.phone}</div>

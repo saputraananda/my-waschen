@@ -595,9 +595,9 @@ function AppInner() {
             font-size: 16px;
           }
         }
-        /* Datepicker popper must escape overflow */
+        /* Datepicker popper — z-index 9800 per z-ladder */
         .react-datepicker-popper {
-          z-index: 9999 !important;
+          z-index: 9800 !important;
         }
       `}</style>
 
@@ -631,7 +631,7 @@ function AppInner() {
       )}
 
       {sessionExpired && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9800, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
           <div style={{ background: 'white', borderRadius: 20, padding: '32px 24px', maxWidth: 320, width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
             <div style={{ width: 56, height: 56, borderRadius: 28, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
               <span style={{ fontSize: 28 }}>🔒</span>

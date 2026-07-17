@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
-import { TopBar, SearchBar, Avatar, Btn, EmptyState, SkeletonList, Modal, Chip, useAppRefresh } from '../../components/ui';
+import { TopBar, SearchBar, Btn, EmptyState, SkeletonList, Modal, Chip, useAppRefresh, ProfileAvatar } from '../../components/ui';
 import { AnimatedListItem } from '../../components/AnimatedList';
 import { useDebounce } from '../../utils/hooks';
 import { useApp } from '../../context/AppContext';
 import { motion } from 'framer-motion';
-import { getAvatarSource } from '../../utils/avatar';
 import { buildWaMeLink } from '../../utils/helpers';
 
 // Glass card CSS class - injected once
@@ -175,23 +174,6 @@ function useGlassStyles() {
 // Customer avatar with clay style + gender-based defaults
 function CustomerAvatar({ customer, size = 50 }) {
   useGlassStyles();
-  const avatarSrc = useMemo(() => getAvatarSource(customer, 'customer'), [customer]);
-  const initials = customer.avatar || customer.name?.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
-
-  // Avatar initials bg based on first letter ranges (deterministic)
-  const getAvatarBg = (name) => {
-    if (!name) return 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
-    const first = name.charAt(0).toUpperCase();
-    const ranges = [
-      { chars: 'ABCDE', gradient: 'linear-gradient(145deg, #E9D3F2, #C77DCB)' },
-      { chars: 'FGHIJ', gradient: 'linear-gradient(145deg, #C8E6FF, #7BA7D4)' },
-      { chars: 'KLMNO', gradient: 'linear-gradient(145deg, #FFE0B2, #E4A87C)' },
-      { chars: 'PQRST', gradient: 'linear-gradient(145deg, #C8F7C5, #7DC97D)' },
-      { chars: 'UVWXYZ', gradient: 'linear-gradient(145deg, #FFD1DC, #E07A8F)' },
-    ];
-    const found = ranges.find(r => r.chars.includes(first));
-    return found?.gradient || 'linear-gradient(145deg, #E9D3F2, #D4B8E3)';
-  };
 
   return (
     <div
@@ -205,57 +187,23 @@ function CustomerAvatar({ customer, size = 50 }) {
         justifyContent: 'center',
         flexShrink: 0,
         overflow: 'hidden',
-        position: 'relative',
         padding: 0,
       }}
     >
-      {customer?.photo ? (
-        <img
-          src={customer.photo}
-          alt={customer?.name || 'avatar'}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            borderRadius: 18,
-          }}
-        />
-      ) : (
-        <>
-          <img
-            src={avatarSrc}
-            alt={customer?.name || 'avatar'}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              borderRadius: 18,
-            }}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'flex';
-            }}
-          />
-          <div
-            style={{
-              display: 'none',
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              background: getAvatarBg(customer?.name),
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: 'Poppins',
-              fontSize: size * 0.35,
-              fontWeight: 700,
-              color: '#3B0B47',
-              textShadow: '0 1px 2px rgba(0,0,0,0.1)',
-            }}
-          >
-            {initials}
-          </div>
-        </>
-      )}
+      <ProfileAvatar
+        user={{
+          ...customer,
+          type: 'customer',
+          photo: customer?.photo,
+        }}
+        size={size}
+        showBorder={false}
+        style={{
+          borderRadius: 18,
+          width: size,
+          height: size,
+        }}
+      />
     </div>
   );
 }

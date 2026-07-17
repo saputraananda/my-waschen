@@ -88,7 +88,7 @@ const InstallPrompt = () => {
             top: 0,
             left: 0,
             right: 0,
-            zIndex: 9999,
+            zIndex: 200, // Above BottomNav (20), below modals
             padding: '12px 16px',
             paddingTop: 'max(12px, env(safe-area-inset-top))',
           }}

@@ -178,7 +178,7 @@ function ImagePreviewModal({ src, onClose }) {
       style={{
         position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.85)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 9999, padding: 20, cursor: 'pointer',
+        zIndex: 9500, padding: 20, cursor: 'pointer',
         backdropFilter: 'blur(4px)',
       }}
     >
@@ -505,6 +505,19 @@ export default function KasOutletPage({ goBack }) {
               }}
             >
               Catat Pengeluaran
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setShowTopupModal(true)}
+              style={{
+                flex: '1 1 160px', minHeight: 44, borderRadius: 11, border: 'none',
+                background: 'rgba(255,255,255,.15)', color: '#fff',
+                fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              }}
+            >
+              📥 Top-up
             </button>
           )}
         </div>
@@ -932,9 +945,9 @@ export default function KasOutletPage({ goBack }) {
         />
       )}
       {showTopupModal && (
-        <TopupModal
-          outletId={selectedOutletId}
-          outletName={balance?.outletName}
+        <TopupToOutletModal
+          allBalances={allBalances}
+          selectedOutletId={selectedOutletId}
           onClose={() => setShowTopupModal(false)}
           onSuccess={() => { setShowTopupModal(false); refreshAll(); }}
         />
@@ -2294,5 +2307,637 @@ function ReconcileModal({ outletId, currentBalance, onClose, onSuccess }) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TopupToOutletModal - Penyaluran Dana ke Outlet Outlet
+// Finance Flow: Admin mendistribusikan dana kas ke outlet-outlet yang butuh
+// ════════════════════════════════════════════════════════════════════════════
+function TopupToOutletModal({ allBalances, selectedOutletId, onClose, onSuccess }) {
+  const [mode, setMode] = useState('single'); // 'single' | 'multi'
+  const [selectedOutlets, setSelectedOutlets] = useState({});
+  const [amount, setAmount] = useState('');
+  const [distributions, setDistributions] = useState({}); // outletId -> amount
+  const [source, setSource] = useState('transfer');
+  const [referenceNo, setReferenceNo] = useState('');
+  const [notes, setNotes] = useState('');
+  const [picName, setPicName] = useState('');
+  const [proofPhotoUrl, setProofPhotoUrl] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1); // 1: pilih outlet, 2: nominal
+
+  // Parse amount
+  const parseAmount = (val) => Number(String(val).replace(/\D/g, '')) || 0;
+  const totalAmount = mode === 'single'
+    ? parseAmount(amount)
+    : Object.values(distributions).reduce((sum, v) => sum + parseAmount(v), 0);
+
+  const numAmount = parseAmount(amount);
+
+  // Toggle outlet selection
+  const toggleOutlet = (outletId) => {
+    setSelectedOutlets(prev => {
+      const next = { ...prev };
+      if (next[outletId]) {
+        delete next[outletId];
+      } else {
+        next[outletId] = true;
+        if (!distributions[outletId]) {
+          setDistributions(d => ({ ...d, [outletId]: '' }));
+        }
+      }
+      return next;
+    });
+  };
+
+  // Select/deselect all outlets
+  const toggleAllOutlets = () => {
+    if (Object.keys(selectedOutlets).length === allBalances.length) {
+      setSelectedOutlets({});
+      setDistributions({});
+    } else {
+      const all = {};
+      const dist = {};
+      allBalances.forEach(o => {
+        all[o.outletId] = true;
+        dist[o.outletId] = '';
+      });
+      setSelectedOutlets(all);
+      setDistributions(dist);
+    }
+  };
+
+  // Quick fill equal distribution
+  const fillEqualDistribution = () => {
+    if (totalAmount <= 0 || Object.keys(selectedOutlets).length === 0) return;
+    const perOutlet = Math.floor(totalAmount / Object.keys(selectedOutlets).length);
+    const remainder = totalAmount - (perOutlet * Object.keys(selectedOutlets).length);
+
+    setDistributions(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        if (selectedOutlets[id]) {
+          next[id] = (Number(id) === Number(Object.keys(selectedOutlets)[0]))
+            ? (perOutlet + remainder).toString()
+            : perOutlet.toString();
+        }
+      });
+      return next;
+    });
+  };
+
+  // Photo upload
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alertError('Maks 5MB'); return; }
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', 'proof');
+      const res = await axios.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (res?.data?.url) {
+        setProofPhotoUrl(res.data.url);
+        alertSuccess('Foto berhasil diunggah');
+      } else throw new Error('No URL');
+    } catch (err) {
+      alertError('Gagal upload foto');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Submit
+  const submit = async () => {
+    if (totalAmount <= 0) { alertWarning('Total nominal harus > 0'); return; }
+    if (!picName.trim()) { alertWarning('Nama PIC wajib diisi'); return; }
+    if (!proofPhotoUrl.trim()) { alertWarning('Bukti foto wajib diunggah'); return; }
+
+    // Validate distributions for multi mode
+    if (mode === 'multi') {
+      const zeroDist = Object.entries(distributions)
+        .filter(([id]) => selectedOutlets[id])
+        .filter(([, v]) => parseAmount(v) <= 0);
+      if (zeroDist.length > 0) {
+        alertWarning('Semua outlet yang dipilih harus punya nominal > 0');
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      if (mode === 'single') {
+        // Single outlet topup
+        await topupCash({
+          outletId: selectedOutletId,
+          amount: numAmount,
+          source,
+          referenceNo: referenceNo.trim() || undefined,
+          notes: notes.trim() || undefined,
+          picName: picName.trim(),
+          proofPhotoUrl: proofPhotoUrl.trim(),
+        });
+      } else {
+        // Multi outlet distribution
+        const promises = Object.entries(distributions)
+          .filter(([id]) => selectedOutlets[id])
+          .filter(([, v]) => parseAmount(v) > 0)
+          .map(([outletId, v]) =>
+            topupCash({
+              outletId: Number(outletId),
+              amount: parseAmount(v),
+              source,
+              referenceNo: referenceNo.trim() || undefined,
+              notes: notes.trim() || undefined,
+              picName: picName.trim(),
+              proofPhotoUrl: proofPhotoUrl.trim(),
+            })
+          );
+        await Promise.all(promises);
+      }
+
+      await alertSuccess(
+        mode === 'single'
+          ? `Top-up ${rp(totalAmount)} berhasil!`
+          : `${Object.keys(selectedOutlets).length} outlet berhasil di-top-up! Total: ${rp(totalAmount)}`
+      );
+      onSuccess();
+    } catch (err) {
+      alertError(err?.response?.data?.message || 'Gagal top-up.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedCount = Object.keys(selectedOutlets).length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 9500, padding: 16,
+      }}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: 20,
+          width: '100%', maxWidth: 480, maxHeight: '92vh',
+          overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.25)',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          padding: '18px 20px 14px',
+          borderBottom: `1px solid ${DT.n100}`,
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 700, color: DT.n900, margin: 0 }}>
+                📥 Penyaluran Dana Kas
+              </h2>
+              <p style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, color: DT.n600, margin: '4px 0 0' }}>
+                Distribusikan dana ke outlet-outlet
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                width: 32, height: 32, borderRadius: 10, border: 'none',
+                background: DT.n100, cursor: 'pointer', fontSize: 18, color: DT.n700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >×</button>
+          </div>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+
+          {/* Mode selector */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button
+              onClick={() => { setMode('single'); setSelectedOutlets({}); setDistributions({}); }}
+              style={{
+                flex: 1, padding: '10px 12px', borderRadius: 12,
+                border: `2px solid ${mode === 'single' ? DT.primary : DT.n200}`,
+                background: mode === 'single' ? DT.primaryTint : '#fff',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 12, fontWeight: 700,
+                color: mode === 'single' ? DT.primary : DT.n700,
+                cursor: 'pointer',
+              }}
+            >
+              🎯 Satu Outlet
+            </button>
+            <button
+              onClick={() => { setMode('multi'); setAmount(''); }}
+              style={{
+                flex: 1, padding: '10px 12px', borderRadius: 12,
+                border: `2px solid ${mode === 'multi' ? DT.primary : DT.n200}`,
+                background: mode === 'multi' ? DT.primaryTint : '#fff',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 12, fontWeight: 700,
+                color: mode === 'multi' ? DT.primary : DT.n700,
+                cursor: 'pointer',
+              }}
+            >
+              📦 Multi Outlet
+            </button>
+          </div>
+
+          {/* Step 1: Select outlets (multi mode) or single outlet info */}
+          {mode === 'multi' && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 700, color: DT.n700, letterSpacing: 0.3 }}>
+                  PILIH OUTLET ({selectedCount}/{allBalances.length})
+                </div>
+                <button
+                  onClick={toggleAllOutlets}
+                  style={{
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    fontSize: 11, fontWeight: 600, color: DT.primary,
+                    background: 'none', border: 'none', cursor: 'pointer',
+                  }}
+                >
+                  {selectedCount === allBalances.length ? 'Batal semua' : 'Pilih semua'}
+                </button>
+              </div>
+
+              {/* Total budget input */}
+              <div style={{
+                background: DT.n50, borderRadius: 12, padding: '12px 14px',
+                marginBottom: 12, border: `1px solid ${DT.n200}`,
+              }}>
+                <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 600, color: DT.n700, marginBottom: 8 }}>
+                  Total Dana yang Didistribusikan
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                    fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, fontWeight: 600, color: DT.n600,
+                  }}>Rp</span>
+                  <input
+                    type="text"
+                    value={amount}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                    }}
+                    placeholder="0"
+                    style={{
+                      width: '100%', height: 40, borderRadius: 10,
+                      border: `1.5px solid ${DT.n300}`, paddingLeft: 36,
+                      fontFamily: "'Poppins', sans-serif", fontSize: 15, fontWeight: 700,
+                      color: DT.primary, outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+                {totalAmount > 0 && selectedCount > 0 && (
+                  <button
+                    onClick={fillEqualDistribution}
+                    style={{
+                      marginTop: 8, width: '100%', padding: '7px 12px', borderRadius: 8,
+                      border: `1px solid ${DT.primary}40`, background: DT.primaryTint,
+                      fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 600,
+                      color: DT.primary, cursor: 'pointer',
+                    }}
+                  >
+                    🔄 Bagi rata: {rp(Math.floor(totalAmount / selectedCount))} per outlet
+                  </button>
+                )}
+              </div>
+
+              {/* Outlet list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
+                {allBalances.map(outlet => {
+                  const isSelected = !!selectedOutlets[outlet.outletId];
+                  const distAmount = parseAmount(distributions[outlet.outletId] || '');
+                  return (
+                    <div
+                      key={outlet.outletId}
+                      onClick={() => toggleOutlet(outlet.outletId)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                        borderRadius: 12, border: `2px solid ${isSelected ? DT.primary : DT.n200}`,
+                        background: isSelected ? DT.primaryTint : '#fff',
+                        cursor: 'pointer', transition: 'all .15s ease',
+                      }}
+                    >
+                      {/* Checkbox */}
+                      <div style={{
+                        width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                        border: `2px solid ${isSelected ? DT.primary : DT.n300}`,
+                        background: isSelected ? DT.primary : '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {isSelected && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* Outlet info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 13, fontWeight: 600, color: DT.n900 }}>
+                          {outlet.outletName}
+                        </div>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, color: DT.n600, marginTop: 2 }}>
+                          Saldo saat ini: <strong style={{ color: DT.success }}>{rp(outlet.balance)}</strong>
+                        </div>
+                      </div>
+
+                      {/* Per-outlet amount input */}
+                      {isSelected && (
+                        <div style={{ position: 'relative', width: 120 }}>
+                          <span style={{
+                            position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
+                            fontSize: 11, fontWeight: 600, color: DT.n500,
+                          }}>Rp</span>
+                          <input
+                            type="text"
+                            value={distributions[outlet.outletId] || ''}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setDistributions(d => ({ ...d, [outlet.outletId]: e.target.value }));
+                            }}
+                            placeholder="0"
+                            style={{
+                              width: '100%', height: 34, borderRadius: 8,
+                              border: `1.5px solid ${distAmount > 0 ? DT.success : DT.n300}`,
+                              paddingLeft: 28, fontSize: 12, fontWeight: 600,
+                              color: distAmount > 0 ? DT.success : DT.n700,
+                              outline: 'none', boxSizing: 'border-box',
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Single mode: just show selected outlet */}
+          {mode === 'single' && (
+            <div style={{ marginBottom: 16 }}>
+              {(() => {
+                const outlet = allBalances.find(o => o.outletId === selectedOutletId);
+                return outlet ? (
+                  <div style={{
+                    background: DT.n50, borderRadius: 14, padding: '14px 16px',
+                    border: `1px solid ${DT.n200}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12,
+                        background: 'linear-gradient(135deg, #7C3AED, #5B21B6)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18,
+                      }}>
+                        🏪
+                      </div>
+                      <div>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14, fontWeight: 700, color: DT.n900 }}>
+                          {outlet.outletName}
+                        </div>
+                        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, color: DT.n600, marginTop: 2 }}>
+                          Saldo saat ini: <strong style={{ color: DT.success }}>{rp(outlet.balance)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Amount input */}
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 600, color: DT.n700, marginBottom: 6 }}>
+                  Nominal Top-up <span style={{ color: DT.danger }}>*</span>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                    fontFamily: "'Poppins', sans-serif", fontSize: 13, fontWeight: 600, color: DT.n600,
+                  }}>Rp</span>
+                  <input
+                    type="text"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0"
+                    style={{
+                      width: '100%', height: 48, borderRadius: 12,
+                      border: `1.5px solid ${numAmount > 0 ? DT.primary : DT.n300}`,
+                      paddingLeft: 40, fontSize: 18, fontWeight: 700,
+                      color: DT.primary, outline: 'none', boxSizing: 'border-box',
+                      fontFamily: "'Poppins', sans-serif",
+                    }}
+                  />
+                </div>
+                {numAmount > 0 && (
+                  <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, color: DT.n600, marginTop: 6 }}>
+                    {(() => {
+                      const outlet = allBalances.find(o => o.outletId === selectedOutletId);
+                      const newBalance = (outlet?.balance || 0) + numAmount;
+                      return `Saldo setelah top-up: ${rp(newBalance)}`;
+                    })()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Summary */}
+          {mode === 'multi' && totalAmount > 0 && selectedCount > 0 && (
+            <div style={{
+              background: 'linear-gradient(135deg, #7C3AED10, #5B21B610)',
+              borderRadius: 12, padding: '12px 14px', marginBottom: 16,
+              border: `1px solid ${DT.primary}20`,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, fontWeight: 600, color: DT.n700 }}>
+                  Total Didistribusikan
+                </span>
+                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, fontWeight: 800, color: DT.primary }}>
+                  {rp(totalAmount)}
+                </span>
+              </div>
+              <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, color: DT.n600, marginTop: 4 }}>
+                Ke {selectedCount} outlet
+              </div>
+            </div>
+          )}
+
+          {/* Source selector */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 600, color: DT.n700, marginBottom: 6 }}>
+              Sumber Dana
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              {Object.entries(TOPUP_SOURCE_META).map(([k, m]) => (
+                <button
+                  key={k}
+                  onClick={() => setSource(k)}
+                  style={{
+                    padding: '8px 6px', borderRadius: 10,
+                    border: `2px solid ${source === k ? DT.primary : DT.n200}`,
+                    background: source === k ? DT.primaryTint : '#fff',
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    fontSize: 11, fontWeight: 600,
+                    color: source === k ? DT.primary : DT.n700,
+                    cursor: 'pointer', textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: 16, marginBottom: 2 }}>{m.icon}</div>
+                  <div>{m.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Reference & Notes */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 600, color: DT.n700, marginBottom: 5 }}>
+                No. Referensi
+              </div>
+              <input
+                type="text"
+                value={referenceNo}
+                onChange={(e) => setReferenceNo(e.target.value)}
+                placeholder="Opsional"
+                style={{
+                  width: '100%', height: 38, borderRadius: 9,
+                  border: `1.5px solid ${DT.n300}`, padding: '0 10px',
+                  fontSize: 12, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div>
+              <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 600, color: DT.n700, marginBottom: 5 }}>
+                Nama PIC <span style={{ color: DT.danger }}>*</span>
+              </div>
+              <input
+                type="text"
+                value={picName}
+                onChange={(e) => setPicName(e.target.value)}
+                placeholder="Nama PIC"
+                style={{
+                  width: '100%', height: 38, borderRadius: 9,
+                  border: `1.5px solid ${DT.n300}`, padding: '0 10px',
+                  fontSize: 12, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 600, color: DT.n700, marginBottom: 5 }}>
+              Catatan
+            </div>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Catatan opsional"
+              style={{
+                width: '100%', borderRadius: 9, border: `1.5px solid ${DT.n300}`,
+                padding: '8px 10px', fontSize: 12, outline: 'none',
+                resize: 'vertical', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          {/* Photo upload */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 11, fontWeight: 600, color: DT.n700, marginBottom: 6 }}>
+              Bukti Foto Transfer <span style={{ color: DT.danger }}>*</span>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoUpload}
+              disabled={uploadingPhoto}
+              style={{ display: 'none' }}
+              id="distrib-proof-upload"
+            />
+            <label
+              htmlFor="distrib-proof-upload"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52,
+                background: DT.n50, border: `1.5px dashed ${proofPhotoUrl ? DT.success : DT.n300}`,
+                borderRadius: 12, cursor: uploadingPhoto ? 'not-allowed' : 'pointer',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                fontSize: 12, fontWeight: 600,
+                color: proofPhotoUrl ? DT.success : DT.primary,
+              }}
+            >
+              {uploadingPhoto ? '⏳ Mengunggah...' : proofPhotoUrl ? '✅ Foto tersimpan' : '📷 Ambil Foto'}
+            </label>
+            {proofPhotoUrl && (
+              <img
+                src={proofPhotoUrl}
+                alt="Bukti"
+                style={{ marginTop: 8, width: '100%', maxHeight: 120, objectFit: 'cover', borderRadius: 10, border: `1px solid ${DT.n200}` }}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '14px 20px 18px',
+          borderTop: `1px solid ${DT.n100}`,
+          flexShrink: 0,
+        }}>
+          <button
+            onClick={submit}
+            disabled={
+              totalAmount <= 0 ||
+              !picName.trim() ||
+              !proofPhotoUrl ||
+              loading ||
+              (mode === 'multi' && Object.keys(selectedOutlets).filter(id => selectedOutlets[id] && parseAmount(distributions[id]) > 0).length === 0)
+            }
+            style={{
+              width: '100%', height: 48, borderRadius: 14, border: 'none',
+              background: (
+                totalAmount <= 0 || !picName.trim() || !proofPhotoUrl || loading ||
+                (mode === 'multi' && Object.keys(selectedOutlets).filter(id => selectedOutlets[id] && parseAmount(distributions[id]) > 0).length === 0)
+              ) ? DT.n300 : 'linear-gradient(135deg, #7C3AED, #5B21B6)',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 14, fontWeight: 700, color: '#fff',
+              cursor: (
+                totalAmount <= 0 || !picName.trim() || !proofPhotoUrl || loading ||
+                (mode === 'multi' && Object.keys(selectedOutlets).filter(id => selectedOutlets[id] && parseAmount(distributions[id]) > 0).length === 0)
+              ) ? 'not-allowed' : 'pointer',
+              boxShadow: (
+                totalAmount <= 0 || !picName.trim() || !proofPhotoUrl || loading ||
+                (mode === 'multi' && Object.keys(selectedOutlets).filter(id => selectedOutlets[id] && parseAmount(distributions[id]) > 0).length === 0)
+              ) ? 'none' : '0 8px 24px rgba(124, 58, 237, 0.4)',
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading ? '⏳ Memproses...' : `📥 Salurkan Dana ${totalAmount > 0 ? rp(totalAmount) : ''}`}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
