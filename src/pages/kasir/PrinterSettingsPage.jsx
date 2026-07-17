@@ -5,12 +5,14 @@ import { TopBar, Btn } from '../../components/ui';
 import { useResponsive } from '../../utils/hooks';
 import { alertSuccess, alertError, confirmAction } from '../../utils/alert';
 import {
-  checkServerStatus,
-  getAvailablePrinters,
+  isBluetoothAvailable,
+  getPrinterStatus,
   connectPrinter,
   disconnectPrinter,
   printTestPage,
-  getPrinterState,
+  getSavedPrinter,
+  clearSavedPrinter,
+  savePrinterConfig,
 } from '../../utils/printService';
 
 const STORAGE_KEY = 'waschen_printer_config';
@@ -76,13 +78,6 @@ const PRINTER_TYPES = [
   { value: 'thermal_80', label: '80 mm', sub: '~48 karakter/baris', icon: null },
   { value: 'a4', label: 'A4', sub: 'Printer biasa', icon: null },
   { value: 'custom', label: 'Custom', sub: 'Lebar manual', icon: null },
-];
-
-const CONNECTION_TYPES = [
-  { value: 'browser_print', label: 'Browser Print', sub: 'window.print() — paling mudah' },
-  { value: 'usb', label: 'USB Direct', sub: 'Perlu bridge/driver lokal' },
-  { value: 'lan', label: 'LAN / IP', sub: 'Printer jaringan' },
-  { value: 'bluetooth', label: 'Bluetooth', sub: 'Printer BT mobile' },
 ];
 
 const CONTENT_FIELDS = [
@@ -453,25 +448,135 @@ function ReceiptPreview({ cfg }) {
   );
 }
 
-// ── Printer Status Card ────────────────────────────────────────────────────────
+// ── Auto Connect Card ────────────────────────────────────────────────────────────
+function AutoConnectCard({
+  onAutoConnect,
+  connecting,
+  btAvailable,
+  savedPrinter,
+  printerConnected,
+}) {
+  return (
+    <ClayCard padding={16}>
+      <SectionTitle>📡 Koneksi Printer</SectionTitle>
+
+      {/* Status */}
+      <div style={{
+        padding: 16,
+        background: printerConnected ? '#F0FDF4' : C.n50,
+        borderRadius: 12,
+        marginBottom: 12,
+      }}>
+        {printerConnected ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              background: '#22C55E',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+            }}>
+              ✅
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: C.n900 }}>
+                {savedPrinter?.name || 'Printer'}
+              </div>
+              <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: '#22C55E' }}>
+                Terhubung • Siap cetak
+              </div>
+            </div>
+          </div>
+        ) : savedPrinter ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              background: '#F59E0B',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+            }}>
+              ⚡
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: C.n900 }}>
+                {savedPrinter.name}
+              </div>
+              <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n500 }}>
+                Simpan • Tap Connect untuk hubungkan
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              background: C.n200,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+            }}>
+              📡
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: C.n900 }}>
+                Belum ada printer
+              </div>
+              <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n500 }}>
+                Tap tombol di bawah untuk menghubungkan
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Connect Button */}
+      <PrimaryBtn
+        onClick={onAutoConnect}
+        disabled={connecting || !btAvailable}
+        fullWidth
+        style={{ marginBottom: 8 }}
+      >
+        {connecting ? '⏳ Menghubungkan...' : printerConnected ? '🔄 Reconnect' : '🔗 Hubungkan Printer'}
+      </PrimaryBtn>
+
+      {!btAvailable && (
+        <div style={{
+          padding: 8,
+          background: '#FEF3C7',
+          borderRadius: 8,
+          fontFamily: "'Poppins'",
+          fontSize: 10,
+          color: '#92400E',
+          textAlign: 'center',
+        }}>
+          ⚠️ Gunakan Chrome untuk mendukung Bluetooth
+        </div>
+      )}
+    </ClayCard>
+  );
+}
+    </ClayCard>
+  );
+}
+
+// ── Simple Printer Status Card ─────────────────────────────────────────────────
 function PrinterStatusCard({
-  connectionType,
   printerConnected,
   printerInfo,
-  printing,
   testing,
   onTestPrint,
-  onConnect,
   onDisconnect,
-  availablePrinters,
-  onSelectPrinter,
-  serverStatus,
-  onRefreshPrinters,
 }) {
-  const [showModal, setShowModal] = useState(false);
-  const [selectedPrinter, setSelectedPrinter] = useState(null);
-  const [scanning, setScanning] = useState(false);
-
   const getStatusColor = () => {
     if (printerConnected) return '#22C55E';
     return C.n400;
@@ -482,331 +587,54 @@ function PrinterStatusCard({
     return 'Belum terhubung';
   };
 
-  const handleOpenModal = async () => {
-    setShowModal(true);
-    setScanning(true);
-    await onRefreshPrinters();
-    setScanning(false);
-  };
-
-  const handleSelectAndConnect = async () => {
-    if (!selectedPrinter) return;
-    await onSelectPrinter(selectedPrinter.type, selectedPrinter.config);
-    setShowModal(false);
-    setSelectedPrinter(null);
-  };
-
-  const printersByType = [
-    {
-      type: 'usb',
-      label: 'USB',
-      icon: '🔌',
-      color: '#3B82F6',
-      items: availablePrinters?.usb || [],
-      emptyText: 'Tidak ada printer USB ditemukan',
-    },
-    {
-      type: 'bluetooth',
-      label: 'Bluetooth',
-      icon: '📱',
-      color: '#8B5CF6',
-      items: availablePrinters?.bluetooth || [],
-      emptyText: 'Tidak ada printer Bluetooth ditemukan',
-    },
-    {
-      type: 'windows',
-      label: 'Windows',
-      icon: '🪟',
-      color: '#3B82F6',
-      items: availablePrinters?.windows || [],
-      emptyText: 'Tidak ada printer Windows ditemukan',
-    },
-  ];
-
   return (
-    <>
-      <ClayCard padding={16}>
-        <SectionTitle>Status Printer</SectionTitle>
+    <ClayCard padding={16}>
+      <SectionTitle>Status</SectionTitle>
 
-        {/* Connection status */}
+      {/* Connection status */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: 12,
+        background: printerConnected ? '#F0FDF4' : C.n50,
+        borderRadius: 12,
+        marginBottom: 12,
+      }}>
         <div style={{
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          background: printerConnected ? '#22C55E' : C.n200,
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
-          padding: 12,
-          background: printerConnected ? '#F0FDF4' : C.n50,
-          borderRadius: 12,
-          marginBottom: 12,
+          justifyContent: 'center',
+          fontSize: 18,
         }}>
-          <div style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            background: printerConnected ? '#22C55E' : C.n200,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 18,
-          }}>
-            🖨️
+          {printerConnected ? '✅' : '❌'}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: C.n900 }}>
+            {getStatusText()}
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: C.n900 }}>
-              {getStatusText()}
-            </div>
-            <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n500 }}>
-              {connectionType === 'browser_print' ? 'Browser Print (window.print)' :
-               connectionType === 'usb' ? 'USB Direct' :
-               connectionType === 'lan' ? 'LAN / Network' :
-               connectionType === 'bluetooth' ? 'Bluetooth' : 'Tidak terkonfigurasi'}
-            </div>
+          <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n500 }}>
+            Bluetooth Thermal Printer
           </div>
         </div>
+      </div>
 
-        {/* Server status warning */}
-        {!serverStatus?.connected && connectionType !== 'browser_print' && (
-          <div style={{
-            padding: 10,
-            background: '#FEF3C7',
-            borderRadius: 10,
-            marginBottom: 12,
-            fontFamily: "'Poppins'",
-            fontSize: 11,
-            color: '#92400E',
-            lineHeight: 1.5,
-          }}>
-            ⚠️ Print Server belum berjalan. Jalankan <code>node print-server.js</code> di komputer kasir.
-          </div>
-        )}
-
-        {/* Connection type info */}
-        {connectionType !== 'browser_print' && serverStatus?.connected && (
-          <div style={{
-            padding: 10,
-            background: C.infoBg,
-            borderRadius: 10,
-            marginBottom: 12,
-            fontFamily: "'Poppins'",
-            fontSize: 11,
-            color: C.infoDark,
-            lineHeight: 1.5,
-          }}>
-            {connectionType === 'usb' && '🔌 Pilih printer USB dari daftar di bawah.'}
-            {connectionType === 'lan' && '🌐 Masukkan IP printer jaringan (misal: 192.168.1.100).'}
-            {connectionType === 'bluetooth' && '📱 Printer Bluetooth harus paired dengan komputer.'}
-          </div>
-        )}
-
-        {/* Test print button */}
-        {printerConnected && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <SecondaryBtn onClick={onTestPrint} disabled={testing} fullWidth>
-              {testing ? '⏳ Mencetak...' : '🧪 Test Print'}
-            </SecondaryBtn>
-            <SecondaryBtn onClick={onDisconnect}>
-              Disconnect
-            </SecondaryBtn>
-          </div>
-        )}
-
-        {!printerConnected && connectionType !== 'browser_print' && (
-          <PrimaryBtn
-            onClick={handleOpenModal}
-            disabled={!serverStatus?.connected}
-            fullWidth
-          >
-            {scanning ? '🔍 Scan...' : '🔌 Hubungkan Printer'}
-          </PrimaryBtn>
-        )}
-      </ClayCard>
-
-      {/* Printer Selection Modal */}
-      <AnimatePresence>
-        {showModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowModal(false)}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'flex-end',
-              justifyContent: 'center',
-              zIndex: 500, // GlassModal level
-              padding: 16,
-            }}
-          >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25 }}
-              onClick={e => e.stopPropagation()}
-              style={{
-                background: C.white,
-                borderRadius: '24px 24px 0 0',
-                padding: 24,
-                width: '100%',
-                maxWidth: 500,
-                maxHeight: '80vh',
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, fontFamily: "'Poppins'", fontWeight: 600, fontSize: 16 }}>
-                  Pilih Printer
-                </h3>
-                <button
-                  onClick={() => setShowModal(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: 24,
-                    cursor: 'pointer',
-                    color: C.n500,
-                    padding: 0,
-                    lineHeight: 1,
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-
-              <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {/* USB Printers */}
-                {printersByType.map(group => (
-                  <div key={group.type}>
-                    <div style={{
-                      fontFamily: "'Poppins'",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: group.color,
-                      marginBottom: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}>
-                      {group.icon} {group.label}
-                    </div>
-                    {group.items.length === 0 ? (
-                      <div style={{
-                        padding: '12px',
-                        background: C.n50,
-                        borderRadius: 10,
-                        fontFamily: "'Poppins'",
-                        fontSize: 12,
-                        color: C.n500,
-                        textAlign: 'center',
-                      }}>
-                        {scanning ? '🔍 Scanning...' : group.emptyText}
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {group.items.map((printer, idx) => {
-                          const isSelected = selectedPrinter?.type === group.type && selectedPrinter?.config?.deviceId === printer.deviceId || selectedPrinter?.config?.comPort === printer.comPort || selectedPrinter?.config?.printerName === printer.name;
-                          return (
-                            <div
-                              key={idx}
-                              onClick={() => {
-                                setSelectedPrinter({
-                                  type: group.type,
-                                  config: {
-                                    deviceId: printer.deviceId,
-                                    comPort: printer.comPort,
-                                    printerName: printer.name,
-                                  },
-                                  label: printer.name || printer.comPort || `${printer.vendorId}:${printer.productId}`,
-                                });
-                              }}
-                              style={{
-                                padding: '12px 14px',
-                                borderRadius: 12,
-                                border: `2px solid ${isSelected ? group.color : C.n200}`,
-                                background: isSelected ? `${group.color}10` : C.white,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 10,
-                              }}
-                            >
-                              <div style={{
-                                width: 20,
-                                height: 20,
-                                borderRadius: 10,
-                                border: `2px solid ${isSelected ? group.color : C.n300}`,
-                                background: isSelected ? group.color : C.white,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}>
-                                {isSelected && <div style={{ width: 8, height: 8, borderRadius: 4, background: C.white }} />}
-                              </div>
-                              <div>
-                                <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: C.n900 }}>
-                                  {printer.name || printer.deviceName || `Printer ${printer.vendorId || ''}:${printer.productId || ''}`}
-                                </div>
-                                {printer.manufacturer && (
-                                  <div style={{ fontFamily: "'Poppins'", fontSize: 10, color: C.n500 }}>
-                                    {printer.manufacturer}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* LAN Printer Manual Input */}
-                {connectionType === 'lan' && (
-                  <div>
-                    <div style={{
-                      fontFamily: "'Poppins'",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: '#10B981',
-                      marginBottom: 8,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}>
-                      🌐 LAN / Network
-                    </div>
-                    <Input
-                      label="IP Printer"
-                      value={selectedPrinter?.type === 'lan' ? selectedPrinter?.config?.ip || '' : ''}
-                      onChange={e => setSelectedPrinter({ type: 'lan', config: { ip: e.target.value, port: 9100 }, label: e.target.value || 'LAN Printer' })}
-                      placeholder="192.168.1.100"
-                    />
-                    <div style={{ marginTop: 8 }}>
-                      <Input
-                        label="Port (default: 9100)"
-                        type="number"
-                        value={selectedPrinter?.type === 'lan' ? selectedPrinter?.config?.port || 9100 : 9100}
-                        onChange={e => setSelectedPrinter(prev => ({ type: 'lan', config: { ip: prev?.config?.ip || '', port: parseInt(e.target.value) || 9100 }, label: prev?.config?.ip || 'LAN Printer' }))}
-                        placeholder="9100"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <PrimaryBtn onClick={handleSelectAndConnect} disabled={!selectedPrinter} fullWidth>
-                {printing ? '⏳ Menghubungkan...' : '✓ Hubungkan'}
-              </PrimaryBtn>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+      {/* Actions */}
+      {printerConnected && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <SecondaryBtn onClick={onTestPrint} disabled={testing} fullWidth>
+            {testing ? '⏳ Mencetak...' : '🧪 Test Print'}
+          </SecondaryBtn>
+          <SecondaryBtn onClick={onDisconnect}>
+            Putus
+          </SecondaryBtn>
+        </div>
+      )}
+    </ClayCard>
   );
 }
 
@@ -828,74 +656,71 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
   const [saved, setSaved] = useState(false);
 
   // Printer connection state
-  const [serverStatus, setServerStatus] = useState({ connected: false, error: null });
-  const [availablePrinters, setAvailablePrinters] = useState({ usb: [], bluetooth: [], windows: [] });
   const [printerConnected, setPrinterConnected] = useState(false);
   const [printerInfo, setPrinterInfo] = useState(null);
-  const [printing, setPrinting] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [showPrinterModal, setShowPrinterModal] = useState(false);
-  const [lanIp, setLanIp] = useState('');
-  const [lanPort, setLanPort] = useState('9100');
+  const [savedBluetoothPrinter, setSavedBluetoothPrinter] = useState(null);
+  const [btAvailable, setBtAvailable] = useState(false);
+  const [autoConnecting, setAutoConnecting] = useState(false);
 
-  // Check server status on mount
+  // Check printer status on mount
   useEffect(() => {
-    checkPrinterServer();
+    checkPrinterStatus();
+    checkBluetooth();
   }, []);
 
-  const checkPrinterServer = async () => {
-    const status = await checkServerStatus();
-    setServerStatus(status);
-    if (status.connected) {
-      setPrinterConnected(true);
-      const printers = await getAvailablePrinters();
-      setAvailablePrinters(printers);
+  const checkBluetooth = async () => {
+    const available = isBluetoothAvailable();
+    setBtAvailable(available);
+    if (available) {
+      const saved = getSavedPrinter();
+      setSavedBluetoothPrinter(saved);
     }
   };
 
-  const handlePrinterConnect = async (type, config) => {
+  const handleAutoConnect = async () => {
+    setAutoConnecting(true);
     try {
-      setPrinting(true);
-      const result = await connectPrinter(type, config);
+      const result = await connectPrinter();
       if (result.success) {
         setPrinterConnected(true);
-        setPrinterInfo(result);
-        alertSuccess(`Printer ${result.name} terhubung!`);
+        setPrinterInfo({ name: result.name || 'Bluetooth Printer' });
+        alertSuccess(`Printer ${result.name || 'Bluetooth'} terhubung!`);
+        const saved = getSavedPrinter();
+        setSavedBluetoothPrinter(saved);
       } else {
-        alertError(result.error || 'Gagal terhubung ke printer');
+        alertError(result.error || 'Tidak ada printer ditemukan');
       }
     } catch (err) {
       alertError(err.message);
     } finally {
-      setPrinting(false);
+      setAutoConnecting(false);
     }
   };
 
-  const handleSelectPrinter = async (type, config) => {
-    await handlePrinterConnect(type, config);
-  };
-
-  const handleRefreshPrinters = async () => {
-    const printers = await getAvailablePrinters();
-    setAvailablePrinters(printers);
+  const checkPrinterStatus = async () => {
+    const status = getPrinterStatus();
+    setPrinterConnected(status.connected);
+    if (status.connected) {
+      setPrinterInfo({ name: status.name });
+    }
+    const saved = status.savedDevice || getSavedPrinter();
+    setSavedBluetoothPrinter(saved);
   };
 
   const handlePrinterDisconnect = async () => {
     await disconnectPrinter();
     setPrinterConnected(false);
     setPrinterInfo(null);
+    setSavedBluetoothPrinter(null);
     alertSuccess('Printer disconnect.');
   };
 
   const handleTestPrint = async () => {
-    if (!printerConnected) {
-      alertError('Hubungkan printer terlebih dahulu');
-      return;
-    }
     try {
       setTesting(true);
-      await printTestPage(printerInfo?.name);
-      alertSuccess('Test print berhasil!');
+      await printTestPage();
+      alertSuccess('Test print berhasil! Cek printer Anda.');
     } catch (err) {
       alertError(err.message);
     } finally {
@@ -1089,83 +914,22 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
                 </div>
               </ClayCard>
 
-              {/* Koneksi Printer */}
-              <ClayCard padding={16}>
-                <SectionTitle>Koneksi Printer</SectionTitle>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {CONNECTION_TYPES.map(c => (
-                    <motion.div
-                      key={c.value}
-                      whileTap={{ scale: 0.99 }}
-                      onClick={() => set('connectionType', c.value)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        padding: '12px 14px',
-                        borderRadius: 14,
-                        cursor: 'pointer',
-                        border: `2px solid ${cfg.connectionType === c.value ? C.primary : C.n200}`,
-                        background: cfg.connectionType === c.value
-                          ? `linear-gradient(145deg, ${C.primaryTint}, ${C.primaryTint}80)`
-                          : `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
-                        boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.06), -2px -2px 8px rgba(255, 255, 255, 0.95)',
-                      }}
-                    >
-                      <div style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: 10,
-                        border: `2px solid ${cfg.connectionType === c.value ? C.primary : C.n300}`,
-                        background: cfg.connectionType === c.value ? C.primary : C.white,
-                        flexShrink: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}>
-                        {cfg.connectionType === c.value && (
-                          <div style={{ width: 8, height: 8, borderRadius: 4, background: C.white }} />
-                        )}
-                      </div>
-                      <div>
-                        <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: C.n900 }}>
-                          {c.label}
-                        </div>
-                        <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: C.n500 }}>
-                          {c.sub}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-                {cfg.connectionType === 'browser_print' && (
-                  <div style={{
-                    marginTop: 12,
-                    padding: 12,
-                    background: C.infoBg,
-                    borderRadius: 12,
-                    fontFamily: "'Poppins'",
-                    fontSize: 11,
-                    color: C.infoDark,
-                    lineHeight: 1.6,
-                  }}>
-                    💡 Mode Browser Print menggunakan <code>window.print()</code>. Atur ukuran kertas di dialog print browser sesuai printer fisik.
-                  </div>
-                )}
-              </ClayCard>
+              {/* Koneksi Printer Bluetooth */}
+              <AutoConnectCard
+                onAutoConnect={handleAutoConnect}
+                connecting={autoConnecting}
+                btAvailable={btAvailable}
+                savedPrinter={savedBluetoothPrinter}
+                printerConnected={printerConnected}
+              />
 
-              {/* Status & Koneksi Printer */}
+              {/* Status Printer */}
               <PrinterStatusCard
-                connectionType={cfg.connectionType}
-                onConnect={handlePrinterConnect}
-                onDisconnect={handlePrinterDisconnect}
-                onTestPrint={handleTestPrint}
-                onSelectPrinter={handleSelectPrinter}
-                onRefreshPrinters={handleRefreshPrinters}
-                printing={printing}
+                printerConnected={printerConnected}
+                printerInfo={printerInfo}
                 testing={testing}
-                availablePrinters={availablePrinters}
-                serverStatus={serverStatus}
+                onTestPrint={handleTestPrint}
+                onDisconnect={handlePrinterDisconnect}
               />
             </motion.div>
           )}
@@ -1289,9 +1053,14 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
               <ReceiptPreview cfg={cfg} />
 
               <div style={{ marginTop: 8 }}>
-                <SuccessBtn onClick={() => { window.print(); }} fullWidth>
-                  🖨️ Test Cetak Sekarang
+                <SuccessBtn onClick={handleTestPrint} disabled={testing || !printerConnected} fullWidth>
+                  {testing ? '⏳ Mencetak...' : '🖨️ Test Cetak ke Printer'}
                 </SuccessBtn>
+                {!printerConnected && (
+                  <div style={{ textAlign: 'center', marginTop: 8, fontFamily: "'Poppins'", fontSize: 11, color: C.n500 }}>
+                    Hubungkan printer Bluetooth terlebih dahulu
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

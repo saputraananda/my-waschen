@@ -4,7 +4,12 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, EmptyState, QRCodeView } from '../../components/ui';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
-import { printReceipt, buildNotaData, checkServerStatus } from '../../utils/printService';
+import {
+  printReceipt,
+  getPrinterStatus,
+  connectPrinter,
+  isBluetoothAvailable,
+} from '../../utils/printService';
 
 // ─── Payment Status Helper ───────────────────────────────────────────────────────
 function getPaymentStatus(paidAmount, total) {
@@ -54,37 +59,62 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
   const [error, setError] = useState(null);
   const [printing, setPrinting] = useState(false);
   const [printerConnected, setPrinterConnected] = useState(false);
+  const [btAvailable, setBtAvailable] = useState(false);
   const cfg = loadPrinterCfg();
   const pageSize = getPageSize(cfg);
 
-  // Check printer server status on mount
+  // Check printer status on mount
   useEffect(() => {
-    const checkPrinter = async () => {
-      const status = await checkServerStatus();
+    const checkPrinter = () => {
+      const btAvail = isBluetoothAvailable();
+      setBtAvailable(btAvail);
+
+      const status = getPrinterStatus();
       setPrinterConnected(status.connected);
     };
     checkPrinter();
   }, []);
 
-  // Print handler - try direct print first, fallback to browser print
+  // Print handler - connect to printer then print
   const handlePrint = async () => {
-    if (printerConnected && data) {
-      try {
-        setPrinting(true);
-        const receiptData = buildNotaData(data, cfg);
-        await printReceipt(receiptData);
-        // Also trigger browser print as confirmation
-        // window.print();
-      } catch (err) {
-        console.error('Direct print failed:', err);
-        // Fallback to browser print
-        window.print();
-      } finally {
-        setPrinting(false);
+    try {
+      setPrinting(true);
+
+      // Ensure printer is connected
+      if (!printerConnected) {
+        const result = await connectPrinter();
+        if (result.success) {
+          setPrinterConnected(true);
+        } else {
+          alert('Gagal terhubung ke printer');
+          return;
+        }
       }
-    } else {
-      // No printer server - use browser print
-      window.print();
+
+      // Print the receipt
+      await printReceipt(data);
+
+      // Show success
+      alert('Nota berhasil dicetak!');
+
+    } catch (err) {
+      console.error('Print error:', err);
+      alert('Gagal cetak: ' + err.message);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  // Connect printer handler
+  const handleConnectPrinter = async () => {
+    try {
+      const result = await connectPrinter();
+      if (result.success) {
+        setPrinterConnected(true);
+        alert('Printer terhubung: ' + result.name);
+      }
+    } catch (err) {
+      alert('Gagal connect: ' + err.message);
     }
   };
 
@@ -154,20 +184,35 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
       <div className="no-print">
         <TopBar title="Cetak Nota & Label" onBack={goBack} />
         <div style={{ padding: isMobile ? '8px 12px' : 12, background: C.white, borderBottom: `1px solid ${C.n200}`, display: 'flex', gap: isMobile ? 6 : 8, alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-          <Btn variant="primary" onClick={handlePrint} style={{ flex: isMobile ? 1 : 'initial', minWidth: isMobile ? '100%' : 'auto' }} disabled={printing}>
-            {printing ? '⏳ Mencetak...' : '🖨️ Cetak Sekarang'}
+          <Btn
+            variant="primary"
+            onClick={handlePrint}
+            style={{ flex: isMobile ? 1 : 'initial', minWidth: isMobile ? '100%' : 'auto' }}
+            disabled={printing || !data}
+          >
+            {printing ? '⏳ Mencetak...' : printerConnected ? '🖨️ Cetak' : '📡 Hubungkan Printer Dulu'}
           </Btn>
+
+          {!printerConnected && btAvailable && (
+            <button
+              onClick={handleConnectPrinter}
+              style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.primary}`, background: C.primaryTint, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, whiteSpace: 'nowrap' }}
+            >
+              🔗 Connect Printer
+            </button>
+          )}
+
+          {printerConnected && (
+            <div style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, background: '#F0FDF4', fontFamily: 'Poppins', fontSize: 11, color: '#22C55E', fontWeight: 600 }}>
+              ✅ Printer ON
+            </div>
+          )}
+
           <button
             onClick={() => navigate('printer_settings')}
             style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}
           >
-            ⚙️ Printer
-          </button>
-          <button
-            onClick={() => navigate('dashboard')}
-            style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}
-          >
-            🏠 Beranda
+            ⚙️ Pengaturan
           </button>
         </div>
         {/* Config badge */}

@@ -2,9 +2,37 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+// ─── Helper: wait for backend to be ready ─────────────────────────────────────
+const waitForBackend = async (url, maxRetries = 30, interval = 1000) => {
+  console.log('[Vite] Menunggu backend server di ' + url + '...');
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        console.log('[Vite] Backend ready! ✓');
+        return true;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, interval));
+  }
+  console.warn('[Vite] Backend tidak merespons setelah ' + maxRetries + ' detik. Melanjutkan anyway...');
+  return false;
+};
+
+// ─── Custom Plugin: Wait for Backend ─────────────────────────────────────────
+const waitForBackendPlugin = () => ({
+  name: 'wait-for-backend',
+  async configureServer(server) {
+    const backendReady = await waitForBackend('http://127.0.0.1:5000/api/health', 30, 1000);
+    if (backendReady) {
+      console.log('[Vite] Proxy aktif - semua /api/* ke http://127.0.0.1:5000');
+    }
+  },
+});
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), waitForBackendPlugin()],
   resolve: {
     alias: {
       // Standardize asset imports
