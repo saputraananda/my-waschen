@@ -203,74 +203,92 @@ export default function OutletComparisonWidget({ onSelectOutlet, compact = false
   const { outlets, totalRevenue, totalTransactions } = data;
   const maxRevenue = Math.max(...outlets.map(o => o.revenue), 1);
 
+  // Compact mode styles
+  const padding = compact ? '12px' : '16px 18px';
+  const borderRadius = compact ? 14 : 20;
+  const headerIconSize = compact ? 28 : 40;
+  const headerIconBox = compact ? 28 : 40;
+  const titleSize = compact ? 11 : 14;
+  const subtitleSize = compact ? 9 : 11;
+  const itemPadding = compact ? '8px 0' : '10px 0';
+  const showLegend = !compact;
+  const maxItems = compact ? 4 : outlets.length;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       style={{
         background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-        borderRadius: 20, padding: '16px 18px',
+        borderRadius: borderRadius, padding: padding,
         boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.08), -4px -4px 12px rgba(255, 255, 255, 0.95)',
         border: '1px solid rgba(139, 92, 246, 0.08)',
+        height: '100%',
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: compact ? 10 : 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 6 : 10 }}>
           <div style={{
-            width: 40, height: 40, borderRadius: 12,
+            width: headerIconBox, height: headerIconBox, borderRadius: compact ? 8 : 12,
             background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)',
             flexShrink: 0,
           }}>
-            <Building2 size={18} color="#5B005F" />
+            <Building2 size={compact ? 14 : 18} color="#5B005F" />
           </div>
           <div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: '#1E293B' }}>📊 Perbandingan Outlet</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#9ca3af' }}>
-              {totalTransactions} transaksi · Total {rp(totalRevenue)}
-            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: titleSize, fontWeight: 700, color: '#1E293B' }}>🏪 Perbandingan</div>
+            {!compact && (
+              <div style={{ fontFamily: 'Poppins', fontSize: subtitleSize, color: '#9ca3af' }}>
+                {totalTransactions} transaksi · Total {rp(totalRevenue)}
+              </div>
+            )}
           </div>
         </div>
-        <motion.button
-          whileHover={{ rotate: 180 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={fetchData}
-          style={{
-            width: 28, height: 28, borderRadius: 8, border: 'none',
-            background: '#F1F5F9', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <RefreshCw size={12} color="#9ca3af" />
-        </motion.button>
-      </div>
-
-      {/* Period selector */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        {PERIOD_OPTIONS.map(p => (
-          <button
-            key={p.key}
-            onClick={() => setPeriod(p.key)}
+        {!compact && (
+          <motion.button
+            whileHover={{ rotate: 180 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={fetchData}
             style={{
-              padding: '5px 12px', borderRadius: 999,
-              border: 'none',
-              background: period === p.key ? '#5B005F' : '#F1F5F9',
-              color: period === p.key ? 'white' : '#64748B',
-              fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
+              width: 28, height: 28, borderRadius: 8, border: 'none',
+              background: '#F1F5F9', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            {p.label}
-          </button>
-        ))}
+            <RefreshCw size={12} color="#9ca3af" />
+          </motion.button>
+        )}
       </div>
+
+      {/* Period selector - hide in compact */}
+      {!compact && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+          {PERIOD_OPTIONS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              style={{
+                padding: '5px 12px', borderRadius: 999,
+                border: 'none',
+                background: period === p.key ? '#5B005F' : '#F1F5F9',
+                color: period === p.key ? 'white' : '#64748B',
+                fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Outlet bars */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-        {outlets.map((outlet, idx) => {
+        {outlets.slice(0, maxItems).map((outlet, idx) => {
           const pct = maxRevenue > 0 ? Math.round((outlet.revenue / maxRevenue) * 100) : 0;
           const color = COLORS[idx % COLORS.length];
           return (
@@ -283,26 +301,40 @@ export default function OutletComparisonWidget({ onSelectOutlet, compact = false
               onClick={() => onSelectOutlet?.(outlet.outletId)}
               style={{
                 cursor: onSelectOutlet ? 'pointer' : 'default',
-                padding: '10px 0',
-                borderBottom: idx < outlets.length - 1 ? '1px solid rgba(139, 92, 246, 0.08)' : 'none',
+                padding: itemPadding,
+                borderBottom: idx < Math.min(outlets.length, maxItems) - 1 ? '1px solid rgba(139, 92, 246, 0.06)' : 'none',
               }}
             >
-              <Bar
-                label={outlet.outletName}
-                value={outlet.revenue}
-                maxValue={maxRevenue}
-                color={color}
-                pct={pct}
-                isActive={outlet.isActive}
-                rank={idx + 1}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, paddingLeft: 26 }}>
-                <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#9ca3af' }}>
-                  {outlet.transactionCount} transaksi
-                </span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 10, color: '#9ca3af' }}>
-                  Avg: {rp(outlet.avgTransactionValue)} · {outlet.marketShare}% pasar
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: compact ? 3 : 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 4 : 6 }}>
+                  {idx < 3 && (
+                    <div style={{
+                      width: compact ? 14 : 18, height: compact ? 14 : 18, borderRadius: compact ? 4 : 6,
+                      background: idx === 0 ? 'linear-gradient(145deg, #FCD34D, #F59E0B)' :
+                        idx === 1 ? 'linear-gradient(145deg, #D1D5DB, #9CA3AF)' :
+                          'linear-gradient(145deg, #FDBA74, #EA580C)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: compact ? 7 : 8, fontWeight: 700, color: 'white',
+                    }}>
+                      {idx + 1}
+                    </div>
+                  )}
+                  <span style={{ fontFamily: 'Poppins', fontSize: compact ? 10 : 12, fontWeight: 600, color: '#1E293B' }}>{outlet.outletName}</span>
+                </div>
+                <span style={{ fontFamily: 'Poppins', fontSize: compact ? 10 : 11, fontWeight: 700, color: color }}>{rp(outlet.revenue)}</span>
+              </div>
+              <div style={{ background: '#E2E8F0', borderRadius: compact ? 4 : 6, height: compact ? 6 : 10, overflow: 'hidden' }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  style={{
+                    height: '100%',
+                    background: outlet.isActive ? `linear-gradient(90deg, ${color}, ${color}cc)` : '#9CA3AF',
+                    borderRadius: compact ? 4 : 6,
+                    boxShadow: outlet.isActive && idx <= 2 ? `0 0 6px ${color}60` : 'none',
+                  }}
+                />
               </div>
             </motion.div>
           );
@@ -310,7 +342,7 @@ export default function OutletComparisonWidget({ onSelectOutlet, compact = false
       </div>
 
       {/* Market share legend */}
-      {!compact && outlets.length > 1 && (
+      {showLegend && outlets.length > 1 && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

@@ -7,6 +7,10 @@ import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency, fmtDate } from '../../utils/exportReport';
 import { getDateRangePreset } from '../../utils/filterPresets';
+import { motion } from 'framer-motion';
+import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
+import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
+import FloatingBubble from '../../components/ui/PremiumAnimations/FloatingBubble';
 
 const METHOD_LABEL = {
   cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit',
@@ -22,6 +26,20 @@ const METHOD_COLOR = {
 };
 
 const F = { fontFamily: 'Poppins' };
+
+// Premium card style
+const premiumCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// Premium gradient header
+const premiumHeader = {
+  background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+  position: 'relative',
+  overflow: 'hidden',
+};
 
 const PAGE_STYLES = `
   .lap-content { padding: 12px 16px 24px; max-width: 960px; margin: 0 auto; width: 100%; box-sizing: border-box; }
@@ -108,12 +126,18 @@ const DualBarChart = memo(function DualBarChartInner({ points, labelKey = 'label
 });
 
 const HeroCard = ({ title, value, delta, icon, gradient }) => (
-  <div style={{
-    background: gradient, borderRadius: 16, padding: '14px 16px', color: C.white,
-    boxShadow: '0 4px 16px rgba(91,0,95,0.18)', position: 'relative', overflow: 'hidden',
-    minWidth: 0,
-  }}>
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4 }}
+    style={{
+      background: gradient, borderRadius: 18, padding: '14px 16px', color: C.white,
+      boxShadow: '0 8px 24px rgba(91,0,95,0.25)', position: 'relative', overflow: 'hidden',
+      minWidth: 0,
+    }}
+  >
     <div style={{ position: 'absolute', top: -12, right: -12, width: 64, height: 64, borderRadius: 32, background: 'rgba(255,255,255,0.12)' }} />
+    <GlowOrb color="rgba(255,255,255,0.06)" size={80} top="-30px" right="10px" />
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, position: 'relative' }}>
       <span style={{ fontSize: 18, flexShrink: 0 }}>{icon}</span>
       <span style={{ ...F, fontSize: 10, fontWeight: 600, opacity: 0.92, letterSpacing: 0.3, lineHeight: 1.3 }}>{title}</span>
@@ -122,15 +146,20 @@ const HeroCard = ({ title, value, delta, icon, gradient }) => (
     {delta != null && (
       <div style={{ ...F, fontSize: 10, opacity: 0.9, marginTop: 6, position: 'relative', lineHeight: 1.4 }}>{delta}</div>
     )}
-  </div>
+  </motion.div>
 );
 
 const KpiCard = ({ label, value, sub, icon, color = C.primary, accent }) => (
-  <div style={{
-    background: C.white, borderRadius: 14, padding: '10px 12px',
-    boxShadow: SHADOW.sm, borderLeft: `4px solid ${color}`,
-    display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0,
-  }}>
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4 }}
+    style={{
+      ...premiumCard, padding: '12px 14px',
+      borderLeft: `4px solid ${color}`,
+      display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0,
+    }}
+  >
     <div style={{
       width: 34, height: 34, borderRadius: 9, background: `${color}14`,
       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16,
@@ -140,11 +169,16 @@ const KpiCard = ({ label, value, sub, icon, color = C.primary, accent }) => (
       <div style={{ ...F, fontSize: 'clamp(13px, 3.5vw, 16px)', fontWeight: 600, color: C.n900, marginTop: 2, lineHeight: 1.2, wordBreak: 'break-word' }}>{value}</div>
       {sub && <div style={{ ...F, fontSize: 9, color: accent || C.n800, fontWeight: 600, marginTop: 3, lineHeight: 1.3 }}>{sub}</div>}
     </div>
-  </div>
+  </motion.div>
 );
 
 const SectionCard = ({ icon, title, action, children }) => (
-  <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: SHADOW.sm, minWidth: 0 }}>
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4 }}
+    style={{ ...premiumCard, padding: 14, marginBottom: 12, minWidth: 0 }}
+  >
     <div className="lap-section-head">
       <div className="lap-section-title">
         <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
@@ -153,18 +187,28 @@ const SectionCard = ({ icon, title, action, children }) => (
       {action && <div className="lap-section-actions">{action}</div>}
     </div>
     {children}
-  </div>
+  </motion.div>
 );
 
 const ExportToolbar = ({ pointCount, onExcel, onPdf }) => (
   <>
     <span className="lap-export-pill lap-export-pill--muted">{pointCount} titik</span>
-    <button type="button" className="lap-export-pill lap-export-pill--excel" onClick={onExcel}>
+    <motion.button
+      type="button"
+      className="lap-export-pill lap-export-pill--excel"
+      onClick={onExcel}
+      whileTap={{ scale: 0.97 }}
+    >
       <span aria-hidden>⬇</span> Excel
-    </button>
-    <button type="button" className="lap-export-pill lap-export-pill--pdf" onClick={onPdf}>
+    </motion.button>
+    <motion.button
+      type="button"
+      className="lap-export-pill lap-export-pill--pdf"
+      onClick={onPdf}
+      whileTap={{ scale: 0.97 }}
+    >
       <span aria-hidden>⬇</span> PDF
-    </button>
+    </motion.button>
   </>
 );
 
@@ -307,7 +351,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
   }, [report]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
       <style>{`
         ${PAGE_STYLES}
         @media (max-width: 480px) {
@@ -318,7 +362,42 @@ export default function AdminLaporanPage({ navigate, goBack }) {
           .lap-filter-row > * { width: 100% !important; }
         }
       `}</style>
-      <TopBar title="Laporan Pusat" subtitle="Analitik omset & transaksi terpusat" onBack={goBack} />
+
+      {/* Premium Header with GlowOrb and Sparkle */}
+      <div style={{ ...premiumHeader, padding: '0 16px' }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-80px" right="-60px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-40px" left="-40px" />
+        <FloatingBubble size={40} top="20%" left="15%" delay={0} />
+        <FloatingBubble size={25} top="60%" right="10%" delay={1.5} />
+        <Sparkle color="rgba(255,255,255,0.6)" style={{ position: 'absolute', top: 20, right: 80 }} />
+        <Sparkle color="rgba(255,255,255,0.4)" style={{ position: 'absolute', top: 35, right: 120 }} size={10} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 12, paddingBottom: 12 }}>
+          <motion.button
+            onClick={goBack}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none',
+              borderRadius: 12,
+              width: 36,
+              height: 36,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </motion.button>
+          <div>
+            <h1 style={{ ...F, fontSize: 18, fontWeight: 700, color: 'white', margin: 0, textShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>Laporan Pusat</h1>
+            <p style={{ ...F, fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0 }}>Analitik omset & transaksi terpusat</p>
+          </div>
+        </div>
+      </div>
 
       {/* Search & Filter Header */}
       <div style={{ padding: '12px 16px', background: 'white', borderBottom: `1px solid ${C.n100}` }}>
@@ -346,11 +425,18 @@ export default function AdminLaporanPage({ navigate, goBack }) {
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n800 }}>
-            <div style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n800 }}
+          >
+            <motion.div
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px' }}
+            />
             Memuat data laporan...
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          </div>
+          </motion.div>
         )}
 
         {!loading && report && (
@@ -440,11 +526,19 @@ export default function AdminLaporanPage({ navigate, goBack }) {
                     const pct = totalRevenue > 0 ? (Number(row.revenue) / totalRevenue) * 100 : 0;
                     const rankColor = idx === 0 ? C.warning : idx === 1 ? C.n400 : idx === 2 ? '#CD7F32' : C.n800;
                     return (
-                      <div key={row.outletName || idx} style={{
-                        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                        background: idx === 0 ? C.warningBg : C.n50, borderRadius: 10,
-                        border: `1px solid ${idx === 0 ? C.warning : 'transparent'}`,
-                      }}>
+                      <motion.div
+                        key={row.outletName || idx}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                          background: idx === 0 ? `${C.warning}15` : 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+                          borderRadius: 12,
+                          border: `1px solid ${idx === 0 ? C.warning : 'transparent'}`,
+                          boxShadow: idx === 0 ? 'none' : '4px 4px 12px rgba(110, 46, 120, 0.06), -2px -2px 8px rgba(255, 255, 255, 0.9)',
+                        }}
+                      >
                         <div style={{
                           width: 32, height: 32, borderRadius: 16, background: rankColor,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -454,7 +548,12 @@ export default function AdminLaporanPage({ navigate, goBack }) {
                           <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.outletName || '—'}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <div style={{ flex: 1, height: 6, background: C.n200, borderRadius: 3, overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${C.primary}, ${C.primaryDark})`, transition: 'width 0.5s' }} />
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${pct}%` }}
+                                transition={{ delay: idx * 0.04 + 0.2, duration: 0.5 }}
+                                style={{ height: '100%', background: `linear-gradient(90deg, ${C.primary}, ${C.primaryDark})` }}
+                              />
                             </div>
                             <span style={{ ...F, fontSize: 10, fontWeight: 600, color: C.primary, minWidth: 38, textAlign: 'right' }}>{pct.toFixed(1)}%</span>
                           </div>
@@ -599,12 +698,18 @@ const thStyle = { ...F, fontSize: 10, fontWeight: 600, color: C.n800, padding: '
 const tdStyle = { ...F, fontSize: 12, color: C.n800, padding: '10px 6px', whiteSpace: 'nowrap' };
 
 const QuickLink = ({ icon, label, onClick }) => (
-  <button onClick={onClick} style={{
-    display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
-    background: C.n50, border: `1px solid ${C.n100}`, borderRadius: 10,
-    cursor: 'pointer', textAlign: 'left',
-  }}>
+  <motion.button
+    onClick={onClick}
+    whileTap={{ scale: 0.97 }}
+    style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
+      background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+      border: 'none', borderRadius: 12,
+      cursor: 'pointer', textAlign: 'left',
+      boxShadow: '6px 6px 16px rgba(110, 46, 120, 0.08), -3px -3px 10px rgba(255, 255, 255, 0.95)',
+    }}
+  >
     <span style={{ fontSize: 16 }}>{icon}</span>
     <span style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n900 }}>{label}</span>
-  </button>
+  </motion.button>
 );

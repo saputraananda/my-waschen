@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
-import { C, SHADOW } from '../../utils/theme';
-import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
+import { C } from '../../utils/theme';
+import { useIsMobile, useResponsive } from '../../utils/hooks';
 import { TopBar, ProfileAvatar, Btn, Chip, Modal, Input, Select, SearchBar } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
+import { FloatingBubble, Sparkle, GlowOrb } from '../../components/ui/PremiumAnimations';
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
 
 const ROLE_COLORS = { frontline: C.primary, produksi: C.info, admin: C.primary, finance: C.success };
 const ROLE_LABELS = { frontline: 'Frontliner', produksi: 'Produksi', admin: 'Admin', finance: 'Finance' };
@@ -23,10 +27,40 @@ const FilterIcon = () => (
   </svg>
 );
 
+const ClayCard = ({ children, style, onClick, padding = 16 }) => (
+  <motion.div
+    whileHover={onClick ? { y: -3, scale: 1.01 } : {}}
+    whileTap={onClick ? { scale: 0.98 } : {}}
+    onClick={onClick}
+    style={{
+      background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+      borderRadius: 18,
+      padding: padding,
+      boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+      border: `1px solid rgba(139, 92, 246, 0.08)`,
+      ...style,
+    }}
+  >
+    {children}
+  </motion.div>
+);
+
+const SkeletonBlock = ({ height = 40, style }) => (
+  <div style={{
+    height, borderRadius: 14,
+    background: `linear-gradient(90deg, ${C.n100} 0%, ${C.n200} 50%, ${C.n100} 100%)`,
+    backgroundSize: '200% 100%',
+    animation: 'shimmer 1.5s infinite',
+    ...style,
+  }}>
+    <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+  </div>
+);
+
 export default function ManajemenUserPage({ navigate, goBack }) {
-  const isMobile = useIsMobile();
+  const { isMobile } = useResponsive();
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [roleFilter, setRoleFilter] = useState('semua');
   const [statusFilter, setStatusFilter] = useState('semua');
@@ -61,6 +95,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         const res = await axios.get('/api/master/outlets');
         setOutlets(res?.data?.data || []);
       } catch (error) {
+        // silent
       }
     };
     fetchOutlets();
@@ -205,211 +240,306 @@ export default function ManajemenUserPage({ navigate, goBack }) {
     }
   };
 
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden', position: 'relative' }}>
-      <style>{`
-        @media (max-width: 480px) {
-          .user-list-item {
-            flex-direction: column !important;
-            gap: 12px !important;
-          }
-          .user-list-actions {
-            width: 100% !important;
-            flex-direction: row !important;
-          }
-          .user-modal-inputs {
-            gap: 8px !important;
-          }
-          .user-card-row {
-            flex-direction: column !important;
-            align-items: flex-start !important;
-          }
-          .user-card-actions {
-            flex-direction: row !important;
-            width: 100% !important;
-            margin-top: 8px !important;
-          }
-        }
-      `}</style>
+  const activeCount = users.filter(u => u.active !== false).length;
 
-      {/* ── TOP BAR ── */}
-      <TopBar title="Manajemen User" onBack={goBack} rightAction={() => setModalAdd(true)} rightIcon={<PlusIcon />} />
+  return (
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column',
+      background: 'var(--glass-bg)', overflow: 'hidden'
+    }}>
+      {/* ── Premium Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '14px 16px 32px',
+        position: 'relative', overflow: 'hidden', flexShrink: 0,
+      }}>
+        <GlowOrb color="rgba(140, 76, 143, 0.4)" size={200} top="-60px" left="-30px" blur={50} />
+        <GlowOrb color="rgba(249, 62, 17, 0.25)" size={150} top="30px" right="-40px" blur={40} />
+        <Sparkle top="10%" left="15%" size={7} delay={0} />
+        <Sparkle top="25%" left="80%" size={5} delay={0.5} />
+        <Sparkle top="60%" left="30%" size={6} delay={1} />
+        <FloatingBubble src={bubbleIcon} size={16} top="20%" left="5%" delay={0} opacity={0.4} />
+        <FloatingBubble src={bubble2Icon} size={12} top="40%" right="8%" delay={0.5} opacity={0.3} />
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 800, color: 'white', letterSpacing: '-0.5px' }}
+            >
+              Manajemen User
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}
+            >
+              {users.length} user · {activeCount} aktif
+            </motion.div>
+          </div>
+          {goBack && (
+            <button
+              onClick={goBack}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: 'white',
+              }}
+            >
+              ← Kembali
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* ── SEARCH + FILTER ── */}
-      <div style={{ padding: '10px 16px 0', position: 'sticky', top: 0, zIndex: 2, background: C.n50 }}>
+      <div style={{
+        padding: '12px 16px 0',
+        background: 'var(--glass-bg)',
+        position: 'relative', zIndex: 2,
+      }}>
         <SearchBar value={query} onChange={setQuery} placeholder="Cari nama, username, email, atau outlet..." />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
           <div style={{ flex: 1, fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>
             Menampilkan <strong style={{ color: C.n700 }}>{filtered.length}</strong> dari {users.length} user
           </div>
-          <button onClick={() => setFilterOpen(true)} style={{
-            width: 44, height: 44, borderRadius: 12,
-            border: 'none', background: 'transparent',
-            color: C.primary, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            position: 'relative', flexShrink: 0,
-          }}>
+          <motion.button
+            onClick={() => setFilterOpen(true)}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              width: 40, height: 40, borderRadius: 12,
+              border: 'none',
+              background: activeFilterCount > 0
+                ? 'linear-gradient(145deg, #5B005F, #8C4C8F)'
+                : `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+              color: activeFilterCount > 0 ? 'white' : C.primary,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: activeFilterCount > 0
+                ? '0 4px 12px rgba(91,0,95,0.25)'
+                : '3px 3px 8px rgba(110,46,120,0.1)',
+              position: 'relative', flexShrink: 0,
+            }}
+          >
             <FilterIcon />
             {activeFilterCount > 0 && (
               <span style={{
                 position: 'absolute', top: -4, right: -4,
                 width: 16, height: 16, borderRadius: 8,
-                background: C.primary, color: 'white',
+                background: C.danger, color: 'white',
                 fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {activeFilterCount}
               </span>
             )}
-          </button>
+          </motion.button>
         </div>
       </div>
 
       {/* ── USER LIST ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 80px' }}>
-        {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 12 }}>
-            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n700 }}>Memuat data...</span>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '50%', gap: 10 }}>
-            <div style={{ width: 64, height: 64, borderRadius: 20, background: `${C.primary}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 14px ${C.primary}18` }}>
-              <span style={{ fontSize: 28 }}>👤</span>
-            </div>
-            <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n700 }}>Belum ada user</span>
-            <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Tap + untuk menambahkan user</span>
-          </div>
-        ) : (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 100px' }}>
+        {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map((u) => {
-              const roleColor = ROLE_COLORS[u.role] || C.n500;
-              const roleLabel = ROLE_LABELS[u.role] || u.role;
-              return (
-                <div key={u.id} style={{
-                  background: C.white, borderRadius: 16, padding: '14px 16px',
-                  boxShadow: SHADOW.md, display: 'flex', alignItems: 'center', gap: 14,
-                  opacity: u.active === false ? 0.55 : 1,
-                  borderLeft: `4px solid ${roleColor}`,
-                  transition: 'all 0.2s ease',
-                }} className="user-card-row">
-                  {/* Avatar */}
-                  <ProfileAvatar user={u} size={46} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{u.name}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                      <span style={{
-                        background: `${roleColor}18`, color: roleColor,
-                        fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
-                        padding: '2px 8px', borderRadius: 999,
-                      }}>
-                        {roleLabel}
-                      </span>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>{u.outlet || u.username}</span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }} className="user-card-actions">
-                    <button
-                      onClick={() => toggleActive(u.id)}
-                      style={{
-                        padding: '5px 10px', borderRadius: 8,
-                        border: `1px solid ${u.active !== false ? C.success : C.n300}`,
-                        background: u.active !== false ? C.successBg : C.n50,
-                        cursor: 'pointer', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
-                        color: u.active !== false ? C.success : C.n500, width: 66,
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {u.active !== false ? 'Aktif' : 'Nonaktif'}
-                    </button>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => openEdit(u)} style={{
-                        flex: 1, padding: '6px', borderRadius: 8,
-                        border: `1px solid ${C.n200}`, background: C.white,
-                        cursor: 'pointer', color: C.primary, fontSize: 12, transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = `${C.primary}14`; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = C.white; }}
-                      >✏️</button>
-                      <button onClick={() => handleDelete(u.id)} style={{
-                        flex: 1, padding: '6px', borderRadius: 8,
-                        border: `1px solid ${C.n200}`, background: C.white,
-                        cursor: 'pointer', color: C.error, fontSize: 12, transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = `${C.error}14`; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = C.white; }}
-                      >🗑️</button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {[1, 2, 3, 4].map(i => <SkeletonBlock key={i} height={90} />)}
           </div>
         )}
+
+        {!loading && filtered.length === 0 && (
+          <ClayCard padding={40}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>👤</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n600 }}>Belum ada user</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, marginTop: 4 }}>Tap + untuk menambahkan user</div>
+            </div>
+          </ClayCard>
+        )}
+
+        {!loading && filtered.map((u, idx) => {
+          const roleColor = ROLE_COLORS[u.role] || C.n500;
+          const roleLabel = ROLE_LABELS[u.role] || u.role;
+          return (
+            <motion.div
+              key={u.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.04 }}
+              whileHover={{ y: -2 }}
+              style={{
+                background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+                borderRadius: 18,
+                padding: '14px 16px',
+                marginBottom: 10,
+                boxShadow: '8px 8px 20px rgba(110, 46, 120, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.95)',
+                border: `1px solid rgba(139, 92, 246, 0.08)`,
+                borderLeft: `4px solid ${roleColor}`,
+                opacity: u.active === false ? 0.55 : 1,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {/* Avatar */}
+                <ProfileAvatar user={u} size={46} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{u.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                    <span style={{
+                      background: `${roleColor}18`, color: roleColor,
+                      fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+                      padding: '2px 8px', borderRadius: 999,
+                    }}>
+                      {roleLabel}
+                    </span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>{u.outlet || u.username}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                  <motion.button
+                    onClick={() => toggleActive(u.id)}
+                    whileTap={{ scale: 0.95 }}
+                    style={{
+                      padding: '5px 12px', borderRadius: 10, minWidth: 70,
+                      border: 'none',
+                      background: u.active !== false ? C.successBg : C.n100,
+                      cursor: 'pointer', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+                      color: u.active !== false ? C.success : C.n500,
+                      boxShadow: '2px 2px 6px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    {u.active !== false ? '● Aktif' : '○ Nonaktif'}
+                  </motion.button>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <motion.button
+                      onClick={() => openEdit(u)}
+                      whileTap={{ scale: 0.9 }}
+                      style={{
+                        width: 32, height: 32, borderRadius: 8,
+                        border: 'none',
+                        background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+                        cursor: 'pointer', fontSize: 14,
+                        boxShadow: '2px 2px 6px rgba(110,46,120,0.1)',
+                      }}
+                    >✏️</motion.button>
+                    <motion.button
+                      onClick={() => handleDelete(u.id)}
+                      whileTap={{ scale: 0.9 }}
+                      style={{
+                        width: 32, height: 32, borderRadius: 8,
+                        border: 'none',
+                        background: C.dangerBg,
+                        cursor: 'pointer', fontSize: 14,
+                      }}
+                    >🗑️</motion.button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
       {/* ── FAB ── */}
-      <button
+      <motion.button
         onClick={() => setModalAdd(true)}
         aria-label="Tambah User"
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.95 }}
         style={{
           position: 'absolute', bottom: 24, right: 20,
           width: 56, height: 56, borderRadius: 28,
-          background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
+          background: 'linear-gradient(145deg, #5B005F, #8C4C8F)',
           border: 'none', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(110,46,120,0.45)',
-          zIndex: 50, transition: 'transform 0.15s, box-shadow 0.15s',
+          boxShadow: '0 6px 24px rgba(91,0,95,0.4)',
+          zIndex: 50,
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(110,46,120,0.55)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(110,46,120,0.45)'; }}
       >
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
         </svg>
-      </button>
+      </motion.button>
 
       {/* ── FILTER MODAL ── */}
       <Modal visible={filterOpen} onClose={() => setFilterOpen(false)} title="Filter">
         <div style={{ padding: '16px 18px' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Status</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            <Chip label="Semua" active={statusFilter === 'semua'} onClick={() => setStatusFilter('semua')} />
-            <Chip label="Aktif" active={statusFilter === 'aktif'} onClick={() => setStatusFilter('aktif')} />
-            <Chip label="Nonaktif" active={statusFilter === 'nonaktif'} onClick={() => setStatusFilter('nonaktif')} />
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Status</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {['semua', 'aktif', 'nonaktif'].map(f => (
+              <motion.button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  padding: '6px 12px', borderRadius: 999,
+                  border: 'none',
+                  background: statusFilter === f ? C.primary : C.white,
+                  color: statusFilter === f ? 'white' : C.n600,
+                  fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: statusFilter === f ? '0 4px 12px rgba(91,0,95,0.25)' : '2px 2px 6px rgba(0,0,0,0.06)',
+                }}
+              >
+                {f === 'semua' ? 'Semua' : f === 'aktif' ? 'Aktif' : 'Nonaktif'}
+              </motion.button>
+            ))}
           </div>
 
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Role</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            <Chip label="Semua" active={roleFilter === 'semua'} onClick={() => setRoleFilter('semua')} />
-            <Chip label="Frontliner" active={roleFilter === 'frontline'} onClick={() => setRoleFilter('frontline')} />
-            <Chip label="Produksi" active={roleFilter === 'produksi'} onClick={() => setRoleFilter('produksi')} />
-            <Chip label="Admin" active={roleFilter === 'admin'} onClick={() => setRoleFilter('admin')} />
-            <Chip label="Finance" active={roleFilter === 'finance'} onClick={() => setRoleFilter('finance')} />
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Role</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {['semua', 'frontline', 'produksi', 'admin', 'finance'].map(f => (
+              <motion.button
+                key={f}
+                onClick={() => setRoleFilter(f)}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  padding: '6px 12px', borderRadius: 999,
+                  border: 'none',
+                  background: roleFilter === f ? C.primary : C.white,
+                  color: roleFilter === f ? 'white' : C.n600,
+                  fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: roleFilter === f ? '0 4px 12px rgba(91,0,95,0.25)' : '2px 2px 6px rgba(0,0,0,0.06)',
+                }}
+              >
+                {f === 'semua' ? 'Semua' : ROLE_LABELS[f] || f}
+              </motion.button>
+            ))}
           </div>
 
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Outlet</div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Outlet</div>
           <OutletDropdown
             value={outletFilter === 'semua' ? '' : outletFilter}
             onChange={(val) => setOutletFilter(val || 'semua')}
             outlets={outlets}
             showGlobal
-            style={{ marginBottom: 14 }}
+            style={{ marginBottom: 16 }}
           />
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-            <button onClick={resetFilters} style={{
-              flex: 1, height: 38, borderRadius: 10,
-              border: `1.5px solid ${C.n200}`, background: C.n50,
-              fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
-              color: C.n700, cursor: 'pointer',
-            }}>Reset</button>
-            <button onClick={() => setFilterOpen(false)} style={{
-              flex: 1, height: 38, borderRadius: 10, border: 'none',
-              background: C.primary, fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
-              color: 'white', cursor: 'pointer',
-            }}>Terapkan</button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+            <motion.button
+              onClick={resetFilters}
+              whileTap={{ scale: 0.97 }}
+              style={{
+                flex: 1, height: 42, borderRadius: 12,
+                border: `1.5px solid ${C.n200}`,
+                background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+                fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+                color: C.n600, cursor: 'pointer',
+                boxShadow: '3px 3px 8px rgba(110,46,120,0.08)',
+              }}
+            >Reset</motion.button>
+            <motion.button
+              onClick={() => setFilterOpen(false)}
+              whileTap={{ scale: 0.97 }}
+              style={{
+                flex: 1, height: 42, borderRadius: 12, border: 'none',
+                background: 'linear-gradient(145deg, #5B005F, #8C4C8F)',
+                fontFamily: 'Poppins', fontSize: 13, fontWeight: 600,
+                color: 'white', cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(91,0,95,0.25)',
+              }}
+            >Terapkan</motion.button>
           </div>
         </div>
       </Modal>
@@ -419,37 +549,47 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         <div style={{ padding: '4px 4px 0' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Input label="Nama Lengkap" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />
-          <Input label="Username" value={form.username} onChange={(v) => setForm((f) => ({ ...f, username: v }))} placeholder="username" />
-          <Input label="Email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} placeholder="email@domain.com" />
-          <Input label="Password" value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} type="password" placeholder="Password" />
-          <Select label="Role" value={form.role} onChange={(v) => setForm((f) => ({ ...f, role: v }))} options={[
-            { value: 'frontline', label: 'Frontliner' },
-            { value: 'produksi', label: 'Produksi' },
-            { value: 'admin', label: 'Admin' },
-            { value: 'finance', label: 'Finance' },
-          ]} />
-          <Select label="Outlet" value={form.outletId} onChange={(v) => setForm((f) => ({ ...f, outletId: v }))} options={outlets.map((o) => ({ value: o.id, label: o.name }))} placeholder="Pilih outlet" />
+            <Input label="Username" value={form.username} onChange={(v) => setForm((f) => ({ ...f, username: v }))} placeholder="username" />
+            <Input label="Email" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} placeholder="email@domain.com" />
+            <Input label="Password" value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} type="password" placeholder="Password" />
+            <Select label="Role" value={form.role} onChange={(v) => setForm((f) => ({ ...f, role: v }))} options={[
+              { value: 'frontline', label: 'Frontliner' },
+              { value: 'produksi', label: 'Produksi' },
+              { value: 'admin', label: 'Admin' },
+              { value: 'finance', label: 'Finance' },
+            ]} />
+            <Select label="Outlet" value={form.outletId} onChange={(v) => setForm((f) => ({ ...f, outletId: v }))} options={outlets.map((o) => ({ value: o.id, label: o.name }))} placeholder="Pilih outlet" />
 
-          {/* Gender Selection */}
-          <div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Jenis Kelamin</div>
+            {/* Gender Selection */}
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Jenis Kelamin</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {[['male', '👨', 'Laki-laki'], ['female', '👩', 'Perempuan']].map(([val, emoji, label]) => (
+                  <motion.button
+                    key={val}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, gender: val }))}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      flex: 1, padding: '10px 12px', borderRadius: 12,
+                      border: `2px solid ${form.gender === val ? C.primary : C.n200}`,
+                      background: form.gender === val ? `${C.primary}15` : C.white,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      boxShadow: form.gender === val ? `0 4px 12px ${C.primary}25` : 'none',
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{emoji}</span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: form.gender === val ? C.primary : C.n600 }}>{label}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" onClick={() => setForm((f) => ({ ...f, gender: 'male' }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${form.gender === 'male' ? C.primary : C.n200}`, background: form.gender === 'male' ? `${C.primary}15` : C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16 }}>👨</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: form.gender === 'male' ? C.primary : C.n600 }}>Laki-laki</span>
-              </button>
-              <button type="button" onClick={() => setForm((f) => ({ ...f, gender: 'female' }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${form.gender === 'female' ? C.primary : C.n200}`, background: form.gender === 'female' ? `${C.primary}15` : C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16 }}>👩</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: form.gender === 'female' ? C.primary : C.n600 }}>Perempuan</span>
-              </button>
+              <Btn variant="secondary" onClick={() => setModalAdd(false)} style={{ flex: 1 }}>Batal</Btn>
+              <Btn variant="primary" onClick={handleAdd} loading={submitting} style={{ flex: 1 }}>Simpan</Btn>
             </div>
           </div>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="secondary" onClick={() => setModalAdd(false)} style={{ flex: 1 }}>Batal</Btn>
-            <Btn variant="primary" onClick={handleAdd} loading={submitting} style={{ flex: 1 }}>Simpan</Btn>
-          </div>
-        </div>
         </div>
       </Modal>
 
@@ -458,37 +598,47 @@ export default function ManajemenUserPage({ navigate, goBack }) {
         <div style={{ padding: '4px 4px 0' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Input label="Nama Lengkap" value={editForm.name} onChange={(v) => setEditForm((f) => ({ ...f, name: v }))} placeholder="Nama user" />
-          <Input label="Username" value={editForm.username} onChange={(v) => setEditForm((f) => ({ ...f, username: v }))} placeholder="username" />
-          <Input label="Email" value={editForm.email} onChange={(v) => setEditForm((f) => ({ ...f, email: v }))} placeholder="email@domain.com" />
-          <Select label="Role" value={editForm.role} onChange={(v) => setEditForm((f) => ({ ...f, role: v }))} options={[
-            { value: 'frontline', label: 'Frontliner' },
-            { value: 'produksi', label: 'Produksi' },
-            { value: 'admin', label: 'Admin' },
-            { value: 'finance', label: 'Finance' },
-          ]} />
-          <Select label="Outlet" value={editForm.outletId} onChange={(v) => setEditForm((f) => ({ ...f, outletId: v }))} options={outlets.map((o) => ({ value: o.id, label: o.name }))} placeholder="Pilih outlet" />
-          <Select label="Status Akun" value={editForm.active ? 'active' : 'inactive'} onChange={(v) => setEditForm((f) => ({ ...f, active: v === 'active' }))} options={[{ value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />
+            <Input label="Username" value={editForm.username} onChange={(v) => setEditForm((f) => ({ ...f, username: v }))} placeholder="username" />
+            <Input label="Email" value={editForm.email} onChange={(v) => setEditForm((f) => ({ ...f, email: v }))} placeholder="email@domain.com" />
+            <Select label="Role" value={editForm.role} onChange={(v) => setEditForm((f) => ({ ...f, role: v }))} options={[
+              { value: 'frontline', label: 'Frontliner' },
+              { value: 'produksi', label: 'Produksi' },
+              { value: 'admin', label: 'Admin' },
+              { value: 'finance', label: 'Finance' },
+            ]} />
+            <Select label="Outlet" value={editForm.outletId} onChange={(v) => setEditForm((f) => ({ ...f, outletId: v }))} options={outlets.map((o) => ({ value: o.id, label: o.name }))} placeholder="Pilih outlet" />
+            <Select label="Status Akun" value={editForm.active ? 'active' : 'inactive'} onChange={(v) => setEditForm((f) => ({ ...f, active: v === 'active' }))} options={[{ value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />
 
-          {/* Gender Selection */}
-          <div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Jenis Kelamin</div>
+            {/* Gender Selection */}
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Jenis Kelamin</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {[['male', '👨', 'Laki-laki'], ['female', '👩', 'Perempuan']].map(([val, emoji, label]) => (
+                  <motion.button
+                    key={val}
+                    type="button"
+                    onClick={() => setEditForm((f) => ({ ...f, gender: val }))}
+                    whileTap={{ scale: 0.97 }}
+                    style={{
+                      flex: 1, padding: '10px 12px', borderRadius: 12,
+                      border: `2px solid ${editForm.gender === val ? C.primary : C.n200}`,
+                      background: editForm.gender === val ? `${C.primary}15` : C.white,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      boxShadow: editForm.gender === val ? `0 4px 12px ${C.primary}25` : 'none',
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{emoji}</span>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: editForm.gender === val ? C.primary : C.n600 }}>{label}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" onClick={() => setEditForm((f) => ({ ...f, gender: 'male' }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${editForm.gender === 'male' ? C.primary : C.n200}`, background: editForm.gender === 'male' ? `${C.primary}15` : C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16 }}>👨</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: editForm.gender === 'male' ? C.primary : C.n600 }}>Laki-laki</span>
-              </button>
-              <button type="button" onClick={() => setEditForm((f) => ({ ...f, gender: 'female' }))} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${editForm.gender === 'female' ? C.primary : C.n200}`, background: editForm.gender === 'female' ? `${C.primary}15` : C.white, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16 }}>👩</span>
-                <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: editForm.gender === 'female' ? C.primary : C.n600 }}>Perempuan</span>
-              </button>
+              <Btn variant="secondary" onClick={() => { setModalEdit(false); setEditingUserId(null); }} style={{ flex: 1 }}>Batal</Btn>
+              <Btn variant="primary" onClick={handleEdit} loading={submitting} style={{ flex: 1 }}>Update</Btn>
             </div>
           </div>
-
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="secondary" onClick={() => { setModalEdit(false); setEditingUserId(null); }} style={{ flex: 1 }}>Batal</Btn>
-            <Btn variant="primary" onClick={handleEdit} loading={submitting} style={{ flex: 1 }}>Update</Btn>
-          </div>
-        </div>
         </div>
       </Modal>
     </div>

@@ -10,6 +10,7 @@ import { rp } from '../../utils/helpers';
 import { useIsMobile } from '../../utils/hooks';
 import { TopBar, Btn, Modal, Input, Select, EmptyState } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import { GlowOrb, FloatingBubble } from '../../components/ui/PremiumAnimations';
 
 const METHOD_CONFIG = {
   cash:     { label: 'Tunai', icon: '💵', color: '#059669', desc: 'Uang fisik masuk laci kasir. Sistem menghitung kembalian.' },
@@ -26,6 +27,21 @@ const PAYMENT_METHODS = [
   { value: 'transfer', label: '🏦 Transfer — Rekening bank' },
   { value: 'deposit', label: '🎁 Deposit — Saldo customer' },
 ];
+
+// Premium styles
+const cardGradient = 'linear-gradient(145deg, #FFFFFF, #F8F4FF)';
+const cardShadow = '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)';
+
+// Skeleton loading
+const shimmerStyle = {
+  background: 'linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%)',
+  backgroundSize: '200% 100%',
+  animation: 'shimmer 1.4s ease-in-out infinite',
+};
+
+const SkeletonBlock = ({ height = 20, width = '100%', style = {} }) => (
+  <div style={{ height, width, borderRadius: 10, ...shimmerStyle, ...style }} />
+);
 
 export default function AdminPaymentConfigPage({ goBack }) {
   const isMobile = useIsMobile();
@@ -141,34 +157,65 @@ export default function AdminPaymentConfigPage({ goBack }) {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column',
+      background: 'var(--glass-bg, #F3EEF7)', overflow: 'hidden',
+      position: 'relative',
+    }}>
+      {/* Background decorative elements */}
+      <GlowOrb color="#5B005F" size={260} top="-70px" right="-70px" opacity={0.07} />
+      <GlowOrb color="#7C3AED" size={160} bottom="200px" left="-50px" opacity={0.05} />
+      <FloatingBubble color="#5B005F" size={10} top="20%" right="5%" delay={0.3} />
+      <FloatingBubble color="#E8D5F0" size={12} bottom="40%" left="3%" delay={1.2} />
+
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+      `}</style>
+
       <TopBar title="Konfigurasi Pembayaran" subtitle="Rekening bank & metode bayar" onBack={goBack} />
 
-      {/* Tab Switcher */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${C.n200}`, background: C.white }}>
+      {/* Premium Tab Switcher */}
+      <div style={{
+        display: 'flex',
+        background: 'rgba(255,255,255,0.8)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(110, 46, 120, 0.1)',
+      }}>
         {[
           { key: 'bank-accounts', label: '🏦 Rekening Bank' },
           { key: 'methods', label: '💳 Metode Bayar' },
         ].map(t => (
-          <button
+          <motion.button
             key={t.key}
             onClick={() => setTab(t.key)}
+            whileTap={{ scale: 0.98 }}
             style={{
-              flex: 1, padding: '10px 8px', border: 'none', background: 'transparent',
+              flex: 1, padding: '12px 8px', border: 'none',
+              background: tab === t.key ? cardGradient : 'transparent',
               fontFamily: 'Poppins', fontSize: 12, fontWeight: 600,
               color: tab === t.key ? C.primary : C.n500,
-              borderBottom: tab === t.key ? `2px solid ${C.primary}` : '2px solid transparent',
+              borderBottom: tab === t.key ? '3px solid #5B005F' : '3px solid transparent',
               cursor: 'pointer',
+              boxShadow: tab === t.key ? '0 4px 12px rgba(91, 0, 95, 0.08)' : 'none',
+              transition: 'all 0.2s ease',
             }}
           >
             {t.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 
       {/* Outlet Selector for Admin */}
       {tab === 'bank-accounts' && outlets.length > 1 && (
-        <div style={{ padding: '8px 12px', background: C.n50, borderBottom: `1px solid ${C.n200}` }}>
+        <div style={{
+          padding: '10px 12px',
+          background: 'rgba(255,255,255,0.6)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(110, 46, 120, 0.08)',
+        }}>
           <Select
             label="Outlet"
             value={selectedOutlet}
@@ -181,115 +228,227 @@ export default function AdminPaymentConfigPage({ goBack }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '10px 12px' : '16px' }}>
         {tab === 'bank-accounts' && (
           <>
-            {/* Info Card */}
-            <div style={{
-              background: C.primaryLight, borderRadius: 12, padding: '12px 14px', marginBottom: 16,
-              border: `1px solid ${C.primaryLight}`
-            }}>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primary, marginBottom: 6 }}>
-                ℹ️ Cara Kerja Pembayaran
+            {/* Premium Info Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                background: cardGradient,
+                borderRadius: 18, padding: '14px 16px', marginBottom: 16,
+                boxShadow: cardShadow,
+                border: '1px solid rgba(91, 0, 95, 0.08)',
+              }}
+            >
+              <div style={{
+                fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                color: C.primary, marginBottom: 10,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span style={{ fontSize: 16 }}>ℹ️</span> Cara Kerja Pembayaran
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {Object.values(METHOD_CONFIG).map(m => (
-                  <div key={m.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                    <span style={{ fontSize: 14 }}>{m.icon}</span>
+                  <div key={m.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: `${m.color}15`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 16, flexShrink: 0,
+                      boxShadow: `0 2px 8px ${m.color}18`,
+                    }}>
+                      {m.icon}
+                    </div>
                     <div>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: m.color }}>{m.label}: </span>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: m.color }}>{m.label}: </span>
                       <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>{m.desc}</span>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
-            {/* Bank Accounts List */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            {/* Premium Bank Accounts Header */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              marginBottom: 14,
+              padding: '10px 14px',
+              background: cardGradient,
+              borderRadius: 14,
+              boxShadow: '0 4px 12px rgba(110, 46, 120, 0.08)',
+            }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800 }}>
                 Rekening Bank ({bankAccounts.length})
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <Btn variant="secondary" size="sm" onClick={handleSeed}>Seed Data</Btn>
-                <Btn variant="primary" size="sm" onClick={() => handleOpenModal()}>+ Tambah</Btn>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleSeed}
+                  style={{
+                    padding: '7px 12px', borderRadius: 10,
+                    background: cardGradient,
+                    border: '1.5px solid rgba(110, 46, 120, 0.15)',
+                    fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(110, 46, 120, 0.06)',
+                  }}
+                >
+                  Seed Data
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleOpenModal()}
+                  style={{
+                    padding: '7px 14px', borderRadius: 10,
+                    background: 'linear-gradient(135deg, #5B005F, #4D0051)',
+                    border: 'none',
+                    fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: '#FFFFFF',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(91, 0, 95, 0.3)',
+                  }}
+                >
+                  + Tambah
+                </motion.button>
               </div>
             </div>
 
             {loading ? (
-              <div style={{ textAlign: 'center', padding: 40, color: C.n500 }}>Memuat...</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[1, 2, 3].map((i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.06 }}
+                    style={{
+                      background: cardGradient, borderRadius: 16, padding: '14px 16px',
+                      boxShadow: cardShadow,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <SkeletonBlock height={16} width={120} style={{ marginBottom: 6 }} />
+                        <SkeletonBlock height={12} width={100} />
+                        <SkeletonBlock height={10} width={140} />
+                      </div>
+                      <SkeletonBlock height={32} width={80} style={{ borderRadius: 8 }} />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
             ) : bankAccounts.length === 0 ? (
               <EmptyState
                 icon="🏦"
                 title="Belum ada rekening"
                 desc="Tambahkan rekening bank untuk metode pembayaran transfer."
                 action={
-                  <Btn variant="primary" onClick={() => handleOpenModal()}>+ Tambah Rekening</Btn>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleOpenModal()}
+                    style={{
+                      padding: '10px 18px', borderRadius: 12,
+                      background: 'linear-gradient(135deg, #5B005F, #4D0051)',
+                      border: 'none',
+                      fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: '#FFFFFF',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 14px rgba(91, 0, 95, 0.3)',
+                    }}
+                  >
+                    + Tambah Rekening
+                  </motion.button>
                 }
               />
             ) : (
-              bankAccounts.map((acc) => (
+              bankAccounts.map((acc, idx) => (
                 <motion.div
                   key={acc.id}
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.04 }}
                   style={{
-                    background: C.white, borderRadius: 12, padding: '12px 14px', marginBottom: 10,
-                    boxShadow: SHADOW.sm, opacity: acc.isActive === 0 ? 0.6 : 1,
+                    background: cardGradient, borderRadius: 18, padding: '14px 16px', marginBottom: 12,
+                    boxShadow: cardShadow,
+                    opacity: acc.isActive === 0 ? 0.65 : 1,
+                    position: 'relative', overflow: 'hidden',
                   }}
                 >
+                  {/* Top accent line */}
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+                    background: acc.isActive
+                      ? 'linear-gradient(90deg, #5B005F, #9B59B6)'
+                      : 'linear-gradient(90deg, #9CA3AF, #D1D5DB)',
+                  }} />
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 18 }}>🏦</span>
-                        <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
+                    <div style={{ flex: 1, paddingTop: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <div style={{
+                          width: 42, height: 42, borderRadius: 12,
+                          background: cardGradient,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 22,
+                          boxShadow: '0 4px 12px rgba(91, 0, 95, 0.12), -2px -2px 6px rgba(255, 255, 255, 0.9)',
+                        }}>
+                          🏦
+                        </div>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: C.n900 }}>
                           {acc.bankName}
                         </span>
                         {!acc.isActive && (
                           <span style={{
-                            fontSize: 9, fontFamily: 'Poppins', fontWeight: 600,
-                            background: C.n100, color: C.n500, padding: '1px 6px', borderRadius: 99
+                            fontSize: 9, fontFamily: 'Poppins', fontWeight: 700,
+                            background: C.n100, color: C.n500, padding: '2px 8px', borderRadius: 99,
+                            letterSpacing: 0.5,
                           }}>
                             NONAKTIF
                           </span>
                         )}
                       </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginBottom: 2 }}>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700, marginBottom: 2, marginLeft: 52 }}>
                         {acc.accountNumber}
                       </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500, marginLeft: 52 }}>
                         a.n. {acc.accountHolder}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
+                    <div style={{ display: 'flex', gap: 6, paddingTop: 4 }}>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
                         onClick={() => handleToggleActive(acc)}
                         style={{
-                          padding: '6px 10px', border: `1px solid ${acc.isActive ? C.danger : C.success}`,
-                          borderRadius: 8, background: 'transparent', cursor: 'pointer',
+                          padding: '7px 12px', border: `1.5px solid ${acc.isActive ? C.danger : C.success}`,
+                          borderRadius: 10, background: cardGradient, cursor: 'pointer',
                           fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
                           color: acc.isActive ? C.danger : C.success,
+                          boxShadow: `0 2px 8px ${acc.isActive ? C.danger : C.success}15`,
                         }}
                       >
                         {acc.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                      </button>
-                      <button
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
                         onClick={() => handleOpenModal(acc)}
                         style={{
-                          padding: '6px 10px', border: `1px solid ${C.n300}`,
-                          borderRadius: 8, background: 'transparent', cursor: 'pointer',
+                          padding: '7px 12px', border: '1.5px solid rgba(110, 46, 120, 0.2)',
+                          borderRadius: 10, background: cardGradient, cursor: 'pointer',
                           fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n700,
+                          boxShadow: '0 2px 8px rgba(110, 46, 120, 0.08)',
                         }}
                       >
                         Edit
-                      </button>
-                      <button
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
                         onClick={() => handleDelete(acc.id)}
                         style={{
-                          padding: '6px 10px', border: `1px solid ${C.danger}`,
-                          borderRadius: 8, background: 'transparent', cursor: 'pointer',
+                          padding: '7px 12px', border: `1.5px solid ${C.danger}`,
+                          borderRadius: 10, background: cardGradient, cursor: 'pointer',
                           fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.danger,
+                          boxShadow: `0 2px 8px ${C.danger}15`,
                         }}
                       >
                         Hapus
-                      </button>
+                      </motion.button>
                     </div>
                   </div>
                 </motion.div>
@@ -300,47 +459,69 @@ export default function AdminPaymentConfigPage({ goBack }) {
 
         {tab === 'methods' && (
           <>
-            <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800, marginBottom: 12 }}>
+            <div style={{
+              fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800,
+              marginBottom: 14, padding: '10px 14px',
+              background: cardGradient, borderRadius: 14,
+              boxShadow: '0 4px 12px rgba(110, 46, 120, 0.08)',
+            }}>
               Metode Pembayaran
             </div>
-            {PAYMENT_METHODS.map(m => (
-              <div key={m.value} style={{
-                background: C.white, borderRadius: 12, padding: '14px 16px', marginBottom: 10,
-                boxShadow: SHADOW.sm, display: 'flex', alignItems: 'center', gap: 12,
-              }}>
+            {PAYMENT_METHODS.map((m, idx) => (
+              <motion.div
+                key={m.value}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                style={{
+                  background: cardGradient, borderRadius: 18, padding: '16px 18px', marginBottom: 12,
+                  boxShadow: cardShadow,
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  position: 'relative', overflow: 'hidden',
+                }}
+              >
+                {/* Left accent */}
                 <div style={{
-                  width: 40, height: 40, borderRadius: 10,
-                  background: METHOD_CONFIG[m.value]?.color + '15',
+                  position: 'absolute', top: 0, left: 0, bottom: 0, width: 4,
+                  background: METHOD_CONFIG[m.value]?.color,
+                  borderRadius: '18px 0 0 18px',
+                }} />
+
+                <div style={{
+                  width: 48, height: 48, borderRadius: 14,
+                  background: `${METHOD_CONFIG[m.value]?.color}15`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20,
+                  fontSize: 24, flexShrink: 0, marginLeft: 8,
+                  boxShadow: `0 4px 14px ${METHOD_CONFIG[m.value]?.color}20`,
                 }}>
                   {METHOD_CONFIG[m.value]?.icon}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>
                     {m.label}
                   </div>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500 }}>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>
                     {METHOD_CONFIG[m.value]?.desc}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </>
         )}
       </div>
 
-      {/* Modal for Add/Edit */}
+      {/* Premium Modal for Add/Edit */}
       <AnimatePresence>
         {modalOpen && (
           <Modal onClose={() => setModalOpen(false)} title={editAccount ? 'Edit Rekening' : 'Tambah Rekening'}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <Select
                 label="Bank"
                 value={form.bankName}
                 onChange={(v) => setForm(f => ({ ...f, bankName: v }))}
                 options={[
                   { value: '', label: 'Pilih bank...' },
+                  // TODO: Fetch from API /api/master/banks when endpoint is available
                   { value: 'BCA', label: '🏦 BCA' },
                   { value: 'Mandiri', label: '🏦 Mandiri' },
                   { value: 'BNI', label: '🏦 BNI' },
@@ -373,13 +554,37 @@ export default function AdminPaymentConfigPage({ goBack }) {
                 onChange={(v) => setForm(f => ({ ...f, displayOrder: Number(v) || 0 }))}
                 placeholder="1"
               />
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <Btn variant="secondary" onClick={() => setModalOpen(false)} style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setModalOpen(false)}
+                  style={{
+                    flex: 1, padding: '12px 16px', borderRadius: 12,
+                    background: cardGradient,
+                    border: '1.5px solid rgba(110, 46, 120, 0.15)',
+                    fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n600,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(110, 46, 120, 0.08)',
+                  }}
+                >
                   Batal
-                </Btn>
-                <Btn variant="primary" onClick={handleSave} loading={saving} style={{ flex: 1 }}>
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{
+                    flex: 1, padding: '12px 16px', borderRadius: 12,
+                    background: 'linear-gradient(135deg, #5B005F, #4D0051)',
+                    border: 'none',
+                    fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: '#FFFFFF',
+                    cursor: saving ? 'wait' : 'pointer',
+                    boxShadow: '0 4px 16px rgba(91, 0, 95, 0.35)',
+                    opacity: saving ? 0.7 : 1,
+                  }}
+                >
                   {editAccount ? 'Simpan' : 'Tambah'}
-                </Btn>
+                </motion.button>
               </div>
             </div>
           </Modal>

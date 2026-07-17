@@ -8,8 +8,18 @@ import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency } from '../../utils/exportReport';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
+import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
+import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
+import FloatingBubble from '../../components/ui/PremiumAnimations/FloatingBubble';
 
 // ─── Collapsible Section Component ─────────────────────────────────────────────
+// Premium card style
+const premiumCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
 function CollapsibleSection({ title, icon, defaultOpen = true, children }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -18,7 +28,7 @@ function CollapsibleSection({ title, icon, defaultOpen = true, children }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       style={{
-        ...T.card,
+        ...premiumCard,
         marginBottom: 14,
         padding: 14,
         overflow: 'hidden',
@@ -271,7 +281,7 @@ export default function GeneralReportPage({ goBack }) {
     : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: C.n100 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F3EEF7' }}>
       <style>{`
         @media (max-width: 480px) {
           .report-kpi-grid { grid-template-columns: 1fr 1fr !important; }
@@ -280,11 +290,61 @@ export default function GeneralReportPage({ goBack }) {
           .report-tabs-section { overflow-x: auto !important; flex-wrap: nowrap !important; }
           .report-mini-stats { grid-template-columns: repeat(2, 1fr) !important; }
         }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .skeleton-shimmer {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
+        }
       `}</style>
-      <TopBar title="General Report" subtitle="Ringkasan lintas outlet atau per outlet" onBack={goBack} />
+
+      {/* Premium Header with GlowOrb and Sparkle */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: '0 16px'
+      }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-80px" right="-60px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-40px" left="-40px" />
+        <FloatingBubble size={40} top="20%" left="15%" delay={0} />
+        <FloatingBubble size={25} top="60%" right="10%" delay={1.5} />
+        <Sparkle color="rgba(255,255,255,0.6)" style={{ position: 'absolute', top: 20, right: 80 }} />
+        <Sparkle color="rgba(255,255,255,0.4)" style={{ position: 'absolute', top: 35, right: 120 }} size={10} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 12, paddingBottom: 12 }}>
+          <motion.button
+            onClick={goBack}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none',
+              borderRadius: 12,
+              width: 36,
+              height: 36,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </motion.button>
+          <div>
+            <h1 style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: 'white', margin: 0, textShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>General Report</h1>
+            <p style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0 }}>Ringkasan lintas outlet atau per outlet</p>
+          </div>
+        </div>
+      </div>
+
       <div style={T.pageBody}>
         {/* Global Filters */}
-        <div style={{ ...T.card, marginBottom: 14, padding: 14 }}>
+        <div style={{ ...premiumCard, padding: 14 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             {PRESETS.map(p => (
               <Chip key={p.key} label={p.label} active={preset === p.key} onClick={() => handlePreset(p.key)} />
@@ -305,23 +365,37 @@ export default function GeneralReportPage({ goBack }) {
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: 32, color: C.n700, fontFamily: 'Poppins', fontSize: 13 }}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ textAlign: 'center', padding: 32, color: C.n700, fontFamily: 'Poppins', fontSize: 13 }}
+          >
+            <motion.div
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px' }}
+            />
             Memuat data report...
-          </div>
+          </motion.div>
         )}
 
         {!loading && executive && (
           <>
             {/* Section A: Executive Summary */}
             <CollapsibleSection title="Executive Summary" icon="📊" defaultOpen={true}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 12 }} className="report-executive-grid">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.05 }}
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 12 }}
+              >
                 <StatCard label="Total Omset" value={rp(executive.revenue)} icon="💰" color={C.primary}
                   sub={<Delta value={executive.revenueGrowth} />} />
                 <StatCard label="Transaksi" value={executive.txCount} icon="🧾" color={C.info}
                   sub={<Delta value={executive.txGrowth} />} />
                 <StatCard label="Rata-rata/Trx" value={rp(executive.avgPerTx)} icon="📈" color={C.success} />
                 <StatCard label="Rata-rata/Hari" value={rp(executive.avgPerDay)} icon="📅" color={C.warning} />
-              </div>
+              </motion.div>
               <div style={{ marginTop: 4 }}>
                 <p style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, margin: '0 0 4px' }}>Tren Harian — Omset & Pelunasan</p>
                 <RevenueAreaChart
@@ -354,9 +428,16 @@ export default function GeneralReportPage({ goBack }) {
               <CollapsibleSection title="Outlet Scoreboard" icon="🏪" defaultOpen={false}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {outletPerf.outlets.map((o, i) => (
-                    <div key={o.outletId} style={{
-                      ...T.cardSm, padding: 12, border: i === 0 ? `1.5px solid ${C.primary}` : `1px solid ${C.n200}`,
-                    }}>
+                    <motion.div
+                      key={o.outletId}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.04 }}
+                      style={{
+                        ...premiumCard, padding: 12,
+                        border: i === 0 ? `2px solid ${C.primary}` : 'none',
+                      }}
+                    >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                         <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.n900 }}>
                           #{i + 1} {o.outletName}
@@ -370,8 +451,8 @@ export default function GeneralReportPage({ goBack }) {
                         <MiniStat label="Customer" value={o.uniqueCustomers} />
                         <MiniStat label="Express" value={o.expressCount} />
                         <MiniStat label="Selisih Kas" value={o.avgCashDiff != null ? rp(o.avgCashDiff) : '—'} warn={o.avgCashDiff > 5000} />
-                      </div>
-                    </div>
+                      </motion.div>
+                    </motion.div>
                   ))}
                 </div>
               </CollapsibleSection>
@@ -383,14 +464,20 @@ export default function GeneralReportPage({ goBack }) {
                 {services.topServices?.length ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {services.topServices.slice(0, 10).map((s, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                      >
                         <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, width: 20 }}>#{i + 1}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</p>
                           <p style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700, margin: 0 }}>{s.orderCount} order · {s.pct}%</p>
                         </div>
                         <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.primary }}>{rp(s.revenue)}</span>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 ) : <p style={{ fontSize: 12, color: C.n700 }}>Belum ada data</p>}
@@ -427,7 +514,13 @@ export default function GeneralReportPage({ goBack }) {
                     </thead>
                     <tbody>
                       {cashiers.cashiers.map((c, i) => (
-                        <tr key={i} style={{ borderBottom: `1px solid ${C.n100}` }}>
+                        <motion.tr
+                          key={i}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: i * 0.03 }}
+                          style={{ borderBottom: `1px solid ${C.n100}` }}
+                        >
                           <td style={tdStyle}>{c.name}</td>
                           <td style={tdStyle}>{c.outlet}</td>
                           <td style={{ ...tdStyle, textAlign: 'right' }}>{c.txCount}</td>
@@ -436,7 +529,7 @@ export default function GeneralReportPage({ goBack }) {
                           <td style={{ ...tdStyle, textAlign: 'right', color: c.avgCashDiff > 5000 ? C.danger : C.n700 }}>
                             {c.avgCashDiff != null ? rp(c.avgCashDiff) : '—'}
                           </td>
-                        </tr>
+                        </motion.tr>
                       ))}
                     </tbody>
                   </table>
@@ -447,19 +540,30 @@ export default function GeneralReportPage({ goBack }) {
             {/* Section F: Customer Insights */}
             {customers && (
               <CollapsibleSection title="Customer Insights" icon="👥" defaultOpen={false}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}
+                >
                   <MiniStatCard label="Baru" value={customers.newCustomers} color={C.success} />
                   <MiniStatCard label="Returning" value={customers.returningCustomers} color={C.info} />
                   <MiniStatCard label="Member Ratio" value={
                     customers.memberVsNon ? `${Math.round((customers.memberVsNon.member.txCount / Math.max(customers.memberVsNon.member.txCount + customers.memberVsNon.nonMember.txCount, 1)) * 100)}%` : '—'
                   } color={C.primary} />
-                </div>
+                </motion.div>
                 {customers.topCustomers?.length > 0 && (
                   <>
                     <p style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, margin: '0 0 6px' }}>Top Customer</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {customers.topCustomers.slice(0, 5).map((c, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.05 }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                        >
                           <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, width: 20 }}>#{i + 1}</span>
                           <div style={{ flex: 1 }}>
                             <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>
@@ -467,20 +571,25 @@ export default function GeneralReportPage({ goBack }) {
                             </span>
                           </div>
                           <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.primary }}>{rp(c.totalSpend)}</span>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   </>
                 )}
                 {customers.awarenessSources?.length > 0 && (
-                  <div style={{ marginTop: 12, padding: '10px 12px', background: C.n100, borderRadius: 10 }}>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.15 }}
+                    style={{ marginTop: 12, padding: '10px 12px', background: `${C.primary}08`, borderRadius: 12 }}
+                  >
                     <p style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700, margin: '0 0 4px' }}>Sumber Awareness</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                       {customers.awarenessSources.map((a, i) => (
                         <span key={i} style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>{a.source}: <b>{a.count}</b></span>
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
               </CollapsibleSection>
             )}

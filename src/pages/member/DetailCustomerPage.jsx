@@ -1176,33 +1176,11 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
 
       {/* Filter Modal */}
       {showFilterModal && (
-        <div
-          onClick={() => setShowFilterModal(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'flex-end',
-            zIndex: 500, // GlassModal level
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxHeight: '80vh',
-              background: 'white',
-              borderRadius: '20px 20px 0 0',
-              padding: '20px 16px 24px',
-              animation: 'slideUp 0.25s ease-out',
-              overflowY: 'auto',
-            }}
-          >
+        <>
+          {/* Backdrop */}
+          <div onClick={() => setShowFilterModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, animation: 'fadeIn 0.2s ease-out' }} />
+          {/* Sheet */}
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderRadius: '20px 20px 0 0', padding: '20px 16px 24px', animation: 'slideUp 0.25s ease-out', zIndex: 501, maxHeight: '80vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div style={{
               display: 'flex',
@@ -1353,7 +1331,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
               </Btn>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       <style>{`

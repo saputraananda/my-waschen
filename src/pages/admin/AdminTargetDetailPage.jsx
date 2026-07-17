@@ -4,11 +4,37 @@
 // Dibuat untuk orang awam — bahasa simpel, color-coded, no jargon.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import { TopBar, Select, Btn } from '../../components/ui';
-import { C, SHADOW } from '../../utils/theme';
+import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { useResponsive } from '../../utils/hooks';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
+
+// ─── Premium Card Style ──────────────────────────────────────────────────────
+const PREMIUM_CARD = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// ─── Skeleton Block ───────────────────────────────────────────────────────────
+function SkeletonBlock({ height = 200, style = {} }) {
+  return (
+    <div style={{
+      height,
+      borderRadius: 18,
+      background: 'linear-gradient(90deg, rgba(91,0,95,0.05) 25%, rgba(91,0,95,0.1) 50%, rgba(91,0,95,0.05) 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.5s infinite',
+      marginBottom: 10,
+      ...style,
+    }} />
+  );
+}
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -68,16 +94,55 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
   const outletName = outlets.find(o => o.id === Number(outletId))?.name || '';
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar
-        title="Detail Capaian Target"
-        subtitle={data ? `${MONTHS[month - 1]} ${year} · ${outletName}` : 'Pilih outlet & periode'}
-        onBack={goBack}
-      />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      <style>{`
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes floatA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-14px,16px) scale(1.08)} }
+        @keyframes twinkle { 0%,100%{opacity:0;transform:scale(0.4) rotate(0deg)} 50%{opacity:1;transform:scale(1) rotate(20deg)} }
+      `}</style>
+
+      {/* ── Premium Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 20px 52px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <GlowOrb color="rgba(140, 76, 143, 0.4)" size={200} top="-60px" left="-30px" blur={50} />
+        <GlowOrb color="rgba(249, 62, 17, 0.25)" size={150} top="40px" right="-40px" blur={40} />
+        <Sparkle top="10%" left="15%" size={8} delay={0} color="#FFD700" />
+        <Sparkle top="20%" left="80%" size={6} delay={0.5} color="#FF6B6B" />
+        <Sparkle top="60%" left="25%" size={7} delay={1} color="#4ECDC4" />
+        <FloatingBubble src={bubbleIcon} size={18} top="15%" left="5%" delay={0} opacity={0.4} />
+        <FloatingBubble src={bubble2Icon} size={14} top="35%" right="8%" delay={0.5} opacity={0.35} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: 'white', letterSpacing: '-0.3px' }}>
+              Detail Capaian Target
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
+              {data ? `${MONTHS[month - 1]} ${year} · ${outletName}` : 'Pilih outlet & periode'}
+            </div>
+          </div>
+          {goBack && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={goBack}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: 'white',
+              }}
+            >
+              ← Kembali
+            </motion.button>
+          )}
+        </div>
+      </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: 'white', borderRadius: 12, padding: isMobile ? 10 : 12, marginBottom: 14, boxShadow: SHADOW.sm }}>
+        <div style={{ ...PREMIUM_CARD, padding: isMobile ? 10 : 12, marginBottom: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <Select
               label="Tahun"
@@ -101,17 +166,31 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
         </div>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: 30, fontFamily: 'Poppins', color: C.n800 }}>
-            Memuat capaian...
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <SkeletonBlock height={200} />
+            <SkeletonBlock height={120} />
           </div>
         )}
 
         {!loading && (!data || data.monthlyTarget === 0) && (
-          <div style={{
-            background: 'white', borderRadius: 16, padding: '40px 20px',
-            textAlign: 'center', boxShadow: SHADOW.sm,
-          }}>
-            <div style={{ fontSize: 56, marginBottom: 12 }}>🎯</div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{
+              ...PREMIUM_CARD,
+              padding: '40px 20px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{
+              width: 64, height: 64, borderRadius: 20,
+              background: 'linear-gradient(145deg, #F8F4FF, #FFFFFF)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '8px 8px 20px rgba(110, 46, 120, 0.12), -4px -4px 10px rgba(255, 255, 255, 0.95)',
+              margin: '0 auto 16px'
+            }}>
+              <span style={{ fontSize: 28 }}>🎯</span>
+            </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900, marginBottom: 6 }}>
               Belum ada target untuk periode ini
             </div>
@@ -119,10 +198,25 @@ export default function AdminTargetDetailPage({ navigate, goBack, screenParams }
               Set target bulanan dulu di halaman Manajemen Target,<br />
               lalu balik ke sini untuk lihat detail capaian harian.
             </div>
-            <Btn variant="primary" onClick={() => navigate('admin_target')}>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate('admin_target')}
+              style={{
+                padding: '10px 24px',
+                borderRadius: 14,
+                border: 'none',
+                background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`,
+                color: 'white',
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(91, 0, 95, 0.25)',
+              }}
+            >
               Atur Target Sekarang
-            </Btn>
-          </div>
+            </motion.button>
+          </motion.div>
         )}
 
         {!loading && data && data.monthlyTarget > 0 && (
@@ -159,13 +253,18 @@ function HeroCard({ data }) {
   const { totalActual, progressPct, remaining, daysLeft, requiredDailyForRest, isOnTrack } = summary;
 
   return (
-    <div style={{
-      background: isOnTrack
-        ? `linear-gradient(135deg, ${C.success}, ${C.successDark})`
-        : `linear-gradient(135deg, ${C.info}, ${C.primaryDark})`,
-      borderRadius: 16, padding: '20px 22px', color: 'white',
-      marginBottom: 14, position: 'relative', overflow: 'hidden',
-    }}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{
+        background: isOnTrack
+          ? `linear-gradient(135deg, ${C.success}, ${C.successDark})`
+          : `linear-gradient(135deg, ${C.info}, ${C.primaryDark})`,
+        borderRadius: 18, padding: '20px 22px', color: 'white',
+        marginBottom: 14, position: 'relative', overflow: 'hidden',
+        boxShadow: '0 8px 24px rgba(110, 46, 120, 0.2)',
+      }}
+    >
       <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%)' }} />
       <div style={{ position: 'relative' }}>
         <div style={{ fontFamily: 'Poppins', fontSize: 11, opacity: 0.85, fontWeight: 600, letterSpacing: 0.4 }}>
@@ -181,11 +280,14 @@ function HeroCard({ data }) {
           background: 'rgba(255,255,255,0.18)', height: 10, borderRadius: 5,
           overflow: 'hidden', marginTop: 10,
         }}>
-          <div style={{
-            background: 'white', height: '100%', borderRadius: 5,
-            width: `${Math.min(100, progressPct)}%`,
-            transition: 'width 0.6s ease',
-          }} />
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(100, progressPct)}%` }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            style={{
+              background: 'white', height: '100%', borderRadius: 5,
+            }}
+          />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 16 }}>
@@ -200,10 +302,14 @@ function HeroCard({ data }) {
         </div>
 
         {remaining > 0 && (
-          <div style={{
-            marginTop: 14, padding: '10px 12px',
-            background: 'rgba(255,255,255,0.18)', borderRadius: 10,
-          }}>
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              marginTop: 14, padding: '10px 12px',
+              background: 'rgba(255,255,255,0.18)', borderRadius: 12,
+            }}
+          >
             <div style={{ fontFamily: 'Poppins', fontSize: 11, opacity: 0.9 }}>
               📌 Sisa {daysLeft} hari, butuh masuk lagi:
             </div>
@@ -213,10 +319,10 @@ function HeroCard({ data }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 10, opacity: 0.85, marginTop: 2 }}>
               ≈ {rp(requiredDailyForRest)} per hari supaya target tercapai
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -226,14 +332,21 @@ function TodayCard({ today, summary }) {
   const diffPositive = today.diff >= 0;
 
   return (
-    <div style={{
-      background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 14,
-      boxShadow: SHADOW.sm,
-      border: `2px solid ${meta.color}30`,
-    }}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.1 }}
+      style={{
+        ...PREMIUM_CARD,
+        padding: '14px 16px', marginBottom: 14,
+        border: `2px solid ${meta.color}30`,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <div style={{
-          width: 36, height: 36, borderRadius: 10, background: meta.bg,
+          width: 40, height: 40, borderRadius: 12,
+          background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+          boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.1), -2px -2px 6px rgba(255, 255, 255, 0.95)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
         }}>{meta.icon}</div>
         <div>
@@ -247,11 +360,11 @@ function TodayCard({ today, summary }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
-        <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
+        <div style={{ background: 'linear-gradient(145deg, #F8F4FF, #FFFFFF)', borderRadius: 10, padding: '10px 12px', boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800, fontWeight: 600 }}>TARGET HARI INI</div>
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{rp(today.target)}</div>
         </div>
-        <div style={{ background: C.n50, borderRadius: 10, padding: '10px 12px' }}>
+        <div style={{ background: 'linear-gradient(145deg, #F8F4FF, #FFFFFF)', borderRadius: 10, padding: '10px 12px', boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800, fontWeight: 600 }}>SUDAH MASUK</div>
           <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: meta.color }}>{rp(today.actual)}</div>
           <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800 }}>{today.txCount} transaksi</div>
@@ -261,7 +374,7 @@ function TodayCard({ today, summary }) {
       {today.target > 0 && (
         <div style={{
           marginTop: 10, padding: '8px 12px',
-          background: meta.bg, borderRadius: 8,
+          background: meta.bg, borderRadius: 10,
           fontFamily: 'Poppins', fontSize: 11, color: meta.color, fontWeight: 600,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
@@ -274,7 +387,7 @@ function TodayCard({ today, summary }) {
         <div style={{
           marginTop: 8, padding: '8px 12px',
           background: summary.cumulativeGap >= 0 ? C.successBg : C.dangerBg,
-          borderRadius: 8,
+          borderRadius: 10,
           fontFamily: 'Poppins', fontSize: 10,
           color: summary.cumulativeGap >= 0 ? C.successDark : C.dangerDark,
           lineHeight: 1.4,
@@ -283,7 +396,7 @@ function TodayCard({ today, summary }) {
           {' '}{rp(Math.abs(summary.cumulativeGap))} dari rata-rata harian.
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -292,10 +405,15 @@ function DailyChart({ data }) {
   const maxActual = Math.max(...data.days.map(d => d.actual), data.dailyTarget * 1.5);
 
   return (
-    <div style={{
-      background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 14,
-      boxShadow: SHADOW.sm,
-    }}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.15 }}
+      style={{
+        ...PREMIUM_CARD,
+        padding: '14px 16px', marginBottom: 14,
+      }}
+    >
       <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, marginBottom: 4 }}>
         📊 Capaian Harian
       </div>
@@ -362,31 +480,41 @@ function DailyChart({ data }) {
           </div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 // ─── SUMMARY STATS ─────────────────────────────────────────────────────────
 function SummaryStats({ summary }) {
   return (
-    <div style={{
-      background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 14,
-      boxShadow: SHADOW.sm,
-    }}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      style={{
+        ...PREMIUM_CARD,
+        padding: '14px 16px', marginBottom: 14,
+      }}
+    >
       <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
         📈 Ringkasan Hari
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {[
           { label: 'Tercapai', value: summary.safeDays, color: C.success, icon: '✅' },
           { label: 'Hampir', value: summary.warningDays, color: C.warning, icon: '⚠️' },
           { label: 'Kurang', value: summary.missedDays, color: C.danger, icon: '📉' },
           { label: 'Kosong', value: summary.zeroDays, color: C.n800, icon: '⊘' },
         ].map(s => (
-          <div key={s.label} style={{
-            background: `${s.color}10`, borderRadius: 10, padding: '10px 8px',
-            textAlign: 'center',
-          }}>
+          <motion.div
+            key={s.label}
+            whileHover={{ y: -2 }}
+            style={{
+              background: `${s.color}10`, borderRadius: 12, padding: '10px 8px',
+              textAlign: 'center',
+              boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)',
+            }}
+          >
             <div style={{ fontSize: 18 }}>{s.icon}</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, color: s.color, marginTop: 2 }}>
               {s.value}
@@ -394,10 +522,10 @@ function SummaryStats({ summary }) {
             <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n800, fontWeight: 600 }}>
               {s.label}
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -407,10 +535,15 @@ function DailyTable({ days }) {
   const visibleDays = days.filter(d => d.isPast || d.isToday).reverse();
 
   return (
-    <div style={{
-      background: 'white', borderRadius: 14, padding: '14px 16px',
-      boxShadow: SHADOW.sm,
-    }}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.25 }}
+      style={{
+        ...PREMIUM_CARD,
+        padding: '14px 16px',
+      }}
+    >
       <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
         📅 Detail Per Hari
       </div>
@@ -427,8 +560,9 @@ function DailyTable({ days }) {
             padding: '10px 0', borderTop: d.day !== visibleDays[0].day ? `1px solid ${C.n100}` : 'none',
           }}>
             <div style={{
-              width: 40, height: 40, borderRadius: 10,
-              background: d.isToday ? `${meta.color}25` : meta.bg,
+              width: 44, height: 44, borderRadius: 12,
+              background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+              boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)',
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
               border: d.isToday ? `2px solid ${meta.color}` : 'none',
@@ -473,6 +607,6 @@ function DailyTable({ days }) {
           </div>
         );
       })}
-    </div>
+    </motion.div>
   );
 }

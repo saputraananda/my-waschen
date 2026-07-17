@@ -617,10 +617,10 @@ export default function ApprovalCenterPage({ goBack }) {
           gap: 8,
           marginBottom: 14,
         }} className="approval-stats-grid">
-          <PremiumStatCard label="📊 Total" value={totalPending} color={C.primary} sparkline={[5, 8, 6, totalPending || 1]} />
-          <PremiumStatCard label="📋 Umum" value={pendingGeneral} color={C.primary} sparkline={[1, 2, 1, pendingGeneral || 1]} />
-          <PremiumStatCard label="📦 Pengadaan" value={pendingPurchase} color={C.info} sparkline={[2, 3, 2, pendingPurchase || 1]} />
-          <PremiumStatCard label="💰 Kas Outlet" value={pendingCash} color={C.success} sparkline={[1, 2, 1, pendingCash || 1]} />
+          <PremiumStatCard label="📊 Total" value={totalPending} color={C.primary} sparkline={[totalPending || 1, totalPending || 1, totalPending || 1, totalPending || 1]} />
+          <PremiumStatCard label="📋 Umum" value={pendingGeneral} color={C.primary} sparkline={[pendingGeneral || 1, pendingGeneral || 1, pendingGeneral || 1, pendingGeneral || 1]} />
+          <PremiumStatCard label="📦 Pengadaan" value={pendingPurchase} color={C.info} sparkline={[pendingPurchase || 1, pendingPurchase || 1, pendingPurchase || 1, pendingPurchase || 1]} />
+          <PremiumStatCard label="💰 Kas Outlet" value={pendingCash} color={C.success} sparkline={[pendingCash || 1, pendingCash || 1, pendingCash || 1, pendingCash || 1]} />
         </div>
 
         {/* Responsive: stack stats on mobile */}

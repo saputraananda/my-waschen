@@ -6,8 +6,11 @@ import { TopBar, Btn, EmptyState, QRCodeView } from '../../components/ui';
 import { useResponsive, useWindowSize } from '../../utils/hooks';
 import {
   printReceipt,
+  printLabel,
   getPrinterStatus,
   connectPrinter,
+  getSavedPrinter,
+  getPairedDevices,
   isBluetoothAvailable,
 } from '../../utils/printService';
 
@@ -58,31 +61,67 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [printing, setPrinting] = useState(false);
+  const [printingLabel, setPrintingLabel] = useState(false);
   const [printerConnected, setPrinterConnected] = useState(false);
   const [btAvailable, setBtAvailable] = useState(false);
+  // Label data for preview
+  const [labelData, setLabelData] = useState([]);
+  // Printer selector state
+  const [pairedDevices, setPairedDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState(null);
+  const [showPrinterDropdown, setShowPrinterDropdown] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
   const cfg = loadPrinterCfg();
   const pageSize = getPageSize(cfg);
 
-  // Check printer status on mount
+  // Check printer status & load paired devices on mount
   useEffect(() => {
     const checkPrinter = () => {
       const btAvail = isBluetoothAvailable();
       setBtAvailable(btAvail);
-
       const status = getPrinterStatus();
       setPrinterConnected(status.connected);
     };
     checkPrinter();
+    loadPairedDevices();
   }, []);
 
-  // Print handler - connect to printer then print
+  const loadPairedDevices = async () => {
+    try {
+      const devices = await getPairedDevices();
+      setPairedDevices(devices);
+      const saved = getSavedPrinter();
+      if (saved?.deviceId) {
+        setSelectedDeviceId(saved.deviceId);
+      } else if (devices.length > 0) {
+        setSelectedDeviceId(devices[0].deviceId);
+      }
+    } catch (e) {
+      console.warn('[CetakNota] getPairedDevices failed:', e);
+    }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showPrinterDropdown) return;
+    const handleClick = (e) => {
+      if (!e.target.closest('[data-printer-dropdown]')) {
+        setShowPrinterDropdown(false);
+      }
+    };
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [showPrinterDropdown]);
+
+  // Print handler - connect to selected printer then print
   const handlePrint = async () => {
     try {
       setPrinting(true);
 
       // Ensure printer is connected
       if (!printerConnected) {
-        const result = await connectPrinter();
+        const result = await connectPrinter(selectedDeviceId);
         if (result.success) {
           setPrinterConnected(true);
         } else {
@@ -105,16 +144,49 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
     }
   };
 
-  // Connect printer handler
+  // Print label handler
+  const handlePrintLabel = async () => {
+    try {
+      setPrintingLabel(true);
+
+      // Ensure printer is connected
+      if (!printerConnected) {
+        const result = await connectPrinter(selectedDeviceId);
+        if (result.success) {
+          setPrinterConnected(true);
+        } else {
+          alert('Gagal terhubung ke printer');
+          return;
+        }
+      }
+
+      // Print labels via printService
+      await printLabel(data);
+
+      alert(`Label berhasil dicetak! (${labelData.length} label)`);
+
+    } catch (err) {
+      console.error('Print label error:', err);
+      alert('Gagal cetak label: ' + err.message);
+    } finally {
+      setPrintingLabel(false);
+    }
+  };
+
+  // Connect to selected printer
   const handleConnectPrinter = async () => {
     try {
-      const result = await connectPrinter();
+      setConnecting(true);
+      const result = await connectPrinter(selectedDeviceId);
       if (result.success) {
         setPrinterConnected(true);
+        await loadPairedDevices(); // refresh list (may now show as connected)
         alert('Printer terhubung: ' + result.name);
       }
     } catch (err) {
       alert('Gagal connect: ' + err.message);
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -129,6 +201,14 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
     try {
       const res = await axios.get(`/api/transactions/${screenParams.id}`);
       setData(res.data.data);
+
+      // Also fetch label data for preview
+      try {
+        const labelRes = await axios.get(`/api/transactions/${screenParams.id}/labels`);
+        setLabelData(labelRes.data?.data || []);
+      } catch {
+        setLabelData([]);
+      }
     } catch (err) {
       setError('Gagal memuat data. Tap untuk coba lagi.');
     } finally {
@@ -182,7 +262,7 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
       `}</style>
 
       <div className="no-print">
-        <TopBar title="Cetak Nota & Label" onBack={goBack} />
+        <TopBar title="Cetak Nota" onBack={goBack} />
         <div style={{ padding: isMobile ? '8px 12px' : 12, background: C.white, borderBottom: `1px solid ${C.n200}`, display: 'flex', gap: isMobile ? 6 : 8, alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
           <Btn
             variant="primary"
@@ -190,15 +270,154 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
             style={{ flex: isMobile ? 1 : 'initial', minWidth: isMobile ? '100%' : 'auto' }}
             disabled={printing || !data}
           >
-            {printing ? '⏳ Mencetak...' : printerConnected ? '🖨️ Cetak' : '📡 Hubungkan Printer Dulu'}
+            {printing ? '⏳ Mencetak...' : printerConnected ? '🖨️ Cetak Nota' : '📡 Hubungkan Printer Dulu'}
           </Btn>
+
+          {labelData.length > 0 && (
+            <Btn
+              variant="secondary"
+              onClick={handlePrintLabel}
+              disabled={printingLabel || !data}
+              style={{ flex: isMobile ? 1 : 'initial', minWidth: isMobile ? '100%' : 'auto' }}
+            >
+              {printingLabel ? '⏳ Mencetak Label...' : '🏷️ Cetak Label'}
+            </Btn>
+          )}
+
+          {/* ── Dropdown: Printer Selector ── */}
+          {btAvailable && pairedDevices.length > 0 && (
+            <div style={{ position: 'relative' }} data-printer-dropdown>
+              <button
+                onClick={() => setShowPrinterDropdown(d => !d)}
+                style={{
+                  padding: isMobile ? '8px 12px' : '10px 14px',
+                  borderRadius: 10,
+                  border: `1.5px solid ${C.n200}`,
+                  background: selectedDeviceId ? C.primaryTint : C.n50,
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: selectedDeviceId ? C.primary : C.n600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                🖨️ {pairedDevices.find(d => d.deviceId === selectedDeviceId)?.name?.split(' ')[0] || 'Pilih Printer'}
+                {showPrinterDropdown ? ' ▲' : ' ▼'}
+              </button>
+
+              {/* Dropdown menu */}
+              {showPrinterDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 4,
+                  background: C.white,
+                  border: `1.5px solid ${C.n200}`,
+                  borderRadius: 12,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                  minWidth: 220,
+                  zIndex: 999,
+                  overflow: 'hidden',
+                }}>
+                  {/* Header */}
+                  <div style={{
+                    padding: '8px 14px',
+                    borderBottom: `1px solid ${C.n100}`,
+                    fontFamily: 'Poppins',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: C.n500,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                  }}>
+                    📋 Printer Tersimpan
+                  </div>
+
+                  {/* Device list */}
+                  {pairedDevices.map(device => (
+                    <div
+                      key={device.deviceId}
+                      onClick={() => {
+                        setSelectedDeviceId(device.deviceId);
+                        setShowPrinterDropdown(false);
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                        background: selectedDeviceId === device.deviceId ? C.primaryTint : 'transparent',
+                        borderLeft: selectedDeviceId === device.deviceId ? `3px solid ${C.primary}` : '3px solid transparent',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {/* Status dot */}
+                        <div style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          background: device.connected ? '#22C55E' : C.n300,
+                          flexShrink: 0,
+                        }} />
+                        <div>
+                          <div style={{
+                            fontFamily: 'Poppins',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: selectedDeviceId === device.deviceId ? C.primary : C.n900,
+                          }}>
+                            {device.name}
+                          </div>
+                          <div style={{
+                            fontFamily: 'Poppins',
+                            fontSize: 10,
+                            color: device.connected ? '#22C55E' : C.n400,
+                          }}>
+                            {device.connected ? '🟢 Terhubung' : '⚪ Tersimpan'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Divider & settings link */}
+                  <div style={{
+                    padding: '8px 14px',
+                    borderTop: `1px solid ${C.n100}`,
+                  }}>
+                    <button
+                      onClick={() => { setShowPrinterDropdown(false); navigate('printer_settings'); }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        border: `1.5px solid ${C.n200}`,
+                        background: C.white,
+                        cursor: 'pointer',
+                        fontFamily: 'Poppins',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: C.n600,
+                      }}
+                    >
+                      ⚙️ Pengaturan Printer
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {!printerConnected && btAvailable && (
             <button
               onClick={handleConnectPrinter}
-              style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.primary}`, background: C.primaryTint, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, whiteSpace: 'nowrap' }}
+              disabled={connecting}
+              style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.primary}`, background: C.primaryTint, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, whiteSpace: 'nowrap', opacity: connecting ? 0.6 : 1 }}
             >
-              🔗 Connect Printer
+              {connecting ? '⏳ Connect...' : '🔗 Connect'}
             </button>
           )}
 
@@ -212,7 +431,7 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
             onClick={() => navigate('printer_settings')}
             style={{ padding: isMobile ? '8px 12px' : '10px 14px', borderRadius: 10, border: `1.5px solid ${C.n200}`, background: C.white, cursor: 'pointer', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, whiteSpace: 'nowrap' }}
           >
-            ⚙️ Pengaturan
+            ⚙️
           </button>
         </div>
         {/* Config badge */}
@@ -335,9 +554,9 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
         </div>
 
         {/* === HALAMAN 2: LABEL PRODUKSI === */}
-        {cfg.printLabel && data.units && data.units.length > 0 && (
+        {labelData && labelData.length > 0 && (
           <div className="page-break" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? 12 : 16 }}>
-            {data.units.map((unit, idx) => (
+            {labelData.map((label, idx) => (
               <div key={idx} className="print-container" style={{
                 width: '100%',
                 maxWidth: isMobile ? 280 : 300,
@@ -349,25 +568,33 @@ export default function CetakNotaPage({ navigate, goBack, screenParams }) {
                 color: '#000',
                 textAlign: 'center'
               }}>
-                <div style={{ fontWeight: 'bold', fontSize: isMobile ? 14 : 16, marginBottom: 6 }}>{cfg.outletName || 'MY WASCHEN'}</div>
-                <div style={{ fontSize: isMobile ? 12 : 14, marginBottom: 2 }}>{data.customerName}</div>
-                <div style={{ fontSize: isMobile ? 10 : 11, marginBottom: 10, opacity: 0.75 }}>{data.customerPhone}</div>
-                <div style={{ padding: '6px 0', borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '6px 0', letterSpacing: 3, fontSize: isMobile ? 13 : 15, fontWeight: 'bold' }}>
-                  {unit.unitNo}
+                <div style={{ fontWeight: 'bold', fontSize: isMobile ? 13 : 15, marginBottom: 6 }}>{cfg.outletName || 'MY WASCHEN'}</div>
+                <div style={{ fontSize: isMobile ? 11 : 13, marginBottom: 2 }}>{label.customer_name}</div>
+                <div style={{ fontSize: isMobile ? 9 : 10, marginBottom: 6, opacity: 0.7 }}>{label.customer_phone}</div>
+                <div style={{ padding: '4px 0', borderTop: '1px solid #000', borderBottom: '1px solid #000', margin: '4px 0' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: isMobile ? 11 : 12, letterSpacing: 1 }}>
+                    {label.service_name}{label.is_express ? ' [EXPRESS]' : ''}
+                  </div>
+                  {label.qty_display && (
+                    <div style={{ fontSize: isMobile ? 9 : 10 }}>{label.qty_display}</div>
+                  )}
                 </div>
 
-                {/* QR Code untuk scan di produksi — encode unit_no atau transaction_no */}
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
-                  <QRCodeView value={unit.unitNo || data.transactionNo || data.id} size={isMobile ? 72 : 88} level="M" />
+                {/* QR Code — format: {transaction_no}#{sequence} */}
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
+                  <QRCodeView value={String(label.transaction_no) + '#' + String(idx + 1)} size={isMobile ? 72 : 88} level="L" />
                 </div>
 
-                <div style={{ fontSize: isMobile ? 8 : 9, marginTop: 6, opacity: 0.75 }}>
-                  Masuk: {data.createdAt ? new Date(data.createdAt).toLocaleDateString('id-ID') : '-'}<br />
-                  Item {idx + 1} dari {data.units.length}
+                <div style={{ fontSize: isMobile ? 8 : 9, marginTop: 6, opacity: 0.7 }}>
+                  {label.created_date || '-'} | Item {idx + 1} dari {labelData.length}
                 </div>
+                {label.estimated_completion && (
+                  <div style={{ fontSize: isMobile ? 8 : 9, opacity: 0.7 }}>
+                    Est: {label.estimated_completion}
+                  </div>
+                )}
               </div>
             ))}
-
          </div>
         )}
 

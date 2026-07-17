@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip, ProfileAvatar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { useResponsive } from '../../utils/hooks';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
 
 const ROLE_LABEL = {
   kasir: 'Frontliner',
@@ -35,10 +39,33 @@ const fmtDt = (v) => {
   }
 };
 
+// ─── Premium Card Style ──────────────────────────────────────────────────────
+const PREMIUM_CARD = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// ─── Skeleton Block ───────────────────────────────────────────────────────────
+function SkeletonBlock({ height = 120, style = {} }) {
+  return (
+    <div style={{
+      height,
+      borderRadius: 18,
+      background: 'linear-gradient(90deg, rgba(91,0,95,0.05) 25%, rgba(91,0,95,0.1) 50%, rgba(91,0,95,0.05) 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.5s infinite',
+      marginBottom: 10,
+      ...style,
+    }} />
+  );
+}
+
 // ── Balance Tab Button ──────────────────────────────────────────────────────
 const BalanceTab = ({ label, active, onClick }) => (
-  <button
+  <motion.button
     onClick={onClick}
+    whileTap={{ scale: 0.97 }}
     style={{
       flex: 1,
       padding: '10px 0',
@@ -46,21 +73,23 @@ const BalanceTab = ({ label, active, onClick }) => (
       fontSize: 13,
       fontWeight: active ? 700 : 500,
       color: active ? 'white' : C.n700,
-      background: active ? C.primary : 'transparent',
+      background: active ? `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})` : 'transparent',
       border: `1.5px solid ${active ? C.primary : C.n200}`,
-      borderRadius: 10,
+      borderRadius: 12,
       cursor: 'pointer',
       transition: 'all 0.2s',
+      boxShadow: active ? '0 4px 12px rgba(91, 0, 95, 0.2)' : 'none',
     }}
   >
     {label}
-  </button>
+  </motion.button>
 );
 
 // ── Menu Item Row ────────────────────────────────────────────────────────────
 const MenuItem = ({ icon, label, sub, onClick }) => (
-  <button
+  <motion.button
     onClick={onClick}
+    whileTap={{ scale: 0.98 }}
     style={{
       display: 'flex',
       alignItems: 'center',
@@ -74,7 +103,13 @@ const MenuItem = ({ icon, label, sub, onClick }) => (
       textAlign: 'left',
     }}
   >
-    <div style={{ width: 36, height: 36, borderRadius: 10, background: C.n50, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.n700, flexShrink: 0 }}>
+    <div style={{
+      width: 40, height: 40, borderRadius: 12,
+      background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+      boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: C.primary, flexShrink: 0
+    }}>
       {icon}
     </div>
     <div style={{ flex: 1 }}>
@@ -82,13 +117,14 @@ const MenuItem = ({ icon, label, sub, onClick }) => (
       {sub && <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700, marginTop: 1 }}>{sub}</div>}
     </div>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.n700} strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
-  </button>
+  </motion.button>
 );
 
 // ── Section Tab ──────────────────────────────────────────────────────────────
 const SectionTab = ({ label, active, onClick }) => (
-  <button
+  <motion.button
     onClick={onClick}
+    whileTap={{ scale: 0.98 }}
     style={{
       padding: '10px 16px',
       fontFamily: 'Poppins',
@@ -103,7 +139,7 @@ const SectionTab = ({ label, active, onClick }) => (
     }}
   >
     {label}
-  </button>
+  </motion.button>
 );
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -153,10 +189,33 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
 
   if (loading) {
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50 }}>
-        <TopBar title="Info Outlet" onBack={goBack} />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 32, height: 32, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7' }}>
+        <style>{`
+          @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        `}</style>
+        {/* Premium Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+          padding: '16px 20px 52px',
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
+          <GlowOrb color="rgba(140, 76, 143, 0.4)" size={200} top="-60px" left="-30px" blur={50} />
+          <GlowOrb color="rgba(249, 62, 17, 0.25)" size={150} top="40px" right="-40px" blur={40} />
+          <Sparkle top="10%" left="15%" size={8} delay={0} color="#FFD700" />
+          <Sparkle top="20%" left="80%" size={6} delay={0.5} color="#FF6B6B" />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+            <div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: 'white' }}>Info Outlet</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>Memuat data...</div>
+            </div>
+          </div>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <SkeletonBlock height={180} />
+            <SkeletonBlock height={250} />
+          </div>
         </div>
       </div>
     );
@@ -179,12 +238,63 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
   }, {});
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Info Outlet" onBack={goBack} />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      <style>{`
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes floatA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-14px,16px) scale(1.08)} }
+        @keyframes twinkle { 0%,100%{opacity:0;transform:scale(0.4) rotate(0deg)} 50%{opacity:1;transform:scale(1) rotate(20deg)} }
+      `}</style>
+
+      {/* ── Premium Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 20px 52px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <GlowOrb color="rgba(140, 76, 143, 0.4)" size={200} top="-60px" left="-30px" blur={50} />
+        <GlowOrb color="rgba(249, 62, 17, 0.25)" size={150} top="40px" right="-40px" blur={40} />
+        <Sparkle top="10%" left="15%" size={8} delay={0} color="#FFD700" />
+        <Sparkle top="20%" left="80%" size={6} delay={0.5} color="#FF6B6B" />
+        <Sparkle top="60%" left="25%" size={7} delay={1} color="#4ECDC4" />
+        <FloatingBubble src={bubbleIcon} size={18} top="15%" left="5%" delay={0} opacity={0.4} />
+        <FloatingBubble src={bubble2Icon} size={14} top="35%" right="8%" delay={0.5} opacity={0.35} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: 'white', letterSpacing: '-0.3px' }}>
+              {outlet?.name || 'Outlet'}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
+              Info Outlet
+            </div>
+          </div>
+          {goBack && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={goBack}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: 'white',
+              }}
+            >
+              ← Kembali
+            </motion.button>
+          )}
+        </div>
+      </div>
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {/* ── Header ──────────────────────────────────────────── */}
-        <div style={{ padding: '20px 20px 16px', background: C.white }}>
+        {/* ── Header Card ──────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            ...PREMIUM_CARD,
+            padding: '20px',
+            margin: '12px 16px 0',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 600, color: C.n900, lineHeight: 1.3 }}>
@@ -212,12 +322,18 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
           </div>
 
           {/* ── Balance Display ────────────────────────────────── */}
-          <div style={{
-            marginTop: 12, padding: isMobile ? '12px' : '14px 16px', borderRadius: 12,
-            border: `1.5px solid ${C.n200}`, background: C.n50,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            flexWrap: 'wrap', gap: 12,
-          }}>
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            style={{
+              marginTop: 12, padding: isMobile ? '12px' : '14px 16px', borderRadius: 14,
+              background: 'linear-gradient(145deg, #F8F4FF, #FFFFFF)',
+              boxShadow: '6px 6px 14px rgba(110, 46, 120, 0.08), -3px -3px 8px rgba(255, 255, 255, 0.95)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              flexWrap: 'wrap', gap: 12,
+            }}
+          >
             {balanceTab === 'kas' ? (
               <>
                 <div>
@@ -235,7 +351,8 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                     </div>
                   )}
                 </div>
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => navigate('admin_shift', { outletId })}
                   style={{
                     fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary,
@@ -243,7 +360,7 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                   }}
                 >
                   Lihat Riwayat
-                </button>
+                </motion.button>
               </>
             ) : (
               <div>
@@ -255,11 +372,11 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                 </div>
               </div>
             )}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* ── Menu Items ──────────────────────────────────────── */}
-        <div style={{ background: C.white, marginTop: 8, padding: '4px 20px' }}>
+        <div style={{ background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)', margin: '12px 16px', borderRadius: 18, padding: '4px 20px', boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)' }}>
           <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, padding: '12px 0 4px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
             Info Outlet
           </div>
@@ -290,7 +407,7 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
         </div>
 
         {/* ── Section Tabs ────────────────────────────────────── */}
-        <div style={{ background: C.white, marginTop: 8 }}>
+        <div style={{ background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)', margin: '0 16px', borderRadius: 18, boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', borderBottom: `1px solid ${C.n100}`, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <SectionTab label="INFORMASI OUTLET" active={sectionTab === 'info'} onClick={() => setSectionTab('info')} />
             <SectionTab label="DAFTAR LAYANAN" active={sectionTab === 'layanan'} onClick={() => setSectionTab('layanan')} />
@@ -300,7 +417,11 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
           <div style={{ padding: 20 }}>
             {/* ── Tab: Info ─────────────────────────────────────── */}
             {sectionTab === 'info' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+              >
                 {[
                   ['Kontak', outlet?.phone || '-'],
                   ['Email', outlet?.email || '-'],
@@ -321,8 +442,14 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                 {kas?.recentSessions?.length > 0 && (
                   <div style={{ marginTop: 8 }}>
                     <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Riwayat Shift Terakhir</div>
-                    {kas.recentSessions.slice(0, 3).map((s) => (
-                      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.n50}` }}>
+                    {kas.recentSessions.slice(0, 3).map((s, idx) => (
+                      <motion.div
+                        key={s.id}
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.n50}` }}
+                      >
                         <div>
                           <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n900 }}>{s.cashierName}</div>
                           <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n700 }}>{fmtDt(s.openedAt)}{s.closedAt ? ` → ${fmtDt(s.closedAt)}` : ' (aktif)'}</div>
@@ -335,11 +462,11 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                             </div>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 )}
-              </div>
+              </motion.div>
             )}
 
             {/* ── Tab: Layanan ──────────────────────────────────── */}
@@ -355,8 +482,14 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                       <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         {cat}
                       </div>
-                      {items.map((s) => (
-                        <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${C.n50}` }}>
+                      {items.map((s, idx) => (
+                        <motion.div
+                          key={s.id}
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${C.n50}` }}
+                        >
                           <div>
                             <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{s.name}</div>
                             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n700 }}>
@@ -366,7 +499,7 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                           <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.primary }}>
                             {rp(s.price)}
                           </div>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   ))
@@ -387,8 +520,14 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                       <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.primary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         {role} ({members.length})
                       </div>
-                      {members.map((u) => (
-                        <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: `1px solid ${C.n50}` }}>
+                      {members.map((u, idx) => (
+                        <motion.div
+                          key={u.id}
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: `1px solid ${C.n50}` }}
+                        >
                           <ProfileAvatar user={u} size={38} />
                           <div style={{ flex: 1 }}>
                             <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n900 }}>{u.name}</div>
@@ -403,7 +542,7 @@ export default function InfoOutletPage({ navigate, goBack, screenParams }) {
                           }}>
                             {u.isActive ? 'Aktif' : 'Nonaktif'}
                           </span>
-                        </div>
+                        </motion.div>
                       ))}
                     </div>
                   ))

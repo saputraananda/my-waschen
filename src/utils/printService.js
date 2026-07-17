@@ -1,15 +1,34 @@
 /**
  * Print Service - Simple Bluetooth Print
- * Works with settings from PrinterSettingsPage
+ * Reads settings fresh from localStorage each time
  */
 
+import axios from 'axios';
 import BTPrinter from './bluetoothPrinter';
 
-let printerConfig = {};
+const STORAGE_KEY = 'waschen_printer_config';
+const AUTH_TOKEN_KEY = 'waschen_auth_token';
 
-try {
-  printerConfig = JSON.parse(localStorage.getItem('waschen_printer_config') || '{}');
-} catch {}
+/**
+ * Get Authorization header for API calls.
+ */
+function authHeaders() {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  return token ? { headers: { Authorization: 'Bearer ' + token } } : {};
+}
+
+/**
+ * Read settings fresh from localStorage
+ */
+function getPrinterConfig() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch {}
+  return {};
+}
 
 /**
  * Check if Bluetooth is available
@@ -27,9 +46,10 @@ export function getPrinterStatus() {
 
 /**
  * Connect to printer
+ * @param {string} [deviceId] - Optional: connect to a specific device directly
  */
-export async function connectPrinter() {
-  return await BTPrinter.connect();
+export async function connectPrinter(deviceId) {
+  return await BTPrinter.connect(deviceId);
 }
 
 /**
@@ -40,7 +60,7 @@ export async function disconnectPrinter() {
 }
 
 /**
- * Get saved printer
+ * Get saved printer device
  */
 export function getSavedPrinter() {
   return BTPrinter.getSavedDevice();
@@ -54,11 +74,91 @@ export function clearSavedPrinter() {
 }
 
 /**
- * Print receipt - uses printer config from settings
+ * Get paired/known Bluetooth devices
+ */
+export async function getPairedDevices() {
+  return await BTPrinter.getPairedDevices();
+}
+
+/**
+ * Fetch transaction from API and build nota data for printer.
+ * @param {string|number} transactionId
+ */
+export async function getNotaDataForPrinter(transactionId) {
+  const res = await axios.get(`/api/transactions/${transactionId}`, authHeaders());
+  const tx = res.data?.data || res.data;
+  return buildNotaData(tx);
+}
+
+/**
+ * Print receipt - reads settings fresh from localStorage
+ * Also prints labels if printLabel config is true.
+ * Labels are fetched from the dedicated label API endpoint.
  */
 export async function printReceipt(transaction) {
   const data = buildNotaData(transaction);
-  return await BTPrinter.print(data);
+  const result = await BTPrinter.print(data);
+
+  // Print labels if enabled — fetch from label API
+  const cfg = getPrinterConfig();
+  if (cfg.printLabel) {
+    try {
+      const txId = transaction.id || transaction.transactionId;
+      if (txId) {
+        const res = await axios.get(`/api/transactions/${txId}/labels`, authHeaders());
+        const labels = res.data?.data || [];
+        for (let i = 0; i < labels.length; i++) {
+          // QR is built natively via ESC/POS QR command inside BTPrinter.printLabel
+          await BTPrinter.printLabel({ ...labels[i], _index: i, _total: labels.length }, data);
+        }
+      }
+    } catch {
+      // Label print is best-effort — don't fail the receipt print
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Print label(s) for a transaction.
+ * Fetches label data from the dedicated label API endpoint.
+ * QR is generated via native ESC/POS QR command (no bitmap needed).
+ * @param {string|object} transaction - transaction ID or full transaction object
+ */
+export async function printLabel(transaction) {
+  let transactionId;
+
+  // Accept both ID (string) and full object
+  if (typeof transaction === 'string' || typeof transaction === 'number') {
+    transactionId = transaction;
+  } else {
+    transactionId = transaction.id || transaction.transactionId;
+  }
+
+  if (!transactionId) {
+    throw new Error('Transaction ID tidak ditemukan.');
+  }
+
+  // Fetch label data from API
+  const res = await axios.get(`/api/transactions/${transactionId}/labels`, authHeaders());
+  const labels = res.data?.data;
+
+  if (!labels || labels.length === 0) {
+    throw new Error('Tidak ada label untuk transaksi ini.');
+  }
+
+  // Get receipt data for outlet info
+  const notaData = await getNotaDataForPrinter(transactionId);
+
+  // Print each label — QR is built natively via ESC/POS QR command
+  const results = [];
+  for (let i = 0; i < labels.length; i++) {
+    const labelData = { ...labels[i], _index: i, _total: labels.length };
+    results.push(await BTPrinter.printLabel(labelData, notaData));
+  }
+
+  return { count: labels.length, results };
 }
 
 /**
@@ -69,10 +169,12 @@ export async function printTestPage() {
 }
 
 /**
- * Build nota data from transaction + settings
+ * Build nota data from transaction + settings (reads fresh from localStorage)
  */
 export function buildNotaData(transaction) {
-  const cfg = printerConfig;
+  // Read settings fresh from localStorage every time!
+  const cfg = getPrinterConfig();
+
   const total = Number(transaction.total) || 0;
   const paidAmount = Number(transaction.paidAmount) || 0;
   const balance = Math.max(0, total - paidAmount);
@@ -82,7 +184,7 @@ export function buildNotaData(transaction) {
   else if (paidAmount > 0) status = 'DP';
 
   return {
-    // Outlet info from settings
+    // Outlet info - READ FRESH FROM LOCALSTORAGE
     outletName: cfg.outletName || 'MY WASCHEN',
     outletTagline: cfg.outletTagline || 'Clean, Fast, Reliable',
     outletAddress: cfg.outletAddress || '',
@@ -94,7 +196,7 @@ export function buildNotaData(transaction) {
     cashierName: transaction.createdBy || transaction.kasirName || '',
     estimatedDone: transaction.estimatedDoneAt ? formatDate(transaction.estimatedDoneAt) : '',
 
-    // Show flags from settings
+    // Show flags - READ FRESH FROM LOCALSTORAGE
     showDate: cfg.showTransactionDate !== false,
     showCashier: cfg.showCashierName !== false,
     showCustomer: cfg.showCustomerName !== false,
@@ -134,19 +236,30 @@ export function buildNotaData(transaction) {
 
     paymentStatus: status,
 
+    // Footer - READ FRESH FROM LOCALSTORAGE
     footerText: cfg.footerText || 'Terima kasih! Cucian >30 hari bukan tanggung jawab kami.',
-    charPerLine: cfg.charPerLine || 32,
+    charPerLine: cfg.charPerLine || cfg.charPerLine === 0 ? cfg.charPerLine : 32,
   };
 }
 
 /**
- * Save printer config
+ * Save printer config to localStorage
  */
 export function savePrinterConfig(config) {
-  printerConfig = { ...printerConfig, ...config };
   try {
-    localStorage.setItem('waschen_printer_config', JSON.stringify(printerConfig));
-  } catch {}
+    const existing = getPrinterConfig();
+    const merged = { ...existing, ...config };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+  } catch (e) {
+    console.error('Failed to save printer config:', e);
+  }
+}
+
+/**
+ * Get printer config (for preview, etc)
+ */
+export function getPrinterConfigPreview() {
+  return getPrinterConfig();
 }
 
 function formatDate(dateStr) {
@@ -168,8 +281,13 @@ export default {
   disconnectPrinter,
   getSavedPrinter,
   clearSavedPrinter,
+  getPairedDevices: BTPrinter.getPairedDevices,
   printReceipt,
+  printLabel,
   printTestPage,
   buildNotaData,
+  getNotaDataForPrinter,
   savePrinterConfig,
+  getPrinterConfig,
+  getPrinterConfigPreview,
 };

@@ -28,6 +28,7 @@ const TransaksiListPage = lazy(() => import('./pages/kasir/TransaksiListPage'));
 const DetailTransaksiPage = lazy(() => import('./pages/kasir/DetailTransaksiPage'));
 const PelunasanPage = lazy(() => import('./pages/kasir/PelunasanPage'));
 const CetakNotaPage = lazy(() => import('./pages/kasir/CetakNotaPage'));
+const CetakLabelPage = lazy(() => import('./pages/kasir/CetakLabelPage'));
 const KasOutletPage = lazy(() => import('./pages/KasOutletPage'));
 const KasApprovalPage = lazy(() => import('./pages/admin/KasApprovalPage'));
 const AdminKasOverviewPage = lazy(() => import('./pages/admin/AdminKasOverviewPage'));
@@ -176,7 +177,7 @@ const LazyLaporanKeuanganPage = withSuspense(LaporanKeuanganPage);
 const SCREENS_NO_NAV = new Set([
   'splash', 'login', 'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
   'tambah_customer', 'detail_item_produksi', 'foto_kondisi', 'detail_riwayat_produksi',
-  'detail_transaksi', 'cetak_nota', 'detail_customer', 'topup_deposit', 'topup', 'notifikasi', 'notifikasi_produksi', 'pelunasan',
+  'detail_transaksi', 'cetak_nota', 'cetak_label', 'detail_customer', 'topup_deposit', 'topup', 'notifikasi', 'notifikasi_produksi', 'pelunasan',
   'membership_register',
   'kas_outlet', 'kas_approval', 'admin_kas_overview', 'pengadaan_barang', 'approval_pengadaan_barang', 'daftar_pengadaan_barang',
   'request_barang', 'admin_purchase_requests', 'admin_all_outlet_stocks', 'admin_settings', 'admin_segmentasi',
@@ -337,6 +338,9 @@ function AppInner() {
         return <DetailTransaksiPage navigate={navigate} goBack={goBack} screenParams={screenParams} onCancel={cancelTransaction} />;
       case 'cetak_nota':
         return <CetakNotaPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+
+      case 'cetak_label':
+        return <CetakLabelPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
 
       case 'pelunasan':
         return <PelunasanPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;

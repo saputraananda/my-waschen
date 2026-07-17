@@ -406,28 +406,18 @@ export default function TopupSelectCustomerModal({
       {visible && (
         <>
           {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+          <div
             onClick={handleClose}
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0, 0, 0, 0.45)',
-              backdropFilter: 'blur(4px)',
-              WebkitBackdropFilter: 'blur(4px)',
-              zIndex: 900, // Topup Select level — above GlassModal (500), below Select Dropdown (9000)
+              background: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 200,
             }}
           />
 
           {/* Bottom Sheet */}
-          <motion.div
-            initial={{ y: '100%', opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 380 }}
+          <div
             style={{
               position: 'fixed',
               bottom: 0,
@@ -438,7 +428,7 @@ export default function TopupSelectCustomerModal({
               WebkitBackdropFilter: 'blur(24px)',
               borderRadius: '20px 20px 0 0',
               maxHeight: isMobile ? '85vh' : '75vh',
-              zIndex: 901, // Topup Select content — one above backdrop
+              zIndex: 201,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
@@ -641,7 +631,7 @@ export default function TopupSelectCustomerModal({
                         </motion.div>
                       ))}
                     </div>
-                  )}
+                  )})}
                 </div>
               )}
 
@@ -688,7 +678,7 @@ export default function TopupSelectCustomerModal({
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>

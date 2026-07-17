@@ -4,6 +4,7 @@ import { C, SHADOW } from '../../utils/theme';
 import { rp, getCartLineSubtotal, getCartUnitPrice } from '../../utils/helpers';
 import { TopBar, Btn, Chip, SearchBar, EmptyState, Select, ProfileAvatar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import { useResponsive } from '../../utils/hooks';
 import { alertError, alertWarning } from '../../utils/alert';
 import KeranjangPanel from '../../components/KeranjangPanel';
 
@@ -92,6 +93,7 @@ function ItemDetailFields({ item, onChangeBahan, onChangeMerek, onChangeAlert })
 
 export default function NotaStep2Page({ goBack }) {
   const { navigate, notaCustomer, notaCart, setNotaCart } = useApp();
+  const { isMobile } = useResponsive();
   const [activeCategory, setActiveCategory] = useState('Semua');
   const [serviceKind, setServiceKind] = useState('waschen'); // waschen | cleanox
   const [searchQuery, setSearchQuery] = useState('');
@@ -101,6 +103,17 @@ export default function NotaStep2Page({ goBack }) {
   // ─── Carpet (m2) measurement ────────────────────────────────────────────────
   const [measuringId, setMeasuringId] = useState(null);
   const [carpetInputs, setCarpetInputs] = useState({}); // { [serviceId]: { panjang: '', lebar: '' } } - in meters
+
+  // ─── Body scroll lock when mobile modals open ──
+  useEffect(() => {
+    const isModalOpen = showMobileCart || showCategoryModal;
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showMobileCart, showCategoryModal]);
 
   // ─── Block back: redirect if customer is gone (from successful checkout) ──
   useEffect(() => {
@@ -559,7 +572,8 @@ export default function NotaStep2Page({ goBack }) {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Keranjang */}
+        {/* RIGHT COLUMN: Keranjang (desktop only, hidden on mobile) */}
+        {!isMobile && (
         <div style={{ width: 360, flexShrink: 0, display: 'flex', flexDirection: 'column', background: C.white, borderLeft: '1px solid ' + C.n100 }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid ' + C.n100, flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -638,30 +652,34 @@ export default function NotaStep2Page({ goBack }) {
             )}
           </div>
         </div>
+        )}
       </div>
 
-      {/* Mobile FAB */}
-      <button
-        onClick={() => setShowMobileCart(true)}
-        style={{
-          position: 'fixed', bottom: 24, right: 16,
-          background: '#5C1A6B', color: 'white', border: 'none',
-          borderRadius: 28, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8,
-          boxShadow: '0 4px 16px rgba(92,26,107,0.4)',
-          zIndex: 100, fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
-          opacity: window.innerWidth >= 768 ? 0 : 1,
-          pointerEvents: window.innerWidth >= 768 ? 'none' : 'auto',
-        }}
-        aria-label="Lihat keranjang"
-      >
-        <span style={{ fontSize: 18 }}>🛒</span>
-        <span>{notaCart.length}</span>
-      </button>
+      {/* Mobile FAB - only shown on mobile */}
+      {isMobile && notaCart.length > 0 && (
+        <button
+          onClick={() => setShowMobileCart(true)}
+          style={{
+            position: 'fixed', bottom: 24, right: 16,
+            background: '#5C1A6B', color: 'white', border: 'none',
+            borderRadius: 28, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 4px 16px rgba(92,26,107,0.4)',
+            zIndex: 100, fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+          }}
+          aria-label="Lihat keranjang"
+        >
+          <span style={{ fontSize: 18 }}>🛒</span>
+          <span>{notaCart.length}</span>
+        </button>
+      )}
 
       {/* Mobile Cart Bottom Sheet */}
       {showMobileCart && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowMobileCart(false)}>
-          <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+        <>
+          {/* Backdrop - fixed, blocks interaction */}
+          <div onClick={() => setShowMobileCart(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
+          {/* Sheet - fixed to bottom */}
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderRadius: '20px 20px 0 0', zIndex: 201, padding: '0 0 env(safe-area-inset-bottom, 24px)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '12px 0', display: 'flex', justifyContent: 'center' }}>
               <div style={{ width: 40, height: 4, background: '#E9D3F2', borderRadius: 2 }} />
             </div>
@@ -724,14 +742,16 @@ export default function NotaStep2Page({ goBack }) {
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Category Modal */}
       {showCategoryModal && (
-        <div onClick={() => setShowCategoryModal(false)} style={{ position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-          {/* 400 = Premium Modal level (above Standard Modal 200, below GlassModal 500) */}
-          <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', padding: '20px 16px 32px' }}>
+        <>
+          {/* Backdrop */}
+          <div onClick={() => setShowCategoryModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400 }} />
+          {/* Sheet - fixed to bottom */}
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderRadius: '20px 20px 0 0', zIndex: 401, padding: '20px 16px env(safe-area-inset-bottom, 32px)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <div style={{ width: 40, height: 4, background: '#E9D3F2', borderRadius: 2 }} />
             </div>
@@ -747,7 +767,7 @@ export default function NotaStep2Page({ goBack }) {
               ))}
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

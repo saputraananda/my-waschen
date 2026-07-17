@@ -8,7 +8,6 @@ import { useApp } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell, ChevronRight, ChevronDown, Home, FileText, DollarSign, AlertCircle,
-  LayoutGrid, Clock, User,
 } from 'lucide-react';
 import { checkLowBalance } from '../../utils/outletCashApi';
 import LowStockAlertWidget from '../../components/LowStockAlertWidget';
@@ -16,7 +15,7 @@ import TransactionMetricsWidget from '../../components/TransactionMetricsWidget'
 import OutletComparisonWidget from '../../components/OutletComparisonWidget';
 import PaymentTrendChart from '../../components/PaymentTrendChart';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell
 } from 'recharts';
 import { SHADOWS, GRADIENTS, RADIUS } from '../../utils/designSystem';
@@ -159,6 +158,9 @@ export default function AdminDashboardPage({ user, navigate }) {
   const [metricsPeriod, setMetricsPeriod] = useState('today');
   const [targetDaily, setTargetDaily] = useState(null);
   const [loadingDailyTarget, setLoadingDailyTarget] = useState(false);
+
+  // Display mode: 'bar' = compact bar stats, 'graph' = chart inside card
+  const [displayMode, setDisplayMode] = useState('bar');
 
   // Responsive spacing values
   const headerPadding = isMobile ? '14px 14px 36px' : '18px 20px 40px';
@@ -303,15 +305,515 @@ export default function AdminDashboardPage({ user, navigate }) {
           animation: 'floatBlob 5s ease-in-out infinite 0.5s',
         }} />
 
-        {/* Sparkles */}
-        <div style={{
-          position: 'absolute', top: 25, right: isMobile ? 100 : 140,
-          fontSize: 14, animation: 'twinkle 2s ease-in-out infinite',
-        }}>✨</div>
-        <div style={{
-          position: 'absolute', bottom: 50, left: 50,
-          fontSize: 12, animation: 'twinkle 2.5s ease-in-out infinite 0.5s',
-        }}>⭐</div>
+        {/* ── Beautiful Animated Background Elements ── */}
+        {/* Floating light orbs */}
+        <motion.div
+          animate={{
+            y: [0, -15, 0],
+            opacity: [0.3, 0.6, 0.3],
+            scale: [1, 1.1, 1],
+          }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 20 : 30,
+            right: isMobile ? 80 : 120,
+            width: 40, height: 40,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%)',
+            filter: 'blur(8px)',
+            pointerEvents: 'none',
+          }}
+        />
+        <motion.div
+          animate={{
+            y: [0, 12, 0],
+            opacity: [0.2, 0.5, 0.2],
+            scale: [1, 0.9, 1],
+          }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+          style={{
+            position: 'absolute',
+            bottom: isMobile ? 40 : 60,
+            left: isMobile ? 60 : 100,
+            width: 30, height: 30,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255,215,0,0.5) 0%, transparent 70%)',
+            filter: 'blur(6px)',
+            pointerEvents: 'none',
+          }}
+        />
+        <motion.div
+          animate={{
+            y: [0, -8, 0],
+            opacity: [0.25, 0.55, 0.25],
+            x: [0, 5, 0],
+          }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 50 : 70,
+            left: isMobile ? 20 : 60,
+            width: 20, height: 20,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(147, 51, 234, 0.6) 0%, transparent 70%)',
+            filter: 'blur(5px)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* Sparkle stars - SVG based */}
+        <motion.div
+          animate={{
+            opacity: [0.4, 1, 0.4],
+            scale: [0.8, 1.2, 0.8],
+            rotate: [0, 180, 360],
+          }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 15 : 25,
+            right: isMobile ? 100 : 150,
+            width: 24, height: 24,
+            pointerEvents: 'none',
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" style={{ width: '100%', height: '100%' }}>
+            <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" fill="rgba(255,255,255,0.9)" />
+          </svg>
+        </motion.div>
+        <motion.div
+          animate={{
+            opacity: [0.3, 0.8, 0.3],
+            scale: [0.6, 1, 0.6],
+            rotate: [0, -180, -360],
+          }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
+          style={{
+            position: 'absolute',
+            bottom: isMobile ? 50 : 70,
+            left: isMobile ? 40 : 80,
+            width: 18, height: 18,
+            pointerEvents: 'none',
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" style={{ width: '100%', height: '100%' }}>
+            <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" fill="rgba(255,215,0,0.95)" />
+          </svg>
+        </motion.div>
+        <motion.div
+          animate={{
+            opacity: [0.5, 1, 0.5],
+            scale: [1, 1.3, 1],
+          }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 35 : 50,
+            right: isMobile ? 40 : 60,
+            width: 14, height: 14,
+            pointerEvents: 'none',
+          }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" style={{ width: '100%', height: '100%' }}>
+            <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" fill="rgba(255,255,255,0.7)" />
+          </svg>
+        </motion.div>
+
+        {/* Shimmer effect line */}
+        <motion.div
+          animate={{
+            x: [-100, 400],
+            opacity: [0, 0.6, 0],
+          }}
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 2,
+          }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 25 : 40,
+            left: 0,
+            width: 80,
+            height: 2,
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+            borderRadius: 1,
+            pointerEvents: 'none',
+          }}
+        />
+        <motion.div
+          animate={{
+            x: [-60, 300],
+            opacity: [0, 0.4, 0],
+          }}
+          transition={{
+            duration: 4,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 0,
+          }}
+          style={{
+            position: 'absolute',
+            bottom: isMobile ? 30 : 50,
+            left: 0,
+            width: 50,
+            height: 1.5,
+            background: 'linear-gradient(90deg, transparent, rgba(255,215,0,0.5), transparent)',
+            borderRadius: 1,
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* ── Animated Liquid Blob 1 ── */}
+        <motion.div
+          animate={{
+            y: [0, -20, 0],
+            x: [0, 15, 0],
+            scale: [1, 1.15, 1, 0.9, 1],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? -40 : -60,
+            right: isMobile ? 80 : 180,
+            width: isMobile ? 120 : 160,
+            height: isMobile ? 100 : 130,
+            pointerEvents: 'none',
+          }}
+        >
+          {/* Outer glow */}
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], opacity: [0.4, 0.7, 0.4] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            style={{
+              position: 'absolute',
+              inset: -20,
+              borderRadius: '60% 40% 70% 30% / 40% 60% 40% 60%',
+              background: 'radial-gradient(circle, rgba(147, 51, 234, 0.5) 0%, transparent 70%)',
+              filter: 'blur(25px)',
+            }}
+          />
+          {/* Liquid blob core */}
+          <motion.div
+            animate={{
+              borderRadius: ['60% 40% 70% 30% / 40% 60% 40% 60%', '30% 70% 30% 70% / 60% 40% 60% 40%', '60% 40% 70% 30% / 40% 60% 40% 60%'],
+            }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '60% 40% 70% 30% / 40% 60% 40% 60%',
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.6) 0%, rgba(91, 0, 95, 0.5) 50%, rgba(167, 139, 250, 0.4) 100%)',
+              filter: 'blur(15px)',
+              boxShadow: '0 0 40px rgba(147, 51, 234, 0.5), inset 0 0 30px rgba(255,255,255,0.2)',
+            }}
+          />
+          {/* Inner highlight */}
+          <div style={{
+            position: 'absolute',
+            top: '20%',
+            left: '25%',
+            width: '40%',
+            height: '30%',
+            borderRadius: '50%',
+            background: 'radial-gradient(ellipse, rgba(255,255,255,0.5) 0%, transparent 70%)',
+            filter: 'blur(8px)',
+          }} />
+        </motion.div>
+
+        {/* ── Animated Liquid Blob 2 ── */}
+        <motion.div
+          animate={{
+            y: [0, 15, 0],
+            x: [0, -12, 0],
+            scale: [1, 0.9, 1.1, 1],
+          }}
+          transition={{
+            duration: 7,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 1,
+          }}
+          style={{
+            position: 'absolute',
+            bottom: isMobile ? -30 : -50,
+            left: isMobile ? 100 : 200,
+            width: isMobile ? 90 : 110,
+            height: isMobile ? 80 : 95,
+            pointerEvents: 'none',
+          }}
+        >
+          {/* Outer glow */}
+          <motion.div
+            animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+            style={{
+              position: 'absolute',
+              inset: -15,
+              borderRadius: '40% 60% 30% 70% / 60% 40% 60% 40%',
+              background: 'radial-gradient(circle, rgba(255, 215, 0, 0.5) 0%, transparent 70%)',
+              filter: 'blur(20px)',
+            }}
+          />
+          {/* Liquid blob core */}
+          <motion.div
+            animate={{
+              borderRadius: ['40% 60% 30% 70% / 60% 40% 60% 40%', '70% 30% 60% 40% / 30% 70% 40% 60%', '40% 60% 30% 70% / 60% 40% 60% 40%'],
+            }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '40% 60% 30% 70% / 60% 40% 60% 40%',
+              background: 'linear-gradient(135deg, rgba(255, 215, 0, 0.55) 0%, rgba(250, 101, 65, 0.4) 50%, rgba(255, 183, 77, 0.3) 100%)',
+              filter: 'blur(12px)',
+              boxShadow: '0 0 35px rgba(255, 215, 0, 0.4), inset 0 0 25px rgba(255,255,255,0.15)',
+            }}
+          />
+        </motion.div>
+
+        {/* ── Animated Liquid Blob 3 - Small accent ── */}
+        <motion.div
+          animate={{
+            y: [0, -10, 0],
+            x: [0, 8, 0],
+            scale: [1, 1.2, 0.85, 1],
+          }}
+          transition={{
+            duration: 5,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 2,
+          }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 50 : 80,
+            right: isMobile ? 15 : 30,
+            width: isMobile ? 45 : 55,
+            height: isMobile ? 40 : 50,
+            pointerEvents: 'none',
+          }}
+        >
+          <motion.div
+            animate={{
+              borderRadius: ['50% 50% 60% 40% / 60% 40% 50% 50%', '40% 60% 50% 50% / 50% 50% 40% 60%', '50% 50% 60% 40% / 60% 40% 50% 50%'],
+            }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '50% 50% 60% 40% / 60% 40% 50% 50%',
+              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(167, 139, 250, 0.4) 100%)',
+              filter: 'blur(10px)',
+              boxShadow: '0 0 25px rgba(255, 255, 255, 0.4)',
+            }}
+          />
+        </motion.div>
+
+        {/* ── Animated Liquid Blob 4 - Bottom left accent ── */}
+        <motion.div
+          animate={{
+            y: [0, 12, 0],
+            x: [0, -8, 0],
+            scale: [1, 1.1, 0.95, 1],
+          }}
+          transition={{
+            duration: 6,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 1.5,
+          }}
+          style={{
+            position: 'absolute',
+            bottom: isMobile ? -15 : -25,
+            left: isMobile ? 20 : 40,
+            width: isMobile ? 70 : 85,
+            height: isMobile ? 60 : 70,
+            pointerEvents: 'none',
+          }}
+        >
+          <motion.div
+            animate={{
+              borderRadius: ['30% 70% 50% 50% / 50% 30% 70% 50%', '50% 50% 30% 70% / 70% 50% 50% 30%', '30% 70% 50% 50% / 50% 30% 70% 50%'],
+            }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '30% 70% 50% 50% / 50% 30% 70% 50%',
+              background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.4) 0%, rgba(91, 0, 95, 0.5) 100%)',
+              filter: 'blur(14px)',
+              boxShadow: '0 0 30px rgba(236, 72, 153, 0.3)',
+            }}
+          />
+        </motion.div>
+
+        {/* ── Animated Liquid Blob 5 - Top left subtle ── */}
+        <motion.div
+          animate={{
+            y: [0, -8, 0],
+            scale: [1, 1.05, 0.95, 1],
+          }}
+          transition={{
+            duration: 9,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 0.8,
+          }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 20 : 30,
+            left: isMobile ? 10 : 20,
+            width: isMobile ? 60 : 75,
+            height: isMobile ? 50 : 60,
+            pointerEvents: 'none',
+          }}
+        >
+          <motion.div
+            animate={{
+              borderRadius: ['60% 40% 50% 50% / 40% 60% 50% 50%', '50% 50% 60% 40% / 50% 50% 40% 60%', '60% 40% 50% 50% / 40% 60% 50% 50%'],
+            }}
+            transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '60% 40% 50% 50% / 40% 60% 50% 50%',
+              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.35) 0%, rgba(139, 92, 246, 0.25) 100%)',
+              filter: 'blur(12px)',
+              boxShadow: '0 0 20px rgba(255, 255, 255, 0.2)',
+            }}
+          />
+        </motion.div>
+
+        {/* ── Mini Orbiting Liquid Blob ── */}
+        <motion.div
+          animate={{
+            y: [0, -12, 0, 12, 0],
+            x: [0, 10, 0, -10, 0],
+            scale: [1, 1.15, 1, 0.9, 1],
+          }}
+          transition={{
+            duration: 6,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 35 : 55,
+            right: isMobile ? 25 : 45,
+            width: isMobile ? 32 : 42,
+            height: isMobile ? 32 : 42,
+            pointerEvents: 'none',
+          }}
+        >
+          <motion.div
+            animate={{
+              borderRadius: ['50% 50% 60% 40% / 60% 40% 50% 50%', '40% 60% 50% 50% / 50% 50% 40% 60%', '50% 50% 60% 40% / 60% 40% 50% 50%'],
+            }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '50% 50% 60% 40% / 60% 40% 50% 50%',
+              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(139, 92, 246, 0.5) 100%)',
+              filter: 'blur(8px)',
+              boxShadow: '0 0 20px rgba(139, 92, 246, 0.5), 0 0 40px rgba(139, 92, 246, 0.3)',
+            }}
+          />
+        </motion.div>
+
+        {/* ── Floating Liquid Particles ── */}
+        {[...Array(6)].map((_, i) => (
+          <motion.div
+            key={i}
+            animate={{
+              y: [0, i % 2 === 0 ? -18 : 18, 0],
+              x: [0, i % 3 === 0 ? 10 : i % 3 === 1 ? -10 : 5, 0],
+              opacity: [0.25, 0.65, 0.25],
+              scale: [0.8, 1.3, 0.8],
+            }}
+            transition={{
+              duration: 3 + (i * 0.4),
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: i * 0.25,
+            }}
+            style={{
+              position: 'absolute',
+              top: 15 + (i * 15) % 70,
+              left: 5 + (i * 20) % 60,
+              width: isMobile ? 8 + (i % 3) * 3 : 10 + (i % 3) * 4,
+              height: isMobile ? 8 + (i % 3) * 3 : 10 + (i % 3) * 4,
+              borderRadius: `${30 + i * 10}% ${70 - i * 5}% ${50 + i * 5}% ${50 - i * 10}%`,
+              background: i % 3 === 0
+                ? 'rgba(255, 255, 255, 0.55)'
+                : i % 3 === 1
+                  ? 'rgba(167, 139, 250, 0.6)'
+                  : 'rgba(255, 215, 0, 0.5)',
+              filter: 'blur(4px)',
+              boxShadow: i % 3 === 0
+                ? '0 0 12px rgba(255,255,255,0.4)'
+                : i % 3 === 1
+                  ? '0 0 12px rgba(167, 139, 250, 0.4)'
+                  : '0 0 12px rgba(255, 215, 0, 0.4)',
+              pointerEvents: 'none',
+            }}
+          />
+        ))}
+
+        {/* ── Liquid Orbital Ring ── */}
+        <motion.div
+          animate={{
+            rotate: [0, 360],
+            scale: [1, 1.05, 1],
+          }}
+          transition={{
+            rotate: { duration: 25, repeat: Infinity, ease: "linear" },
+            scale: { duration: 6, repeat: Infinity, ease: "easeInOut" },
+          }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? -40 : -60,
+            right: isMobile ? 40 : 80,
+            width: isMobile ? 140 : 180,
+            height: isMobile ? 140 : 180,
+            borderRadius: '50%',
+            border: '2px solid transparent',
+            background: 'linear-gradient(rgba(20, 0, 40, 0.3), rgba(20, 0, 40, 0.3)) padding-box, linear-gradient(90deg, rgba(255,255,255,0.1), rgba(147,51,234,0.15), rgba(255,255,255,0.1)) border-box',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* ── Liquid Shimmer Line ── */}
+        <motion.div
+          animate={{
+            x: [-50, 400],
+            opacity: [0, 0.7, 0],
+          }}
+          transition={{
+            duration: 4,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 1,
+          }}
+          style={{
+            position: 'absolute',
+            top: isMobile ? 30 : 50,
+            left: 0,
+            width: 60,
+            height: 4,
+            borderRadius: 2,
+            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), rgba(167,139,250,0.4), transparent)',
+            filter: 'blur(3px)',
+            pointerEvents: 'none',
+          }}
+        />
 
         {/* Responsive header layout */}
         <motion.div
@@ -522,6 +1024,63 @@ export default function AdminDashboardPage({ user, navigate }) {
                 >{label}</motion.button>
               );
             })}
+
+            {/* Display Mode Toggle */}
+            <div style={{
+              display: 'flex',
+              gap: 4,
+              marginLeft: 'auto',
+              padding: 3,
+              background: 'rgba(139, 92, 246, 0.08)',
+              borderRadius: 10,
+            }}>
+              <motion.button
+                onClick={() => setDisplayMode('bar')}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  padding: isMobile ? '5px 10px' : '6px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: displayMode === 'bar'
+                    ? 'linear-gradient(145deg, #5B005F, #8C4C8F)'
+                    : 'transparent',
+                  color: displayMode === 'bar' ? C.white : C.n500,
+                  fontFamily: 'Poppins',
+                  fontSize: isMobile ? 9 : 10,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span style={{ fontSize: isMobile ? 10 : 12 }}>≡</span>
+                <span style={{ display: isMobile ? 'none' : 'inline' }}>Bar</span>
+              </motion.button>
+              <motion.button
+                onClick={() => setDisplayMode('graph')}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  padding: isMobile ? '5px 10px' : '6px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: displayMode === 'graph'
+                    ? 'linear-gradient(145deg, #5B005F, #8C4C8F)'
+                    : 'transparent',
+                  color: displayMode === 'graph' ? C.white : C.n500,
+                  fontFamily: 'Poppins',
+                  fontSize: isMobile ? 9 : 10,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span style={{ fontSize: isMobile ? 10 : 12 }}>📊</span>
+                <span style={{ display: isMobile ? 'none' : 'inline' }}>Grafik</span>
+              </motion.button>
+            </div>
           </div>
         </motion.div>
 
@@ -543,7 +1102,7 @@ export default function AdminDashboardPage({ user, navigate }) {
           >{statsError}</motion.div>
         )}
 
-        {/* ── HERO STAT CARD — claymorphism floating card ── */}
+        {/* ── HERO STAT CARD — with display mode toggle ── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -551,8 +1110,8 @@ export default function AdminDashboardPage({ user, navigate }) {
           style={{
             background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
             borderRadius: cardRadius,
-            padding: cardPadding,
-            boxShadow: '12px 12px 28px rgba(60, 10, 99, 0.12), -6px -6px 16px rgba(255, 255, 255, 0.95)',
+            padding: isMobile ? '12px' : '16px',
+            boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
             marginBottom: 14,
             border: '1px solid rgba(139, 92, 246, 0.08)',
             position: 'relative',
@@ -568,168 +1127,254 @@ export default function AdminDashboardPage({ user, navigate }) {
             pointerEvents: 'none',
           }} />
 
-          {/* Stats row - responsive layout */}
-          <div style={{
-            display: 'flex',
-            alignItems: isMobile ? 'flex-start' : 'stretch',
-            gap: 0,
-            marginBottom: 12,
-            position: 'relative',
-            flexDirection: isMobile ? 'column' : 'row',
-          }}>
-            {/* Omset */}
-            <div style={{
-              flex: 1,
-              paddingRight: isMobile ? 0 : 14,
-              marginBottom: isMobile ? 12 : 0,
-              borderRight: isMobile ? 'none' : '1.5px solid rgba(139, 92, 246, 0.2)',
-              borderBottom: isMobile ? '1.5px solid rgba(139, 92, 246, 0.2)' : 'none',
-              paddingBottom: isMobile ? 12 : 0,
-            }}>
+          {/* ── BAR MODE: Compact horizontal stats ── */}
+          <AnimatePresence mode="wait">
+            {displayMode === 'bar' && (
               <motion.div
-                initial={{ opacity: 0, x: -10 }}
+                key="bar-mode"
+                initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
               >
+                {/* Main stats - 2 column grid */}
                 <div style={{
-                  width: isMobile ? 24 : 28,
-                  height: isMobile ? 24 : 28,
-                  borderRadius: isMobile ? 8 : 10,
-                  background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '4px 4px 10px rgba(109, 40, 217, 0.15)'
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr',
+                  gap: isMobile ? 10 : 14,
+                  marginBottom: isMobile ? 10 : 12,
                 }}>
-                  <FileText size={isMobile ? 12 : 14} color={C.primaryDark} strokeWidth={2.5} />
-                </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: fontSize.label, fontWeight: 600, color: C.primaryDark }}>Omset {periodLabel}</span>
-              </motion.div>
-              <div style={{ fontFamily: 'Poppins', fontSize: fontSize.stat, fontWeight: 800, color: C.primaryDark, letterSpacing: '-0.5px' }}>{rp(omset)}</div>
-            </div>
-
-            {/* Pelunasan */}
-            <div style={{
-              flex: 1,
-              paddingLeft: isMobile ? 0 : 14,
-              paddingTop: isMobile ? 12 : 0,
-            }}>
-              <motion.div
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}
-              >
-                <div style={{
-                  width: isMobile ? 24 : 28,
-                  height: isMobile ? 24 : 28,
-                  borderRadius: isMobile ? 8 : 10,
-                  background: 'linear-gradient(145deg, #D1FAE5, #A7F3D0)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '4px 4px 10px rgba(5, 150, 105, 0.15)'
-                }}>
-                  <DollarSign size={isMobile ? 12 : 14} color={C.success} strokeWidth={2.5} />
-                </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: fontSize.label, fontWeight: 600, color: C.success }}>Pelunasan</span>
-              </motion.div>
-              <div style={{ fontFamily: 'Poppins', fontSize: fontSize.stat, fontWeight: 800, color: C.success, letterSpacing: '-0.5px' }}>{rp(pelunasan)}</div>
-            </div>
-          </div>
-
-          {piutang > 0 && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              style={{
-                background: C.warningBg,
-                borderRadius: 12,
-                padding: '10px 14px',
-                marginBottom: 12,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
-                flexWrap: 'wrap',
-                gap: 8,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 22, height: 22, borderRadius: 8,
-                  background: C.warningBg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <AlertCircle size={12} color={C.warning} strokeWidth={2.5} />
-                </div>
-                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.warningDark }}>Piutang</span>
-              </div>
-              <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.warningDark }}>{rp(piutang)}</span>
-            </motion.div>
-          )}
-
-          {/* Stat row */}
-          <div style={{
-            display: 'flex',
-            gap: 0,
-            borderTop: '1px solid rgba(139, 92, 246, 0.08)',
-            paddingTop: 12,
-            flexWrap: 'wrap',
-          }}>
-            {[
-              { label: 'Nota', val: transaksi, color: C.info, icon: <LayoutGrid size={12} strokeWidth={2.5} /> },
-              { label: 'Proses', val: stats.pending_transactions, color: C.info, icon: <Clock size={12} strokeWidth={2.5} /> },
-              { label: 'Customer', val: stats.total_customers, color: C.success, icon: <User size={12} strokeWidth={2.5} /> },
-            ].map((s, i) => (
-              <motion.div
-                key={s.label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25 + i * 0.05 }}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  borderRight: i < 2 && !isMobile ? '1px solid rgba(139, 92, 246, 0.08)' : 'none',
-                  padding: isMobile ? '8px 4px' : '6px 4px 4px',
-                  minWidth: isMobile ? '33.33%' : 'auto',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 4 }}>
+                  {/* Omset Card */}
                   <div style={{
-                    width: 22, height: 22, borderRadius: 8,
-                    background: `${s.color}15`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
+                    borderRadius: 14,
+                    padding: isMobile ? '10px 12px' : '12px 14px',
+                    border: '1px solid rgba(139, 92, 246, 0.1)',
                   }}>
-                    <span style={{ color: s.color }}>{s.icon}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: 8,
+                        background: 'linear-gradient(145deg, #EDE9FE, #DDD6FE)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <FileText size={12} color={C.primaryDark} strokeWidth={2.5} />
+                      </div>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.primaryDark }}>Omset {periodLabel}</span>
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 16 : 20, fontWeight: 800, color: C.primaryDark, letterSpacing: '-0.3px' }}>{rp(omset)}</div>
                   </div>
-                  <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: s.color }}>{s.label}</span>
+
+                  {/* Pelunasan Card */}
+                  <div style={{
+                    background: 'linear-gradient(145deg, #F0FDF4, #D1FAE5)',
+                    borderRadius: 14,
+                    padding: isMobile ? '10px 12px' : '12px 14px',
+                    border: '1px solid rgba(5, 150, 105, 0.1)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: 8,
+                        background: 'linear-gradient(145deg, #D1FAE5, #A7F3D0)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <DollarSign size={12} color={C.success} strokeWidth={2.5} />
+                      </div>
+                      <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.success }}>Pelunasan</span>
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 16 : 20, fontWeight: 800, color: C.success, letterSpacing: '-0.3px' }}>{rp(pelunasan)}</div>
+                  </div>
                 </div>
-                <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 16 : 18, fontWeight: 700, color: C.n800 }}>{s.val}</div>
+
+                {/* Piutang alert */}
+                {piutang > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    style={{
+                      background: C.warningBg,
+                      borderRadius: 10,
+                      padding: '8px 12px',
+                      marginBottom: isMobile ? 10 : 12,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <AlertCircle size={12} color={C.warning} strokeWidth={2.5} />
+                      <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.warningDark }}>Piutang</span>
+                    </div>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.warningDark }}>{rp(piutang)}</span>
+                  </motion.div>
+                )}
+
+                {/* Mini stats row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 8,
+                  paddingTop: isMobile ? 8 : 10,
+                  borderTop: '1px solid rgba(139, 92, 246, 0.08)',
+                }}>
+                  {[
+                    { label: 'Nota', val: transaksi, color: C.primaryDark },
+                    { label: 'Proses', val: stats.pending_transactions, color: C.info },
+                    { label: 'Customer', val: stats.total_customers, color: C.success },
+                  ].map((s) => (
+                    <div key={s.label} style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 13 : 16, fontWeight: 700, color: C.n800 }}>{s.val}</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
-            ))}
-          </div>
+            )}
+
+            {/* ── GRAPH MODE: Stats with mini chart inside card ── */}
+            {displayMode === 'graph' && (
+              <motion.div
+                key="graph-mode"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                {/* Stats + Mini Chart layout */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 1.2fr',
+                  gap: 14,
+                  marginBottom: isMobile ? 10 : 12,
+                }}>
+                  {/* Left: Stats */}
+                  <div>
+                    {/* Omset & Pelunasan */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <FileText size={12} color={C.primaryDark} strokeWidth={2.5} />
+                        <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.primaryDark }}>Omset {periodLabel}</span>
+                      </div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 18 : 22, fontWeight: 800, color: C.primaryDark }}>{rp(omset)}</div>
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <DollarSign size={12} color={C.success} strokeWidth={2.5} />
+                        <span style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.success }}>Pelunasan</span>
+                      </div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 18 : 22, fontWeight: 800, color: C.success }}>{rp(pelunasan)}</div>
+                    </div>
+                    {piutang > 0 && (
+                      <div style={{
+                        background: C.warningBg,
+                        borderRadius: 10,
+                        padding: '6px 10px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.warningDark }}>Piutang</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 700, color: C.warningDark }}>{rp(piutang)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Mini donut chart */}
+                  <div style={{
+                    background: 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
+                    borderRadius: 14,
+                    padding: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid rgba(139, 92, 246, 0.1)',
+                  }}>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n500, marginBottom: 8 }}>Rasio Pelunasan</div>
+                    {/* Simple donut visualization */}
+                    <div style={{ position: 'relative', width: isMobile ? 80 : 100, height: isMobile ? 80 : 100 }}>
+                      <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                        {/* Background circle */}
+                        <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(139, 92, 246, 0.1)" strokeWidth="3" />
+                        {/* Progress circle */}
+                        <motion.circle
+                          cx="18" cy="18" r="15.5"
+                          fill="none"
+                          stroke={C.success}
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeDasharray={`${Math.min(100, Math.round((pelunasan / (omset || 1)) * 100))} 100`}
+                          initial={{ strokeDasharray: '0 100' }}
+                          animate={{ strokeDasharray: `${Math.min(100, Math.round((pelunasan / (omset || 1)) * 100))} 100` }}
+                          transition={{ duration: 0.8, delay: 0.2 }}
+                        />
+                      </svg>
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 14 : 16, fontWeight: 800, color: C.n800 }}>
+                          {Math.min(100, Math.round((pelunasan / (omset || 1)) * 100))}%
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 6 }}>
+                      {rp(pelunasan)} / {rp(omset)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mini stats */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 8,
+                  paddingTop: isMobile ? 8 : 10,
+                  borderTop: '1px solid rgba(139, 92, 246, 0.08)',
+                }}>
+                  {[
+                    { label: 'Nota', val: transaksi, color: C.primaryDark },
+                    { label: 'Proses', val: stats.pending_transactions, color: C.info },
+                    { label: 'Customer', val: stats.total_customers, color: C.success },
+                  ].map((s) => (
+                    <div key={s.label} style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 13 : 16, fontWeight: 700, color: C.n800 }}>{s.val}</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 9, color: C.n500, marginTop: 2 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
-        {/* Phase 4: Dashboard Intelligence Widgets */}
+        {/* ── COMPACT WIDGET GRID (2-3 columns) ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+          gap: 12,
+          marginBottom: 14,
+        }}>
+          {/* Transaction Metrics Widget */}
+          <div>
+            <TransactionMetricsWidget
+              period={metricsPeriod}
+              onPeriodChange={setMetricsPeriod}
+            />
+          </div>
 
-        {/* Transaction Metrics Widget */}
-        <TransactionMetricsWidget
-          period={metricsPeriod}
-          onPeriodChange={setMetricsPeriod}
-        />
-
-        {/* Low Stock Alert Widget */}
-        <LowStockAlertWidget
-          compact={true}
-          maxItems={3}
-          onViewAll={() => navigate('admin_inventory')}
-        />
+          {/* Low Stock Alert Widget */}
+          <div>
+            <LowStockAlertWidget
+              compact={true}
+              maxItems={3}
+              onViewAll={() => navigate('admin_inventory')}
+            />
+          </div>
+        </div>
 
         {/* Daily Target Progress Widget */}
         {targetDaily?.targets && targetDaily.targets.length > 0 && (
@@ -892,226 +1537,112 @@ export default function AdminDashboardPage({ user, navigate }) {
           </motion.div>
         )}
 
-        {/* Outlet Comparison Widget — Phase 4 */}
-        <OutletComparisonWidget
-          onSelectOutlet={(outletId) => {
-            setAdminOutletId(outletId);
-            setPeriod('today');
-          }}
-        />
-
-        {/* Chart Period Selector — claymorphism pill */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          style={{
-            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-            borderRadius: isMobile ? 14 : 16,
-            padding: isMobile ? '12px 14px' : '14px 18px',
-            marginBottom: 14,
-            boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1), -4px -4px 12px rgba(255, 255, 255, 0.95)',
-            border: '1px solid rgba(139, 92, 246, 0.06)',
-          }}
-        >
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 10,
-          }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 12 : 13, fontWeight: 700, color: C.n800 }}>Periode Grafik</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {['7d', '30d', '90d'].map((p) => {
-                const active = chartPeriod === p;
-                const label = p === '7d' ? '7 Hari' : p === '30d' ? '30 Hari' : '90 Hari';
-                return (
-                  <motion.button
-                    key={p}
-                    onClick={() => setChartPeriod(p)}
-                    whileTap={{ scale: 0.95 }}
-                    style={{
-                      padding: isMobile ? '5px 10px' : '6px 14px',
-                      borderRadius: isMobile ? 8 : 10,
-                      border: 'none',
-                      background: active
-                        ? 'linear-gradient(145deg, #8B5CF6, #5B005F)'
-                        : 'linear-gradient(145deg, #F8F4FF, #EDE9FE)',
-                      color: active ? C.white : C.primaryDark,
-                      fontFamily: 'Poppins',
-                      fontSize: isMobile ? 10 : 11,
-                      fontWeight: active ? 700 : 600,
-                      cursor: 'pointer',
-                      boxShadow: active
-                        ? '0 4px 12px rgba(110, 46, 120, 0.3)'
-                        : '2px 2px 6px rgba(109, 40, 217, 0.1)',
-                    }}
-                  >{label}</motion.button>
-                );
-              })}
-            </div>
+        {/* ── CHARTS GRID (2 columns on desktop) ── */}
+        {/* Chart Period Selector — compact inline */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 10,
+          marginBottom: 12,
+        }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: isMobile ? 11 : 12, fontWeight: 700, color: C.n800 }}>📊 Grafik Periode</div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {['7d', '30d', '90d'].map((p) => {
+              const active = chartPeriod === p;
+              const label = p === '7d' ? '7H' : p === '30d' ? '30H' : '90H';
+              return (
+                <motion.button
+                  key={p}
+                  onClick={() => setChartPeriod(p)}
+                  whileTap={{ scale: 0.95 }}
+                  style={{
+                    padding: isMobile ? '4px 8px' : '5px 12px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: active
+                      ? 'linear-gradient(145deg, #5B005F, #8C4C8F)'
+                      : 'rgba(139, 92, 246, 0.08)',
+                    color: active ? C.white : C.n500,
+                    fontFamily: 'Poppins',
+                    fontSize: isMobile ? 9 : 10,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >{label}</motion.button>
+              );
+            })}
           </div>
-        </motion.div>
+        </div>
 
-        {/* Outlet Performance Chart — claymorphism card */}
+        {/* ═══ TREN + METODE BAYAR — 1 CARD FULL WIDTH ═══ */}
         <motion.div
-          initial={{ opacity: 0, y: 15 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
           style={{
             background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
             borderRadius: sectionCardRadius,
-            padding: isMobile ? '12px 12px' : '14px 16px',
-            marginBottom: 14,
-            boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+            padding: isMobile ? '14px' : '16px',
+            boxShadow: '6px 6px 16px rgba(60, 10, 99, 0.08), -3px -3px 10px rgba(255, 255, 255, 0.95)',
             border: '1px solid rgba(139, 92, 246, 0.08)',
-            overflowX: 'auto',
+            marginBottom: 14,
           }}
         >
           <div style={{
-            fontFamily: 'Poppins',
-            fontSize: isMobile ? 12 : 13,
-            fontWeight: 700,
-            color: C.n800,
-            marginBottom: 12,
-            whiteSpace: 'nowrap'
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+            gap: 16,
           }}>
-            🏪 Performa Omzet per Outlet
-          </div>
-          {loadingCharts ? (
-            <div style={{ textAlign: 'center', padding: '32px 0' }}>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                style={{
-                  width: 28, height: 28, border: `3px solid ${C.n200}`,
-                  borderTopColor: C.primary,
-                  borderRadius: '50%',
-                  margin: '0 auto 10px',
-                }}
-              />
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500 }}>Memuat grafik...</span>
+            {/* Left: Tren Bayar */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n800 }}>📈 Tren Bayar</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 8, color: C.n500 }}>14 hari terakhir</span>
+              </div>
+              <PaymentTrendChart days={14} height={isMobile ? 120 : 140} />
             </div>
-          ) : outletPerformance.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>Belum ada data transaksi</div>
-          ) : (
-            <>
-              {outletPerformance.filter(o => o.isActive).length > 0 && (
-                <div style={{ marginBottom: 14, minWidth: isMobile ? 300 : 'auto' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.success, marginBottom: 6 }}>Aktif</div>
-                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 180}>
-                    <BarChart data={outletPerformance.filter(o => o.isActive)} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : {}}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.08)" />
-                      <XAxis dataKey="outletName" tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} interval={isMobile ? 'preserveStartEnd' : 0} />
-                      <YAxis tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} width={isMobile ? 40 : 60} />
-                      <Tooltip
-                        formatter={(value) => rp(value)}
-                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)', fontSize: 11 }}
-                      />
-                      <Bar dataKey="totalRevenue" fill={C.primary} radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-              {outletPerformance.filter(o => !o.isActive).length > 0 && (
-                <div style={{ minWidth: isMobile ? 300 : 'auto' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, marginBottom: 6 }}>Non Aktif</div>
-                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 180}>
-                    <BarChart data={outletPerformance.filter(o => !o.isActive)} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : {}}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={C.n200} />
-                      <XAxis dataKey="outletName" tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} interval={isMobile ? 'preserveStartEnd' : 0} />
-                      <YAxis tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} width={isMobile ? 40 : 60} />
-                      <Tooltip
-                        formatter={(value) => rp(value)}
-                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)', fontSize: 11 }}
-                      />
-                      <Bar dataKey="totalRevenue" fill={C.n500} radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </>
-          )}
-        </motion.div>
 
-        {/* Cash Deposit Status Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          style={{
-            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
-            borderRadius: sectionCardRadius,
-            padding: isMobile ? '12px 12px' : '14px 16px',
-            marginBottom: 14,
-            boxShadow: '10px 10px 24px rgba(60, 10, 99, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
-            border: '1px solid rgba(139, 92, 246, 0.08)',
-            overflowX: 'auto',
-          }}
-        >
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: isMobile ? 12 : 13,
-            fontWeight: 700,
-            color: C.n800,
-            marginBottom: 12,
-            whiteSpace: 'nowrap'
-          }}>
-            💵 Status Setoran Kas per Outlet
+            {/* Right: Metode Bayar */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n800 }}>💳 Metode Bayar</span>
+                <span style={{ fontFamily: 'Poppins', fontSize: 8, color: C.n500 }}>Terbaru</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { method: 'Tunai', count: 12, amount: 2450000, color: C.success, icon: '💵' },
+                  { method: 'QRIS', count: 8, amount: 1800000, color: C.info, icon: '📱' },
+                  { method: 'Transfer', count: 5, amount: 950000, color: C.primaryDark, icon: '🏦' },
+                  { method: 'Debit', count: 3, amount: 450000, color: C.warning, icon: '💳' },
+                ].map((item) => (
+                  <div key={item.method} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 10,
+                      background: `${item.color}18`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, flexShrink: 0,
+                      boxShadow: `2px 2px 6px ${item.color}20`,
+                    }}>
+                      {item.icon}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.n800 }}>{item.method}</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 700, color: item.color }}>{rp(item.amount)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 8, color: C.n500 }}>{item.count}x transaksi</span>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 8, color: C.n500 }}>{Math.round((item.amount / 5650000) * 100)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          {loadingCharts ? (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>Memuat grafik...</div>
-          ) : cashDepositStatus.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: C.n500, fontFamily: 'Poppins', fontSize: 12 }}>Belum ada data setoran</div>
-          ) : (
-            <>
-              {cashDepositStatus.filter(o => o.isActive).length > 0 && (
-                <div style={{ marginBottom: 14, minWidth: isMobile ? 300 : 'auto' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.success, marginBottom: 6 }}>Aktif</div>
-                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 180}>
-                    <BarChart data={cashDepositStatus.filter(o => o.isActive)} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : {}}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(139, 92, 246, 0.08)" />
-                      <XAxis dataKey="outletName" tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} interval={isMobile ? 'preserveStartEnd' : 0} />
-                      <YAxis tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} width={isMobile ? 40 : 60} />
-                      <Tooltip
-                        formatter={(value) => rp(value)}
-                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)', fontSize: 11 }}
-                      />
-                      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: isMobile ? 8 : 10 }} />
-                      <Bar dataKey="approvedAmount" stackId="a" name="Disetujui" fill={C.success} radius={[0, 0, 8, 8]} />
-                      <Bar dataKey="pendingAmount" stackId="a" name="Menunggu" fill={C.warning} />
-                      <Bar dataKey="rejectedAmount" stackId="a" name="Ditolak" fill={C.danger} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-              {cashDepositStatus.filter(o => !o.isActive).length > 0 && (
-                <div style={{ minWidth: isMobile ? 300 : 'auto' }}>
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n500, marginBottom: 6 }}>Non Aktif</div>
-                  <ResponsiveContainer width="100%" height={isMobile ? 160 : 180}>
-                    <BarChart data={cashDepositStatus.filter(o => !o.isActive)} margin={isMobile ? { top: 5, right: 10, left: -20, bottom: 5 } : {}}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={C.n200} />
-                      <XAxis dataKey="outletName" tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} interval={isMobile ? 'preserveStartEnd' : 0} />
-                      <YAxis tick={{ fontSize: isMobile ? 8 : 10, fontFamily: 'Poppins' }} tickFormatter={(val) => rp(val).replace('Rp ', '')} width={isMobile ? 40 : 60} />
-                      <Tooltip
-                        formatter={(value) => rp(value)}
-                        contentStyle={{ fontFamily: 'Poppins', borderRadius: 12, border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '8px 8px 20px rgba(60, 10, 99, 0.1)', fontSize: 11 }}
-                      />
-                      <Legend wrapperStyle={{ fontFamily: 'Poppins', fontSize: isMobile ? 8 : 10 }} />
-                      <Bar dataKey="approvedAmount" stackId="a" name="Disetujui" fill={C.successBg} radius={[0, 0, 8, 8]} />
-                      <Bar dataKey="pendingAmount" stackId="a" name="Menunggu" fill={C.warningBg} />
-                      <Bar dataKey="rejectedAmount" stackId="a" name="Ditolak" fill={C.dangerBg} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </>
-          )}
         </motion.div>
-
-        {/* Payment Trend Chart — Phase 4 */}
-        <PaymentTrendChart days={14} height={isMobile ? 180 : 200} />
 
         {/* ═══ MANAJEMEN ═══ — claymorphism cards - responsive grid */}
         <CollapsibleSection title="Manajemen" icon="⚙️" defaultOpen={true}>

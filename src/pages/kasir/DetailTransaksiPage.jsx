@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import {
   ArrowLeft, Copy, Check, Camera, Plus, Printer, RotateCcw,
@@ -13,6 +14,7 @@ import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
 import { uploadImage } from '../../utils/imageUpload';
 import RefundCancelModal from '../../components/RefundCancelModal';
 import { useResponsive } from '../../utils/hooks';
+import { printReceipt } from '../../utils/printService';
 
 // ─── Design tokens (Waschen Design Template v3.0) ──────────────────────────
 const FONT = "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -98,19 +100,14 @@ function useGlassStyles() {
   }, []);
 }
 
-// ─── Reusable clay/glass components ─────────────────────────────────────
+// ─── Reusable components ──────────────────────────────────────────────
 
-function ClayCard({ children, style, padding = 20, onClick, delay = 0 }) {
+// Section wrapper - clean, no box shadows on desktop
+function SectionBox({ children, delay = 0, style }) {
   return (
     <div
-      className={`wd-clay-card wd-anim${onClick ? ' wd-tappable' : ''}`}
-      onClick={onClick}
+      className="wd-anim"
       style={{
-        background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint}66)`,
-        borderRadius: 20,
-        padding,
-        boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.10), -5px -5px 14px rgba(255, 255, 255, 0.95)',
-        border: '1px solid rgba(139, 92, 246, 0.08)',
         animationDelay: `${delay}s`,
         ...style,
       }}
@@ -120,15 +117,95 @@ function ClayCard({ children, style, padding = 20, onClick, delay = 0 }) {
   );
 }
 
+// Section label header
+function SectionLabel({ children, icon }) {
+  return (
+    <span style={{
+      fontFamily: FONT,
+      fontSize: 11,
+      fontWeight: 700,
+      color: C.n500,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+    }}>
+      {icon}
+      {children}
+    </span>
+  );
+}
+
+// Clean row for data
+function DataRow({ label, value, valueColor, small, borderTop }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: small ? '6px 0' : '10px 0',
+      borderTop: borderTop ? `1px solid ${C.n100}` : 'none',
+    }}>
+      <span style={{ fontFamily: FONT, fontSize: small ? 12 : 14, color: C.n500 }}>
+        {label}
+      </span>
+      <span style={{ fontFamily: FONT, fontSize: small ? 13 : 14, fontWeight: 600, color: valueColor || C.n900, textAlign: 'right' }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// Info chip/badge
+function InfoChip({ label, value, color = C.primary }) {
+  return (
+    <div style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '6px 12px',
+      background: `${color}15`,
+      borderRadius: 10,
+      border: `1px solid ${color}30`,
+    }}>
+      <span style={{ fontFamily: FONT, fontSize: 10.5, color: color, fontWeight: 600 }}>{label}</span>
+      <span style={{ fontFamily: FONT, fontSize: 12.5, color: C.n900, fontWeight: 700 }}>{value}</span>
+    </div>
+  );
+}
+
+function ClayCard({ children, style, padding = 20, onClick, delay = 0 }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0, transition: { delay: delay * 0.1 } }}
+      whileHover={onClick ? { y: -3, scale: 1.01 } : {}}
+      whileTap={onClick ? { scale: 0.98 } : {}}
+      onClick={onClick}
+      style={{
+        background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint})`,
+        borderRadius: 18,
+        padding,
+        boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+        border: '1px solid rgba(139, 92, 246, 0.08)',
+        ...style,
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 function ClayIcon({ icon, color = C.primary, size = 44 }) {
   return (
     <div style={{
       width: size, height: size,
       borderRadius: size * 0.28,
-      background: `linear-gradient(145deg, ${color}22, ${color}0a)`,
+      background: `linear-gradient(145deg, ${color}20, ${color}08)`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       color, flexShrink: 0,
-      boxShadow: `3px 3px 8px ${color}15, -1px -1px 4px rgba(255,255,255,0.9)`,
+      boxShadow: `3px 3px 8px ${color}15, -1px -1px 4px rgba(255, 255, 255, 0.9)`,
     }}>
       {icon}
     </div>
@@ -185,14 +262,16 @@ function WdBtn({ children, onClick, variant = 'primary', fullWidth, style, disab
     },
   };
   return (
-    <button
-      className="wd-btn"
+    <motion.button
+      whileHover={disabled ? {} : { scale: 1.02, y: -1 }}
+      whileTap={disabled ? {} : { scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
       onClick={onClick}
       disabled={disabled}
       style={{
         width: fullWidth ? '100%' : 'auto',
         height: 50, padding: '0 22px',
-        borderRadius: 15,
+        borderRadius: 14,
         fontFamily: FONT, fontSize: 14, fontWeight: 600,
         display: 'inline-flex', alignItems: 'center',
         justifyContent: 'center', gap: 8,
@@ -202,7 +281,7 @@ function WdBtn({ children, onClick, variant = 'primary', fullWidth, style, disab
       }}
     >
       {children}
-    </button>
+    </motion.button>
   );
 }
 
@@ -324,7 +403,6 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
   const [copied, setCopied] = useState(false);
   const [showPayHistory, setShowPayHistory] = useState(false);
   const [showRequestSheet, setShowRequestSheet] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Copy ID
   const handleCopyId = () => {
@@ -590,22 +668,17 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
     {
       key: 'edit', icon: <Pencil size={18} />, color: C.primary,
       title: 'Edit Transaksi', desc: 'Ubah detail layanan, qty, atau harga',
-      onClick: () => setShowRequestSheet(false),
+      onClick: () => {
+        setShowRequestSheet(false);
+        navigate('adjust_nota', { id: tx.id || tx.transactionNo });
+      },
     },
     {
       key: 'refund', icon: <RotateCcw size={18} />, color: C.warning,
       title: 'Ajukan Refund', desc: 'Kembalikan sebagian / seluruh pembayaran',
       onClick: () => {
         setShowRequestSheet(false);
-        openRefundModal();
-      },
-    },
-    {
-      key: 'hapus', icon: <Trash2 size={18} />, color: C.danger,
-      title: 'Ajukan Hapus', desc: 'Hapus transaksi ini secara permanen',
-      onClick: () => {
-        setShowRequestSheet(false);
-        setConfirmDelete(true);
+        navigate('ajuakan_refund', { id: tx.id || tx.transactionNo });
       },
     },
   ];
@@ -627,7 +700,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
       background: 'var(--glass-bg)',
       fontFamily: FONT,
     }}>
-      <div style={{ width: '100%', paddingBottom: isMobile ? 210 : 200 }}>
+      <div style={{ width: '100%', paddingBottom: isMobile ? 90 : 90 }}>
 
         {/* ── Header hero with blob gradient ───────────────────────── */}
         <div className="wd-page-header">
@@ -734,496 +807,405 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
         </div>
 
         {/* ── Body ─────────────────────────────────────────────────── */}
-        <div style={{ padding: '18px 24px',
-        display: 'grid',
-        gap: 16,
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
-        alignItems: 'start' }}>
+        <div style={{
+          maxWidth: 1400,
+          margin: '0 auto',
+          padding: '18px 24px',
+          paddingBottom: isMobile ? 'max(80px, calc(60px + env(safe-area-inset-bottom, 0px)))' : 80,
+        }}>
 
-          {/* Status Pengerjaan */}
-          <ClayCard delay={0.02}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
-              <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: C.n500, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Status Pengerjaan
-              </span>
-              <span style={{ fontFamily: FONT, fontSize: 12, color: C.n500 }}>
-                Estimasi <b style={{ color: C.n600 }}>{tx.estimatedDoneAt
-                  ? new Date(tx.estimatedDoneAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                  : tx.dueDate || '-'}</b>
-              </span>
-            </div>
-
-            <ProgressStepper steps={progressSteps} currentStatus={tx.status || 'diterima'} />
-
-            {tx.status === 'diterima' || tx.status === 'baru' ? (
-              <div style={{
-                marginTop: 16, display: 'flex', alignItems: 'center', gap: 10,
-                background: C.warningBg, borderRadius: 14, padding: '12px 14px',
-              }}>
-                <AlertTriangle size={16} color={C.warningDark} style={{ flexShrink: 0 }} />
-                <span style={{ fontFamily: FONT, fontSize: 12.5, color: C.warningDark, fontWeight: 500 }}>
-                  Belum ada layanan yang dikerjakan tim produksi
-                </span>
+          {/* ── Top: Photos + Status Pengerjaan ────────────────────── */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr',
+            gap: 16,
+            marginBottom: 16,
+          }}>
+            {/* Foto Produksi */}
+            <div style={{
+              background: C.white,
+              borderRadius: 18,
+              padding: 20,
+              boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+              border: `1px solid ${C.n100}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <ClayIcon icon={<Camera size={17} />} size={36} />
+                <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.n900 }}>Bukti Foto</span>
               </div>
-            ) : null}
-          </ClayCard>
-
-          {/* Rincian Layanan */}
-          <ClayCard delay={0.05}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <ClayIcon icon={<Package size={17} />} size={36} />
-                <span style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: C.n900 }}>Rincian Layanan</span>
-              </div>
-              <span style={{ fontFamily: FONT, fontSize: 12, color: C.n400 }}>{tx.items?.length || 0} item</span>
-            </div>
-
-            {/* Toggle items */}
-            <button
-              onClick={() => setItemsOpen(v => !v)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: itemsOpen ? 12 : 0,
-              }}
-            >
-              <span style={{ fontFamily: FONT, fontSize: 11, color: C.n500 }}>
-                Ketuk layanan untuk lihat detail & linimasanya
-              </span>
-              <ChevronDown size={16} color={C.n400} style={{ transform: itemsOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
-            </button>
-
-            {itemsOpen && (
-              <>
-                {(tx.items || []).map((item, index) => {
-                  const itemStatus = tx.status === 'selesai' || tx.status === 'diambil' ? 'Selesai'
-                    : tx.status === 'proses' ? 'Dalam proses'
-                    : 'Menunggu';
-                  const itemStatusColor = tx.status === 'selesai' || tx.status === 'diambil' ? C.success
-                    : tx.status === 'proses' ? C.info : C.n600;
-                  const pkgNeededVal = Number(item.packingNeeded) || 1;
-                  const pkgDoneVal = Number(item.packingDone) || 0;
-                  return (
-                    <div key={item.id || `item-${index}`} className="wd-list-row" style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      gap: 12, background: `linear-gradient(145deg, ${C.white}, ${C.primaryTint}55)`,
-                      borderRadius: 16, padding: '14px 16px', marginBottom: index < tx.items.length - 1 ? 8 : 0,
-                      boxShadow: '4px 4px 10px rgba(110,46,120,0.06), -2px -2px 8px rgba(255,255,255,0.9)',
-                      border: '1px solid rgba(139,92,246,0.06)',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-                        <div style={{
-                          width: 48, height: 48, borderRadius: 13,
-                          background: `linear-gradient(145deg, ${C.primary}20, ${C.primary}08)`,
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                          color: C.primary, flexShrink: 0,
-                        }}>
-                          <span style={{ fontFamily: FONT, fontSize: 15, fontWeight: 800, lineHeight: 1 }}>
-                            {item.unit === 'm2' ? Number(item.qty).toFixed(2) : item.qty}
-                          </span>
-                          <span style={{ fontFamily: FONT, fontSize: 9, lineHeight: 1, marginTop: 2 }}>
-                            {item.unit === 'm2' ? 'm²' : item.unit}
-                          </span>
-                        </div>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.n900 }}>
-                              {item.name || item.serviceName}
-                            </span>
-                            {item.express && <span style={{ background: C.warningBg, color: C.warning, fontFamily: FONT, fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999 }}>⚡</span>}
-                          </div>
-                          {item.unit === 'm2' && item.carpetPanjangCm && item.carpetLebarCm && (
-                            <div style={{ fontFamily: FONT, fontSize: 10, color: C.info, marginTop: 2 }}>
-                              📏 {item.carpetPanjangCm} cm × {item.carpetLebarCm} cm
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, flexWrap: 'wrap' }}>
-                            <Chip label={itemStatus} color={itemStatusColor} />
-                            <span style={{ fontFamily: FONT, fontSize: 11.5, color: C.n400 }}>📦 {pkgDoneVal}/{pkgNeededVal} paket</span>
-                            {item.packingNotes && <span style={{ fontFamily: FONT, fontSize: 11, color: C.warning }}>· {item.packingNotes}</span>}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.n900 }}>
-                          {rp(getTransactionItemLineTotal(item))}
-                        </span>
-                        <button
-                          onClick={() => openPackingModal(item)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6, display: 'flex', alignItems: 'center' }}
-                        >
-                          <Pencil size={15} color={C.primary} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${C.n200}` }}>
-                  <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.n600 }}>Total</span>
-                  <span style={{ fontFamily: FONT, fontSize: 15.5, fontWeight: 800, color: C.n900 }}>{rp(tx.total || 0)}</span>
+              {hasConditionPhotos ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {(tx.conditionPhotos || []).filter(p => p.url && p.url !== 'note_only').map((p) => (
+                    <a key={p.id} href={p.url} target="_blank" rel="noreferrer">
+                      <img src={p.url} alt="" style={{ width: 60, height: 60, borderRadius: 12, objectFit: 'cover', border: `1px solid ${C.n100}` }} />
+                    </a>
+                  ))}
                 </div>
-              </>
-            )}
-          </ClayCard>
-
-          {/* Pembayaran */}
-          <ClayCard delay={0.08}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <ClayIcon icon={<DollarSign size={17} />} size={36} />
-                <span style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: C.n900 }}>Pembayaran</span>
-              </div>
-              <Chip label={payChip.label} color={payChip.color} />
+              ) : (
+                <div style={{ textAlign: 'center', padding: '16px 0', color: C.n400 }}>
+                  <Camera size={28} />
+                  <p style={{ fontFamily: FONT, fontSize: 12, marginTop: 6 }}>Belum ada foto</p>
+                </div>
+              )}
+              <button onClick={handleAddPhoto} style={{
+                marginTop: 12, width: '100%', padding: '10px 12px',
+                background: C.primaryTint, border: 'none', borderRadius: 12,
+                fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.primary, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                <Plus size={14} /> Tambah Foto
+              </button>
             </div>
 
-            {/* Payment items */}
-            {(tx.items || []).map((item, i) => (
-              <Row key={i} small
-                label={`${item.qty}x — ${item.name || item.serviceName}`}
-                value={rp(getTransactionItemLineTotal(item))}
-              />
-            ))}
-            <Row small label="Sub-Total" value={rp(tx.subtotal || tx.total || 0)} />
-            {tx.deliveryFee > 0 && <Row small label="Biaya Kirim" value={rp(tx.deliveryFee)} />}
-            <div style={{ borderTop: `1px dashed ${C.n200}`, margin: '4px 0' }} />
-            <Row small label="Grand Total" value={rp(tx.total || 0)} valueColor={C.primary} />
-            <div style={{ borderTop: `1px dashed ${C.n200}`, margin: '4px 0' }} />
-            <Row small label="Terbayar" value={rp(tx.paidAmount || 0)} />
-            <Row small label="Sisa tagihan" value={rp(balanceDue)} valueColor={needsSettlement ? C.danger : C.success} />
-            <Row small label="Metode utama" value={PAY_METHOD_LABEL[tx.payMethod] || tx.payMethod || '-'} />
-
-            {needsSettlement && (
-              <div style={{
-                marginTop: 10, display: 'flex', alignItems: 'center', gap: 8,
-                background: C.dangerBg, borderRadius: 12, padding: '10px 12px',
-              }}>
-                <AlertTriangle size={15} color={C.dangerDark} style={{ flexShrink: 0 }} />
-                <span style={{ fontFamily: FONT, fontSize: 12, color: C.dangerDark, fontWeight: 500 }}>
-                  Sisa <strong>{rp(balanceDue)}</strong> belum dibayar — klik "Lunasi" di bawah untuk catat pembayaran.
+            {/* Status Pengerjaan */}
+            <div style={{
+              background: C.white,
+              borderRadius: 18,
+              padding: 20,
+              boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+              border: `1px solid ${C.n100}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: C.n500, textTransform: 'uppercase', letterSpacing: 0.5 }}>Status Pengerjaan</span>
+                <span style={{ fontFamily: FONT, fontSize: 11, color: C.n400 }}>
+                  Est. {tx.estimatedDoneAt ? new Date(tx.estimatedDoneAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-'}
                 </span>
               </div>
-            )}
+              <ProgressStepper steps={progressSteps} currentStatus={tx.status || 'diterima'} />
+              {tx.status === 'diterima' || tx.status === 'baru' ? (
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, background: C.warningBg, borderRadius: 10, padding: '8px 12px' }}>
+                  <AlertTriangle size={14} color={C.warningDark} />
+                  <span style={{ fontFamily: FONT, fontSize: 11.5, color: C.warningDark }}>Belum dikerjakan</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
 
-            {/* Payment history toggle */}
-            {(tx.payments || []).length > 0 && (
-              <>
+          {/* ── Main Content: Services + Info + Actions ────────────── */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 280px',
+            gap: 16,
+            marginBottom: 16,
+          }}>
+            {/* Left: Services + Payment + Order Info */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Rincian Layanan */}
+              <div style={{
+                background: C.white,
+                borderRadius: 18,
+                padding: 20,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                border: `1px solid ${C.n100}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <ClayIcon icon={<Package size={17} />} size={36} />
+                    <span style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: C.n900 }}>Rincian Layanan</span>
+                  </div>
+                  <span style={{ fontFamily: FONT, fontSize: 12, color: C.n400 }}>{tx.items?.length || 0} item</span>
+                </div>
+
+                {/* Toggle items */}
                 <button
-                  onClick={() => setShowPayHistory(v => !v)}
-                  className="wd-chip-btn"
+                  onClick={() => setItemsOpen(v => !v)}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    background: 'transparent', border: 'none', borderTop: `1px dashed ${C.n200}`,
-                    paddingTop: 14, marginTop: 8,
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: itemsOpen ? 12 : 0,
                   }}
                 >
-                  <span style={{ fontFamily: FONT, fontSize: 12.5, fontWeight: 700, color: C.n500 }}>Riwayat Pembayaran</span>
-                  <ChevronDown size={16} color={C.n400} style={{ transform: showPayHistory ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+                  <span style={{ fontFamily: FONT, fontSize: 11, color: C.n500 }}>
+                    Ketuk untuk lihat detail
+                  </span>
+                  <ChevronDown size={16} color={C.n400} style={{ transform: itemsOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
                 </button>
 
-                {showPayHistory && (tx.payments || []).map((p, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    background: C.n50, borderRadius: 14, padding: '12px 14px', marginTop: 8,
-                  }}>
-                    <div>
-                      <div style={{ fontFamily: FONT, fontSize: 13.5, fontWeight: 600, color: C.n900 }}>
-                        {PAY_METHOD_LABEL[p.method] || p.method}
-                      </div>
-                      <div style={{ fontFamily: MONO, fontSize: 11, color: C.n400 }}>
-                        {p.recordedAt ? new Date(p.recordedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                      </div>
-                    </div>
-                    <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.n900 }}>{rp(p.amount)}</span>
-                  </div>
-                ))}
-              </>
-            )}
-          </ClayCard>
+                {itemsOpen && (
+                  <>
+                    {(tx.items || []).map((item, index) => {
+                      const itemStatus = tx.status === 'selesai' || tx.status === 'diambil' ? 'Selesai'
+                        : tx.status === 'proses' ? 'Diproses'
+                        : 'Menunggu';
+                      const itemStatusColor = tx.status === 'selesai' || tx.status === 'diambil' ? C.success
+                        : tx.status === 'proses' ? C.info : C.n600;
+                      const pkgNeededVal = Number(item.packingNeeded) || 1;
+                      const pkgDoneVal = Number(item.packingDone) || 0;
+                      return (
+                        <div key={item.id || `item-${index}`} className="wd-list-row" style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          gap: 12,
+                          background: C.n50,
+                          borderRadius: 14,
+                          padding: '12px 14px',
+                          marginBottom: 8,
+                          border: `1px solid ${C.n100}`,
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                            <div style={{
+                              width: 44, height: 44, borderRadius: 10,
+                              background: `${C.primary}15`,
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                              color: C.primary, flexShrink: 0,
+                            }}>
+                              <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 800, lineHeight: 1 }}>
+                                {item.unit === 'm2' ? Number(item.qty).toFixed(1) : item.qty}
+                              </span>
+                              <span style={{ fontFamily: FONT, fontSize: 9, lineHeight: 1, marginTop: 2 }}>
+                                {item.unit === 'm2' ? 'm²' : item.unit}
+                              </span>
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.n900 }}>
+                                  {item.name || item.serviceName}
+                                </span>
+                                {item.express && <span style={{ background: C.warningBg, color: C.warning, fontFamily: FONT, fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999 }}>⚡</span>}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                <Chip label={itemStatus} color={itemStatusColor} />
+                                <span style={{ fontFamily: FONT, fontSize: 11, color: C.n400 }}>📦 {pkgDoneVal}/{pkgNeededVal}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.n900 }}>
+                              {rp(getTransactionItemLineTotal(item))}
+                            </span>
+                            <button onClick={() => openPackingModal(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+                              <Pencil size={15} color={C.primary} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
 
-          {/* Informasi Order */}
-          <ClayCard delay={0.11}>
-            <SectionHeader icon={<MapPin size={17} />} title="Informasi Order" />
-            <Row icon={<User size={14} />} label="Kasir Penerima" value={tx.createdBy || tx.kasirName || '-'} />
-            <Row icon={<Store size={14} />} label="Workshop" value={tx.outletName || '-'} />
-            <Row icon={<Calendar size={14} />} label="Order Diterima" value={tx.createdAt
-              ? new Date(tx.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-              : tx.date || '-'} />
-            <Row icon={<Calendar size={14} />} label="Estimasi Selesai" value={tx.estimatedDoneAt
-              ? new Date(tx.estimatedDoneAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-              : tx.dueDate || '-'} />
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', flexWrap: 'wrap', gap: 8 }}>
-              <span style={{ fontFamily: FONT, fontSize: 14, color: C.n500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Truck size={14} />Jenis Pengantaran
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.n900 }}>
-                  {tx.pickupType === 'delivery' ? '🚚 Diantar' : tx.pickupType === 'pickup' ? '🛵 Dijemput' : tx.pickupType === 'both' ? '🔄 Jemput + Antar' : '🏪 Ambil Sendiri'}
-                </span>
-                {tx.status !== 'dibatalkan' && tx.status !== 'diambil' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, paddingTop: 14, borderTop: `1px dashed ${C.n200}` }}>
+                      <span style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.n600 }}>Total</span>
+                      <span style={{ fontFamily: FONT, fontSize: 16, fontWeight: 800, color: C.n900 }}>{rp(tx.total || 0)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Pembayaran */}
+              <div style={{
+                background: C.white,
+                borderRadius: 18,
+                padding: 20,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                border: `1px solid ${C.n100}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: C.n500, textTransform: 'uppercase', letterSpacing: 0.5 }}>Pembayaran</span>
+                  <Chip label={payChip.label} color={payChip.color} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <DataRow small label="Sub Total" value={rp(tx.subtotal || tx.total)} />
+                  {tx.deliveryFee > 0 && <DataRow small label="Ongkir" value={rp(tx.deliveryFee)} />}
+                  {balanceDue > 0 && <DataRow small label="Sisa" value={rp(balanceDue)} valueColor={C.danger} />}
+                </div>
+                {needsSettlement && (
+                  <div style={{ marginTop: 10, padding: '8px 10px', background: C.dangerBg, borderRadius: 10 }}>
+                    <span style={{ fontFamily: FONT, fontSize: 11.5, color: C.dangerDark }}>⚠️ Belum lunas — tap "Lunasi" untuk bayar</span>
+                  </div>
+                )}
+                {(tx.payments || []).length > 0 && (
                   <button
-                    onClick={openDeliveryModal}
-                    className="wd-chip-btn"
+                    onClick={() => setShowPayHistory(v => !v)}
                     style={{
-                      fontFamily: FONT, fontSize: 12, fontWeight: 700,
-                      color: C.primary, background: C.primaryTint,
-                      border: 'none', borderRadius: 9, padding: '5px 11px',
+                      marginTop: 10, background: 'none', border: `1px dashed ${C.n200}`, borderRadius: 10,
+                      padding: '8px 12px', width: '100%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     }}
                   >
-                    Ubah
+                    <span style={{ fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.n500 }}>Riwayat Pembayaran</span>
+                    <ChevronDown size={14} color={C.n400} style={{ transform: showPayHistory ? 'rotate(180deg)' : 'none' }} />
+                  </button>
+                )}
+                {showPayHistory && (tx.payments || []).map((p, i) => (
+                  <div key={i} style={{ marginTop: 8, padding: '8px 10px', background: C.n50, borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.n800 }}>{PAY_METHOD_LABEL[p.method] || p.method}</span>
+                      <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: C.n900 }}>{rp(p.amount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Info Order */}
+              <div style={{
+                background: C.white,
+                borderRadius: 18,
+                padding: 20,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                border: `1px solid ${C.n100}`,
+              }}>
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ fontFamily: FONT, fontSize: 12, fontWeight: 700, color: C.n500, textTransform: 'uppercase', letterSpacing: 0.5 }}>Info Order</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <DataRow small label="Kasir" value={tx.createdBy || tx.kasirName || '-'} />
+                  <DataRow small label="Outlet" value={tx.outletName || '-'} />
+                  <DataRow small label="Tgl Masuk" value={tx.createdAt ? new Date(tx.createdAt).toLocaleString('id-ID', { day: '2-digit', month: 'short' }) : '-'} />
+                  <DataRow small label="Tipe" value={tx.isExpress ? '⚡ Express' : '📦 Reguler'} />
+                  <DataRow small label="Pengantaran" value={tx.pickupType === 'delivery' ? '🚚 Antar' : tx.pickupType === 'pickup' ? '🛵 Jemput' : '🏪 Ambil'} />
+                </div>
+                {tx.status !== 'dibatalkan' && tx.status !== 'diambil' && (
+                  <button onClick={openDeliveryModal} style={{
+                    marginTop: 12, width: '100%', padding: '10px 12px',
+                    background: C.primaryTint, border: 'none', borderRadius: 12,
+                    fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.primary, cursor: 'pointer',
+                  }}>
+                    Ubah Pengantaran
                   </button>
                 )}
               </div>
             </div>
-            {tx.deliveryFee > 0 && (
-              <Row small label="Biaya Pengantaran" value={rp(tx.deliveryFee)} />
-            )}
-            {userNotes ? (
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingTop: 10, marginTop: 4, borderTop: `1px dashed ${C.n200}`, gap: 10 }}>
-                <span style={{ fontFamily: FONT, fontSize: 14, color: C.n500, display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  <StickyNote size={15} />Catatan
-                </span>
-                <span style={{ fontFamily: FONT, fontSize: 13, color: C.n900, textAlign: 'right', fontStyle: 'normal' }}>
-                  {userNotes}
-                </span>
-              </div>
-            ) : null}
-          </ClayCard>
 
-          {/* Bukti Foto Produksi */}
-          <ClayCard delay={0.14}>
-            <SectionHeader
-              icon={<Camera size={17} />}
-              title="Bukti Foto Produksi"
-              right={
-                hasConditionPhotos && (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {(tx.conditionPhotos || []).some(p => p.type === 'receive' || p.phase === 'receive') && (
-                      <Chip label="📥 Terima" color={C.info} />
-                    )}
-                    {(tx.conditionPhotos || []).some(p => p.type === 'packing' || p.phase === 'packing') && (
-                      <Chip label="📦 Packing" color={C.success} />
-                    )}
+            {/* Right: Actions Panel - responsive grid */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}>
+              {/* Cetak Nota - HIGHLIGHTED */}
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                style={{
+                  background: 'linear-gradient(145deg, #6B2D7E, #4A1A59)',
+                  borderRadius: 18,
+                  padding: 20,
+                  boxShadow: '-4px -4px 10px rgba(255,255,255,0.4), 5px 6px 14px rgba(59,11,71,0.35)',
+                  cursor: 'pointer',
+                }}
+                onClick={() => navigate('cetak_nota', { id: tx.id || tx.transactionNo })}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 14,
+                    background: 'rgba(255,255,255,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Printer size={22} color="#fff" />
                   </div>
-                )
-              }
-            />
-            {hasConditionPhotos ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {(tx.conditionPhotos || []).filter(p => p.url && p.url !== 'note_only').map((p) => (
-                  <div key={p.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <a href={p.url} target="_blank" rel="noreferrer">
-                      <img src={p.url} alt="" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: `1px solid ${C.n200}` }} />
-                    </a>
-                    <div>
-                      <div style={{ fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.n800 }}>{photoTypeLabel(p.type)}</div>
-                      {p.notes && <div style={{ fontFamily: FONT, fontSize: 11, color: C.n500, marginTop: 2 }}>{p.notes}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', background: C.n50, borderRadius: 16, padding: '28px 18px' }}>
-                <ClayIcon icon={<Camera size={20} />} size={50} />
-                <p style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.n600, margin: '12px 0 3px' }}>
-                  Belum ada foto dari tim produksi
-                </p>
-                <p style={{ fontFamily: FONT, fontSize: 12, color: C.n400, margin: 0 }}>
-                  Foto akan muncul setelah proses produksi selesai
-                </p>
-              </div>
-            )}
-
-            {photoUploading && photoProgress && (
-              <div style={{ marginTop: 10, padding: '10px 12px', background: C.infoBg, borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 16, height: 16, border: `2px solid ${C.info}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                <span style={{ fontFamily: FONT, fontSize: 12, color: C.info, fontWeight: 600 }}>
-                  {photoProgress.status === 'compress'
-                    ? `Mengompres foto ${photoProgress.current}/${photoProgress.total}…`
-                    : 'Mengirim ke server…'}
-                </span>
-              </div>
-            )}
-
-            {docPhotos.length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: C.n500, marginBottom: 6 }}>Lampiran kasir (belum disimpan)</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {docPhotos.map((p) => (
-                    <div key={p.id} style={{ width: 64, height: 64, borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.n200}` }}>
-                      <img src={p.src} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <button
-              onClick={handleAddPhoto}
-              disabled={photoUploading}
-              className="wd-chip-btn"
-              style={{
-                width: '100%', marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                fontFamily: FONT, fontSize: 12.5, fontWeight: 700,
-                color: photoUploading ? C.n400 : C.primary,
-                background: photoUploading ? C.n100 : C.primaryTint,
-                border: 'none', borderRadius: 12, padding: '10px 14px',
-                cursor: photoUploading ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <Plus size={14} />
-              {photoUploading ? '⏳ Mengupload…' : 'Tambah Foto'}
-            </button>
-          </ClayCard>
-
-          {/* Progress Produksi (ProgressTimeline) */}
-          {tx.progress && tx.progress.length > 0 && (
-            <ClayCard delay={0.17}>
-              <SectionHeader icon={<Package size={17} />} title="Progress Produksi" />
-              <ProgressTimeline progress={tx.progress} />
-            </ClayCard>
-          )}
-
-          {/* Logistik */}
-          {hasLogistics && (
-            <ClayCard delay={0.20}>
-              <SectionHeader icon={<Truck size={17} />} title="Logistik" />
-              {logisticOrders.map((lo) => (
-                <div key={lo.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.n50}` }}>
                   <div>
-                    <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.n900 }}>
-                      {lo.type === 'pickup' ? '🛵 Jemput' : '🚚 Antar'} — {lo.status}
-                    </div>
-                    <div style={{ fontFamily: FONT, fontSize: 11, color: C.n500, marginTop: 2 }}>
-                      {lo.scheduledAt ? new Date(lo.scheduledAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
-                    </div>
-                    {lo.areaZone && <div style={{ fontFamily: FONT, fontSize: 10, color: C.n500 }}>{lo.areaZone}</div>}
+                    <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: '#fff' }}>Cetak Nota</div>
+                    <div style={{ fontFamily: FONT, fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>Langsung print struk</div>
                   </div>
-                  <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 700, color: C.n900 }}>{rp(lo.deliveryFee)}</div>
                 </div>
-              ))}
-              {activeLogistic && (
-                <WdBtn variant="secondary" onClick={() => setRescheduleModal(true)} fullWidth style={{ marginTop: 12 }}>
-                  Ubah Jadwal
-                </WdBtn>
+              </motion.div>
+
+              {/* Lunasi - muncul hanya kalau ada piutang */}
+              {!isCancelled && !isTaken && isUnpaid && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => navigate('pelunasan', { id: tx.id || tx.transactionNo })}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #E11D72, #A32D2D)',
+                    borderRadius: 16,
+                    padding: '15px 18px',
+                    boxShadow: '0 6px 14px rgba(225,29,72,0.3)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    border: 'none',
+                  }}
+                >
+                  <div style={{
+                    width: 42, height: 42, borderRadius: 12,
+                    background: 'rgba(255,255,255,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 20 }}>💰</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: '#fff' }}>
+                      Lunasi Sekarang
+                    </div>
+                    <div style={{ fontFamily: FONT, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
+                      Bayar sisa {rp(balanceDue)} — status langsung lunas
+                    </div>
+                  </div>
+                  <ChevronRight size={18} color="rgba(255,255,255,0.6)" />
+                </motion.button>
               )}
-            </ClayCard>
-          )}
+
+              {/* Pengajuan - Single Button */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowRequestSheet(true)}
+                style={{
+                  width: '100%',
+                  background: C.white,
+                  border: `1px solid ${C.n100}`,
+                  borderRadius: 18,
+                  padding: '16px 18px',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <ClayIcon icon={<FileEdit size={17} />} size={40} />
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: C.n900 }}>Pengajuan</div>
+                  <div style={{ fontFamily: FONT, fontSize: 11, color: C.n500, marginTop: 1 }}>Edit nota & ajukan refund</div>
+                </div>
+                <ChevronRight size={18} color={C.n400} />
+              </motion.button>
+            </div>
+          </div>
+
         </div>
+
 
         {/* ── Sticky bottom actions ───────────────────────────────── */}
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 20 }}>
+        {/* Konfirmasi Diambil — hanya saat cucian siap dan belum dilunasi */}
+        {(isReady && !isUnpaid) ? (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 20,
+        }}>
           <div style={{
-            width: '100%', maxWidth: 9999,
+            width: '100%',
             background: C.white,
-            borderTop: `1px solid ${C.n200}`,
-            padding: `16px 18px calc(16px + env(safe-area-inset-bottom))`,
-            boxShadow: '0 -8px 24px rgba(59,11,71,0.08)',
-            display: 'flex', flexDirection: 'column', gap: 10,
+            padding: `10px 16px`,
+            paddingBottom: `max(10px, env(safe-area-inset-bottom, 0px))`,
           }}>
-            {/* PRIMARY ACTION */}
-            {!isCancelled && !isTaken && isUnpaid && (
-              <>
-                <WdBtn
-                  variant="danger"
-                  fullWidth
-                  onClick={() => navigate('pelunasan', { id: tx.id || tx.transactionNo })}
-                >
-                  💰 Lunasi / Bayar Sebagian — {rp(balanceDue)}
-                </WdBtn>
-                {isReady && (
-                  <div style={{ fontFamily: FONT, fontSize: 10, color: C.danger, textAlign: 'center' }}>
-                    Cucian belum bisa diambil sebelum lunas
-                  </div>
-                )}
-              </>
-            )}
-            {isReady && !isUnpaid && (
-              <WdBtn
-                variant="success"
-                fullWidth
-                loading={actionLoading === 'pickup'}
-                onClick={handlePickedUp}
-              >
-                ✅ Konfirmasi Sudah Diambil
-              </WdBtn>
-            )}
-
-            {/* SECONDARY */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <WdBtn
-                variant="secondary"
-                onClick={() => navigate('cetak_nota', { id: tx.id || tx.transactionNo })}
-                style={{ flex: 1 }}
-              >
-                <Printer size={16} /> Cetak Nota
-              </WdBtn>
-              <WdBtn
-                variant="secondary"
-                onClick={() => setShowRequestSheet(true)}
-                style={{ flex: 1 }}
-              >
-                <FileEdit size={16} /> Pengajuan
-              </WdBtn>
-            </div>
-
-            {/* TERTIARY */}
-            {!isCancelled && !isTaken && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={openRefundModal}
-                  style={{
-                    flex: 1, padding: '10px',
-                    border: `1.5px solid ${C.danger}`,
-                    background: '#FFFFFF', color: C.danger,
-                    borderRadius: 12, fontFamily: FONT,
-                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  💰 Refund
-                </button>
-                <button
-                  onClick={() => setApprovalModal('delete_transaction')}
-                  style={{
-                    flex: 1, padding: '10px',
-                    border: `1.5px solid ${C.n200}`,
-                    background: 'white', color: C.n600,
-                    borderRadius: 12, fontFamily: FONT,
-                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  🗑️ Hapus
-                </button>
-              </div>
-            )}
+            <WdBtn
+              variant="success"
+              fullWidth
+              loading={actionLoading === 'pickup'}
+              onClick={handlePickedUp}
+            >
+              ✅ Konfirmasi Diambil
+            </WdBtn>
           </div>
         </div>
+        ) : null}
 
         {/* ── Ajukan Pengajuan bottom sheet ───────────────────────── */}
         {showRequestSheet && (
-          <div
-            onClick={() => setShowRequestSheet(false)}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(26,10,30,0.5)',
-              display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-              zIndex: 30, animation: 'wd-fadeIn .2s ease',
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="wd-sheet"
-              style={{
-                width: '100%', maxWidth: 9999, background: C.white,
-                borderRadius: '24px 24px 0 0',
-                padding: `22px 18px calc(22px + env(safe-area-inset-bottom))`,
-                boxShadow: '0 -20px 40px rgba(59,11,71,0.25)',
-              }}
-            >
+          <>
+            {/* Backdrop */}
+            <div onClick={() => setShowRequestSheet(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(26,10,30,0.5)', zIndex: 30, animation: 'wd-fadeIn .2s ease' }} />
+            {/* Sheet */}
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: C.white, borderRadius: '24px 24px 0 0', padding: '22px 18px', paddingBottom: 'max(22px, env(safe-area-inset-bottom, 0px))', zIndex: 31, boxShadow: '0 -20px 40px rgba(59,11,71,0.25)', animation: 'wd-slideUp 0.28s cubic-bezier(.2,.8,.3,1) both' }} onClick={(e) => e.stopPropagation()}>
               <div style={{ width: 40, height: 4, borderRadius: 999, background: C.n200, margin: '0 auto 18px' }} />
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
                 <div>
                   <div style={{ fontFamily: FONT, fontSize: 17.5, fontWeight: 700, color: C.n900 }}>Ajukan Pengajuan</div>
                   <div style={{ fontFamily: FONT, fontSize: 12.5, color: C.n500, marginTop: 3 }}>
-                    Semua pengajuan akan direview admin sebelum diterapkan
+                    Pilih jenis pengajuan yang diperlukan
                   </div>
                 </div>
                 <button
@@ -1239,69 +1221,40 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                   <div
                     key={opt.key}
                     onClick={opt.onClick}
-                    className="wd-option-row"
                     style={{
                       display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '12px 12px', borderRadius: 16, border: `1px solid ${C.n100}`,
+                      padding: '14px 16px', borderRadius: 16, border: `1px solid ${C.n100}`,
+                      background: C.white, cursor: 'pointer',
+                      transition: 'transform .12s ease',
                     }}
                   >
-                    <ClayIcon icon={opt.icon} color={opt.color} size={46} />
+                    <ClayIcon icon={opt.icon} color={opt.color} size={44} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: FONT, fontSize: 14.5, fontWeight: 600, color: C.n900 }}>{opt.title}</div>
-                      <div style={{ fontFamily: FONT, fontSize: 12, color: C.n500, marginTop: 2 }}>{opt.desc}</div>
+                      <div style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.n900 }}>{opt.title}</div>
+                      <div style={{ fontFamily: FONT, fontSize: 11.5, color: C.n500, marginTop: 2 }}>{opt.desc}</div>
                     </div>
-                    <ChevronRight size={18} color={C.n300} style={{ flexShrink: 0 }} />
+                    <ChevronRight size={18} color={C.n400} style={{ flexShrink: 0 }} />
                   </div>
                 ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Confirm delete dialog ───────────────────────────────── */}
-        {confirmDelete && (
-          <div
-            onClick={() => setConfirmDelete(false)}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(26,10,30,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 40, padding: 20, animation: 'wd-fadeIn .2s ease',
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                background: C.white, borderRadius: 22, padding: 26,
-                maxWidth: 380, width: '100%',
-                boxShadow: '0 20px 40px rgba(59,11,71,0.25)',
-                animation: 'wd-scaleIn .2s ease',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <ClayIcon icon={<AlertTriangle size={19} />} color={C.danger} size={44} />
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  className="wd-icon-btn"
-                  style={{ background: C.n100, border: 'none', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                {/* Ubah Pengantaran - separate option at bottom */}
+                <div
+                  onClick={() => { setShowRequestSheet(false); openDeliveryModal(); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '14px 16px', borderRadius: 16, border: `1px solid ${C.n100}`,
+                    background: C.white, cursor: 'pointer',
+                  }}
                 >
-                  <X size={15} color={C.n500} />
-                </button>
-              </div>
-              <div style={{ fontFamily: FONT, fontSize: 17.5, fontWeight: 700, color: C.n900, marginTop: 14 }}>
-                Ajukan hapus transaksi ini?
-              </div>
-              <div style={{ fontFamily: FONT, fontSize: 13.5, color: C.n600, marginTop: 8, lineHeight: 1.65 }}>
-                Pengajuan akan dikirim ke admin untuk persetujuan. Transaksi dengan status Lunas tidak akan otomatis terhapus sebelum disetujui.
-              </div>
-              <div style={{ display: 'flex', gap: 12, marginTop: 22 }}>
-                <WdBtn variant="secondary" fullWidth onClick={() => setConfirmDelete(false)}>Batal</WdBtn>
-                <WdBtn variant="danger" fullWidth onClick={() => {
-                  setConfirmDelete(false);
-                  setApprovalModal('delete_transaction');
-                }}>Ya, Ajukan</WdBtn>
+                  <ClayIcon icon={<Truck size={18} />} color={C.info} size={44} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: FONT, fontSize: 14, fontWeight: 600, color: C.n900 }}>Ubah Pengantaran</div>
+                    <div style={{ fontFamily: FONT, fontSize: 11.5, color: C.n500, marginTop: 2 }}>Ganti metode penjemputan/pesan</div>
+                  </div>
+                  <ChevronRight size={18} color={C.n400} style={{ flexShrink: 0 }} />
+                </div>
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* ── All existing modals (PRESERVED) ─────────────────────── */}
@@ -1366,23 +1319,20 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
 
         {/* Edit Delivery Type Modal */}
         {deliveryModal && (
-          <div
-            style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end' }}
-            onClick={() => setDeliveryModal(false)}
-          >
-            <div
-              style={{ width: '100%', background: C.white, borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', boxShadow: '0 20px 60px rgba(59,11,71,0.2)' }}
-              onClick={(e) => e.stopPropagation()}
-            >
+          <>
+            {/* Backdrop */}
+            <div onClick={() => setDeliveryModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 200 }} />
+            {/* Sheet */}
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: C.white, borderRadius: '20px 20px 0 0', padding: '20px 20px max(32px, env(safe-area-inset-bottom, 0px))', boxShadow: '0 20px 60px rgba(59,11,71,0.2)', zIndex: 201 }} onClick={(e) => e.stopPropagation()}>
               <div style={{ width: 40, height: 4, borderRadius: 2, background: C.n200, margin: '0 auto 16px' }} />
               <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 600, color: C.n900, marginBottom: 4 }}>Ubah Jenis Pengantaran</div>
               <div style={{ fontFamily: FONT, fontSize: 12, color: C.n500, marginBottom: 16 }}>Pilih bagaimana customer mendapatkan laundry mereka.</div>
 
               {[
-                { key: 'self', label: '🏪 Ambil Sendiri', desc: 'Customer datang langsung ke outlet', fee: 'Gratis', feeValue: 0 },
-                { key: 'pickup', label: '🛵 Dijemput Kurir', desc: 'Kurir menjemput laundry dari customer', fee: tx.deliveryFee > 0 ? rp(tx.deliveryFee) : 'Rp 10.000', feeValue: tx.deliveryFee || 10000 },
-                { key: 'delivery', label: '🚚 Diantar Kurir', desc: 'Kurir mengantar laundry ke customer', fee: tx.deliveryFee > 0 ? rp(tx.deliveryFee) : 'Rp 10.000', feeValue: tx.deliveryFee || 10000 },
-                { key: 'both', label: '🔄 Jemput + Antar', desc: 'Jemput kotoran, antar cucian bersih', fee: tx.deliveryFee > 0 ? rp(tx.deliveryFee * 2) : 'Rp 20.000', feeValue: (tx.deliveryFee || 10000) * 2 },
+                { key: 'self', label: '🏪 Ambil Sendiri', desc: 'Customer datang langsung ke outlet' },
+                { key: 'pickup', label: '🛵 Dijemput Kurir', desc: 'Kurir menjemput laundry dari customer' },
+                { key: 'delivery', label: '🚚 Diantar Kurir', desc: 'Kurir mengantar laundry ke customer' },
+                { key: 'both', label: '🔄 Jemput + Antar', desc: 'Jemput kotoran, antar cucian bersih' },
               ].map((opt) => (
                 <button
                   key={opt.key}
@@ -1399,37 +1349,11 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                     <div style={{ fontFamily: FONT, fontSize: 13, fontWeight: 600, color: dlvType === opt.key ? C.primary : C.n900 }}>{opt.label}</div>
                     <div style={{ fontFamily: FONT, fontSize: 11, color: C.n500, marginTop: 2 }}>{opt.desc}</div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <span style={{ fontFamily: FONT, fontSize: 11, fontWeight: 600, color: dlvType === opt.key ? C.primary : C.n500 }}>{opt.fee}</span>
-                    <div style={{ width: 18, height: 18, borderRadius: 9, border: `2px solid ${dlvType === opt.key ? C.primary : C.n300}`, background: dlvType === opt.key ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {dlvType === opt.key && <div style={{ width: 6, height: 6, borderRadius: 3, background: 'white' }} />}
-                    </div>
+                  <div style={{ width: 18, height: 18, borderRadius: 9, border: `2px solid ${dlvType === opt.key ? C.primary : C.n300}`, background: dlvType === opt.key ? C.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {dlvType === opt.key && <div style={{ width: 6, height: 6, borderRadius: 3, background: 'white' }} />}
                   </div>
                 </button>
               ))}
-
-              {dlvType !== 'self' && (
-                <div style={{ marginBottom: 12 }}>
-                  <DateTimeInput
-                    label={`Jadwal ${dlvType === 'pickup' ? 'Penjemputan' : dlvType === 'delivery' ? 'Pengiriman' : 'Jemput + Kirim'} (opsional)`}
-                    value={dlvSchedule}
-                    onChange={(v) => setDlvSchedule(v || '')}
-                    minDate={new Date()}
-                  />
-                </div>
-              )}
-
-              <input
-                value={dlvNotes}
-                onChange={(e) => setDlvNotes(e.target.value)}
-                placeholder="Catatan perubahan (opsional)"
-                style={{
-                  width: '100%', height: 44, borderRadius: 12,
-                  border: `1.5px solid ${C.n200}`,
-                  fontFamily: FONT, fontSize: 13, padding: '0 14px',
-                  boxSizing: 'border-box', marginBottom: 16,
-                }}
-              />
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => setDeliveryModal(false)} style={{ flex: 1, height: 46, borderRadius: 12, border: `1.5px solid ${C.n200}`, background: C.white, fontFamily: FONT, fontSize: 13, fontWeight: 600, color: C.n700, cursor: 'pointer' }}>Batal</button>
@@ -1438,7 +1362,7 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
                 </button>
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* Review Modal */}

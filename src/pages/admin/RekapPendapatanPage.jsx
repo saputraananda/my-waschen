@@ -5,15 +5,33 @@ import { rp } from '../../utils/helpers';
 import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Btn, Chip, Select, DateTimeInput } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
+import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
+import FloatingBubble from '../../components/ui/PremiumAnimations/FloatingBubble';
 
 const METHOD_LABEL = { cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit', ovo: 'OVO', gopay: 'GoPay', dana: 'DANA', shopeepay: 'ShopeePay' };
 const METHOD_ICON = { cash: '💵', transfer: '🏦', qris: '📱', deposit: '💰', ovo: '🟣', gopay: '🟢', dana: '🔵', shopeepay: '🟠' };
 const METHOD_COLOR = { cash: C.success, transfer: C.info, qris: C.primary, deposit: C.warning, ovo: C.primaryTint, gopay: C.success, dana: C.info, shopeepay: C.warning };
 const STATUS_LABEL = { draft: 'Draft', pending: 'Pending', process: 'Proses', ready_for_pickup: 'Siap Ambil', ready_for_delivery: 'Siap Antar', completed: 'Selesai', cancelled: 'Batal' };
 const STATUS_COLOR = { draft: C.n500, pending: C.info, process: C.warning, ready_for_pickup: C.success, ready_for_delivery: C.info, completed: C.success, cancelled: C.danger };
-const STATUS_BG = { draft: C.n100, pending: C.infoBg, process: C.warningBg, ready_for_pickup: C.successBg, ready_for_delivery: C.infoBg, completed: C.successBg, cancelled: C.dangerBg };
+const STATUS_BG = { draft: C.n100, pending: `${C.info}20`, process: `${C.warning}20`, ready_for_pickup: `${C.success}20`, ready_for_delivery: `${C.info}20`, completed: `${C.success}20`, cancelled: `${C.danger}20` };
 
 const F = { fontFamily: 'Poppins' };
+
+// Premium card style
+const premiumCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// Premium gradient header
+const premiumHeader = {
+  background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+  position: 'relative',
+  overflow: 'hidden',
+};
 
 const fmtDate = (v) => {
   if (!v) return '-';
@@ -101,7 +119,7 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
   const avgPerTx = summary?.totalTx > 0 ? Math.round(Number(summary.grandTotal) / Number(summary.totalTx)) : 0;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
       <style>{`
         @media (max-width: 480px) {
           .rekap-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
@@ -115,12 +133,61 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
           .rekap-tx-row { flex-direction: column !important; gap: 8px !important; }
           .rekap-pagination { flex-wrap: wrap !important; justify-content: center !important; }
         }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .skeleton-shimmer {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
+        }
       `}</style>
-      <TopBar title="Rekap Pendapatan" subtitle="Detail transaksi tercatat per periode" onBack={goBack} />
+
+      {/* Premium Header with GlowOrb and Sparkle */}
+      <div style={{ ...premiumHeader, padding: '0 16px' }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-80px" right="-60px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-40px" left="-40px" />
+        <FloatingBubble size={40} top="20%" left="15%" delay={0} />
+        <FloatingBubble size={25} top="60%" right="10%" delay={1.5} />
+        <Sparkle color="rgba(255,255,255,0.6)" style={{ position: 'absolute', top: 20, right: 80 }} />
+        <Sparkle color="rgba(255,255,255,0.4)" style={{ position: 'absolute', top: 35, right: 120 }} size={10} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 12, paddingBottom: 12 }}>
+          <motion.button
+            onClick={goBack}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none',
+              borderRadius: 12,
+              width: 36,
+              height: 36,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </motion.button>
+          <div>
+            <h1 style={{ ...F, fontSize: 18, fontWeight: 700, color: 'white', margin: 0, textShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>Rekap Pendapatan</h1>
+            <p style={{ ...F, fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0 }}>Detail transaksi tercatat per periode</p>
+          </div>
+        </div>
+      </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: C.white, borderRadius: 14, padding: 12, marginBottom: 12, boxShadow: SHADOW.md }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          style={{ ...premiumCard, padding: 12, marginBottom: 12 }}
+        >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             {[
               { key: '7d', label: '7 hari' },
@@ -137,17 +204,23 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
           </div>
           <Select label="Outlet" value={outletId} onChange={(val) => { setOutletId(val); setPage(1); }}
             options={[{ value: '', label: '🏪 Semua outlet' }, ...outlets.map((o) => ({ value: o.id, label: o.name }))]} />
-        </div>
+        </motion.div>
 
         {/* Summary */}
         {summary && (
           <>
-            <div style={{
-              background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
-              borderRadius: 16, padding: '16px 18px', color: C.white, marginBottom: 12,
-              boxShadow: SHADOW.md, position: 'relative', overflow: 'hidden',
-            }}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              style={{
+                background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
+                borderRadius: 18, padding: '16px 18px', color: C.white, marginBottom: 12,
+                boxShadow: '0 8px 24px rgba(91,0,95,0.25)', position: 'relative', overflow: 'hidden',
+              }}
+            >
               <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: 40, background: 'rgba(255,255,255,0.1)' }} />
+              <GlowOrb color="rgba(255,255,255,0.06)" size={120} top="-40px" right="20%" />
               <div style={{ ...F, fontSize: 11, fontWeight: 600, opacity: 0.92, marginBottom: 4, letterSpacing: 0.5 }}>💎 PENDAPATAN PERIODE</div>
               <div style={{ ...F, fontSize: 26, fontWeight: 600, lineHeight: 1.1, marginBottom: 6 }}>{rp(summary.grandTotal)}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11, ...F, opacity: 0.95 }}>
@@ -156,11 +229,16 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                 <span>⚡ {rp(avgPerTx)}/trx</span>
                 <span>📈 {rp(avgPerDay)}/hari</span>
               </div>
-            </div>
+            </motion.div>
 
             {/* Payment Distribution */}
             {methodSummary.length > 0 && (
-              <div style={{ background: C.white, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: SHADOW.md }}>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.15 }}
+                style={{ ...premiumCard, padding: 14, marginBottom: 12 }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <span style={{ fontSize: 16 }}>💳</span>
                   <h3 style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, margin: 0 }}>Komposisi Pembayaran</h3>
@@ -180,31 +258,41 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                   {methodSummary.map((m) => {
                     const pct = (m.amount / methodTotal) * 100;
                     return (
-                      <div key={m.method} style={{
-                        background: `${METHOD_COLOR[m.method]}10`, borderRadius: 10, padding: '10px 12px',
-                        borderLeft: `3px solid ${METHOD_COLOR[m.method]}`,
-                      }}>
+                      <motion.div
+                        key={m.method}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.05 }}
+                        style={{
+                          background: `${METHOD_COLOR[m.method]}10`, borderRadius: 10, padding: '10px 12px',
+                          borderLeft: `3px solid ${METHOD_COLOR[m.method]}`,
+                        }}
+                      >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                           <span style={{ fontSize: 14 }}>{METHOD_ICON[m.method]}</span>
                           <span style={{ ...F, fontSize: 11, fontWeight: 600, color: C.n700 }}>{METHOD_LABEL[m.method]}</span>
                           <span style={{ ...F, fontSize: 10, fontWeight: 600, color: METHOD_COLOR[m.method], marginLeft: 'auto' }}>{pct.toFixed(1)}%</span>
                         </div>
                         <div style={{ ...F, fontSize: 14, fontWeight: 600, color: C.n900 }}>{rp(m.amount)}</div>
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>
-              </div>
+              </motion.div>
             )}
           </>
         )}
 
         {/* Transactions Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: C.white, borderRadius: 14, padding: '10px 14px', marginBottom: 8,
-          boxShadow: SHADOW.md,
-        }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            ...premiumCard, padding: '10px 14px', marginBottom: 8,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 16 }}>📋</span>
             <div>
@@ -218,22 +306,29 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
             <Select value={String(perPage)} onChange={(val) => { setPerPage(Number(val)); setPage(1); }}
               options={PER_PAGE_OPTIONS.map((n) => ({ value: String(n), label: `${n}/hal` }))} />
           </div>
-        </div>
+        </motion.div>
 
         {/* Transactions List */}
         {loading && (
           <div style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n700 }}>
-            <div style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
+            <motion.div
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px' }}
+            />
             Memuat transaksi...
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 
         {!loading && transactions.length === 0 && (
-          <div style={{ background: C.white, borderRadius: 14, padding: 32, textAlign: 'center', ...F, fontSize: 13, color: C.n700, boxShadow: SHADOW.md }}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{ ...premiumCard, padding: 32, textAlign: 'center', ...F, fontSize: 13, color: C.n700 }}
+          >
             <div style={{ fontSize: 40, marginBottom: 8, opacity: 0.4 }}>📭</div>
             Tidak ada transaksi pada periode ini.
-          </div>
+          </motion.div>
         )}
 
         {!loading && transactions.map((tx, idx) => {
@@ -244,16 +339,27 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
           const isCancelled = tx.status === 'cancelled';
 
           return (
-            <div key={tx.id} style={{
-              background: C.white, borderRadius: 12, marginBottom: 8, boxShadow: SHADOW.md,
-              overflow: 'hidden', borderLeft: `3px solid ${statusColor}`,
-              opacity: isCancelled ? 0.7 : 1,
-            }}>
-              <button onClick={() => setExpandedId(isExpanded ? null : tx.id)}
+            <motion.div
+              key={tx.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.04 }}
+              style={{
+                background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+                boxShadow: '8px 8px 20px rgba(110, 46, 120, 0.08), -4px -4px 12px rgba(255, 255, 255, 0.95)',
+                borderRadius: 14, marginBottom: 10,
+                overflow: 'hidden', borderLeft: `4px solid ${statusColor}`,
+                opacity: isCancelled ? 0.7 : 1,
+              }}
+            >
+              <motion.button
+                onClick={() => setExpandedId(isExpanded ? null : tx.id)}
+                whileTap={{ scale: 0.98 }}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                   padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                }}>
+                }}
+              >
                 <div style={{
                   width: 32, height: 32, borderRadius: 16, background: `${statusColor}15`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -262,7 +368,9 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <span style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>{tx.customerName || 'Tanpa nama'}</span>
-                    {tx.isExpress && <span style={{ ...F, fontSize: 9, fontWeight: 600, background: C.warningBg, color: C.warning, padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>}
+                    {tx.isExpress && (
+                      <span style={{ ...F, fontSize: 9, fontWeight: 600, background: `${C.warning}20`, color: C.warning, padding: '1px 6px', borderRadius: 999 }}>⚡ Express</span>
+                    )}
                   </div>
                   <div style={{ ...F, fontSize: 10, color: C.n700, marginTop: 2 }}>
                     {tx.transactionNo} · {fmtDate(tx.createdAt)}
@@ -275,98 +383,143 @@ export default function RekapPendapatanPage({ navigate, goBack }) {
                     background: statusBg, color: statusColor, display: 'inline-block', marginTop: 3,
                   }}>{STATUS_LABEL[tx.status] || tx.status}</span>
                 </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n700} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
+                <motion.svg
+                  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n700} strokeWidth="2" strokeLinecap="round"
+                  animate={{ rotate: isExpanded ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                  style={{ flexShrink: 0 }}
+                >
                   <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
+                </motion.svg>
+              </motion.button>
 
-              {isExpanded && (
-                <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: C.n50 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 12, marginBottom: 12 }} className="rekap-expanded-grid">
-                    {[
-                      ['🏪 Outlet', tx.outletName || '—'],
-                      ['👤 Kasir', tx.cashierName || '—'],
-                      ['📞 Telepon', tx.customerPhone || '—'],
-                      ['📦 Pickup', tx.pickupType || 'self'],
-                    ].map(([label, val]) => (
-                      <div key={label} style={{ background: C.white, padding: '8px 10px', borderRadius: 8 }}>
-                        <div style={{ ...F, fontSize: 9, color: C.n700, fontWeight: 600 }}>{label}</div>
-                        <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n900, marginTop: 2 }}>{val}</div>
+              <AnimatePresence>
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: `${C.n50}80` }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 12, marginBottom: 12 }} className="rekap-expanded-grid">
+                        {[
+                          ['🏪 Outlet', tx.outletName || '—'],
+                          ['👤 Kasir', tx.cashierName || '—'],
+                          ['📞 Telepon', tx.customerPhone || '—'],
+                          ['📦 Pickup', tx.pickupType || 'self'],
+                        ].map(([label, val]) => (
+                          <div key={label} style={{ background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)', padding: '8px 10px', borderRadius: 10, boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.05), -2px -2px 6px rgba(255, 255, 255, 0.9)' }}>
+                            <div style={{ ...F, fontSize: 9, color: C.n700, fontWeight: 600 }}>{label}</div>
+                            <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n900, marginTop: 2 }}>{val}</div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  <div style={{ background: C.white, borderRadius: 10, padding: 12, marginBottom: 8 }}>
-                    <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 6, letterSpacing: 0.3 }}>💰 RINCIAN HARGA</div>
-                    {[
-                      ['Subtotal', rp(tx.subtotal)],
-                      tx.discount > 0 ? ['Diskon', `- ${rp(tx.discount)}`] : null,
-                      tx.deliveryFee > 0 ? ['Ongkir', rp(tx.deliveryFee)] : null,
-                    ].filter(Boolean).map(([label, val]) => (
-                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', ...F, fontSize: 12 }}>
-                        <span style={{ color: C.n700 }}>{label}</span>
-                        <span style={{ color: C.n900 }}>{val}</span>
-                      </div>
-                    ))}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', borderTop: `1.5px solid ${C.n200}`, marginTop: 6, ...F, fontSize: 13 }}>
-                      <span style={{ fontWeight: 600, color: C.n900 }}>Total</span>
-                      <span style={{ fontWeight: 600, color: C.primary, fontSize: 15 }}>{rp(tx.total)}</span>
-                    </div>
-                  </div>
-
-                  {tx.payments && tx.payments.length > 0 ? (
-                    <div style={{ background: C.white, borderRadius: 10, padding: 12 }}>
-                      <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 6, letterSpacing: 0.3 }}>💳 METODE PEMBAYARAN</div>
-                      {tx.payments.map((p, i) => (
-                        <div key={`${p.method}-${i}`} style={{
-                          display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px',
-                          background: `${METHOD_COLOR[p.method] || C.n700}10`, borderRadius: 8, marginBottom: 4,
-                        }}>
-                          <span style={{ fontSize: 14 }}>{METHOD_ICON[p.method] || '💳'}</span>
-                          <span style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n800, flex: 1 }}>{METHOD_LABEL[p.method] || p.method}</span>
-                          <strong style={{ ...F, fontSize: 12, color: C.n900 }}>{rp(p.amount)}</strong>
+                      <div style={{ background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)', borderRadius: 10, padding: 12, marginBottom: 8, boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.05), -2px -2px 6px rgba(255, 255, 255, 0.9)' }}>
+                        <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 6, letterSpacing: 0.3 }}>💰 RINCIAN HARGA</div>
+                        {[
+                          ['Subtotal', rp(tx.subtotal)],
+                          tx.discount > 0 ? ['Diskon', `- ${rp(tx.discount)}`] : null,
+                          tx.deliveryFee > 0 ? ['Ongkir', rp(tx.deliveryFee)] : null,
+                        ].filter(Boolean).map(([label, val]) => (
+                          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', ...F, fontSize: 12 }}>
+                            <span style={{ color: C.n700 }}>{label}</span>
+                            <span style={{ color: C.n900 }}>{val}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0', borderTop: `1.5px solid ${C.n200}`, marginTop: 6, ...F, fontSize: 13 }}>
+                          <span style={{ fontWeight: 600, color: C.n900 }}>Total</span>
+                          <span style={{ fontWeight: 600, color: C.primary, fontSize: 15 }}>{rp(tx.total)}</span>
                         </div>
-                      ))}
+                      </div>
+
+                      {tx.payments && tx.payments.length > 0 ? (
+                        <div style={{ background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)', borderRadius: 10, padding: 12, boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.05), -2px -2px 6px rgba(255, 255, 255, 0.9)' }}>
+                          <div style={{ ...F, fontSize: 10, fontWeight: 600, color: C.n700, marginBottom: 6, letterSpacing: 0.3 }}>💳 METODE PEMBAYARAN</div>
+                          {tx.payments.map((p, i) => (
+                            <div key={`${p.method}-${i}`} style={{
+                              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px',
+                              background: `${METHOD_COLOR[p.method] || C.n700}10`, borderRadius: 8, marginBottom: 4,
+                            }}>
+                              <span style={{ fontSize: 14 }}>{METHOD_ICON[p.method] || '💳'}</span>
+                              <span style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n800, flex: 1 }}>{METHOD_LABEL[p.method] || p.method}</span>
+                              <strong style={{ ...F, fontSize: 12, color: C.n900 }}>{rp(p.amount)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      ) : tx.payMethod && (
+                        <div style={{ background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)', borderRadius: 10, padding: 12, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.05), -2px -2px 6px rgba(255, 255, 255, 0.9)' }}>
+                          <span style={{ fontSize: 14 }}>{METHOD_ICON[tx.payMethod] || '💳'}</span>
+                          <span style={{ ...F, fontSize: 12, color: C.n800, flex: 1 }}>{METHOD_LABEL[tx.payMethod] || tx.payMethod}</span>
+                          <strong style={{ ...F, fontSize: 12, color: C.n900 }}>{rp(tx.total)}</strong>
+                        </div>
+                      )}
                     </div>
-                  ) : tx.payMethod && (
-                    <div style={{ background: C.white, borderRadius: 10, padding: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 14 }}>{METHOD_ICON[tx.payMethod] || '💳'}</span>
-                      <span style={{ ...F, fontSize: 12, color: C.n800, flex: 1 }}>{METHOD_LABEL[tx.payMethod] || tx.payMethod}</span>
-                      <strong style={{ ...F, fontSize: 12, color: C.n900 }}>{rp(tx.total)}</strong>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
           );
         })}
 
         {/* Pagination */}
         {pag && pag.totalPages > 1 && (
-          <div style={{ background: C.white, borderRadius: 14, padding: 12, marginTop: 12, boxShadow: SHADOW.md }}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            style={{ ...premiumCard, padding: 12, marginTop: 12 }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexWrap: 'wrap' }}>
-              <button disabled={page <= 1} onClick={() => setPage(1)} style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}>«</button>
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)} style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}>‹</button>
+              <motion.button
+                disabled={page <= 1}
+                onClick={() => setPage(1)}
+                whileTap={{ scale: page <= 1 ? 1 : 0.95 }}
+                style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}
+              >«</motion.button>
+              <motion.button
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+                whileTap={{ scale: page <= 1 ? 1 : 0.95 }}
+                style={{ ...paginBtnStyle, opacity: page <= 1 ? 0.4 : 1 }}
+              >‹</motion.button>
               {getPageNumbers(page, pag.totalPages).map((p, i) =>
                 p === '...' ? (
                   <span key={`dot-${i}`} style={{ ...F, fontSize: 12, color: C.n700, padding: '0 4px' }}>…</span>
                 ) : (
-                  <button key={p} onClick={() => setPage(p)} style={{
-                    ...paginBtnStyle,
-                    background: p === page ? C.primary : C.white,
-                    color: p === page ? C.white : C.n700,
-                    fontWeight: p === page ? 700 : 500,
-                    border: p === page ? `1.5px solid ${C.primary}` : `1.5px solid ${C.n200}`,
-                  }}>{p}</button>
+                  <motion.button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    whileTap={{ scale: 0.95 }}
+                    style={{
+                      ...paginBtnStyle,
+                      background: p === page ? C.primary : C.white,
+                      color: p === page ? C.white : C.n700,
+                      fontWeight: p === page ? 700 : 500,
+                      border: p === page ? `1.5px solid ${C.primary}` : `1.5px solid ${C.n200}`,
+                    }}
+                  >{p}</motion.button>
                 )
               )}
-              <button disabled={page >= pag.totalPages} onClick={() => setPage(page + 1)} style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}>›</button>
-              <button disabled={page >= pag.totalPages} onClick={() => setPage(pag.totalPages)} style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}>»</button>
+              <motion.button
+                disabled={page >= pag.totalPages}
+                onClick={() => setPage(page + 1)}
+                whileTap={{ scale: page >= pag.totalPages ? 1 : 0.95 }}
+                style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}
+              >›</motion.button>
+              <motion.button
+                disabled={page >= pag.totalPages}
+                onClick={() => setPage(pag.totalPages)}
+                whileTap={{ scale: page >= pag.totalPages ? 1 : 0.95 }}
+                style={{ ...paginBtnStyle, opacity: page >= pag.totalPages ? 0.4 : 1 }}
+              >»</motion.button>
             </div>
             <div style={{ textAlign: 'center', ...F, fontSize: 10, color: C.n700, marginTop: 8 }}>
               Halaman {pag.page} dari {pag.totalPages} · {pag.totalRecords.toLocaleString('id-ID')} record
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

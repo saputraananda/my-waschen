@@ -1,16 +1,36 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../utils/api';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { TopBar, Btn, Select } from '../../components/ui';
+import { TopBar, Btn, Select, SkeletonBar } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { useResponsive } from '../../utils/hooks';
+import { FloatingBubble, Sparkle, GlowOrb } from '../../components/ui/PremiumAnimations';
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
 
 const TABS = [
   { value: 'pending', label: '⏳ Pending' },
   { value: 'approved', label: '✅ Approved' },
   { value: 'rejected', label: '❌ Ditolak' },
 ];
+
+const cardStyle = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+const shimmerKeyframes = `
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+`;
 
 function SetorApprovalPage({ goBack }) {
   const { isMobile } = useResponsive();
@@ -81,25 +101,44 @@ function SetorApprovalPage({ goBack }) {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Approval Setor Tunai" subtitle="Verifikasi penyetoran kas kasir" onBack={goBack} />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      <style>{shimmerKeyframes}</style>
+
+      {/* Premium Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+        paddingTop: 8,
+        paddingBottom: 16,
+      }}>
+        <GlowOrb color="#E040FB" size={120} opacity={0.15} top="-20px" right="-20px" />
+        <GlowOrb color="#FF6D00" size={80} opacity={0.1} bottom="-10px" left="20%" />
+        <FloatingBubble src={bubbleIcon} size={28} top="12px" right="60px" />
+        <FloatingBubble src={bubble2Icon} size={22} top="28px" right="20px" delay={0.5} />
+        <Sparkle color="#FFD700" size={16} top="8px" left="40%" delay={0.2} />
+        <Sparkle color="#FFFFFF" size={12} top="32px" left="25%" delay={0.8} />
+
+        <TopBar title="Approval Setor Tunai" subtitle="Verifikasi penyetoran kas kasir" onBack={goBack} isPremium />
+      </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, padding: '0 16px', background: C.white, borderBottom: `1px solid ${C.n200}`, overflowX: 'auto' }}>
+      <div style={{ display: 'flex', gap: 0, padding: '0 16px', background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)', borderBottom: '1px solid #E8DDF0', overflowX: 'auto' }}>
         {TABS.map(tab => (
-          <button
+          <motion.button
             key={tab.value}
             onClick={() => setActiveTab(tab.value)}
+            whileTap={{ scale: 0.97 }}
             style={{
               flex: 1, padding: '12px 0', border: 'none', background: 'transparent', cursor: 'pointer',
               fontFamily: 'Poppins', fontSize: 12, fontWeight: activeTab === tab.value ? 600 : 400,
-              color: activeTab === tab.value ? C.primary : C.textMuted,
-              borderBottom: activeTab === tab.value ? `2px solid ${C.primary}` : '2px solid transparent',
+              color: activeTab === tab.value ? '#5B005F' : '#9E9E9E',
+              borderBottom: activeTab === tab.value ? '2px solid #5B005F' : '2px solid transparent',
               transition: 'all 0.2s',
             }}
           >
             {tab.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 
@@ -119,112 +158,155 @@ function SetorApprovalPage({ goBack }) {
         <div style={{ maxWidth: 540, margin: '0 auto' }}>
 
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 40, fontFamily: 'Poppins', fontSize: 13, color: C.textMuted }}>Memuat...</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[1, 2, 3].map(i => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  style={{
+                    ...cardStyle,
+                    padding: 16,
+                    background: `linear-gradient(90deg, #F0E6F5 25%, #FFFFFF 50%, #F0E6F5 75%)`,
+                    backgroundSize: '200% 100%',
+                    animation: 'shimmer 1.5s infinite',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ width: 100, height: 20, background: '#E8DDF0', borderRadius: 6, marginBottom: 6 }} />
+                      <div style={{ width: 140, height: 12, background: '#EDE4F0', borderRadius: 4 }} />
+                    </div>
+                    <div style={{ width: 80, height: 12, background: '#EDE4F0', borderRadius: 4 }} />
+                  </div>
+                  <div style={{ width: '100%', height: 40, background: '#F5F0FA', borderRadius: 8, marginBottom: 10 }} />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1, height: 32, background: '#EDE4F0', borderRadius: 8 }} />
+                    <div style={{ flex: 1, height: 32, background: '#EDE4F0', borderRadius: 8 }} />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
           ) : deposits.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40 }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              style={{ ...cardStyle, textAlign: 'center', padding: 40 }}
+            >
               <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 500, color: C.n700 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 500, color: '#5B005F' }}>
                 Tidak ada setor {activeTab}
               </div>
-            </div>
+            </motion.div>
           ) : (
-            deposits.map(d => (
-              <div key={d.id} style={{ background: C.white, borderRadius: 14, padding: 16, boxShadow: SHADOW.sm, marginBottom: 12 }}>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.n900 }}>{rp(d.amount)}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.textMuted }}>
-                      {d.cashierName} · {d.outletName}
+            <AnimatePresence mode="popLayout">
+              {deposits.map((d, idx) => (
+                <motion.div
+                  key={d.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ delay: idx * 0.04 }}
+                  style={{ ...cardStyle, padding: 16, marginBottom: 12 }}
+                >
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: '#1A1A1A' }}>{rp(d.amount)}</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#757575' }}>
+                        {d.cashierName} · {d.outletName}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#757575' }}>{fmtDate(d.depositDate)}</div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#9E9E9E' }}>{fmtTime(d.createdAt)}</div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.textMuted }}>{fmtDate(d.depositDate)}</div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.textMuted }}>{fmtTime(d.createdAt)}</div>
-                  </div>
-                </div>
 
-                {/* Notes */}
-                {d.notes && (
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, background: C.n50, borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
-                    📝 {d.notes}
-                  </div>
-                )}
+                  {/* Notes */}
+                  {d.notes && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#5B005F', background: '#F3EEF7', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
+                      📝 {d.notes}
+                    </div>
+                  )}
 
-                {/* PIC Info */}
-                {d.picName && (
-                  <div style={{
-                    background: `${C.primary}08`,
-                    borderRadius: 6,
-                    padding: '4px 10px',
-                    marginBottom: 10,
-                    fontFamily: 'Poppins',
-                    fontSize: 10,
-                    color: C.primary,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}>
-                    👤 PIC: <strong>{d.picName}</strong>
-                  </div>
-                )}
+                  {/* PIC Info */}
+                  {d.picName && (
+                    <div style={{
+                      background: 'rgba(91, 0, 95, 0.08)',
+                      borderRadius: 6,
+                      padding: '4px 10px',
+                      marginBottom: 10,
+                      fontFamily: 'Poppins',
+                      fontSize: 10,
+                      color: '#5B005F',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      👤 PIC: <strong>{d.picName}</strong>
+                    </div>
+                  )}
 
-                {/* Proof photo */}
-                {d.proofPhotoUrl && (
-                  <div style={{ marginBottom: 10, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.n200}`, maxHeight: 200 }}>
-                    <img src={d.proofPhotoUrl} alt="proof" style={{ width: '100%', maxHeight: 200, objectFit: 'cover' }} />
-                  </div>
-                )}
+                  {/* Proof photo */}
+                  {d.proofPhotoUrl && (
+                    <div style={{ marginBottom: 10, borderRadius: 10, overflow: 'hidden', border: '1px solid #E8DDF0', maxHeight: 200 }}>
+                      <img src={d.proofPhotoUrl} alt="proof" style={{ width: '100%', maxHeight: 200, objectFit: 'cover' }} />
+                    </div>
+                  )}
 
-                {/* Rejection reason */}
-                {d.status === 'rejected' && d.rejectionReason && (
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.danger, background: C.dangerBg, borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
-                    ❌ Alasan: {d.rejectionReason}
-                  </div>
-                )}
+                  {/* Rejection reason */}
+                  {d.status === 'rejected' && d.rejectionReason && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#D32F2F', background: '#FFEBEE', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
+                      ❌ Alasan: {d.rejectionReason}
+                    </div>
+                  )}
 
-                {/* Approved info */}
-                {d.status === 'approved' && d.approvedByName && (
-                  <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.successDark, background: C.successBg, borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
-                    ✅ Disetujui oleh {d.approvedByName} · {fmtDate(d.approvedAt)}
-                  </div>
-                )}
+                  {/* Approved info */}
+                  {d.status === 'approved' && d.approvedByName && (
+                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: '#2E7D32', background: '#E8F5E9', borderRadius: 8, padding: '8px 10px', marginBottom: 10 }}>
+                      ✅ Disetujui oleh {d.approvedByName} · {fmtDate(d.approvedAt)}
+                    </div>
+                  )}
 
-                {/* Action buttons (pending only) */}
-                {d.status === 'pending' && (
-                  <div style={{ marginTop: 12 }}>
-                    {rejectingId === d.id ? (
-                      <div>
-                        <textarea
-                          value={rejectReason}
-                          onChange={e => setRejectReason(e.target.value)}
-                          placeholder="Alasan penolakan (wajib diisi)"
-                          rows={2}
-                          style={{
-                            width: '100%', boxSizing: 'border-box', borderRadius: 8,
-                            border: `1.5px solid ${C.border}`, padding: 10,
-                            fontFamily: 'Poppins', fontSize: 12, marginBottom: 8, resize: 'vertical',
-                          }}
-                        />
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <Btn variant="outline" size="sm" style={{ flex: 1 }} onClick={() => { setRejectingId(null); setRejectReason(''); }}>Batal</Btn>
-                          <Btn variant="primary" size="sm" style={{ flex: 1, background: C.danger }} onClick={() => handleReject(d.id)}>Konfirmasi Tolak</Btn>
+                  {/* Action buttons (pending only) */}
+                  {d.status === 'pending' && (
+                    <div style={{ marginTop: 12 }}>
+                      {rejectingId === d.id ? (
+                        <div>
+                          <textarea
+                            value={rejectReason}
+                            onChange={e => setRejectReason(e.target.value)}
+                            placeholder="Alasan penolakan (wajib diisi)"
+                            rows={2}
+                            style={{
+                              width: '100%', boxSizing: 'border-box', borderRadius: 8,
+                              border: '1.5px solid #E8DDF0', padding: 10,
+                              fontFamily: 'Poppins', fontSize: 12, marginBottom: 8, resize: 'vertical',
+                              background: '#FAFAFA',
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <motion.button whileTap={{ scale: 0.97 }} onClick={() => { setRejectingId(null); setRejectReason(''); }} style={{ flex: 1, padding: '8px 16px', borderRadius: 10, border: '1.5px solid #E8DDF0', background: '#FFFFFF', fontFamily: 'Poppins', fontSize: 12, cursor: 'pointer' }}>Batal</motion.button>
+                            <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleReject(d.id)} style={{ flex: 1, padding: '8px 16px', borderRadius: 10, border: 'none', background: '#D32F2F', color: '#FFFFFF', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Konfirmasi Tolak</motion.button>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <Btn variant="outline" size="sm" style={{ flex: 1, color: C.danger, borderColor: C.danger }} onClick={() => setRejectingId(d.id)}>
-                          ❌ Tolak
-                        </Btn>
-                        <Btn variant="primary" size="sm" style={{ flex: 1 }} onClick={() => handleApprove(d.id)}>
-                          ✅ Approve
-                        </Btn>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))
+                      ) : (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <motion.button whileTap={{ scale: 0.97 }} onClick={() => setRejectingId(d.id)} style={{ flex: 1, padding: '8px 16px', borderRadius: 10, border: '1.5px solid #D32F2F', background: '#FFFFFF', color: '#D32F2F', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                            ❌ Tolak
+                          </motion.button>
+                          <motion.button whileTap={{ scale: 0.97 }} onClick={() => handleApprove(d.id)} style={{ flex: 1, padding: '8px 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #5B005F 0%, #7B0078 100%)', color: '#FFFFFF', fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                            ✅ Approve
+                          </motion.button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </div>
       </div>

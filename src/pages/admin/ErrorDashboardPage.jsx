@@ -4,13 +4,42 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C, SHADOW } from '../../utils/theme';
 import { TopBar, Btn, Chip, Select } from '../../components/ui';
 // import { Pagination } from '../../components/ui'; // TODO: Add Pagination component
 import { alertError, alertSuccess } from '../../utils/alert';
 import { useResponsive } from '../../utils/hooks';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
 
 const F = { fontFamily: 'Poppins' };
+
+// Claymorphism card style
+const clayCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// Skeleton shimmer animation
+const skeletonKeyframes = `
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+`;
+
+const SkeletonBlock = ({ width = '100%', height = 20, borderRadius = 8, style = {} }) => (
+  <div
+    className="skeleton-shimmer"
+    style={{ width, height, borderRadius, ...style }}
+  />
+);
 
 // ─── Severity Badge ────────────────────────────────────────────────────────────
 const SeverityBadge = ({ severity }) => {
@@ -57,8 +86,10 @@ const StatusBadge = ({ status }) => {
 // ─── Stats Cards ──────────────────────────────────────────────────────────────
 const StatsCard = ({ title, value, color = C.n900, bg }) => (
   <div style={{
-    background: bg || C.white, padding: '14px 16px', borderRadius: 12,
-    boxShadow: SHADOW.sm, textAlign: 'center', flex: 1,
+    ...clayCard,
+    padding: '14px 16px',
+    textAlign: 'center',
+    flex: 1,
   }}>
     <div style={{ ...F, fontSize: 28, fontWeight: 700, color, lineHeight: 1.1 }}>
       {value}
@@ -171,18 +202,36 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar
-        title="🔍 Error Dashboard"
-        subtitle="Pantau dan kelola error aplikasi"
-        onBack={goBack}
-      />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      {/* Premium Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 16px 24px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-60px" right="-40px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-30px" left="-30px" />
+        <Sparkle color="rgba(255,255,255,0.6)" size={8} top="20px" left="30%" delay={0.5} />
+        <Sparkle color="rgba(255,255,255,0.5)" size={6} top="40px" right="25%" delay={1.2} />
+        <FloatingBubble size={12} top="10px" left="60%" delay={0.8} duration={4} />
+        <FloatingBubble size={8} bottom="5px" right="20%" delay={2} duration={3.5} />
+
+        <TopBar
+          title="Error Dashboard"
+          subtitle="Pantau dan kelola error aplikasi"
+          onBack={goBack}
+          transparent
+        />
+      </div>
+
+      <style>{skeletonKeyframes}</style>
 
       {/* Stats Summary */}
       {stats && (
         <div style={{
           display: 'flex', gap: 10, padding: 16, overflowX: 'auto',
-          background: C.white, borderBottom: `1px solid ${C.n200}`,
+          background: 'transparent',
         }}>
           <div style={{ flexShrink: 0, minWidth: 100 }}>
             <StatsCard
@@ -213,16 +262,18 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
       {/* Filters */}
       <div style={{
         display: 'flex', gap: 10, padding: '12px 16px',
-        background: C.white, borderBottom: `1px solid ${C.n200}`,
+        background: 'transparent',
         flexWrap: 'wrap',
         overflowX: 'auto',
       }}>
-        <select
+        <motion.select
+          whileTap={{ scale: 0.98 }}
           value={severity}
           onChange={(e) => { setSeverity(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
           style={{
             ...F, fontSize: 12, padding: '8px 12px', borderRadius: 8,
             border: `1px solid ${C.n300}`, outline: 'none', cursor: 'pointer',
+            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
           }}
         >
           <option value="">Semua Severity</option>
@@ -230,14 +281,16 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
-        </select>
+        </motion.select>
 
-        <select
+        <motion.select
+          whileTap={{ scale: 0.98 }}
           value={status}
           onChange={(e) => { setStatus(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
           style={{
             ...F, fontSize: 12, padding: '8px 12px', borderRadius: 8,
             border: `1px solid ${C.n300}`, outline: 'none', cursor: 'pointer',
+            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
           }}
         >
           <option value="">Semua Status</option>
@@ -245,9 +298,10 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
           <option value="reviewed">Reviewed</option>
           <option value="resolved">Resolved</option>
           <option value="ignored">Ignored</option>
-        </select>
+        </motion.select>
 
-        <input
+        <motion.input
+          whileTap={{ scale: 0.98 }}
           type="text"
           placeholder="Cari error..."
           value={search}
@@ -255,6 +309,7 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
           style={{
             ...F, fontSize: 12, padding: '8px 12px', borderRadius: 8,
             border: `1px solid ${C.n300}`, outline: 'none', flex: 1, minWidth: 150,
+            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
           }}
         />
       </div>
@@ -262,23 +317,42 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
       {/* Error List */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, overflowX: 'hidden' }}>
         {loading ? (
-          <div style={{ ...F, fontSize: 13, color: C.n500, textAlign: 'center', padding: 40 }}>
-            Memuat...
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ ...clayCard, padding: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <SkeletonBlock width="80%" height={14} style={{ marginBottom: 6 }} />
+                    <SkeletonBlock width="50%" height={10} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <SkeletonBlock width={70} height={20} borderRadius={6} />
+                    <SkeletonBlock width={60} height={20} borderRadius={6} />
+                  </div>
+                </div>
+                <SkeletonBlock width="40%" height={10} />
+              </div>
+            ))}
           </div>
         ) : errors.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ ...clayCard, padding: 40, textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
             <div style={{ ...F, fontSize: 14, color: C.n700 }}>
               Tidak ada error yang ditemukan
             </div>
           </div>
         ) : (
-          errors.map((error) => (
-            <div
+          errors.map((error, idx) => (
+            <motion.div
               key={error.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.04 }}
               style={{
-                background: C.white, borderRadius: 12, padding: 14, marginBottom: 10,
-                boxShadow: SHADOW.sm, border: `1px solid ${C.n200}`,
+                ...clayCard,
+                padding: 14,
+                marginBottom: 10,
+                border: `1px solid ${C.n200}`,
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
@@ -307,7 +381,8 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {error.status === 'new' && (
-                    <button
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
                       onClick={(e) => { e.stopPropagation(); handleStatusChange(error.id, 'reviewed'); }}
                       style={{
                         ...F, fontSize: 10, padding: '4px 10px', borderRadius: 6,
@@ -315,10 +390,11 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
                       }}
                     >
                       Mark Reviewed
-                    </button>
+                    </motion.button>
                   )}
                   {error.status === 'reviewed' && (
-                    <button
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
                       onClick={(e) => { e.stopPropagation(); handleStatusChange(error.id, 'resolved'); }}
                       style={{
                         ...F, fontSize: 10, padding: '4px 10px', borderRadius: 6,
@@ -326,11 +402,11 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
                       }}
                     >
                       Resolve
-                    </button>
+                    </motion.button>
                   )}
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))
         )}
       </div>
@@ -339,35 +415,37 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
       {pagination.totalPages > 1 && (
         <div style={{
           display: 'flex', justifyContent: 'center', gap: 8, padding: 12,
-          background: C.white, borderTop: `1px solid ${C.n200}`,
+          background: 'transparent',
         }}>
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97 }}
             onClick={() => setPagination(p => ({ ...p, page: Math.max(1, p.page - 1) }))}
             disabled={pagination.page <= 1}
             style={{
               ...F, fontSize: 12, padding: '6px 12px', borderRadius: 8,
-              border: `1px solid ${C.n300}`, background: C.white,
+              border: `1px solid ${C.n300}`, background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
               cursor: pagination.page <= 1 ? 'not-allowed' : 'pointer',
               opacity: pagination.page <= 1 ? 0.5 : 1,
             }}
           >
             ←
-          </button>
+          </motion.button>
           <span style={{ ...F, fontSize: 12, color: C.n700, display: 'flex', alignItems: 'center' }}>
             Page {pagination.page} / {pagination.totalPages}
           </span>
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97 }}
             onClick={() => setPagination(p => ({ ...p, page: Math.min(p.totalPages, p.page + 1) }))}
             disabled={pagination.page >= pagination.totalPages}
             style={{
               ...F, fontSize: 12, padding: '6px 12px', borderRadius: 8,
-              border: `1px solid ${C.n300}`, background: C.white,
+              border: `1px solid ${C.n300}`, background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
               cursor: pagination.page >= pagination.totalPages ? 'not-allowed' : 'pointer',
               opacity: pagination.page >= pagination.totalPages ? 0.5 : 1,
             }}
           >
             →
-          </button>
+          </motion.button>
         </div>
       )}
 
@@ -378,18 +456,35 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
           background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', zIndex: 500, padding: 20,
         }} onClick={() => setShowDetail(false)}>
-          <div style={{
-            background: C.white, borderRadius: 16, padding: 20, maxWidth: 600,
-            width: '100%', maxHeight: '80vh', overflowY: 'auto',
-            margin: isMobile ? 12 : 20,
-          }} onClick={(e) => e.stopPropagation()}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              ...clayCard,
+              padding: 20,
+              maxWidth: 600,
+              width: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              margin: isMobile ? 12 : 20,
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ ...F, fontSize: 16, fontWeight: 700, color: C.n900, margin: 0 }}>
                 Error Detail
               </h3>
-              <button onClick={() => setShowDetail(false)} style={{
-                border: 'none', background: 'none', fontSize: 20, cursor: 'pointer',
-              }}>×</button>
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowDetail(false)}
+                style={{
+                  border: 'none', background: C.n100, fontSize: 20, cursor: 'pointer',
+                  width: 32, height: 32, borderRadius: 8, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                ×
+              </motion.button>
             </div>
 
             <div style={{ marginBottom: 16 }}>
@@ -451,22 +546,26 @@ export function ErrorDashboardPageContent({ navigate, goBack }) {
                     ...F, fontSize: 12, width: '100%', padding: 10,
                     border: `1px solid ${C.n300}`, borderRadius: 8, outline: 'none',
                     resize: 'vertical',
+                    background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
                   }}
                 />
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
                   onClick={handleResolve}
                   style={{
                     ...F, fontSize: 13, fontWeight: 600, marginTop: 10,
                     padding: '10px 20px', borderRadius: 10, border: 'none',
-                    background: C.success, color: 'white', cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+                    color: 'white', cursor: 'pointer',
                     width: '100%',
+                    boxShadow: '0 4px 15px rgba(91, 0, 95, 0.3)',
                   }}
                 >
                   ✓ Mark as Resolved
-                </button>
+                </motion.button>
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       )}
     </div>

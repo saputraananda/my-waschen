@@ -504,9 +504,23 @@ export default function CustomerListPage({ navigate }) {
                       {/* Info row */}
                       <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                         <span style={{ fontFamily: 'Poppins', fontSize: 11, color: 'var(--ink-soft)', fontWeight: 500 }}>{c.totalTx || 0} transaksi</span>
-                        {c.deposit > 0 && (
-                          <span style={{ fontFamily: 'Poppins', fontSize: 11, color: '#1F9E75', fontWeight: 700 }}>Saldo Rp {(c.deposit || 0).toLocaleString('id-ID')}</span>
-                        )}
+                        {/* Saldo pill - selalu tampil */}
+                        <span style={{
+                          fontFamily: 'Poppins',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background: c.deposit > 0
+                            ? 'linear-gradient(135deg, #5FD9AE, #1F9E75)'
+                            : 'rgba(255, 255, 255, 0.7)',
+                          color: c.deposit > 0 ? '#FFFFFF' : '#B0A0B8',
+                          boxShadow: c.deposit > 0
+                            ? '0 2px 8px rgba(31, 158, 117, 0.35)'
+                            : '0 1px 4px rgba(59, 11, 71, 0.08)',
+                        }}>
+                          💰 Saldo Rp {(c.deposit || 0).toLocaleString('id-ID')}
+                        </span>
                         {typeof c.totalSpend === 'number' && c.totalSpend > 0 && (
                           <span style={{ fontFamily: 'Poppins', fontSize: 11, color: 'var(--magenta)', fontWeight: 600 }}>Total Rp {c.totalSpend.toLocaleString('id-ID')}</span>
                         )}
@@ -605,57 +619,190 @@ export default function CustomerListPage({ navigate }) {
         </button>
       </div>
 
-      <Modal visible={filterOpen} onClose={() => setFilterOpen(false)} title="Filter Customer">
-        <div style={{ padding: '16px 18px' }}>
+      <Modal visible={filterOpen} onClose={() => setFilterOpen(false)}>
+        <div style={{ padding: '8px 0 16px' }}>
+          {/* Header row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, padding: '0 18px' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: 'var(--ink)' }}>Filter & Urutan</div>
+            <button
+              onClick={() => setFilterOpen(false)}
+              style={{
+                width: 36, height: 36, borderRadius: 18, border: 'none',
+                background: 'linear-gradient(135deg, #6B2D7E20, #4A1A5920)',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#5B005F',
+                boxShadow: '0 2px 8px rgba(91, 0, 95, 0.15)',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Outlet filter */}
           {outlets.length > 0 && (
             <>
-              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>🏪 Outlet Asal Customer</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-                <Chip label="Semua Outlet" active={outletFilter === 'all'} onClick={() => setOutletFilter('all')} />
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8, padding: '0 18px' }}>🏪 Outlet Asal Customer</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, padding: '0 18px' }}>
+                <button
+                  onClick={() => setOutletFilter('all')}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'Poppins',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.2s ease',
+                    background: outletFilter === 'all'
+                      ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                      : 'rgba(255, 255, 255, 0.7)',
+                    color: outletFilter === 'all' ? '#FFFFFF' : '#7A6584',
+                    boxShadow: outletFilter === 'all'
+                      ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                      : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                  }}
+                >
+                  Semua Outlet
+                </button>
                 {outlets.map((o) => (
-                  <Chip
+                  <button
                     key={o.id}
-                    label={o.name.replace(/^Waschen Laundry\s+/i, '')}
-                    active={String(outletFilter) === String(o.id)}
                     onClick={() => setOutletFilter(o.id)}
-                  />
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 999,
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.2s ease',
+                      background: String(outletFilter) === String(o.id)
+                        ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                        : 'rgba(255, 255, 255, 0.7)',
+                      color: String(outletFilter) === String(o.id) ? '#FFFFFF' : '#7A6584',
+                      boxShadow: String(outletFilter) === String(o.id)
+                        ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                        : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                    }}
+                  >
+                    {o.name.replace(/^Waschen Laundry\s+/i, '')}
+                  </button>
                 ))}
               </div>
             </>
           )}
 
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>Status Member</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          {/* Status Member */}
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8, padding: '0 18px' }}>⭐ Status Member</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, padding: '0 18px' }}>
             {[
               { value: 'all', label: 'Semua' },
               { value: 'premium', label: 'Premium' },
               { value: 'regular', label: 'Regular' },
             ].map((f) => (
-              <Chip key={f.value} label={f.label} active={memberFilter === f.value} onClick={() => setMemberFilter(f.value)} />
+              <button
+                key={f.value}
+                onClick={() => setMemberFilter(f.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s ease',
+                  background: memberFilter === f.value
+                    ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                    : 'rgba(255, 255, 255, 0.7)',
+                  color: memberFilter === f.value ? '#FFFFFF' : '#7A6584',
+                  boxShadow: memberFilter === f.value
+                    ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                    : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                }}
+              >
+                {f.label}
+              </button>
             ))}
           </div>
 
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>Kategori Loyalitas</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          {/* Kategori Loyalitas */}
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8, padding: '0 18px' }}>💎 Kategori Loyalitas</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, padding: '0 18px' }}>
             {[
               { value: 'all', label: 'Semua' },
-              { value: 'loyal', label: '💎 Loyal' },
-              { value: 'regular', label: '⭐ Reguler' },
-              { value: 'one_time', label: '📋 Satu Kali' },
-              { value: 'churn', label: '⚠️ Churn' },
+              { value: 'loyal', label: 'Loyal' },
+              { value: 'regular', label: 'Reguler' },
+              { value: 'one_time', label: 'Satu Kali' },
+              { value: 'churn', label: 'Churn' },
             ].map((f) => (
-              <Chip key={f.value} label={f.label} active={loyaltyFilter === f.value} onClick={() => setLoyaltyFilter(f.value)} />
+              <button
+                key={f.value}
+                onClick={() => setLoyaltyFilter(f.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s ease',
+                  background: loyaltyFilter === f.value
+                    ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                    : 'rgba(255, 255, 255, 0.7)',
+                  color: loyaltyFilter === f.value ? '#FFFFFF' : '#7A6584',
+                  boxShadow: loyaltyFilter === f.value
+                    ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                    : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                }}
+              >
+                {f.label}
+              </button>
             ))}
           </div>
 
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>Urutkan</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Urutkan */}
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8, padding: '0 18px' }}>🔄 Urutkan</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, padding: '0 18px' }}>
             {SORTS.map((s) => (
-              <Chip key={s.value} label={s.label} active={sortBy === s.value} onClick={() => setSortBy(s.value)} />
+              <button
+                key={s.value}
+                onClick={() => setSortBy(s.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s ease',
+                  background: sortBy === s.value
+                    ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                    : 'rgba(255, 255, 255, 0.7)',
+                  color: sortBy === s.value ? '#FFFFFF' : '#7A6584',
+                  boxShadow: sortBy === s.value
+                    ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                    : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                }}
+              >
+                {s.label}
+              </button>
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20, padding: '0 18px' }}>
             <button
               onClick={() => {
                 setMemberFilter('all');
@@ -663,27 +810,38 @@ export default function CustomerListPage({ navigate }) {
                 setSortBy('name_asc');
                 setOutletFilter('all');
               }}
-              className="clay-btn-secondary"
               style={{
                 flex: 1,
-                padding: '10px 16px',
-                border: 'none',
+                height: 44,
+                borderRadius: 12,
+                border: '1.5px solid rgba(255, 255, 255, 0.6)',
+                background: 'rgba(255, 255, 255, 0.7)',
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#7A6584',
                 cursor: 'pointer',
               }}
             >
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: 'var(--purple-mid)' }}>Reset</span>
+              Reset
             </button>
             <button
               onClick={() => setFilterOpen(false)}
-              className="clay-btn-primary"
               style={{
-                flex: 1,
-                padding: '10px 16px',
+                flex: 2,
+                height: 44,
+                borderRadius: 12,
                 border: 'none',
+                background: 'linear-gradient(135deg, #6B2D7E, #4A1A59)',
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'white',
                 cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(59, 11, 71, 0.25)',
               }}
             >
-              <span style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.white }}>Terapkan</span>
+              Terapkan Filter
             </button>
           </div>
         </div>

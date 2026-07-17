@@ -1,10 +1,36 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
-import { C, SHADOW } from '../../utils/theme';
+import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Input, Select, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertConfirm } from '../../utils/alert';
 import { useResponsive } from '../../utils/hooks';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
+
+// ─── Premium Card Style ──────────────────────────────────────────────────────
+const PREMIUM_CARD = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// ─── Skeleton Block ───────────────────────────────────────────────────────────
+function SkeletonBlock({ height = 160, style = {} }) {
+  return (
+    <div style={{
+      height,
+      borderRadius: 18,
+      background: 'linear-gradient(90deg, rgba(91,0,95,0.05) 25%, rgba(91,0,95,0.1) 50%, rgba(91,0,95,0.05) 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.5s infinite',
+      marginBottom: 10,
+      ...style,
+    }} />
+  );
+}
 
 const MONTHS = [
   { value: 1, label: 'Januari' },  { value: 2, label: 'Februari' },
@@ -21,7 +47,7 @@ const YEAR_RANGE = (() => {
 
 function pctColor(pct) {
   if (pct >= 100) return C.success;
-  if (pct >= 80)  return C.success; // Keeping this specific shade for 80-99% range
+  if (pct >= 80)  return C.success;
   if (pct >= 50)  return C.warning;
   return C.danger;
 }
@@ -35,7 +61,12 @@ function pctBg(pct) {
 function ProgressBar({ pct, color }) {
   return (
     <div style={{ height: 6, background: C.n200, borderRadius: 3, overflow: 'hidden', marginTop: 4 }}>
-      <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: color, borderRadius: 3, transition: 'width 0.5s ease' }} />
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: `${Math.min(100, pct)}%` }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        style={{ height: '100%', background: color, borderRadius: 3 }}
+      />
     </div>
   );
 }
@@ -137,13 +168,56 @@ export default function AdminTargetPage({ navigate, goBack }) {
   const monthFormOptions  = MONTHS.map(m => ({ value: m.value, label: m.label }));
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Capaian Target" subtitle="Manajemen target per outlet" onBack={goBack} />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      <style>{`
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes floatA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-14px,16px) scale(1.08)} }
+        @keyframes twinkle { 0%,100%{opacity:0;transform:scale(0.4) rotate(0deg)} 50%{opacity:1;transform:scale(1) rotate(20deg)} }
+      `}</style>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 80px' }}>
+      {/* ── Premium Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 20px 52px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <GlowOrb color="rgba(140, 76, 143, 0.4)" size={200} top="-60px" left="-30px" blur={50} />
+        <GlowOrb color="rgba(249, 62, 17, 0.25)" size={150} top="40px" right="-40px" blur={40} />
+        <Sparkle top="10%" left="15%" size={8} delay={0} color="#FFD700" />
+        <Sparkle top="20%" left="80%" size={6} delay={0.5} color="#FF6B6B" />
+        <Sparkle top="60%" left="25%" size={7} delay={1} color="#4ECDC4" />
+        <FloatingBubble src={bubbleIcon} size={18} top="15%" left="5%" delay={0} opacity={0.4} />
+        <FloatingBubble src={bubble2Icon} size={14} top="35%" right="8%" delay={0.5} opacity={0.35} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: 'white', letterSpacing: '-0.3px' }}>
+              Capaian Target
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
+              Manajemen target per outlet
+            </div>
+          </div>
+          {goBack && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={goBack}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: 'white',
+              }}
+            >
+              ← Kembali
+            </motion.button>
+          )}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px 100px' }}>
 
         {/* Filter bar */}
-        <div style={{ background: C.white, borderRadius: 16, padding: isMobile ? '12px' : '14px 16px', marginBottom: 12, boxShadow: SHADOW.md }}>
+        <div style={{ ...PREMIUM_CARD, padding: isMobile ? '12px' : '14px 16px', marginBottom: 12 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 8 }}>
             <Select label="Tahun" value={year} onChange={v => setYear(Number(v))} options={YEAR_RANGE} />
             <Select label="Bulan" value={month} onChange={v => setMonth(v ? Number(v) : '')} options={monthOptions} />
@@ -158,10 +232,15 @@ export default function AdminTargetPage({ navigate, goBack }) {
           const pct = totalTarget > 0 ? Math.round((totalActual / totalTarget) * 100) : 0;
           const color = pctColor(pct);
           return (
-            <div style={{
-              background: C.white, borderRadius: 16, padding: '14px 16px', marginBottom: 12,
-              boxShadow: SHADOW.md, borderLeft: `4px solid ${color}`,
-            }}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                ...PREMIUM_CARD,
+                padding: '14px 16px', marginBottom: 12,
+                borderLeft: `4px solid ${color}`,
+              }}
+            >
               <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, letterSpacing: 0.5, marginBottom: 10 }}>RINGKASAN PERIODE</div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 }}>
                 <div>
@@ -177,35 +256,73 @@ export default function AdminTargetPage({ navigate, goBack }) {
               <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color, textAlign: 'center', marginTop: 6 }}>
                 {pct}% tercapai
               </div>
-            </div>
+            </motion.div>
           );
         })()}
 
         {/* Table */}
         {loading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 0', gap: 12 }}>
-            <div style={{ width: 40, height: 40, border: `3px solid ${C.n200}`, borderTop: `3px solid ${C.primary}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n700 }}>Memuat data...</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <SkeletonBlock height={160} />
+            <SkeletonBlock height={160} />
           </div>
         ) : targets.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: 10 }}>
-            <div style={{ width: 64, height: 64, borderRadius: 20, background: `${C.primary}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 14px ${C.primary}18` }}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{
+              ...PREMIUM_CARD,
+              padding: '48px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{
+              width: 64, height: 64, borderRadius: 20,
+              background: 'linear-gradient(145deg, #F8F4FF, #FFFFFF)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '8px 8px 20px rgba(110, 46, 120, 0.12), -4px -4px 10px rgba(255, 255, 255, 0.95)',
+              margin: '0 auto 16px'
+            }}>
               <span style={{ fontSize: 28 }}>🎯</span>
             </div>
             <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.n800 }}>Belum ada target</div>
             <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, marginBottom: 20, textAlign: 'center' }}>Tambahkan target capaian untuk outlet dan periode ini.</div>
-            <Btn variant="primary" onClick={openAdd}>+ Tambah Target</Btn>
-          </div>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={openAdd}
+              style={{
+                padding: '10px 24px',
+                borderRadius: 14,
+                border: 'none',
+                background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`,
+                color: 'white',
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(91, 0, 95, 0.25)',
+              }}
+            >
+              + Tambah Target
+            </motion.button>
+          </motion.div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {targets.map(row => {
+            {targets.map((row, idx) => {
               const color = pctColor(row.pct);
               return (
-                <div key={row.id} style={{
-                  background: C.white, borderRadius: 16, padding: '14px 16px',
-                  boxShadow: SHADOW.md, borderLeft: `4px solid ${color}`,
-                  transition: 'all 0.2s ease',
-                }}>
+                <motion.div
+                  key={row.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.04 }}
+                  whileHover={{ y: -2 }}
+                  style={{
+                    ...PREMIUM_CARD,
+                    padding: '14px 16px',
+                    borderLeft: `4px solid ${color}`,
+                  }}
+                >
                   {/* Header */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                     <div>
@@ -219,11 +336,11 @@ export default function AdminTargetPage({ navigate, goBack }) {
 
                   {/* Values */}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                    <div style={{ flex: 1, background: C.n50, borderRadius: 10, padding: '8px 12px' }}>
+                    <div style={{ flex: 1, background: 'linear-gradient(145deg, #F8F4FF, #FFFFFF)', borderRadius: 10, padding: '8px 12px', boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)' }}>
                       <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n500, letterSpacing: 0.5 }}>REALISASI</div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color }}>{rp(row.actualAmount)}</div>
                     </div>
-                    <div style={{ flex: 1, background: C.n50, borderRadius: 10, padding: '8px 12px' }}>
+                    <div style={{ flex: 1, background: 'linear-gradient(145deg, #F8F4FF, #FFFFFF)', borderRadius: 10, padding: '8px 12px', boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)' }}>
                       <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n500, letterSpacing: 0.5 }}>TARGET</div>
                       <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n700 }}>{rp(row.targetAmount)}</div>
                     </div>
@@ -233,19 +350,23 @@ export default function AdminTargetPage({ navigate, goBack }) {
 
                   {/* Achievement banner */}
                   {row.actualAmount > row.targetAmount && row.targetAmount > 0 && (
-                    <div style={{
-                      marginTop: 8, padding: '8px 12px', borderRadius: 10,
-                      background: 'linear-gradient(90deg, #DCFCE7, #F0FDF4)',
-                      border: `1px solid ${C.successBg}`, display: 'flex', alignItems: 'center', gap: 6,
-                    }}>
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      style={{
+                        marginTop: 8, padding: '8px 12px', borderRadius: 12,
+                        background: 'linear-gradient(90deg, #DCFCE7, #F0FDF4)',
+                        border: `1px solid ${C.successBg}`, display: 'flex', alignItems: 'center', gap: 6,
+                      }}
+                    >
                       <span style={{ fontSize: 14 }}>🏆</span>
                       <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.successDark }}>
                         Surplus <strong>{rp(row.actualAmount - row.targetAmount)}</strong> · Lampaui target {row.pct - 100}%
                       </div>
-                    </div>
+                    </motion.div>
                   )}
                   {row.actualAmount >= row.targetAmount && row.actualAmount === row.targetAmount && row.targetAmount > 0 && (
-                    <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 10, background: C.successBg, border: `1px solid ${C.successBg}`, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 12, background: C.successBg, border: `1px solid ${C.successBg}`, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontSize: 14 }}>✅</span>
                       <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.successDark }}>Target tercapai persis!</div>
                     </div>
@@ -268,15 +389,45 @@ export default function AdminTargetPage({ navigate, goBack }) {
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                    <Btn
-                      variant="primary"
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
                       onClick={() => navigate('admin_target_detail', { outletId: row.outletId, year: row.year, month: row.month })}
-                      style={{ flex: isMobile ? 1 : 1.5, padding: '8px 0', fontSize: 12 }}
-                    >📊 Lihat Detail Harian</Btn>
-                    <Btn variant="secondary" onClick={() => openEdit(row)} style={{ flex: 1, padding: '8px 0', fontSize: 12 }}>✏️ Edit</Btn>
-                    <Btn variant="danger" onClick={() => handleDelete(row)} style={{ flex: 1, padding: '8px 0', fontSize: 12 }}>🗑️</Btn>
+                      style={{
+                        flex: isMobile ? 1 : 1.5, padding: '8px 0', fontSize: 12,
+                        borderRadius: 12, border: 'none',
+                        background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`,
+                        color: 'white', cursor: 'pointer',
+                        fontFamily: 'Poppins', fontWeight: 600,
+                        boxShadow: '0 4px 12px rgba(91, 0, 95, 0.25)',
+                      }}
+                    >📊 Lihat Detail Harian</motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => openEdit(row)}
+                      style={{
+                        flex: 1, padding: '8px 0', fontSize: 12,
+                        borderRadius: 12,
+                        border: '1.5px solid rgba(91, 0, 95, 0.15)',
+                        background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+                        color: C.primary, cursor: 'pointer',
+                        fontFamily: 'Poppins', fontWeight: 600,
+                        boxShadow: '0 2px 8px rgba(110, 46, 120, 0.08)',
+                      }}
+                    >✏️ Edit</motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => handleDelete(row)}
+                      style={{
+                        flex: 1, padding: '8px 0', fontSize: 12,
+                        borderRadius: 12,
+                        border: '1.5px solid rgba(184, 40, 72, 0.15)',
+                        background: C.dangerBg,
+                        color: C.danger, cursor: 'pointer',
+                        fontFamily: 'Poppins', fontWeight: 600,
+                      }}
+                    >🗑️</motion.button>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -285,22 +436,22 @@ export default function AdminTargetPage({ navigate, goBack }) {
 
       {/* FAB */}
       {targets.length > 0 && (
-        <button onClick={openAdd} style={{
-          position: 'fixed', bottom: 24, right: 20, zIndex: 50,
-          width: 56, height: 56, borderRadius: 28,
-          background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
-          border: 'none', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(110,46,120,0.45)',
-          transition: 'transform 0.15s, box-shadow 0.15s',
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(110,46,120,0.55)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(110,46,120,0.45)'; }}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={openAdd}
+          style={{
+            position: 'fixed', bottom: 24, right: 20, zIndex: 50,
+            width: 56, height: 56, borderRadius: 28,
+            background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 20px rgba(110,46,120,0.45)',
+          }}
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-        </button>
+        </motion.button>
       )}
 
       {/* Modal */}

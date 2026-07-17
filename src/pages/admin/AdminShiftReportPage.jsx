@@ -1,13 +1,42 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Chip, Select, DateTimeInput, ErrorBoundary } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF } from '../../utils/exportReport';
 import { useResponsive } from '../../utils/hooks';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
 
 const F = { fontFamily: 'Poppins' };
+
+// Claymorphism card style
+const clayCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// Skeleton shimmer animation
+const skeletonKeyframes = `
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+`;
+
+const SkeletonBlock = ({ width = '100%', height = 20, borderRadius = 8, style = {} }) => (
+  <div
+    className="skeleton-shimmer"
+    style={{ width, height, borderRadius, ...style }}
+  />
+);
 
 const METHOD_LABEL = {
   cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', ovo: 'OVO',
@@ -64,8 +93,8 @@ const trendVisual = (current, prev, reverseGood = false) => {
 
 const Card = ({ children, style = {}, accentColor }) => (
   <div style={{
-    background: C.white, borderRadius: 14, padding: 14,
-    boxShadow: SHADOW.sm,
+    ...clayCard,
+    padding: 14,
     borderLeft: accentColor ? `4px solid ${accentColor}` : undefined,
     ...style,
   }}>{children}</div>
@@ -231,12 +260,29 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
   }, [sessions]);
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Shift Kasir" subtitle="Monitoring buka/tutup shift & selisih kas" onBack={goBack} />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      {/* Premium Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 16px 24px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-60px" right="-40px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-30px" left="-30px" />
+        <Sparkle color="rgba(255,255,255,0.6)" size={8} top="20px" left="30%" delay={0.5} />
+        <Sparkle color="rgba(255,255,255,0.5)" size={6} top="40px" right="25%" delay={1.2} />
+        <FloatingBubble size={12} top="10px" left="60%" delay={0.8} duration={4} />
+        <FloatingBubble size={8} bottom="5px" right="20%" delay={2} duration={3.5} />
+
+        <TopBar title="Shift Kasir" subtitle="Monitoring buka/tutup shift & selisih kas" onBack={goBack} transparent />
+      </div>
+
+      <style>{skeletonKeyframes}</style>
 
       {/* Filters — compact inline card */}
-      <div style={{ padding: '12px 16px 0', background: C.n50 }}>
-        <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', boxShadow: SHADOW.sm }}>
+      <div style={{ padding: '12px 16px 0', background: '#F3EEF7' }}>
+        <div style={{ ...clayCard, padding: '14px 16px' }}>
           {/* Date row — side by side, no arrow */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
             <DateTimeInput label="Dari" value={dateFrom ? `${dateFrom}T00:00:00` : ''} onChange={(v) => setDateFrom(v ? v.slice(0, 10) : '')} timeOptional />
@@ -250,7 +296,8 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
 
       {/* Export buttons */}
       <div style={{ padding: '0 16px 6px', display: 'flex', gap: 8 }}>
-        <button
+        <motion.button
+          whileTap={{ scale: 0.97 }}
           onClick={async () => {
             try {
               const res = await axios.get('/api/shifts/export', { params: { outletId, dateFrom, dateTo } });
@@ -279,8 +326,9 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
           }}
         >
           📊 Export Excel
-        </button>
-        <button
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
           onClick={async () => {
             try {
               const res = await axios.get('/api/shifts/export', { params: { outletId, dateFrom, dateTo } });
@@ -305,7 +353,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
           }}
         >
           📄 Export PDF
-        </button>
+        </motion.button>
       </div>
 
       {/* Tabs — attached below filter */}
@@ -314,20 +362,23 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
           { key: 'sessions', label: 'Riwayat Shift', icon: '📋' },
           { key: 'outlet', label: 'Per Outlet', icon: '🏪' },
         ].map(t => (
-          <button
+          <motion.button
             key={t.key}
             onClick={() => setTab(t.key)}
+            whileTap={{ scale: 0.97 }}
             style={{
               flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: tab === t.key ? C.primary : C.white,
+              background: tab === t.key ? 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)' : 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
               color: tab === t.key ? 'white' : C.n700,
               fontFamily: 'Poppins', fontSize: 13, fontWeight: tab === t.key ? 700 : 500,
-              boxShadow: tab === t.key ? `0 4px 12px ${C.primary}30` : SHADOW.sm,
+              boxShadow: tab === t.key
+                ? '0 4px 15px rgba(91, 0, 95, 0.3)'
+                : '6px 6px 12px rgba(110, 46, 120, 0.08), -3px -3px 8px rgba(255, 255, 255, 0.95)',
               transition: 'all 0.2s',
             }}
           >
             {t.icon} {t.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 
@@ -339,7 +390,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 24px' }}>
         {/* ===== KPI Summary — Clean horizontal strip ===== */}
-        <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm, overflowX: 'auto' }}>
+        <div style={{ ...clayCard, padding: '14px 16px', marginBottom: 14, overflowX: 'auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, textAlign: 'center', minWidth: 400 }}>
             {[
               { label: 'Total', value: aggregateTotals.totalShift, color: C.n900 },
@@ -363,7 +414,11 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
 
               {/* Outlet disiplin — compact row */}
               {disciplinedOutlet && (
-                <div style={{ background: C.white, borderRadius: 12, padding: '12px 14px', boxShadow: SHADOW.sm, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  style={{ ...clayCard, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}
+                >
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: C.successBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🏆</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ ...F, fontSize: 11, color: C.n700, fontWeight: 500 }}>Paling Disiplin</div>
@@ -378,7 +433,12 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
 
               {/* Outlet bermasalah — compact row */}
               {problematicOutlet && problematicOutlet.largeDiffCount > 0 && (
-                <div style={{ background: C.white, borderRadius: 12, padding: '12px 14px', boxShadow: SHADOW.sm, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.04 }}
+                  style={{ ...clayCard, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}
+                >
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: C.warningBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>⚠️</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ ...F, fontSize: 11, color: C.n700, fontWeight: 500 }}>Sering Selisih</div>
@@ -388,12 +448,17 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                     <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.danger }}>{problematicOutlet.largeDiffCount}x</div>
                     <div style={{ ...F, fontSize: 9, color: C.n700 }}>kasus ≥50rb</div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* Shift terbuka terlalu lama — compact alert */}
               {staleCashiers.length > 0 && (
-                <div style={{ background: C.dangerBg, borderRadius: 12, padding: '10px 14px', border: `1px solid ${C.dangerBg}` }}>
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.08 }}
+                  style={{ background: C.dangerBg, borderRadius: 12, padding: '10px 14px', border: `1px solid ${C.danger}` }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: staleCashiers.length > 1 ? 8 : 0 }}>
                     <span style={{ fontSize: 14 }}>🚨</span>
                     <span style={{ ...F, fontSize: 12, fontWeight: 600, color: C.danger }}>{staleCashiers.length} shift terbuka &gt;24 jam</span>
@@ -404,7 +469,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                       <span style={{ fontWeight: 600 }}>{hoursSince(s.openedAt).toFixed(0)}j</span>
                     </div>
                   ))}
-                </div>
+                </motion.div>
               )}
             </div>
           </div>
@@ -431,10 +496,10 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
             />
 
             {loading ? (
-              <div style={{ textAlign: 'center', padding: 32, ...F, fontSize: 13, color: C.n700 }}>
-                <div style={{ width: 24, height: 24, border: `3px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
-                Memuat data shift...
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              <div style={{ ...clayCard, padding: 32, textAlign: 'center' }}>
+                <SkeletonBlock width={60} height={60} borderRadius={12} style={{ margin: '0 auto 16px' }} />
+                <SkeletonBlock width="60%" height={16} style={{ margin: '0 auto 8px' }} />
+                <SkeletonBlock width="40%" height={14} style={{ margin: '0 auto' }} />
               </div>
             ) : filteredSessions.length === 0 ? (
               <Card style={{ textAlign: 'center', padding: 24 }}>
@@ -449,11 +514,15 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
               return (
                 <div key={outletName} style={{ marginBottom: 20 }}>
                   {/* Outlet Group Header */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 14px', background: C.white, borderRadius: 12,
-                    boxShadow: SHADOW.sm, marginBottom: 8,
-                  }}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      ...clayCard,
+                      padding: '10px 14px',
+                      marginBottom: 8,
+                    }}
+                  >
                     <div style={{
                       width: 36, height: 36, borderRadius: 10,
                       background: `${C.primary}14`, display: 'flex',
@@ -470,11 +539,11 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                     {totalDiff > 0 && (
                       <Pill color={C.warningBg} textColor={C.warning}>|Σ| {rp(Math.round(totalDiff))}</Pill>
                     )}
-                  </div>
+                  </motion.div>
 
                   {/* Session Cards */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {items.map((s) => {
+                    {items.map((s, idx) => {
                       const isOpen = s.status === 'open';
                       const hasDiff = s.cashDiff != null;
                       const bigDiff = hasDiff && Math.abs(s.cashDiff) >= 50000;
@@ -484,15 +553,26 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                       const cashSales = s.systemCash != null ? Number(s.systemCash) - Number(s.openingCash || 0) : 0;
 
                       return (
-                        <div key={s.id} style={{
-                          background: C.white, borderRadius: 12, overflow: 'hidden',
-                          boxShadow: SHADOW.sm, borderLeft: `4px solid ${accent}`,
-                        }}>
-                          <button onClick={() => setExpandedSession(expanded ? null : s.id)} style={{
-                            width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '12px 14px', background: 'none', border: 'none',
-                            cursor: 'pointer', textAlign: 'left',
-                          }}>
+                        <motion.div
+                          key={s.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          style={{
+                            ...clayCard,
+                            overflow: 'hidden',
+                            borderLeft: `4px solid ${accent}`,
+                          }}
+                        >
+                          <motion.button
+                            onClick={() => setExpandedSession(expanded ? null : s.id)}
+                            whileTap={{ scale: 0.98 }}
+                            style={{
+                              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '12px 14px', background: 'none', border: 'none',
+                              cursor: 'pointer', textAlign: 'left',
+                            }}
+                          >
                             <div style={{
                               width: 36, height: 36, borderRadius: 10,
                               background: `${accent}14`, display: 'flex',
@@ -522,7 +602,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.n700} strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, transform: expanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
                               <polyline points="6 9 12 15 18 9" />
                             </svg>
-                          </button>
+                          </motion.button>
 
                           {expanded && (
                             <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${C.n100}`, background: C.n50, overflowX: 'auto' }}>
@@ -653,7 +733,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                               )}
                             </div>
                           )}
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
@@ -686,7 +766,13 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                   const rankColor = idx === 0 ? C.warning : idx === 1 ? C.n500 : idx === 2 ? '#CD7F32' : C.n700;
 
                   return (
-                    <Card key={o.outletId} accentColor={diffColor}>
+                    <motion.div
+                      key={o.outletId}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      style={{ ...clayCard }}
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                         <div style={{
                           width: 36, height: 36, borderRadius: 18, background: rankColor,
@@ -750,7 +836,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                           )}
                         </tbody>
                       </table>
-                    </Card>
+                    </motion.div>
                   );
                 })}
               </div>

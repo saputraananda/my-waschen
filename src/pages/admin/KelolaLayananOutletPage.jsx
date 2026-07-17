@@ -1,12 +1,38 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import axios from 'axios';
-import { C, SHADOW } from '../../utils/theme';
+import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { useApp } from '../../context/AppContext';
 import { TopBar, Chip, Modal, Input, SearchBar, MoneyInput } from '../../components/ui';
 import OutletDropdown from '../../components/ui/OutletDropdown';
 import { alertError, alertSuccess, alertWarning } from '../../utils/alert';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
+import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
+import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
+
+// ─── Premium Card Style ──────────────────────────────────────────────────────
+const PREMIUM_CARD = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// ─── Skeleton Block ───────────────────────────────────────────────────────────
+function SkeletonBlock({ height = 90, style = {} }) {
+  return (
+    <div style={{
+      height,
+      borderRadius: 18,
+      background: 'linear-gradient(90deg, rgba(91,0,95,0.05) 25%, rgba(91,0,95,0.1) 50%, rgba(91,0,95,0.05) 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.5s infinite',
+      marginBottom: 10,
+      ...style,
+    }} />
+  );
+}
 
 export default function KelolaLayananOutletPage({ navigate, goBack, screenParams }) {
   const isMobile = useIsMobile();
@@ -171,8 +197,11 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
   );
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
       <style>{`
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes floatA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-14px,16px) scale(1.08)} }
+        @keyframes twinkle { 0%,100%{opacity:0;transform:scale(0.4) rotate(0deg)} 50%{opacity:1;transform:scale(1) rotate(20deg)} }
         @media (max-width: 480px) {
           .service-item-row {
             flex-direction: column !important;
@@ -189,231 +218,319 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
           .outlet-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
       `}</style>
-      <TopBar title="Kelola Layanan Outlet" onBack={goBack} />
 
-      {/* ── Outlet Selector ── */}
-      <div style={{ padding: '12px 16px 0' }}>
-        {isAdmin ? (
-          <OutletDropdown
-            value={selectedOutletId}
-            onChange={(val) => setSelectedOutletId(val)}
-            outlets={outlets}
-          />
-        ) : (
-          <div style={{ background: `linear-gradient(135deg, ${C.primaryTint}10, ${C.info}10)`, border: `1.5px solid ${C.info}20`, borderRadius: 16, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>🏪</span>
-            <div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.info, letterSpacing: 0.5 }}>OUTLET ANDA</div>
-              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>{user?.outletName || 'Waschen Laundry'}</div>
+      {/* ── Premium Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 20px 52px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <GlowOrb color="rgba(140, 76, 143, 0.4)" size={200} top="-60px" left="-30px" blur={50} />
+        <GlowOrb color="rgba(249, 62, 17, 0.25)" size={150} top="40px" right="-40px" blur={40} />
+        <Sparkle top="10%" left="15%" size={8} delay={0} color="#FFD700" />
+        <Sparkle top="20%" left="80%" size={6} delay={0.5} color="#FF6B6B" />
+        <Sparkle top="60%" left="25%" size={7} delay={1} color="#4ECDC4" />
+        <FloatingBubble src={bubbleIcon} size={18} top="15%" left="5%" delay={0} opacity={0.4} />
+        <FloatingBubble src={bubble2Icon} size={14} top="35%" right="8%" delay={0.5} opacity={0.35} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
+          <div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 700, color: 'white', letterSpacing: '-0.3px' }}>
+              Kelola Layanan Outlet
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
+              Atur harga & status layanan per cabang
             </div>
           </div>
-        )}
-      </div>
-
-      {/* ── Stats Grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '12px 16px 0' }} className="outlet-stats-grid outlet-stats-grid-responsive">
-        {[
-          { label: 'Total', val: statsTotal, color: C.primary, bg: `${C.primary}10` },
-          { label: 'Aktif', val: statsActive, color: C.success, bg: `${C.success}10` },
-          { label: 'Pinned', val: statsPinned, color: C.danger, bg: C.dangerBg },
-        ].map((st) => (
-          <div key={st.label} style={{ background: 'white', borderRadius: 14, padding: '10px 12px', border: `1px solid ${C.n100}`, textAlign: 'center', boxShadow: SHADOW.sm }}>
-            <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n600 }}>{st.label}</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 600, color: st.color, marginTop: 4 }}>{st.val}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Search & Filter Row ── */}
-      <div style={{ padding: '12px 16px 0', position: 'sticky', top: 0, zIndex: 2, background: C.n50 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <SearchBar value={query} onChange={setQuery} placeholder="Cari nama layanan atau kategori..." />
-          </div>
-          <button
-            type="button"
-            onClick={() => setFilterOpen(true)}
-            style={{
-              width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-              border: 'none', background: 'transparent',
-              color: C.primary, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              position: 'relative',
-            }}
-          >
-            <FilterIcon />
-            {activeFilterCount > 0 && (
-              <span style={{
-                position: 'absolute', top: -4, right: -4,
-                width: 16, height: 16, borderRadius: 8,
-                background: C.primary, color: 'white',
-                fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 8, marginBottom: 8 }}>
-          Menampilkan <strong style={{ color: C.n700 }}>{filtered.length}</strong> dari {services.length} layanan
-          {(statusFilter !== 'all' || categoryFilter !== 'all' || query.trim()) && (
-            <button
-              onClick={resetFilters}
-              style={{ marginLeft: 8, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.primary, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
-            >Reset</button>
+          {goBack && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={goBack}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 10, padding: '8px 12px', cursor: 'pointer', color: 'white',
+              }}
+            >
+              ← Kembali
+            </motion.button>
           )}
         </div>
       </div>
 
-      {/* ── Filter Modal ── */}
-      <Modal visible={filterOpen} onClose={() => setFilterOpen(false)} title="Filter">
-        <div style={{ padding: '16px 18px' }}>
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>📋 Status</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            {[
-              { value: 'all', label: 'Semua' },
-              { value: 'active', label: 'Aktif' },
-              { value: 'inactive', label: 'Nonaktif' },
-              { value: 'pinned', label: '📌 Di Pin' },
-            ].map((s) => (
-              <Chip key={s.value} label={s.label} active={statusFilter === s.value} onClick={() => setStatusFilter(s.value)} />
-            ))}
-          </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 16px' }}>
+        {/* ── Outlet Selector ── */}
+        <div style={{ marginTop: -40, marginBottom: 16 }}>
+          {isAdmin ? (
+            <div style={{ ...PREMIUM_CARD, padding: '14px 16px' }}>
+              <OutletDropdown
+                value={selectedOutletId}
+                onChange={(val) => setSelectedOutletId(val)}
+                outlets={outlets}
+              />
+            </div>
+          ) : (
+            <div style={{
+              ...PREMIUM_CARD,
+              padding: '14px 16px',
+              background: `linear-gradient(135deg, ${C.primary}08, ${C.info}08)`,
+              border: `1.5px solid ${C.info}20`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 20 }}>🏪</span>
+                <div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.info, letterSpacing: 0.5 }}>OUTLET ANDA</div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>{user?.outletName || 'Waschen Laundry'}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>🏷️ Kategori</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            {categories.map((cat) => (
-              <Chip key={cat} label={cat === 'all' ? 'Semua' : cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)} />
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-            <button
-              onClick={resetFilters}
+        {/* ── Stats Grid ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }} className="outlet-stats-grid outlet-stats-grid-responsive">
+          {[
+            { label: 'Total', val: statsTotal, color: C.primary, bg: `${C.primary}10` },
+            { label: 'Aktif', val: statsActive, color: C.success, bg: `${C.success}10` },
+            { label: 'Pinned', val: statsPinned, color: C.danger, bg: C.dangerBg },
+          ].map((st, idx) => (
+            <motion.div
+              key={st.label}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.05 }}
+              whileHover={{ y: -2 }}
               style={{
-                flex: 1, height: 38, borderRadius: 10,
-                border: `1.5px solid ${C.n200}`, background: C.n50,
-                fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, cursor: 'pointer',
+                ...PREMIUM_CARD,
+                padding: '10px 12px',
+                textAlign: 'center',
               }}
             >
-              Reset
-            </button>
-            <button
-              onClick={() => setFilterOpen(false)}
+              <div style={{ fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, color: C.n600 }}>{st.label}</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 20, fontWeight: 600, color: st.color, marginTop: 4 }}>{st.val}</div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* ── Search & Filter Row ── */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <SearchBar value={query} onChange={setQuery} placeholder="Cari nama layanan atau kategori..." />
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={() => setFilterOpen(true)}
               style={{
-                flex: 1, height: 38, borderRadius: 10,
-                border: 'none', background: C.primary,
-                fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: 'white', cursor: 'pointer',
+                width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                border: 'none',
+                background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`,
+                color: 'white', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(91, 0, 95, 0.25)',
+                position: 'relative',
               }}
             >
-              Terapkan
-            </button>
+              <FilterIcon />
+              {activeFilterCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  width: 16, height: 16, borderRadius: 8,
+                  background: C.warning, color: 'white',
+                  fontFamily: 'Poppins', fontSize: 9, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </motion.button>
+          </div>
+
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 8, marginBottom: 8 }}>
+            Menampilkan <strong style={{ color: C.n700 }}>{filtered.length}</strong> dari {services.length} layanan
+            {(statusFilter !== 'all' || categoryFilter !== 'all' || query.trim()) && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={resetFilters}
+                style={{ marginLeft: 8, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.primary, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+              >Reset</motion.button>
+            )}
           </div>
         </div>
-      </Modal>
 
-      {/* ── Services List ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>
-            <div style={{ width: 36, height: 36, border: `3.5px solid ${C.n200}`, borderTopColor: C.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Memuat layanan...</span>
+        {/* ── Filter Modal ── */}
+        <Modal visible={filterOpen} onClose={() => setFilterOpen(false)} title="Filter">
+          <div style={{ padding: '16px 18px' }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>📋 Status</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              {[
+                { value: 'all', label: 'Semua' },
+                { value: 'active', label: 'Aktif' },
+                { value: 'inactive', label: 'Nonaktif' },
+                { value: 'pinned', label: '📌 Di Pin' },
+              ].map((s) => (
+                <Chip key={s.value} label={s.label} active={statusFilter === s.value} onClick={() => setStatusFilter(s.value)} />
+              ))}
+            </div>
+
+            <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 8 }}>🏷️ Kategori</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              {categories.map((cat) => (
+                <Chip key={cat} label={cat === 'all' ? 'Semua' : cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)} />
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={resetFilters}
+                style={{
+                  flex: 1, height: 38, borderRadius: 10,
+                  border: '1.5px solid rgba(91, 0, 95, 0.15)', background: 'white',
+                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n600, cursor: 'pointer',
+                }}
+              >
+                Reset
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setFilterOpen(false)}
+                style={{
+                  flex: 1, height: 38, borderRadius: 10,
+                  border: 'none', background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`,
+                  fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: 'white', cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(91, 0, 95, 0.25)',
+                }}
+              >
+                Terapkan
+              </motion.button>
+            </div>
           </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ background: 'white', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: `1.5px solid ${C.n100}` }}>
-            <span style={{ fontSize: 32 }}>🧺</span>
-            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n700, marginTop: 10 }}>Tidak ada layanan</div>
-            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 4 }}>Ubah pencarian atau pilih filter status lain.</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map((s) => {
-              const isPinned = !!s.pin_context;
-              return (
-                <div
-                  key={s.id}
-                  style={{
-                    background: 'white', borderRadius: 16, padding: '14px 16px',
-                    boxShadow: SHADOW.sm,
-                    border: isPinned ? `1.5px solid ${C.danger}30` : `1.5px solid ${C.n100}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                    position: 'relative', overflow: 'hidden',
-                    className: 'service-item-row',
-                  }}
-                >
-                  {isPinned && (
-                    <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 4, background: C.danger }} />
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: s.active ? C.n800 : C.n600, textDecoration: s.active ? 'none' : 'line-through' }}>
-                        {s.name}
-                      </span>
-                      {isPinned && (
-                        <span style={{ background: C.dangerBg, color: C.danger, fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 999 }}>
-                          📌 Pinned
+        </Modal>
+
+        {/* ── Services List ── */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {loading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <SkeletonBlock height={90} />
+              <SkeletonBlock height={90} />
+              <SkeletonBlock height={90} />
+            </div>
+          ) : filtered.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              style={{
+                ...PREMIUM_CARD,
+                padding: '40px 20px',
+                textAlign: 'center',
+              }}
+            >
+              <span style={{ fontSize: 40 }}>🧺</span>
+              <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n700, marginTop: 10 }}>Tidak ada layanan</div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 4 }}>Ubah pencarian atau pilih filter status lain.</div>
+            </motion.div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {filtered.map((s, idx) => {
+                const isPinned = !!s.pin_context;
+                return (
+                  <motion.div
+                    key={s.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    whileHover={{ y: -2 }}
+                    style={{
+                      ...PREMIUM_CARD,
+                      padding: '14px 16px',
+                      border: isPinned ? `1.5px solid ${C.danger}30` : `1.5px solid rgba(91, 0, 95, 0.04)`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                      position: 'relative', overflow: 'hidden',
+                      opacity: s.active === false ? 0.6 : 1,
+                      className: 'service-item-row',
+                    }}
+                  >
+                    {isPinned && (
+                      <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 4, background: C.danger }} />
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: s.active ? C.n800 : C.n600, textDecoration: s.active ? 'none' : 'line-through' }}>
+                          {s.name}
                         </span>
-                      )}
+                        {isPinned && (
+                          <span style={{ background: C.dangerBg, color: C.danger, fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 999 }}>
+                            📌 Pinned
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
+                        {s.category} · {s.unit}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 6 }}>
+                        <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: s.active ? C.primary : C.n600 }}>
+                          {rp(s.price)}
+                        </span>
+                      </div>
                     </div>
-                    <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n600, marginTop: 2 }}>
-                      {s.category} · {s.unit}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 6 }}>
-                      <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: s.active ? C.primary : C.n600 }}>
-                        {rp(s.price)}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} className="service-item-actions">
-                    <button
-                      onClick={() => handleTogglePin(s)}
-                      disabled={!s.active}
-                      style={{
-                        width: 34, height: 34, borderRadius: 10,
-                        background: isPinned ? C.dangerBg : C.n50,
-                        border: isPinned ? `1.5px solid ${C.danger}30` : `1.5px solid ${C.n200}`,
-                        cursor: s.active ? 'pointer' : 'not-allowed', opacity: s.active ? 1 : 0.4,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-                      }}
-                    >
-                      📌
-                    </button>
-                    {isAdmin && (
-                      <button
-                        onClick={() => openEditPrice(s)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} className="service-item-actions">
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleTogglePin(s)}
                         disabled={!s.active}
                         style={{
-                          padding: '6px 12px', borderRadius: 10,
-                          background: C.n50, border: `1.5px solid ${C.n200}`,
+                          width: 34, height: 34, borderRadius: 10,
+                          background: isPinned ? C.dangerBg : 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+                          border: isPinned ? `1.5px solid ${C.danger}30` : `1.5px solid rgba(91, 0, 95, 0.1)`,
                           cursor: s.active ? 'pointer' : 'not-allowed', opacity: s.active ? 1 : 0.4,
-                          fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n700,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+                          boxShadow: '2px 2px 6px rgba(110, 46, 120, 0.08), -1px -1px 4px rgba(255, 255, 255, 0.95)',
                         }}
                       >
-                        Atur Harga
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleToggleActive(s)}
-                      style={{
-                        width: 44, height: 24, borderRadius: 12,
-                        background: s.active ? C.success : C.n300,
-                        border: 'none', cursor: 'pointer', position: 'relative', padding: 0,
-                      }}
-                    >
-                      <div style={{
-                        width: 18, height: 18, borderRadius: 9, background: 'white',
-                        position: 'absolute', top: 3,
-                        left: s.active ? 23 : 3,
-                      }} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                        📌
+                      </motion.button>
+                      {isAdmin && (
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => openEditPrice(s)}
+                          disabled={!s.active}
+                          style={{
+                            padding: '6px 12px', borderRadius: 10,
+                            background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+                            border: `1.5px solid rgba(91, 0, 95, 0.1)`,
+                            cursor: s.active ? 'pointer' : 'not-allowed', opacity: s.active ? 1 : 0.4,
+                            fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.primary,
+                            boxShadow: '2px 2px 6px rgba(110, 46, 120, 0.08), -1px -1px 4px rgba(255, 255, 255, 0.95)',
+                          }}
+                        >
+                          Atur Harga
+                        </motion.button>
+                      )}
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleToggleActive(s)}
+                        style={{
+                          width: 44, height: 24, borderRadius: 12,
+                          background: s.active ? C.success : C.n300,
+                          border: 'none', cursor: 'pointer', position: 'relative', padding: 0,
+                        }}
+                      >
+                        <div style={{
+                          width: 18, height: 18, borderRadius: 9, background: 'white',
+                          position: 'absolute', top: 3,
+                          left: s.active ? 23 : 3,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                        }} />
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Modal Atur Harga ── */}
@@ -421,7 +538,11 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
         <div style={{ padding: '16px 20px' }}>
           {targetService && (
             <>
-              <div style={{ background: C.n50, borderRadius: 12, padding: '12px 14px', marginBottom: 16 }}>
+              <div style={{
+                background: 'linear-gradient(145deg, #F8F4FF, #FFFFFF)',
+                borderRadius: 14, padding: '12px 14px', marginBottom: 16,
+                boxShadow: '4px 4px 10px rgba(110, 46, 120, 0.08), -2px -2px 6px rgba(255, 255, 255, 0.95)',
+              }}>
                 <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n800 }}>
                   {targetService.name}
                 </div>
@@ -443,28 +564,32 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
                 ) : undefined}
               />
               <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => setModalPrice(false)}
                   style={{
-                    flex: 1, height: 42, borderRadius: 10,
-                    border: `1.5px solid ${C.n200}`, background: C.n50,
+                    flex: 1, height: 42, borderRadius: 12,
+                    border: '1.5px solid rgba(91, 0, 95, 0.15)', background: 'white',
                     fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: C.n600, cursor: 'pointer',
                   }}
                 >
                   Batal
-                </button>
-                <button
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
                   onClick={handleSavePrice}
                   disabled={submitting}
                   style={{
-                    flex: 1, height: 42, borderRadius: 10,
-                    border: 'none', background: C.primary,
+                    flex: 1, height: 42, borderRadius: 12,
+                    border: 'none',
+                    background: submitting ? C.n400 : `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`,
                     fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: 'white',
-                    cursor: 'pointer', opacity: submitting ? 0.6 : 1,
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(91, 0, 95, 0.25)',
                   }}
                 >
                   {submitting ? 'Menyimpan...' : 'Simpan'}
-                </button>
+                </motion.button>
               </div>
             </>
           )}

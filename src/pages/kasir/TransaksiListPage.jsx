@@ -180,11 +180,15 @@ const STATUS_FILTERS = [
   { key: 'dibatalkan', label: 'Batal' },
 ];
 
-// Pickup / pengambilan filters
-const PICKUP_FILTERS = [
-  { value: 'semua', label: 'Semua' },
-  { value: 'belum_diambil', label: 'Belum Diambil' },
-  { value: 'sudah_diambil', label: 'Sudah Diambil' },
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Terbaru' },
+  { value: 'deadline', label: 'Deadline terdekat' },
+  { value: 'deadline_desc', label: 'Deadline terjauh' },
+  { value: 'oldest', label: 'Terlama' },
+  { value: 'name_asc', label: 'Nama A-Z' },
+  { value: 'name_desc', label: 'Nama Z-A' },
+  { value: 'amount_asc', label: 'Nominal rendah' },
+  { value: 'amount_desc', label: 'Nominal tinggi' },
 ];
 
 // Payment status filters
@@ -196,23 +200,19 @@ const PAYMENT_FILTERS = [
 ];
 
 const PERIODS = [
-
   { value: 'all', label: 'Semua Waktu' },
-
   { value: 'today', label: 'Hari Ini' },
-
+  { value: 'yesterday', label: 'Kemarin' },
   { value: '7d', label: '7 Hari' },
-
   { value: '30d', label: '30 Hari' },
-
+  { value: 'this_month', label: 'Bulan Ini' },
 ];
 
-const SORTS = [
-
-  { value: 'newest', label: 'Terbaru' },
-
-  { value: 'deadline', label: 'Deadline terdekat' },
-
+// Pickup / pengambilan filters
+const PICKUP_FILTERS = [
+  { value: 'semua', label: 'Semua' },
+  { value: 'belum_diambil', label: 'Belum Diambil' },
+  { value: 'sudah_diambil', label: 'Sudah Diambil' },
 ];
 
 // Badge color helper for payment status
@@ -229,6 +229,23 @@ const ORDER_STATUS_META = {
   selesai: { bg: '#10B98120', color: '#10B981', label: 'SIAP', border: '#10B981' },
   diambil: { bg: '#6B728020', color: '#6B7280', label: 'DIAMBIL', border: '#6B7280' },
   dibatalkan: { bg: '#EF444420', color: '#EF4444', label: 'BATAL', border: '#EF4444' },
+};
+
+// Card border colors for special conditions
+const CARD_BORDER_COLORS = {
+  express: '#F59E0B',    // Yellow/orange for express
+  overdue: '#EF4444',     // Red for overdue
+  expressOverdue: '#DC2626', // Darker red for both
+};
+
+// Helper to check if due date is overdue
+const isOverdue = (tx) => {
+  if (!tx.dueDate) return false;
+  const dueDate = new Date(tx.dueDate);
+  const now = new Date();
+  // Set time to end of day for comparison
+  dueDate.setHours(23, 59, 59, 999);
+  return now > dueDate && tx.status !== 'diambil' && tx.status !== 'dibatalkan';
 };
 
 
@@ -257,6 +274,21 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
   const [periodFilter, setPeriodFilter] = useState(screenParams?.period || savedFilters.period);
 
   const [sortBy, setSortBy] = useState(screenParams?.sort || 'newest');
+
+// Map frontend sort to API sort
+const getApiSort = (sortValue) => {
+  const sortMap = {
+    newest: { field: 'created_at', direction: 'desc' },
+    oldest: { field: 'created_at', direction: 'asc' },
+    deadline: { field: 'due_date', direction: 'asc' },
+    deadline_desc: { field: 'due_date', direction: 'desc' },
+    name_asc: { field: 'customer_name', direction: 'asc' },
+    name_desc: { field: 'customer_name', direction: 'desc' },
+    amount_asc: { field: 'total', direction: 'asc' },
+    amount_desc: { field: 'total', direction: 'desc' },
+  };
+  return sortMap[sortValue] || sortMap.newest;
+};
 
   // Unified payment filter (replaces old onlyUnpaid boolean)
   const [paymentFilter, setPaymentFilter] = useState(screenParams?.paymentFilter || savedFilters.payment);
@@ -318,7 +350,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
         period: periodFilter,
 
-        sort: sortBy,
+        ...getApiSort(sortBy),
 
         isExpress: onlyExpress ? '1' : undefined,
 
@@ -444,6 +476,8 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
   const activeFilterCount = [
 
+    activeFilter !== 'semua',
+
     periodFilter !== 'all',
 
     paymentFilter !== 'semua',
@@ -472,7 +506,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
   return (
 
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--glass-bg)', overflow: 'hidden' }}>
+    <div style={{ flex: 2, display: 'flex', flexDirection: 'column', background: 'var(--glass-bg)', overflow: 'hidden' }}>
 
       {/* Glass header with gradient */}
       <div className="tx-header" style={{
@@ -511,7 +545,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
         }}
 
-        style={{ flex: 1, overflowY: 'auto', padding: '0 16px 16px' }}>
+        style={{ flex: 2, overflowY: 'auto', padding: '0 16px 16px' }}>
 
 
         <div style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--glass-bg)', padding: '12px 0 8px' }}>
@@ -533,7 +567,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Cari nama, no nota, atau telepon..."
               style={{
-                flex: 1,
+                flex: 2,
                 border: 'none',
                 outline: 'none',
                 fontFamily: 'Poppins',
@@ -545,54 +579,30 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
             />
           </div>
 
+          {/* Filter button row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', flex: 1 }}>
-              {STATUS_FILTERS.map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setActiveFilter(f.key)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 999,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: 'Poppins',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.2s ease',
-                    background: activeFilter === f.key
-                      ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
-                      : 'rgba(255, 255, 255, 0.7)',
-                    color: activeFilter === f.key ? '#FFFFFF' : '#7A6584',
-                    boxShadow: activeFilter === f.key
-                      ? '0 4px 12px rgba(59, 11, 71, 0.25)'
-                      : '0 2px 8px rgba(59, 11, 71, 0.08)',
-                  }}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
             <button
               onClick={() => setFilterOpen(true)}
               aria-label="Filter"
               className="clay-avatar"
               style={{
-                padding: '8px 10px',
+                padding: '8px 14px',
                 border: 'none',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: 6,
                 color: 'var(--purple-mid)',
                 position: 'relative',
                 height: 40,
                 flexShrink: 0,
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                fontWeight: 600,
               }}
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="6" x2="14" y2="6" />
                 <line x1="20" y1="6" x2="18" y2="6" />
                 <circle cx="16" cy="6" r="2" />
@@ -603,13 +613,15 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
                 <line x1="20" y1="18" x2="16" y2="18" />
                 <circle cx="14" cy="18" r="2" />
               </svg>
+              Filter
               {activeFilterCount > 0 && (
                 <span style={{
-                  position: 'absolute', top: 0, right: 0,
-                  width: 18, height: 18, borderRadius: 9,
+                  position: 'absolute', top: -4, right: -4,
+                  minWidth: 18, height: 18, borderRadius: 9,
                   background: 'var(--coral)', color: '#FFF',
                   fontFamily: 'Poppins', fontSize: 10, fontWeight: 700,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 4px',
                 }}>{activeFilterCount}</span>
               )}
             </button>
@@ -657,141 +669,267 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
           </div>
 
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 80 }}>
-            {list.map((tx, idx) => {
-              const pay = payBadgeStyle(tx.paymentStatus);
-              const prod = tx.production;
-              const prodWarn = prod && prod.notReadyUnits > 0;
-              const siapMismatch = tx.status === 'selesai' && prod && !prod.allProductionReady;
-              const canMarkReady = (tx.status === 'proses' || tx.status === 'baru') && prod?.canMarkReadyForPickup;
-              const isUpdating = updating === tx.id;
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 80 }}>
+              {list.map((tx, idx) => {
+                const pay = payBadgeStyle(tx.paymentStatus);
+                const prod = tx.production;
+                const prodWarn = prod && prod.notReadyUnits > 0;
+                const siapMismatch = tx.status === 'selesai' && prod && !prod.allProductionReady;
+                const canMarkReady = (tx.status === 'proses' || tx.status === 'baru') && prod?.canMarkReadyForPickup;
+                const isUpdating = updating === tx.id;
 
-              // Detect if transaction has express items
-              const hasExpress = tx.items?.some((i) => i.express);
+                // Detect if transaction has express items
+                const hasExpress = tx.items?.some((i) => i.express);
 
-              const mappedOrderStatus = orderStatusMap[tx.status] || null;
-              const orderMeta = mappedOrderStatus ? ORDER_STATUS_META[mappedOrderStatus] : null;
+                // Check if overdue
+                const overdue = isOverdue(tx);
 
-              const metaParts = [tx.date];
-              if (tx.dueDate) metaParts.push(`⏰ ${tx.dueDate}`);
-              if (prod) metaParts.push(`🧺 ${prod.productionStageLabel} (${prod.readyUnits}/${prod.totalUnits})`);
+                // Map status to orderMeta (must be defined before border calculations)
+                const mappedOrderStatus = orderStatusMap[tx.status] || null;
+                const orderMeta = mappedOrderStatus ? ORDER_STATUS_META[mappedOrderStatus] : null;
 
-              return (
-                <AnimatedCard key={tx.id} delay={idx} index={idx}>
-                  <div
-                    className="glass-card"
-                    style={{
-                      padding: '14px 16px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      transition: 'all 0.2s ease',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      borderLeft: orderMeta ? `4px solid ${orderMeta.border}` : 'none',
-                    }}
-                    onClick={() => navigate('detail_transaksi', tx)}
-                  >
-                    {/* Decorative blob accent */}
-                    <div style={{
-                      position: 'absolute',
-                      top: -20,
-                      right: -20,
-                      width: 80,
-                      height: 80,
-                      borderRadius: '50%',
-                      background: orderMeta
-                        ? `radial-gradient(circle, ${orderMeta.color}15 0%, transparent 70%)`
-                        : 'radial-gradient(circle, rgba(232,90,168,0.12) 0%, transparent 70%)',
-                      pointerEvents: 'none',
-                    }} />
+                // Determine border color based on conditions
+                let borderColor = orderMeta?.border || 'transparent';
+                let borderWidth = orderMeta ? '0 0 0 3px' : '0';
+                let borderStyle = orderMeta ? 'solid' : 'none';
 
-                    {/* Avatar with webp */}
-                    <TransactionAvatar transaction={tx} size={52} />
+                // Override with express/overdue borders if applicable
+                if (hasExpress && overdue) {
+                  borderColor = CARD_BORDER_COLORS.expressOverdue;
+                  borderWidth = '0 0 0 4px';
+                  borderStyle = 'solid';
+                } else if (hasExpress) {
+                  borderColor = CARD_BORDER_COLORS.express;
+                  borderWidth = '0 0 0 4px';
+                  borderStyle = 'solid';
+                } else if (overdue) {
+                  borderColor = CARD_BORDER_COLORS.overdue;
+                  borderWidth = '0 0 0 4px';
+                  borderStyle = 'solid';
+                }
 
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <div style={{
-                          fontFamily: 'Poppins',
-                          fontSize: 15,
-                          fontWeight: 700,
-                          color: 'var(--ink)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {tx.customerName}
-                        </div>
-                        {hasExpress && (
-                          <span style={{
-                            background: '#FEF3C7',
-                            color: '#D97706',
+                const metaParts = [tx.date];
+                if (tx.dueDate) {
+                  const dueLabel = overdue ? `⚠️ ${tx.dueDate}` : `⏰ ${tx.dueDate}`;
+                  metaParts.push(dueLabel);
+                }
+                if (prod) metaParts.push(`🧺 ${prod.productionStageLabel} (${prod.readyUnits}/${prod.totalUnits})`);
+
+                return (
+                  <AnimatedCard key={tx.id} delay={idx} index={idx}>
+                    <div
+                      className="glass-card"
+                      style={{
+                        padding: '10px 12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        transition: 'all 0.2s ease',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        borderLeft: borderWidth,
+                        borderLeftColor: borderColor,
+                        borderLeftStyle: borderStyle,
+                        borderTop: 'none',
+                        borderRight: 'none',
+                        borderBottom: 'none',
+                      }}
+                      onClick={() => navigate('detail_transaksi', tx)}
+                    >
+                      {/* Decorative blob accent */}
+                      <div style={{
+                        position: 'absolute',
+                        top: -20,
+                        right: -20,
+                        width: 80,
+                        height: 80,
+                        borderRadius: '50%',
+                        background: orderMeta
+                          ? `radial-gradient(circle, ${orderMeta.color}15 0%, transparent 70%)`
+                          : 'radial-gradient(circle, rgba(232,90,168,0.12) 0%, transparent 70%)',
+                        pointerEvents: 'none',
+                      }} />
+
+                      {/* Avatar with webp */}
+                      <TransactionAvatar transaction={tx} size={44} />
+
+                      {/* Info */}
+                      <div style={{ flex: 2, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <div style={{
                             fontFamily: 'Poppins',
-                            fontSize: 9,
+                            fontSize: 13,
                             fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: 999,
-                            border: '1px solid #F59E0B',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 3,
+                            color: 'var(--ink)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                           }}>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
-                            Express
-                          </span>
+                            {tx.customerName}
+                          </div>
+                          {hasExpress && (
+                            <span style={{
+                              background: '#FEF3C7',
+                              color: '#D97706',
+                              fontFamily: 'Poppins',
+                              fontSize: 9,
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: 999,
+                              border: '1px solid #F59E0B',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                            }}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+                              Express
+                            </span>
+                          )}
+                          {overdue && !hasExpress && (
+                            <span style={{
+                              background: '#FEE2E2',
+                              color: '#DC2626',
+                              fontFamily: 'Poppins',
+                              fontSize: 9,
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: 999,
+                              border: '1px solid #EF4444',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                            }}>
+                              ⚠️ Terlambat
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'var(--ink-soft)', marginTop: 1 }}>#{tx.id}</div>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 9, color: 'var(--ink-soft)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                          {metaParts.map((m, i) => (
+                            <span key={i}>{m}{i < metaParts.length - 1 ? ' • ' : ''}</span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Right side: value & status */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                        <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>
+                          {rp(tx.total)}
+                        </div>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          fontFamily: 'Poppins',
+                          fontSize: 9,
+                          fontWeight: 600,
+                          background: pay.bg,
+                          color: pay.color,
+                        }}>
+                          {pay.label}
+                        </span>
+                        {canMarkReady && (
+                          <button
+                            onClick={(e) => markReady(e, tx)}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              border: 'none',
+                              background: 'linear-gradient(135deg, #5FD9AE, #1F9E75)',
+                              color: '#FFFFFF',
+                              fontFamily: 'Poppins',
+                              fontSize: 9,
+                              fontWeight: 700,
+                              cursor: isUpdating ? 'not-allowed' : 'pointer',
+                              opacity: isUpdating ? 0.6 : 1,
+                            }}
+                          >
+                            {isUpdating ? 'Memproses...' : '✓ Siap Ambil'}
+                          </button>
                         )}
                       </div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>#{tx.id}</div>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 10, color: 'var(--ink-soft)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                        {metaParts.map((m, i) => (
-                          <span key={i}>{m}{i < metaParts.length - 1 ? ' • ' : ''}</span>
-                        ))}
-                      </div>
                     </div>
+                  </AnimatedCard>
+                );
+              })}
+            </div>
 
-                    {/* Right side: value & status */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                      <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>
-                        {rp(tx.total)}
-                      </div>
-                      <span style={{
-                        padding: '3px 10px',
-                        borderRadius: 999,
-                        fontFamily: 'Poppins',
-                        fontSize: 10,
-                        fontWeight: 600,
-                        background: pay.bg,
-                        color: pay.color,
-                      }}>
-                        {pay.label}
-                      </span>
-                      {canMarkReady && (
-                        <button
-                          onClick={(e) => markReady(e, tx)}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 8,
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #5FD9AE, #1F9E75)',
-                            color: '#FFFFFF',
-                            fontFamily: 'Poppins',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            cursor: isUpdating ? 'not-allowed' : 'pointer',
-                            opacity: isUpdating ? 0.6 : 1,
-                          }}
-                        >
-                          {isUpdating ? 'Memproses...' : '✓ Siap Ambil'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </AnimatedCard>
-              );
-            })}
-          </div>
+            {/* Pagination Controls */}
+            {hasMore && list.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0', gap: 8 }}>
+                {page > 1 && (
+                  <button
+                    onClick={() => {
+                      pageRef.current = 1;
+                      fetchTransactions(1, false);
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 12,
+                      border: '1.5px solid #e8e2ea',
+                      background: 'white',
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#5a5a5a',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    « First
+                  </button>
+                )}
+                {page > 1 && (
+                  <button
+                    onClick={() => {
+                      fetchTransactions(pageRef.current - 1, false);
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 12,
+                      border: '1.5px solid #e8e2ea',
+                      background: 'white',
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#5a5a5a',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ‹ Prev
+                  </button>
+                )}
+                <span style={{
+                  padding: '8px 16px',
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, #6B2D7E, #4A1A59)',
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'white',
+                }}>
+                  Halaman {page}
+                </span>
+                <button
+                  onClick={() => fetchTransactions(pageRef.current + 1, true)}
+                  disabled={!hasMore || loadingMore}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: hasMore && !loadingMore ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)' : '#e8e2ea',
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: hasMore && !loadingMore ? 'white' : '#9a9a9a',
+                    cursor: hasMore && !loadingMore ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {loadingMore ? 'Memuat...' : 'Next ›'}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {loadingMore && (
@@ -804,21 +942,67 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
 
 
-      <Modal visible={filterOpen} onClose={() => setFilterOpen(false)} title="Filter & Pencarian Lanjutan">
+      <Modal visible={filterOpen} onClose={() => setFilterOpen(false)}>
+        <div style={{ padding: '8px 0 16px' }}>
+          {/* Header row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div style={{ fontFamily: 'Poppins', fontSize: 18, fontWeight: 700, color: 'var(--ink)' }}>Filter & Urutan</div>
+            <button onClick={() => setFilterOpen(false)}
+              style={{
+                width: 36, height: 36, borderRadius: 18, border: 'none',
+                background: 'linear-gradient(135deg, #6B2D7E20, #4A1A5920)',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#5B005F',
+                boxShadow: '0 2px 8px rgba(91, 0, 95, 0.15)',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
 
-        <div style={{ padding: '16px 18px' }}>
+          {/* Status */}
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8 }}>📋 Status Pesanan</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setActiveFilter(f.key)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.2s ease',
+                  background: activeFilter === f.key
+                    ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                    : 'rgba(255, 255, 255, 0.7)',
+                  color: activeFilter === f.key ? '#FFFFFF' : '#7A6584',
+                  boxShadow: activeFilter === f.key
+                    ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                    : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
           {/* Tanggal */}
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8 }}>📅 Periode Waktu</div>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             {PERIODS.map((p) => (
               <button
                 key={p.value}
                 onClick={() => setPeriodFilter(p.value)}
                 style={{
-                  padding: '6px 14px',
+                  padding: '6px 12px',
                   borderRadius: 999,
                   border: 'none',
                   cursor: 'pointer',
@@ -843,135 +1027,128 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
           {/* Pembayaran */}
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8 }}>💰 Status Pembayaran</div>
-
-          <div style={{ overflowX: 'auto', marginBottom: 14 }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', minWidth: 'max-content' }}>
-              {PAYMENT_FILTERS.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setPaymentFilter(f.value)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 999,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: 'Poppins',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: paymentFilter === f.value
-                      ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
-                      : 'rgba(255, 255, 255, 0.7)',
-                    color: paymentFilter === f.value ? '#FFFFFF' : '#7A6584',
-                    boxShadow: paymentFilter === f.value
-                      ? '0 4px 12px rgba(59, 11, 71, 0.25)'
-                      : '0 2px 8px rgba(59, 11, 71, 0.08)',
-                  }}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {PAYMENT_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setPaymentFilter(f.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: paymentFilter === f.value
+                    ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                    : 'rgba(255, 255, 255, 0.7)',
+                  color: paymentFilter === f.value ? '#FFFFFF' : '#7A6584',
+                  boxShadow: paymentFilter === f.value
+                    ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                    : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
-
 
           {/* Pengambilan */}
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8 }}>📦 Status Pengambilan</div>
-
-          <div style={{ overflowX: 'auto', marginBottom: 14 }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', minWidth: 'max-content' }}>
-              {PICKUP_FILTERS.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setPickupFilter(f.value)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 999,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: 'Poppins',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: pickupFilter === f.value
-                      ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
-                      : 'rgba(255, 255, 255, 0.7)',
-                    color: pickupFilter === f.value ? '#FFFFFF' : '#7A6584',
-                    boxShadow: pickupFilter === f.value
-                      ? '0 4px 12px rgba(59, 11, 71, 0.25)'
-                      : '0 2px 8px rgba(59, 11, 71, 0.08)',
-                  }}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {PICKUP_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setPickupFilter(f.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: pickupFilter === f.value
+                    ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                    : 'rgba(255, 255, 255, 0.7)',
+                  color: pickupFilter === f.value ? '#FFFFFF' : '#7A6584',
+                  boxShadow: pickupFilter === f.value
+                    ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                    : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
 
-
-          {/* Layanan */}
-          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8 }}>⚡ Layanan</div>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {/* Tampilkan */}
+          <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8 }}>⚡ Tampilkan</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <button
               onClick={() => setOnlyExpress((v) => !v)}
               style={{
-                padding: '6px 14px',
+                padding: '6px 12px',
                 borderRadius: 999,
-                border: 'none',
+                border: onlyExpress ? '2px solid #F59E0B' : '1.5px solid #e8e2ea',
                 cursor: 'pointer',
                 fontFamily: 'Poppins',
                 fontSize: 11,
                 fontWeight: 600,
                 background: onlyExpress
-                  ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                  ? 'linear-gradient(135deg, #F59E0B, #D97706)'
                   : 'rgba(255, 255, 255, 0.7)',
                 color: onlyExpress ? '#FFFFFF' : '#7A6584',
                 boxShadow: onlyExpress
-                  ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                  ? '0 4px 12px rgba(245, 158, 11, 0.35)'
                   : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              Express
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+              Express Only
             </button>
           </div>
 
-
-
           {/* Sort options */}
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 8 }}>🔄 Urutkan</div>
-          <div style={{ overflowX: 'auto', marginBottom: 14 }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', minWidth: 'max-content' }}>
-              {SORTS.map((s) => (
-                <button
-                  key={s.value}
-                  onClick={() => setSortBy(s.value)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 999,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: 'Poppins',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: sortBy === s.value
-                      ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
-                      : 'rgba(255, 255, 255, 0.7)',
-                    color: sortBy === s.value ? '#FFFFFF' : '#7A6584',
-                    boxShadow: sortBy === s.value
-                      ? '0 4px 12px rgba(59, 11, 71, 0.25)'
-                      : '0 2px 8px rgba(59, 11, 71, 0.08)',
-                  }}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {SORT_OPTIONS.map((s) => (
+              <button
+                key={s.value}
+                onClick={() => setSortBy(s.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: sortBy === s.value
+                    ? 'linear-gradient(135deg, #6B2D7E, #4A1A59)'
+                    : 'rgba(255, 255, 255, 0.7)',
+                  color: sortBy === s.value ? '#FFFFFF' : '#7A6584',
+                  boxShadow: sortBy === s.value
+                    ? '0 4px 12px rgba(59, 11, 71, 0.25)'
+                    : '0 2px 8px rgba(59, 11, 71, 0.08)',
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
 
             <button
 
               onClick={() => {
+
+                setActiveFilter('semua');
 
                 setPeriodFilter('all');
 
@@ -989,9 +1166,9 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
                 flex: 1,
 
-                height: 38,
+                height: 44,
 
-                borderRadius: 10,
+                borderRadius: 12,
 
                 border: '1.5px solid rgba(255, 255, 255, 0.6)',
 
@@ -999,7 +1176,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
                 fontFamily: 'Poppins',
 
-                fontSize: 12,
+                fontSize: 13,
 
                 fontWeight: 600,
 
@@ -1021,11 +1198,11 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
               style={{
 
-                flex: 1,
+                flex: 2,
 
-                height: 38,
+                height: 44,
 
-                borderRadius: 10,
+                borderRadius: 12,
 
                 border: 'none',
 
@@ -1033,7 +1210,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
                 fontFamily: 'Poppins',
 
-                fontSize: 12,
+                fontSize: 13,
 
                 fontWeight: 600,
 
@@ -1047,7 +1224,7 @@ export default function TransaksiListPage({ navigate, historyOnly, screenParams 
 
             >
 
-              Terapkan
+              Terapkan Filter
 
             </button>
 

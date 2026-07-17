@@ -1,13 +1,42 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C, T, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Badge, SearchBar, EmptyState, SkeletonList } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { alertError } from '../../utils/alert';
 import { useResponsive } from '../../utils/hooks';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
 
 const F = { fontFamily: 'Poppins' };
+
+// Claymorphism card style
+const clayCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// Skeleton shimmer animation
+const skeletonKeyframes = `
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+`;
+
+const SkeletonBlock = ({ width = '100%', height = 20, borderRadius = 8, style = {} }) => (
+  <div
+    className="skeleton-shimmer"
+    style={{ width, height, borderRadius, ...style }}
+  />
+);
 
 const SHIFT_COLORS = {
   pagi: { bg: C.warningBg, color: C.warningDark, border: C.warning },
@@ -40,27 +69,34 @@ function fmtElapsed(openedAt) {
 }
 
 const Card = ({ children, style = {}, onClick }) => (
-  <div
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
     onClick={onClick}
     style={{
-      background: C.white,
-      borderRadius: 14,
+      ...clayCard,
       padding: 14,
-      boxShadow: SHADOW.sm,
       cursor: onClick ? 'pointer' : 'default',
       ...style,
     }}
   >
     {children}
-  </div>
+  </motion.div>
 );
 
-const SubSessionRow = ({ subSession, onClick }) => {
+const SubSessionRow = ({ subSession, onClick, index = 0 }) => {
   const colors = SHIFT_COLORS[subSession.shift] || SHIFT_COLORS.full;
   const isOpen = subSession.status === 'open';
+  const { isMobile } = useResponsive();
 
   return (
-    <Card style={{ marginBottom: 10 }} onClick={onClick}>
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.04 }}
+      onClick={onClick}
+      style={{ ...clayCard, padding: 14, marginBottom: 10, cursor: onClick ? 'pointer' : 'default' }}
+    >
       {/* Header: Cashier + Status */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -75,6 +111,7 @@ const SubSessionRow = ({ subSession, onClick }) => {
             fontSize: 14,
             fontWeight: 700,
             color: 'white',
+            boxShadow: '0 4px 12px rgba(91, 0, 95, 0.2)',
           }}>
             {subSession.cashierName?.charAt(0)?.toUpperCase() || '?'}
           </div>
@@ -168,7 +205,7 @@ const SubSessionRow = ({ subSession, onClick }) => {
           {isOpen ? `Berlangsung ${fmtElapsed(subSession.openedAt)}` : `Tutup: ${fmtTime(subSession.closedAt)}`}
         </span>
       </div>
-    </Card>
+    </motion.div>
   );
 };
 
@@ -237,12 +274,30 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
   } : null;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar
-        title="Monitoring Sub-Session"
-        subtitle="Pantau aktivitas frontliner per shift"
-        onBack={goBack}
-      />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      {/* Premium Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 16px 24px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-60px" right="-40px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-30px" left="-30px" />
+        <Sparkle color="rgba(255,255,255,0.6)" size={8} top="20px" left="30%" delay={0.5} />
+        <Sparkle color="rgba(255,255,255,0.5)" size={6} top="40px" right="25%" delay={1.2} />
+        <FloatingBubble size={12} top="10px" left="60%" delay={0.8} duration={4} />
+        <FloatingBubble size={8} bottom="5px" right="20%" delay={2} duration={3.5} />
+
+        <TopBar
+          title="Monitoring Sub-Session"
+          subtitle="Pantau aktivitas frontliner per shift"
+          onBack={goBack}
+          transparent
+        />
+      </div>
+
+      <style>{skeletonKeyframes}</style>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {/* Session Selector */}
@@ -251,10 +306,18 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
             Pilih Shift Utama
           </div>
           {loading ? (
-            <div style={{ ...F, fontSize: 12, color: C.n600 }}>Memuat...</div>
+            <div style={{ ...clayCard, padding: 16 }}>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                {[1, 2, 3].map(i => (
+                  <SkeletonBlock key={i} width={120} height={70} borderRadius={12} style={{ flexShrink: 0 }} />
+                ))}
+              </div>
+            </div>
           ) : mainSessions.length === 0 ? (
-            <div style={{ ...F, fontSize: 12, color: C.n600, padding: 16, background: C.white, borderRadius: 12, textAlign: 'center' }}>
-              Tidak ada shift aktif saat ini.
+            <div style={{ ...clayCard, padding: 16, textAlign: 'center' }}>
+              <div style={{ ...F, fontSize: 12, color: C.n600 }}>
+                Tidak ada shift aktif saat ini.
+              </div>
             </div>
           ) : (
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
@@ -262,17 +325,21 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
                 const colors = SHIFT_COLORS[s.shift] || SHIFT_COLORS.full;
                 const isSelected = selectedMainSession?.id === s.id;
                 return (
-                  <div
+                  <motion.div
                     key={s.id}
                     onClick={() => setSelectedMainSession(s)}
+                    whileTap={{ scale: 0.97 }}
                     style={{
                       flexShrink: 0,
                       padding: '10px 14px',
                       borderRadius: 12,
                       border: `2px solid ${isSelected ? C.primary : C.n200}`,
-                      background: isSelected ? `${C.primary}10` : C.white,
+                      background: isSelected ? `${C.primary}10` : 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
+                      boxShadow: isSelected
+                        ? '0 4px 15px rgba(91, 0, 95, 0.2)'
+                        : '6px 6px 12px rgba(110, 46, 120, 0.08), -3px -3px 8px rgba(255, 255, 255, 0.95)',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -298,7 +365,7 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
                     <div style={{ ...F, fontSize: 10, color: C.n600 }}>
                       {fmtTime(s.openedAt)}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -339,38 +406,41 @@ export default function AdminSubSessionPage({ navigate, goBack }) {
         {subSessionsLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[1, 2, 3].map((i) => (
-              <div key={i} style={{ background: C.white, borderRadius: 14, padding: 14, height: 120, animation: 'pulse 1.5s infinite' }}>
+              <div key={i} style={{ ...clayCard, padding: 14 }}>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 18, background: C.n200 }} />
+                  <SkeletonBlock width={36} height={36} borderRadius={18} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ width: '60%', height: 12, background: C.n200, borderRadius: 6, marginBottom: 6 }} />
-                    <div style={{ width: '40%', height: 10, background: C.n200, borderRadius: 6 }} />
+                    <SkeletonBlock width="60%" height={12} style={{ marginBottom: 6 }} />
+                    <SkeletonBlock width="40%" height={10} />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                  <div style={{ height: 50, background: C.n100, borderRadius: 10 }} />
-                  <div style={{ height: 50, background: C.n100, borderRadius: 10 }} />
-                  <div style={{ height: 50, background: C.n100, borderRadius: 10 }} />
+                  <SkeletonBlock height={50} borderRadius={10} />
+                  <SkeletonBlock height={50} borderRadius={10} />
+                  <SkeletonBlock height={50} borderRadius={10} />
                 </div>
               </div>
             ))}
           </div>
         ) : subSessions.length === 0 ? (
-          <EmptyState
-            icon="👥"
-            title="Belum Ada Frontliner"
-            subtitle={
-              selectedMainSession
+          <div style={{ ...clayCard, padding: 32, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+            <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n800, marginBottom: 4 }}>
+              {selectedMainSession ? 'Belum Ada Frontliner' : 'Pilih Shift Utama'}
+            </div>
+            <div style={{ ...F, fontSize: 11, color: C.n600 }}>
+              {selectedMainSession
                 ? 'Belum ada frontliner yang bergabung dengan shift ini.'
-                : 'Pilih shift utama untuk melihat sub-session.'
-            }
-          />
+                : 'Pilih shift utama untuk melihat sub-session.'}
+            </div>
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {subSessions.map((ss) => (
+            {subSessions.map((ss, idx) => (
               <SubSessionRow
                 key={ss.id}
                 subSession={ss}
+                index={idx}
                 onClick={() => {
                   // Navigate to sub-session detail if needed
                 }}

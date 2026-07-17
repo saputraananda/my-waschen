@@ -6,8 +6,31 @@ import { TopBar, Chip, Select, DateTimeInput, ComparisonLineChart, SkeletonStatG
 import { useApp } from '../../context/AppContext';
 import { getDateRangePreset, DATE_PRESETS } from '../../utils/filterPresets';
 import { useResponsive } from '../../utils/hooks';
+import { motion } from 'framer-motion';
+import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
+import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
 
 const F = { fontFamily: 'Poppins' };
+
+// Premium card style
+const premiumCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// Premium filter card
+const premiumFilterCard = {
+  ...premiumCard,
+  padding: '14px 16px',
+};
+
+// Premium gradient header
+const premiumHeader = {
+  background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+  position: 'relative',
+  overflow: 'hidden',
+};
 
 const Delta = ({ value, reverseGood = false }) => {
   if (value == null) return null;
@@ -24,14 +47,22 @@ const Delta = ({ value, reverseGood = false }) => {
 const MetricCard = ({ label, currentVal, prevVal, delta, format = 'number', color = C.primary }) => {
   const fmt = (v) => format === 'currency' ? rp(v) : Number(v).toLocaleString('id-ID');
   return (
-    <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', boxShadow: SHADOW.sm }}>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      style={{
+        ...premiumCard,
+        padding: '14px 16px',
+      }}
+    >
       <div style={{ ...F, fontSize: 10, color: C.n700, fontWeight: 600, letterSpacing: 0.3, marginBottom: 6 }}>{label}</div>
       <div style={{ ...F, fontSize: 20, fontWeight: 600, color, lineHeight: 1.1 }}>{fmt(currentVal)}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
         <span style={{ ...F, fontSize: 10, color: C.n700 }}>vs {fmt(prevVal)}</span>
         <Delta value={delta} />
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -88,12 +119,44 @@ export default function ComparisonReportPage({ goBack }) {
   const changes = data?.changes;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Comparison Mode" subtitle="Bandingkan 2 periode side-by-side" onBack={goBack} />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      {/* Premium Header with GlowOrb and Sparkle */}
+      <div style={{ ...premiumHeader, padding: '0 16px' }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-80px" right="-60px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-40px" left="-40px" />
+        <Sparkle color="rgba(255,255,255,0.6)" style={{ position: 'absolute', top: 20, right: 80 }} />
+        <Sparkle color="rgba(255,255,255,0.4)" style={{ position: 'absolute', top: 35, right: 120 }} size={10} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 12, paddingBottom: 12 }}>
+          <motion.button
+            onClick={goBack}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none',
+              borderRadius: 12,
+              width: 36,
+              height: 36,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </motion.button>
+          <div>
+            <h1 style={{ ...F, fontSize: 18, fontWeight: 700, color: 'white', margin: 0, textShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>Comparison Mode</h1>
+            <p style={{ ...F, fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0 }}>Bandingkan 2 periode side-by-side</p>
+          </div>
+        </div>
+      </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: C.white, borderRadius: 14, padding: isMobile ? 12 : 14, marginBottom: 14, boxShadow: SHADOW.md }}>
+        <div style={{ ...premiumFilterCard, marginBottom: 14 }}>
           <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 8 }}>Periode A (Saat Ini)</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             {DATE_PRESETS.slice(0, 6).map(p => (
@@ -136,14 +199,24 @@ export default function ComparisonReportPage({ goBack }) {
           <>
             {/* Period labels */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-              <div style={{ background: `${C.primary}12`, borderRadius: 10, padding: '8px 12px', borderLeft: `3px solid ${C.primary}` }}>
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                style={{ background: `${C.primary}12`, borderRadius: 10, padding: '8px 12px', borderLeft: `3px solid ${C.primary}` }}
+              >
                 <div style={{ ...F, fontSize: 9, fontWeight: 600, color: C.primary, letterSpacing: 0.5 }}>PERIODE A</div>
                 <div style={{ ...F, fontSize: 11, color: C.n700, marginTop: 2 }}>{data.periodA.start} → {data.periodA.end}</div>
-              </div>
-              <div style={{ background: `${C.n700}12`, borderRadius: 10, padding: '8px 12px', borderLeft: `3px solid ${C.n700}` }}>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.15 }}
+                style={{ background: `${C.n700}12`, borderRadius: 10, padding: '8px 12px', borderLeft: `3px solid ${C.n700}` }}
+              >
                 <div style={{ ...F, fontSize: 9, fontWeight: 600, color: C.n700, letterSpacing: 0.5 }}>PERIODE B</div>
                 <div style={{ ...F, fontSize: 11, color: C.n700, marginTop: 2 }}>{data.periodB.start} → {data.periodB.end}</div>
-              </div>
+              </motion.div>
             </div>
 
             {/* KPI Comparison Grid */}
@@ -155,7 +228,12 @@ export default function ComparisonReportPage({ goBack }) {
             </div>
 
             {/* Avg per transaction */}
-            <div style={{ background: C.white, borderRadius: 14, padding: '12px 16px', marginBottom: 14, boxShadow: SHADOW.md }}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              style={{ ...premiumCard, padding: '12px 16px', marginBottom: 14 }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ ...F, fontSize: 10, color: C.n700, fontWeight: 600 }}>RATA-RATA PER TRANSAKSI</div>
@@ -167,19 +245,29 @@ export default function ComparisonReportPage({ goBack }) {
                   <Delta value={cur.avgPerTx > 0 && prev.avgPerTx > 0 ? Number((((cur.avgPerTx - prev.avgPerTx) / prev.avgPerTx) * 100).toFixed(1)) : null} />
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Comparison Chart */}
-            <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.sm, overflowX: 'auto' }}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              style={{ ...premiumCard, padding: '14px 16px', marginBottom: 14, overflowX: 'auto' }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>Tren Perbandingan</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[{ key: 'revenue', label: 'Omset' }, { key: 'txCount', label: 'Transaksi' }].map(m => (
-                    <button key={m.key} onClick={() => setMetric(m.key)} style={{
-                      ...F, fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 999, border: 'none', cursor: 'pointer',
-                      background: metric === m.key ? C.primary : C.n100,
-                      color: metric === m.key ? C.white : C.n700,
-                    }}>{m.label}</button>
+                    <motion.button
+                      key={m.key}
+                      onClick={() => setMetric(m.key)}
+                      whileTap={{ scale: 0.95 }}
+                      style={{
+                        ...F, fontSize: 10, fontWeight: 600, padding: '4px 10px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                        background: metric === m.key ? C.primary : C.n100,
+                        color: metric === m.key ? C.white : C.n700,
+                      }}
+                    >{m.label}</motion.button>
                   ))}
                 </div>
               </div>
@@ -193,26 +281,41 @@ export default function ComparisonReportPage({ goBack }) {
                 label1={`Periode A (${data.periodA.start})`}
                 label2={`Periode B (${data.periodB.start})`}
               />
-            </div>
+            </motion.div>
 
             {/* Summary insight */}
-            <div style={{ background: changes.revenue >= 0 ? C.successBg : C.dangerBg, borderRadius: 14, padding: '14px 16px', border: `1px solid ${changes.revenue >= 0 ? C.successBg : C.dangerBg}`, marginBottom: 14 }}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              style={{
+                background: changes.revenue >= 0 ? `${C.success}15` : `${C.danger}15`,
+                borderRadius: 18,
+                padding: '14px 16px',
+                border: `1px solid ${changes.revenue >= 0 ? `${C.success}30` : `${C.danger}30`}`,
+                marginBottom: 14,
+              }}
+            >
               <div style={{ ...F, fontSize: 13, fontWeight: 600, color: changes.revenue >= 0 ? C.success : C.danger, marginBottom: 4 }}>
                 {changes.revenue >= 0 ? '📈 Performa Meningkat' : '📉 Performa Menurun'}
               </div>
-              <div style={{ ...F, fontSize: 12, color: changes.revenue >= 0 ? C.successDark : C.dangerDark, lineHeight: 1.6 }}>
+              <div style={{ ...F, fontSize: 12, color: C.n700, lineHeight: 1.6 }}>
                 Omset periode A {changes.revenue >= 0 ? 'lebih tinggi' : 'lebih rendah'} {Math.abs(changes.revenue)}% dibanding periode B.
                 Transaksi {changes.txCount >= 0 ? 'naik' : 'turun'} {Math.abs(changes.txCount)}%,
                 customer unik {changes.uniqueCustomers >= 0 ? 'naik' : 'turun'} {Math.abs(changes.uniqueCustomers)}%.
               </div>
-            </div>
+            </motion.div>
           </>
         )}
 
         {!loading && !data && (
-          <div style={{ textAlign: 'center', padding: 40, ...F, fontSize: 13, color: C.n700 }}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ textAlign: 'center', padding: 40, ...F, fontSize: 13, color: C.n700 }}
+          >
             Pilih periode untuk mulai membandingkan.
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

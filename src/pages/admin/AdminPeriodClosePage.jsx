@@ -1,13 +1,42 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { motion } from 'framer-motion';
 import { C, SHADOW } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Modal, Input, Select } from '../../components/ui';
 import { alertError, alertSuccess, alertConfirm } from '../../utils/alert';
 import { useResponsive } from '../../utils/hooks';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
 
 const MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+// Claymorphism card style
+const clayCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// Skeleton shimmer animation
+const skeletonKeyframes = `
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+`;
+
+const SkeletonBlock = ({ width = '100%', height = 20, borderRadius = 8, style = {} }) => (
+  <div
+    className="skeleton-shimmer"
+    style={{ width, height, borderRadius, ...style }}
+  />
+);
 
 function fmtDate(d) {
   if (!d) return '-';
@@ -52,6 +81,11 @@ export default function AdminPeriodClosePage({ goBack }) {
   const [closeModal, setCloseModal] = useState(false);
   const [closeNotes, setCloseNotes] = useState('');
   const [closing, setClosing]       = useState(false);
+
+  // Dynamic subtitle based on period data
+  const periodSubtitle = period
+    ? `Periode ${MONTH_NAMES[period.month] || ''} ${period.year}`
+    : 'Memuat periode...';
 
   useEffect(() => {
     axios.get('/api/master/outlets').then(r => {
@@ -118,17 +152,39 @@ export default function AdminPeriodClosePage({ goBack }) {
   const pctColor = (p) => p >= 100 ? C.success : p >= 80 ? C.success : p >= 50 ? C.warning : C.danger;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar
-        title="Tutup Buku"
-        subtitle="Pembukuan periode 26–25"
-        onBack={goBack}
-      />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      {/* Premium Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+        padding: '16px 16px 24px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-60px" right="-40px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-30px" left="-30px" />
+        <Sparkle color="rgba(255,255,255,0.6)" size={8} top="20px" left="30%" delay={0.5} />
+        <Sparkle color="rgba(255,255,255,0.5)" size={6} top="40px" right="25%" delay={1.2} />
+        <FloatingBubble size={12} top="10px" left="60%" delay={0.8} duration={4} />
+        <FloatingBubble size={8} bottom="5px" right="20%" delay={2} duration={3.5} />
+
+        <TopBar
+          title="Tutup Buku"
+          subtitle={periodSubtitle}
+          onBack={goBack}
+          transparent
+        />
+      </div>
+
+      <style>{skeletonKeyframes}</style>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 80px' }}>
 
         {/* Outlet selector */}
-        <div style={{ background: 'white', borderRadius: 14, padding: isMobile ? '12px' : '12px 14px', marginBottom: 16, boxShadow: SHADOW.md }}>
+        <div style={{
+          ...clayCard,
+          padding: isMobile ? '12px' : '12px 14px',
+          marginBottom: 16,
+        }}>
           <Select
             label="Outlet"
             value={selOutlet}
@@ -139,13 +195,33 @@ export default function AdminPeriodClosePage({ goBack }) {
 
         {/* Current period card */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '32px 0', fontFamily: 'Poppins', fontSize: 13, color: C.n700 }}>Memuat...</div>
+          <div style={{ ...clayCard, padding: 24, marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+              <div>
+                <SkeletonBlock width={150} height={20} style={{ marginBottom: 6 }} />
+                <SkeletonBlock width={200} height={14} />
+              </div>
+              <SkeletonBlock width={100} height={24} borderRadius={12} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <SkeletonBlock height={60} borderRadius={10} />
+              <SkeletonBlock height={60} borderRadius={10} />
+              <SkeletonBlock height={60} borderRadius={10} />
+              <SkeletonBlock height={60} borderRadius={10} />
+            </div>
+          </div>
         ) : period && (
-          <div style={{
-            background: 'white', borderRadius: 16, padding: '16px', marginBottom: 16,
-            boxShadow: SHADOW.md,
-            border: `2px solid ${period.alreadyClosed ? C.success : period.isClosing ? C.warning : C.n200}`,
-          }}>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{
+              ...clayCard,
+              padding: '16px',
+              marginBottom: 16,
+              border: `2px solid ${period.alreadyClosed ? C.success : period.isClosing ? C.warning : C.n200}`,
+            }}
+          >
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
               <div>
@@ -210,15 +286,27 @@ export default function AdminPeriodClosePage({ goBack }) {
             </div>
 
             {!period.alreadyClosed && (
-              <Btn
-                variant="primary"
+              <motion.button
+                whileTap={{ scale: 0.97 }}
                 onClick={() => setCloseModal(true)}
-                style={{ width: '100%', padding: '12px 0', fontSize: 14, fontWeight: 600 }}
+                style={{
+                  width: '100%',
+                  padding: '12px 0',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fontFamily: 'Poppins',
+                  background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 15px rgba(91, 0, 95, 0.3)',
+                }}
               >
                 📒 Tutup Buku {period.periodLabel}
-              </Btn>
+              </motion.button>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* History */}
@@ -228,19 +316,42 @@ export default function AdminPeriodClosePage({ goBack }) {
           </div>
 
           {histLoading ? (
-            <div style={{ textAlign: 'center', padding: '24px 0', fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>Memuat riwayat...</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ ...clayCard, padding: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div>
+                      <SkeletonBlock width={120} height={16} style={{ marginBottom: 4 }} />
+                      <SkeletonBlock width={180} height={12} />
+                    </div>
+                    <SkeletonBlock width={80} height={20} borderRadius={10} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <SkeletonBlock width={80} height={50} borderRadius={8} />
+                    <SkeletonBlock width={80} height={50} borderRadius={8} />
+                    <SkeletonBlock width={80} height={50} borderRadius={8} />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : history.length === 0 ? (
-            <div style={{ background: 'white', borderRadius: 14, padding: '24px', textAlign: 'center', boxShadow: SHADOW.md }}>
+            <div style={{ ...clayCard, padding: '24px', textAlign: 'center' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
               <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>Belum ada riwayat tutup buku untuk outlet ini.</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {history.map(row => {
+              {history.map((row, idx) => {
                 const color = row.pct != null ? pctColor(row.pct) : C.n700;
                 const piutang = Math.max(0, row.totalOmset - row.totalPelunasan);
                 return (
-                  <div key={row.id} style={{ background: 'white', borderRadius: 14, padding: '14px 16px', boxShadow: SHADOW.md }}>
+                  <motion.div
+                    key={row.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    style={{ ...clayCard, padding: '14px 16px' }}
+                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                       <div>
                         <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>
@@ -291,7 +402,7 @@ export default function AdminPeriodClosePage({ goBack }) {
                     {row.notes && (
                       <div style={{ marginTop: 4, fontFamily: 'Poppins', fontSize: 10, color: C.warning }}>📝 {row.notes}</div>
                     )}
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -327,8 +438,44 @@ export default function AdminPeriodClosePage({ goBack }) {
         <Input label="Catatan penutupan (opsional)" value={closeNotes} onChange={setCloseNotes} placeholder="Misal: ada transaksi pending X yang perlu di-follow-up..." />
 
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-          <Btn variant="secondary" onClick={() => setCloseModal(false)} style={{ flex: 1 }}>Batal</Btn>
-          <Btn variant="primary" onClick={handleClosePeriod} loading={closing} style={{ flex: 1 }}>Tutup Buku</Btn>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => setCloseModal(false)}
+            style={{
+              flex: 1,
+              padding: '12px 0',
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: 'Poppins',
+              background: C.n100,
+              color: C.n700,
+              border: 'none',
+              borderRadius: 12,
+              cursor: 'pointer',
+            }}
+          >
+            Batal
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleClosePeriod}
+            style={{
+              flex: 1,
+              padding: '12px 0',
+              fontSize: 13,
+              fontWeight: 600,
+              fontFamily: 'Poppins',
+              background: closing ? C.n300 : 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 12,
+              cursor: closing ? 'not-allowed' : 'pointer',
+              boxShadow: closing ? 'none' : '0 4px 15px rgba(91, 0, 95, 0.3)',
+            }}
+            disabled={closing}
+          >
+            {closing ? 'Menutup...' : 'Tutup Buku'}
+          </motion.button>
         </div>
       </Modal>
     </div>

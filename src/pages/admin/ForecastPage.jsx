@@ -9,8 +9,25 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { motion } from 'framer-motion';
+import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
+import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
 
 const F = { fontFamily: 'Poppins' };
+
+// Premium card style
+const premiumCard = {
+  background: 'linear-gradient(145deg, #FFFFFF, #F8F4FF)',
+  boxShadow: '10px 10px 24px rgba(110, 46, 120, 0.1), -5px -5px 14px rgba(255, 255, 255, 0.95)',
+  borderRadius: 18,
+};
+
+// Premium gradient header
+const premiumHeader = {
+  background: 'linear-gradient(135deg, #5B005F 0%, #4D0051 100%)',
+  position: 'relative',
+  overflow: 'hidden',
+};
 
 const fmtMonth = (v) => {
   if (!v || !/^\d{4}-\d{2}$/.test(v)) return v;
@@ -21,12 +38,15 @@ const fmtMonth = (v) => {
 
 const ConfidenceBadge = ({ level }) => {
   const cfg = {
-    tinggi: { bg: C.successBg, color: C.success, label: '✓ Akurasi Tinggi' },
-    sedang: { bg: C.warningBg, color: C.warning, label: '⚠ Akurasi Sedang' },
-    rendah: { bg: C.dangerBg, color: C.danger, label: '✗ Akurasi Rendah' },
+    tinggi: { bg: `${C.success}20`, color: C.success, label: '✓ Akurasi Tinggi' },
+    sedang: { bg: `${C.warning}20`, color: C.warning, label: '⚠ Akurasi Sedang' },
+    rendah: { bg: `${C.danger}20`, color: C.danger, label: '✗ Akurasi Rendah' },
   }[level] || { bg: C.n100, color: C.n700, label: level };
   return (
-    <span style={{ ...F, fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: cfg.bg, color: cfg.color }}>
+    <span style={{
+      ...F, fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 999,
+      background: cfg.bg, color: cfg.color, backdropFilter: 'blur(8px)'
+    }}>
       {cfg.label}
     </span>
   );
@@ -85,12 +105,44 @@ export default function ForecastPage({ goBack }) {
   const lastHistMonth = data?.historical?.[data.historical.length - 1]?.month;
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.n50, overflow: 'hidden' }}>
-      <TopBar title="Forecast Omset" subtitle="Prediksi berbasis data historis" onBack={goBack} />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden' }}>
+      {/* Premium Header with GlowOrb and Sparkle */}
+      <div style={{ ...premiumHeader, padding: '0 16px' }}>
+        <GlowOrb color="rgba(255,255,255,0.08)" size={200} top="-80px" right="-60px" />
+        <GlowOrb color="rgba(255,200,255,0.06)" size={150} bottom="-40px" left="-40px" />
+        <Sparkle color="rgba(255,255,255,0.6)" style={{ position: 'absolute', top: 20, right: 80 }} />
+        <Sparkle color="rgba(255,255,255,0.4)" style={{ position: 'absolute', top: 35, right: 120 }} size={10} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 12, paddingBottom: 12 }}>
+          <motion.button
+            onClick={goBack}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              background: 'rgba(255,255,255,0.15)',
+              border: 'none',
+              borderRadius: 12,
+              width: 36,
+              height: 36,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </motion.button>
+          <div>
+            <h1 style={{ ...F, fontSize: 18, fontWeight: 700, color: 'white', margin: 0, textShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>Forecast Omset</h1>
+            <p style={{ ...F, fontSize: 11, color: 'rgba(255,255,255,0.85)', margin: 0 }}>Prediksi berbasis data historis</p>
+          </div>
+        </div>
+      </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 24px' }}>
         {/* Filter */}
-        <div style={{ background: C.white, borderRadius: 14, padding: isMobile ? 12 : 14, marginBottom: 14, boxShadow: SHADOW.md }}>
+        <div style={{ ...premiumCard, padding: isMobile ? 12 : 14, marginBottom: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 8 }}>
             <Select label="Outlet" value={outletId} onChange={setOutletId}
               options={[{ value: '', label: '🏪 Semua' }, ...outlets.map(o => ({ value: o.id, label: o.name }))]} />
@@ -117,7 +169,12 @@ export default function ForecastPage({ goBack }) {
           <>
             {/* Model info */}
             {data.model && (
-              <div style={{ background: C.white, borderRadius: 14, padding: '12px 16px', marginBottom: 14, boxShadow: SHADOW.sm, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                style={{ ...premiumCard, padding: '12px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}
+              >
                 <div>
                   <div style={{ ...F, fontSize: 12, fontWeight: 600, color: C.n900 }}>Model Prediksi: Linear Regression</div>
                   <div style={{ ...F, fontSize: 11, color: C.n700, marginTop: 2 }}>
@@ -129,11 +186,16 @@ export default function ForecastPage({ goBack }) {
                   </div>
                 </div>
                 <ConfidenceBadge level={data.model.confidence} />
-              </div>
+              </motion.div>
             )}
 
             {/* Chart */}
-            <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.md, overflowX: 'auto' }}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+              style={{ ...premiumCard, padding: '14px 16px', marginBottom: 14, overflowX: 'auto' }}
+            >
               <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>
                 Historis + Prediksi
               </div>
@@ -167,15 +229,26 @@ export default function ForecastPage({ goBack }) {
                   <Area type="monotone" dataKey="trend" name="Prediksi" stroke={C.warning} strokeWidth={2} strokeDasharray="6 3" fill="url(#gradForecast)" dot={false} connectNulls />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
+            </motion.div>
 
             {/* Forecast table */}
             {data.forecast.length > 0 && (
-              <div style={{ background: C.white, borderRadius: 14, padding: '14px 16px', marginBottom: 14, boxShadow: SHADOW.md, overflowX: 'auto' }}>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.15 }}
+                style={{ ...premiumCard, padding: '14px 16px', marginBottom: 14, overflowX: 'auto' }}
+              >
                 <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900, marginBottom: 12 }}>Detail Prediksi</div>
                 <div style={{ minWidth: 300 }}>
                   {data.forecast.map((f, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < data.forecast.length - 1 ? `1px solid ${C.n100}` : 'none' }}>
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < data.forecast.length - 1 ? `1px solid ${C.n100}` : 'none' }}
+                    >
                       <div>
                         <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>{fmtMonth(f.month)}</div>
                         <div style={{ ...F, fontSize: 10, color: C.n700 }}>Range: {rp(f.low)} – {rp(f.high)}</div>
@@ -184,27 +257,36 @@ export default function ForecastPage({ goBack }) {
                         <div style={{ ...F, fontSize: 16, fontWeight: 600, color: C.warning }}>{rp(f.predicted)}</div>
                         <div style={{ ...F, fontSize: 9, color: C.n700 }}>prediksi</div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
-              </div>
+              </motion.div>
             )}
 
             {/* Disclaimer */}
-            <div style={{ background: C.warningBg, borderRadius: 12, padding: '10px 14px', border: `1px solid ${C.warning}` }}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+              style={{ background: `${C.warning}15`, borderRadius: 12, padding: '10px 14px', border: `1px solid ${C.warning}30` }}
+            >
               <div style={{ ...F, fontSize: 11, color: C.warning, lineHeight: 1.6 }}>
                 ⚠️ <b>Catatan:</b> Prediksi ini menggunakan linear regression sederhana berdasarkan tren historis.
                 Faktor eksternal (musim, promosi, kompetitor) tidak diperhitungkan.
                 Gunakan sebagai panduan, bukan kepastian.
               </div>
-            </div>
+            </motion.div>
           </>
         )}
 
         {!loading && data?.message && (
-          <div style={{ textAlign: 'center', padding: 40, ...F, fontSize: 13, color: C.n700 }}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ textAlign: 'center', padding: 40, ...F, fontSize: 13, color: C.n700 }}
+          >
             {data.message}
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

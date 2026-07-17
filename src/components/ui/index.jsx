@@ -1009,27 +1009,52 @@ export const Toast = ({ message, type = 'success', visible }) => (
 
 // ── BottomSheet ───────────────────────────────────────────
 // z-index: 100 backdrop, 101 content
-export const BottomSheet = ({ visible, onClose, title, children }) => (
-  <>
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 100, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.25s' }} />
-    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: C.white, borderRadius: '20px 20px 0 0', zIndex: 101, padding: '0 0 32px', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)', maxHeight: '85%', overflowY: 'auto', boxShadow: SHADOW.xl }}>
-      <div style={{ width: 36, height: 4, borderRadius: 2, background: C.n300, margin: '12px auto 4px' }} />
-      {title && <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, padding: '12px 20px 8px' }}>{title}</div>}
-      {children}
-    </div>
-  </>
-);
+// position: fixed untuk viewport anchoring yang benar
+export const BottomSheet = ({ visible, onClose, title, children }) => {
+  // Lock body scroll when visible
+  useEffect(() => {
+    if (visible) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [visible]);
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 100, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.25s' }} />
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: C.white, borderRadius: '20px 20px 0 0', zIndex: 101, padding: '0 0 env(safe-area-inset-bottom, 32px)', transform: visible ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)', maxHeight: '90vh', overflowY: 'auto', boxShadow: SHADOW.xl }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: C.n300, margin: '12px auto 4px' }} />
+        {title && <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, padding: '12px 20px 8px' }}>{title}</div>}
+        {children}
+      </div>
+    </>
+  );
+};
 
 // ── Modal ─────────────────────────────────────────────────
-export const Modal = ({ visible, onClose, title, children }) => (
-  <>
-    <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 200, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.2s' }} />
-    <div style={{ position: 'absolute', top: '50%', left: 20, right: 20, background: C.white, borderRadius: 20, zIndex: 201, padding: 24, transform: visible ? 'translate(0, -50%) scale(1)' : 'translate(0, -50%) scale(0.9)', opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)', overflow: 'visible', maxHeight: '85vh', overflowY: 'auto', boxShadow: SHADOW.xl }}>
-      {title && <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, marginBottom: 16 }}>{title}</div>}
-      {children}
-    </div>
-  </>
-);
+export const Modal = ({ visible, onClose, title, children }) => {
+  // Lock body scroll when visible
+  useEffect(() => {
+    if (visible) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [visible]);
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 200, opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.2s' }} />
+      <div style={{ position: 'fixed', top: '50%', left: 20, right: 20, background: C.white, borderRadius: 20, zIndex: 201, padding: 24, transform: visible ? 'translate(0, -50%) scale(1)' : 'translate(0, -50%) scale(0.9)', opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)', overflow: 'visible', maxHeight: '85vh', overflowY: 'auto', boxShadow: SHADOW.xl }}>
+        {title && <div style={{ fontFamily: 'Poppins', fontSize: 16, fontWeight: 600, color: C.n900, marginBottom: 16 }}>{title}</div>}
+        {children}
+      </div>
+    </>
+  );
+};
 
 // ── StatCard (exported from ./StatCard) ──────────────────────────────────────────
 
