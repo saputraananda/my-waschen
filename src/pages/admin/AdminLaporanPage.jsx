@@ -562,7 +562,7 @@ export default function AdminLaporanPage({ navigate, goBack }) {
                           <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.n900 }}>{rp(row.revenue)}</div>
                           <div style={{ ...F, fontSize: 10, color: C.n800 }}>{row.txCount} trx</div>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>

@@ -643,6 +643,219 @@ function EmptyState({ filter }) {
   );
 }
 
+// ─── Stock History Modal ──────────────────────────────────────────────────────
+function StockHistoryModal({ visible, onClose, item }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+
+  const fetchHistory = useCallback(async (pageNum = 1) => {
+    if (!item?.id && !item?.itemId) return;
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/inventory/stock-history', {
+        params: {
+          inventoryId: item.id || item.itemId,
+          page: pageNum,
+          limit: 20,
+        },
+      });
+      if (res?.data?.success) {
+        const newData = res.data.data || [];
+        if (pageNum === 1) {
+          setHistory(newData);
+        } else {
+          setHistory(prev => [...prev, ...newData]);
+        }
+        setHasMore(newData.length >= 20);
+        setPage(pageNum);
+      }
+    } catch (err) {
+      console.error('Failed to fetch history:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [item]);
+
+  useEffect(() => {
+    if (visible && item) {
+      setPage(1);
+      setHistory([]);
+      fetchHistory(1);
+    }
+  }, [visible, item, fetchHistory]);
+
+  const loadMore = () => {
+    if (hasMore && !loading) {
+      fetchHistory(page + 1);
+    }
+  };
+
+  const formatTime = (dateStr) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getMovementIcon = (type) => {
+    if (type === 'in' || type === 'adjustment' || type === 'restock') return <Plus size={14} />;
+    if (type === 'out' || type === 'manual_usage') return <Minus size={14} />;
+    return <History size={14} />;
+  };
+
+  const getMovementColor = (type) => {
+    if (type === 'in' || type === 'adjustment' || type === 'restock') return '#10B981';
+    if (type === 'out' || type === 'manual_usage') return '#EF4444';
+    return C.n600;
+  };
+
+  return (
+    <Modal visible={visible} onClose={onClose} title="Riwayat Stok">
+      <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+        {/* Item Header */}
+        <div style={{
+          background: C.n50,
+          borderRadius: 10,
+          padding: 12,
+          marginBottom: 16,
+          position: 'sticky',
+          top: 0,
+          zIndex: 1,
+        }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>
+            {item?.itemName || item?.name}
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, marginTop: 2 }}>
+            Stok saat ini: {Number(item?.stockQty || item?.currentStock || 0).toLocaleString('id-ID')} {item?.unit}
+          </div>
+        </div>
+
+        {/* Loading State */}
+        {loading && history.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 24 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              border: '3px solid ' + C.n200,
+              borderTopColor: C.primary,
+              borderRadius: '50%',
+              animation: 'spin 0.8s linear infinite',
+              margin: '0 auto 12px',
+            }} />
+            <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>Memuat riwayat...</span>
+          </div>
+        ) : history.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 24 }}>
+            <History size={32} color={C.n300} style={{ marginBottom: 8 }} />
+            <div style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n500 }}>
+              Belum ada riwayat penyesuaian
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* History List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {history.map((h, idx) => (
+                <div
+                  key={h.id || idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 12px',
+                    background: C.white,
+                    borderRadius: 10,
+                    border: `1px solid ${C.n100}`,
+                  }}
+                >
+                  {/* Icon */}
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    background: `${getMovementColor(h.movement_type)}15`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: getMovementColor(h.movement_type),
+                    flexShrink: 0,
+                  }}>
+                    {getMovementIcon(h.movement_type)}
+                  </div>
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontFamily: 'Poppins',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: C.n800,
+                    }}>
+                      {h.movement_type === 'in' || h.movement_type === 'adjustment' || h.movement_type === 'restock'
+                        ? `+${Number(h.qty).toLocaleString('id-ID')}`
+                        : h.movement_type === 'out' || h.movement_type === 'manual_usage'
+                        ? `${Number(h.qty).toLocaleString('id-ID')}`
+                        : Number(h.qty).toLocaleString('id-ID')} {item?.unit || ''}
+                    </div>
+                    <div style={{
+                      fontFamily: 'Poppins',
+                      fontSize: 11,
+                      color: C.n500,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {h.notes || h.movement_type}
+                    </div>
+                    <div style={{
+                      fontFamily: 'Poppins',
+                      fontSize: 10,
+                      color: C.n400,
+                      marginTop: 2,
+                    }}>
+                      {h.createdByName || 'System'} · {formatTime(h.created_at)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Load More */}
+            {hasMore && (
+              <motion.button
+                type="button"
+                onClick={loadMore}
+                whileTap={{ scale: 0.97 }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  marginTop: 12,
+                  borderRadius: 10,
+                  border: `1.5px solid ${C.n200}`,
+                  background: C.white,
+                  cursor: loading ? 'default' : 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: C.primary,
+                }}
+              >
+                {loading ? 'Memuat...' : 'Lihat Lebih Banyak'}
+              </motion.button>
+            )}
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ProduksiStokPage({ navigate, goBack, user }) {
   const { user: authUser } = useAuth();
