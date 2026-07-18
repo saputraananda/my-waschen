@@ -289,7 +289,7 @@ export const createPengajuan = async (req, res) => {
       // Log to ledger
       await logLedger(conn, {
         outletId,
-        type: 'pengajuan_belanja',
+        type: 'expense',
         amount: -totalAmount,
         balanceAfter,
         expenseId: pengajuanId,
@@ -694,7 +694,7 @@ export const approvePengajuan = async (req, res) => {
       // Log to ledger
       await logLedger(conn, {
         outletId: pengajuan.outlet_id,
-        type: 'pengajuan_belanja',
+        type: 'expense',
         amount: -totalAmount,
         balanceAfter,
         expenseId: pengajuan.id,

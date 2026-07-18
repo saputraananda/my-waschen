@@ -347,8 +347,8 @@ export default function NotaStep1Page({ goBack, screenParams }) {
                   onClick={() => selectCustomer(c)}
                   style={{
                     flexShrink: 0,
-                    width: isMobile ? 110 : 120,
-                    padding: isMobile ? '12px 10px' : '14px 12px',
+                    width: isMobile ? 90 : 100,
+                    padding: isMobile ? '12px 8px' : '14px 10px',
                     background: 'white',
                     borderRadius: 16,
                     border: `1.5px solid ${C.n200}`,
@@ -359,10 +359,9 @@ export default function NotaStep1Page({ goBack, screenParams }) {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 4,
                   }}
                 >
-                  <CustomerAvatar customer={c} size={isMobile ? 40 : 48} />
                   <div style={{
                     fontFamily: 'Poppins',
                     fontSize: isMobile ? 11 : 12,
@@ -382,7 +381,7 @@ export default function NotaStep1Page({ goBack, screenParams }) {
                     color: C.n500,
                     textAlign: 'center',
                   }}>
-                    {c.phone?.slice(-4)}
+                    **** {c.phone?.slice(-4)}
                   </div>
                 </div>
               ))}
