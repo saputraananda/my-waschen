@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, getCartLineSubtotal, getCartUnitPrice } from '../../utils/helpers';
-import { TopBar, Btn, Input, Select, Divider, DateTimeInput, MoneyInput } from '../../components/ui';
+import { TopBar, Btn, Input, Select, Divider, MoneyInput } from '../../components/ui';
 import { alertError, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
 import { hapticError } from '../../utils/haptic';
@@ -36,17 +36,10 @@ const compressImage = (file) =>
   });
 
 // ─── Payment Status Auto-Detection ───────────────────────────────────────────
-// Cash & Deposit: auto-detect from amount comparison (kasir holds cash / system owns deposit data)
-// QRIS / EDC / Transfer: require explicit kasir confirmation — NEVER auto-lunas
-function getPaymentStatus(paidAmountValue, total, payMethod, kasirConfirmedReceived) {
+// Cash & Deposit: auto-detect from amount comparison
+// QRIS / EDC / Transfer: now also auto-detect like cash (no separate confirmation needed)
+function getPaymentStatus(paidAmountValue, total, payMethod) {
   if (!paidAmountValue || paidAmountValue <= 0) return 'pending';
-  const external = ['qris', 'edc', 'transfer'].includes(payMethod);
-  if (external) {
-    if (paidAmountValue >= total && kasirConfirmedReceived) return 'lunas';
-    if (paidAmountValue >= total && !kasirConfirmedReceived) return 'menunggu_verifikasi';
-    return 'partial';
-  }
-  // cash & deposit: auto by comparison
   if (paidAmountValue >= total) return 'lunas';
   return 'partial';
 }
@@ -361,9 +354,7 @@ export default function NotaStep3Page({ goBack }) {
   const [pickupType, setPickupType] = useState('self');
   // Separate schedules for pickup (jemput cucian kotor) and delivery (antar cucian bersih)
   const [pickupScheduleDate, setPickupScheduleDate] = useState(null);
-  const [pickupScheduleTime, setPickupScheduleTime] = useState('');
   const [deliveryScheduleDate, setDeliveryScheduleDate] = useState(null);
-  const [deliveryScheduleTime, setDeliveryScheduleTime] = useState('');
   const [areaZoneId, setAreaZoneId] = useState('');
   const [areaZones, setAreaZones] = useState([]);
   const [courierName, setCourierName] = useState('');
@@ -378,8 +369,7 @@ export default function NotaStep3Page({ goBack }) {
   const [paymentPhoto, setPaymentPhoto] = useState(null);
   const [paymentPhotoPreview, setPaymentPhotoPreview] = useState(null);
 
-  // Kasir explicit confirmation for external methods (QRIS/EDC/Transfer)
-  const [kasirConfirmedReceived, setKasirConfirmedReceived] = useState(false);
+  // Kasir explicit confirmation for external methods (QRIS/EDC/Transfer) — NO LONGER REQUIRED (2026-07-18)
 
   // Transfer Bank: selected outlet bank account
   const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
@@ -396,7 +386,16 @@ export default function NotaStep3Page({ goBack }) {
     const fetchZones = async () => {
       try {
         const res = await axios.get('/api/logistics/area-zones');
-        setAreaZones(res?.data?.data || []);
+        const zones = res?.data?.data || [];
+        setAreaZones(zones);
+        // Auto-select "Isi" zone if available
+        const isiZone = zones.find((z) => z.name?.toLowerCase().includes('isi'));
+        if (isiZone) {
+          setAreaZoneId(isiZone.id);
+        } else if (zones.length === 1) {
+          // Fallback: auto-select the only zone available
+          setAreaZoneId(zones[0].id);
+        }
       } catch (error) {
         // Silent fail - area zones optional
       }
@@ -477,7 +476,7 @@ export default function NotaStep3Page({ goBack }) {
 
   const paidAmountValue = Math.max(0, Number(paidAmountStr) || 0);
 
-  const paymentStatus = getPaymentStatus(paidAmountValue, total, payMethod, kasirConfirmedReceived);
+  const paymentStatus = getPaymentStatus(paidAmountValue, total, payMethod);
 
   const kembalian = paidAmountValue - total;
 
@@ -558,7 +557,7 @@ export default function NotaStep3Page({ goBack }) {
         payment: paymentPayload,
         paymentIntent: {
           paidAmount: finalPaidAmount,
-          verifiedByKasir: ['qris', 'edc', 'transfer'].includes(payMethod) ? kasirConfirmedReceived : true,
+          verifiedByKasir: true,
           bankAccountId: payMethod === 'transfer' ? selectedBankAccountId : undefined,
           paymentPhotoBase64: payMethod === 'transfer' ? photoBase64 : undefined,
         },
@@ -572,17 +571,17 @@ export default function NotaStep3Page({ goBack }) {
         delivery: pickupType === 'delivery' || pickupType === 'both',
         pickupType,
         areaZoneId: areaZoneId || null,
-        // Send separate schedules for pickup and delivery
-        scheduleAt: (pickupType === 'pickup' || pickupType === 'both') && pickupScheduleDate && pickupScheduleTime
-          ? `${formatDate(pickupScheduleDate)}T${pickupScheduleTime}:00`
-          : (pickupType === 'delivery') && deliveryScheduleDate && deliveryScheduleTime
-          ? `${formatDate(deliveryScheduleDate)}T${deliveryScheduleTime}:00`
+        // Send separate schedules for pickup and delivery (date only, no time)
+        scheduleAt: (pickupType === 'pickup' || pickupType === 'both') && pickupScheduleDate
+          ? `${formatDate(pickupScheduleDate)}`
+          : (pickupType === 'delivery') && deliveryScheduleDate
+          ? `${formatDate(deliveryScheduleDate)}`
           : null,
-        pickupScheduleAt: (pickupType === 'pickup' || pickupType === 'both') && pickupScheduleDate && pickupScheduleTime
-          ? `${formatDate(pickupScheduleDate)}T${pickupScheduleTime}:00`
+        pickupScheduleAt: (pickupType === 'pickup' || pickupType === 'both') && pickupScheduleDate
+          ? `${formatDate(pickupScheduleDate)}`
           : null,
-        deliveryScheduleAt: (pickupType === 'delivery' || pickupType === 'both') && deliveryScheduleDate && deliveryScheduleTime
-          ? `${formatDate(deliveryScheduleDate)}T${deliveryScheduleTime}:00`
+        deliveryScheduleAt: (pickupType === 'delivery' || pickupType === 'both') && deliveryScheduleDate
+          ? `${formatDate(deliveryScheduleDate)}`
           : null,
         courierName: (pickupType === 'delivery' || pickupType === 'both') ? (courierName.trim() || null) : null,
         deliveryNotes: (pickupType === 'delivery' || pickupType === 'both') ? (deliveryNotes.trim() || null) : null,
@@ -673,15 +672,12 @@ export default function NotaStep3Page({ goBack }) {
       }
   };
 
-  const externalMethods = ['qris', 'edc', 'transfer'];
-
   const isConfirmDisabled = (
-    (externalMethods.includes(payMethod) && (effectivePaid < total || !kasirConfirmedReceived)) ||
     (payMethod === 'transfer' && (!selectedBankAccountId || !paymentPhoto)) ||
     (payMethod === 'deposit' && Number(notaCustomer?.depositBalance ?? notaCustomer?.deposit ?? 0) < total) ||
-    // Only require schedule for pure pickup or pure delivery (not "both")
-    (pickupType === 'pickup' && (!pickupScheduleDate || !pickupScheduleTime)) ||
-    (pickupType === 'delivery' && (!deliveryScheduleDate || !deliveryScheduleTime))
+    // Only require date for pickup/delivery (no time needed)
+    (pickupType === 'pickup' && !pickupScheduleDate) ||
+    (pickupType === 'delivery' && !deliveryScheduleDate)
   );
 
   const handleConfirm = () => {
@@ -691,29 +687,17 @@ export default function NotaStep3Page({ goBack }) {
     }
 
     if (pickupType === 'pickup') {
-      if (!pickupScheduleDate || !pickupScheduleTime) {
-        alertError('Jadwal jemput cucian kotor wajib diisi.');
+      if (!pickupScheduleDate) {
+        alertError('Tanggal jemput cucian kotor wajib diisi.');
         hapticError();
         return;
       }
     } else if (pickupType === 'delivery') {
-      if (!deliveryScheduleDate || !deliveryScheduleTime) {
-        alertError('Jadwal antar cucian bersih wajib diisi.');
+      if (!deliveryScheduleDate) {
+        alertError('Tanggal antar cucian bersih wajib diisi.');
         hapticError();
         return;
       }
-    }
-
-    if (externalMethods.includes(payMethod) && effectivePaid < total) {
-      alertWarning(`Pembayaran ${payMethod.toUpperCase()} harus LUNAS penuh (${rp(total)}).`);
-      hapticError();
-      return;
-    }
-
-    if (externalMethods.includes(payMethod) && !kasirConfirmedReceived) {
-      alertWarning(`Konfirmasi penerimaan pembayaran ${payMethod.toUpperCase()} wajib ditekan.`);
-      hapticError();
-      return;
     }
 
     if (payMethod === 'transfer' && !selectedBankAccountId) {
@@ -882,7 +866,7 @@ export default function NotaStep3Page({ goBack }) {
               <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n600 }}>Ongkir ({
                 pickupType === 'pickup' ? 'Jemput cucian kotor' :
                 pickupType === 'delivery' ? 'Antar cucian bersih' :
-                'Jemput + Antar'
+                'Antar Jemput'
               })</span>
               <span style={{ fontFamily: 'Poppins', fontSize: 13, color: C.n900 }}>{rp(logisticFee)}</span>
             </div>
@@ -905,7 +889,7 @@ export default function NotaStep3Page({ goBack }) {
               { key: 'self', label: 'Self', icon: '🏪', desc: 'Customer ambil sendiri' },
               { key: 'pickup', label: 'Jemput', icon: '🚗', desc: 'Ambil cucian kotor' },
               { key: 'delivery', label: 'Antar', icon: '🛵', desc: 'Antar cucian bersih' },
-              { key: 'both', label: 'Both', icon: '🔄', desc: 'Jemput + Antar' },
+              { key: 'both', label: 'Antar Jemput', icon: '🔄', desc: 'Jemput + Antar cucian' },
             ].map((opt) => (
               <button
                 key={opt.key}
@@ -928,7 +912,7 @@ export default function NotaStep3Page({ goBack }) {
 
           {pickupType !== 'self' && (
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(pickupType === 'pickup' && (!pickupScheduleDate || !pickupScheduleTime)) && (
+              {(pickupType === 'pickup' && !pickupScheduleDate) && (
                 <div style={{
                   background: C.scheduleErrorBg,
                   borderRadius: 10,
@@ -947,7 +931,7 @@ export default function NotaStep3Page({ goBack }) {
                       color: C.scheduleErrorText,
                       marginBottom: 2
                     }}>
-                      Jadwal Wajib Diisi
+                      Tanggal Wajib Diisi
                     </div>
                     <div style={{
                       fontFamily: 'Poppins',
@@ -955,13 +939,13 @@ export default function NotaStep3Page({ goBack }) {
                       color: C.scheduleErrorText,
                       lineHeight: 1.4
                     }}>
-                      Untuk layanan jemput cucian kotor, jadwal harus dipilih terlebih dahulu.
+                      Untuk layanan jemput cucian kotor, tanggal harus dipilih terlebih dahulu.
                     </div>
                   </div>
                 </div>
               )}
 
-              {(pickupType === 'delivery' && (!deliveryScheduleDate || !deliveryScheduleTime)) && (
+              {(pickupType === 'delivery' && !deliveryScheduleDate) && (
                 <div style={{
                   background: C.scheduleErrorBg,
                   borderRadius: 10,
@@ -980,7 +964,7 @@ export default function NotaStep3Page({ goBack }) {
                       color: C.scheduleErrorText,
                       marginBottom: 2
                     }}>
-                      Jadwal Wajib Diisi
+                      Tanggal Wajib Diisi
                     </div>
                     <div style={{
                       fontFamily: 'Poppins',
@@ -988,7 +972,7 @@ export default function NotaStep3Page({ goBack }) {
                       color: C.scheduleErrorText,
                       lineHeight: 1.4
                     }}>
-                      Untuk layanan antar cucian bersih, jadwal harus dipilih terlebih dahulu.
+                      Untuk layanan antar cucian bersih, tanggal harus dipilih terlebih dahulu.
                     </div>
                   </div>
                 </div>
@@ -1011,26 +995,23 @@ export default function NotaStep3Page({ goBack }) {
 
               {(pickupType === 'pickup' || pickupType === 'both') && (
                 <div>
-                  <DateTimeInput
-                    label={`📅 Jadwal Jemput${pickupType === 'both' ? ' (Kotor)' : ''} *`}
+                  <Input
+                    type="date"
+                    label={`📅 Tanggal Jemput${pickupType === 'both' ? ' (Kotor)' : ''} *`}
                     value={
-                      pickupScheduleDate && pickupScheduleTime
-                        ? `${pickupScheduleDate.getFullYear()}-${String(pickupScheduleDate.getMonth()+1).padStart(2,'0')}-${String(pickupScheduleDate.getDate()).padStart(2,'0')}T${pickupScheduleTime}:00`
-                        : null
+                      pickupScheduleDate
+                        ? `${pickupScheduleDate.getFullYear()}-${String(pickupScheduleDate.getMonth()+1).padStart(2,'0')}-${String(pickupScheduleDate.getDate()).padStart(2,'0')}`
+                        : ''
                     }
-                    onChange={(iso) => {
-                      if (!iso) {
+                    onChange={(val) => {
+                      if (!val) {
                         setPickupScheduleDate(null);
-                        setPickupScheduleTime('');
                         return;
                       }
-                      const d = new Date(iso);
+                      const d = new Date(val + 'T12:00:00');
                       setPickupScheduleDate(d);
-                      const hh = String(d.getHours()).padStart(2, '0');
-                      const mm = String(d.getMinutes()).padStart(2, '0');
-                      setPickupScheduleTime(`${hh}:${mm}`);
                     }}
-                    minDate={minDateForPicker}
+                    min={todayKeyWib()}
                     required
                   />
                   {pickupType !== 'both' && (
@@ -1049,26 +1030,23 @@ export default function NotaStep3Page({ goBack }) {
 
               {(pickupType === 'delivery' || pickupType === 'both') && (
                 <div>
-                  <DateTimeInput
-                    label={`📅 Jadwal Antar${pickupType === 'both' ? ' (Bersih)' : ''} *`}
+                  <Input
+                    type="date"
+                    label={`📅 Tanggal Antar${pickupType === 'both' ? ' (Bersih)' : ''} *`}
                     value={
-                      deliveryScheduleDate && deliveryScheduleTime
-                        ? `${deliveryScheduleDate.getFullYear()}-${String(deliveryScheduleDate.getMonth()+1).padStart(2,'0')}-${String(deliveryScheduleDate.getDate()).padStart(2,'0')}T${deliveryScheduleTime}:00`
-                        : null
+                      deliveryScheduleDate
+                        ? `${deliveryScheduleDate.getFullYear()}-${String(deliveryScheduleDate.getMonth()+1).padStart(2,'0')}-${String(deliveryScheduleDate.getDate()).padStart(2,'0')}`
+                        : ''
                     }
-                    onChange={(iso) => {
-                      if (!iso) {
+                    onChange={(val) => {
+                      if (!val) {
                         setDeliveryScheduleDate(null);
-                        setDeliveryScheduleTime('');
                         return;
                       }
-                      const d = new Date(iso);
+                      const d = new Date(val + 'T12:00:00');
                       setDeliveryScheduleDate(d);
-                      const hh = String(d.getHours()).padStart(2, '0');
-                      const mm = String(d.getMinutes()).padStart(2, '0');
-                      setDeliveryScheduleTime(`${hh}:${mm}`);
                     }}
-                    minDate={minDateForPicker}
+                    min={todayKeyWib()}
                     required
                   />
                   {pickupType !== 'both' && (
@@ -1085,15 +1063,43 @@ export default function NotaStep3Page({ goBack }) {
                 </div>
               )}
 
-              <Select
-                label="Area Zone (ongkir)"
-                value={areaZoneId}
-                onChange={setAreaZoneId}
-                options={[
-                  { value: '', label: 'Pilih zona...' },
-                  ...areaZones.map((z) => ({ value: z.id, label: `${z.name} - ${rp(z.fee)}` })),
-                ]}
-              />
+              {selectedZone && (
+                <div style={{
+                  background: C.primaryLight,
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  border: `1px solid ${C.primary}30`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.primary, marginBottom: 2 }}>
+                      ZONA ONGKIR
+                    </div>
+                    <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 700, color: C.primary }}>
+                      {selectedZone.name}
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 700, color: C.primary }}>
+                    {rp(selectedZone.fee || 0)}
+                  </div>
+                </div>
+              )}
+              {!selectedZone && areaZones.length > 0 && (
+                <div style={{
+                  background: C.n50,
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  border: `1px solid ${C.n200}`,
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  color: C.n500,
+                  textAlign: 'center',
+                }}>
+                  Zona ongkir belum tersedia
+                </div>
+              )}
 
               {(pickupType === 'delivery' || pickupType === 'both') && (
                 <>
@@ -1167,7 +1173,6 @@ export default function NotaStep3Page({ goBack }) {
                   type="button"
                   onClick={() => {
                     setPayMethod(mid);
-                    setKasirConfirmedReceived(false);
                     setPaidAmountStr('');
                     if (mid !== 'transfer') setSelectedBankAccountId('');
                   }}
@@ -1500,24 +1505,14 @@ export default function NotaStep3Page({ goBack }) {
 
               <MoneyInput value={paidAmountStr} onChange={setPaidAmountStr} placeholder="Masukkan nominal yang diklaim customer..." />
 
-              <div style={{ marginTop: 12 }}>
-                <button type="button" onClick={() => setKasirConfirmedReceived(true)}
-                  disabled={effectivePaid < total} style={{
-                    width: '100%', padding: '14px', borderRadius: 12,
-                    border: `2px solid ${kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#5B005F' : C.n300)}`,
-                    background: kasirConfirmedReceived ? C.successBg : (effectivePaid >= total ? '#5B005F10' : C.n50),
-                    fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
-                    color: kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#5B005F' : C.n500),
-                    cursor: effectivePaid >= total ? 'pointer' : 'not-allowed',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  }}>
-                  {kasirConfirmedReceived ? '✅ Sudah Dikonfirmasi' : '🔒 Konfirmasi: Uang Sudah Diterima'}
-                </button>
-              </div>
-
-              {effectivePaid >= total && !kasirConfirmedReceived && (
-                <div style={{ marginTop: 10, padding: '10px 12px', background: '#E0F2FE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#0EA5E9', fontWeight: 600 }}>
-                  ⏳ Nominal cukup. Tekan tombol konfirmasi di atas.
+              {effectivePaid >= total && (
+                <div style={{ marginTop: 10, padding: '10px 12px', background: '#D1FAE5', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                  ✅ Nominal cukup — Status: <strong>LUNAS</strong>
+                </div>
+              )}
+              {effectivePaid > 0 && effectivePaid < total && (
+                <div style={{ marginTop: 10, padding: '10px 12px', background: '#FEF3C7', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#D97706', fontWeight: 600 }}>
+                  💰 Nominal kurang — Status: <strong>UANG MUKA</strong> (kekurangan {rp(total - effectivePaid)})
                 </div>
               )}
 
@@ -1554,24 +1549,14 @@ export default function NotaStep3Page({ goBack }) {
 
               <MoneyInput value={paidAmountStr} onChange={setPaidAmountStr} placeholder="Masukkan nominal yang diklaim customer..." />
 
-              <div style={{ marginTop: 12 }}>
-                <button type="button" onClick={() => setKasirConfirmedReceived(true)}
-                  disabled={effectivePaid < total} style={{
-                    width: '100%', padding: '14px', borderRadius: 12,
-                    border: `2px solid ${kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#7C3AED' : C.n300)}`,
-                    background: kasirConfirmedReceived ? C.successBg : (effectivePaid >= total ? '#7C3AED10' : C.n50),
-                    fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
-                    color: kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#7C3AED' : C.n500),
-                    cursor: effectivePaid >= total ? 'pointer' : 'not-allowed',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  }}>
-                  {kasirConfirmedReceived ? '✅ Sudah Dikonfirmasi' : '🔒 Konfirmasi: Struk EDC Approved'}
-                </button>
-              </div>
-
-              {effectivePaid >= total && !kasirConfirmedReceived && (
-                <div style={{ marginTop: 10, padding: '10px 12px', background: '#E0F2FE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#0EA5E9', fontWeight: 600 }}>
-                  ⏳ Nominal cukup. Tekan tombol konfirmasi di atas.
+              {effectivePaid >= total && (
+                <div style={{ marginTop: 10, padding: '10px 12px', background: '#D1FAE5', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                  ✅ Nominal cukup — Status: <strong>LUNAS</strong>
+                </div>
+              )}
+              {effectivePaid > 0 && effectivePaid < total && (
+                <div style={{ marginTop: 10, padding: '10px 12px', background: '#FEF3C7', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#D97706', fontWeight: 600 }}>
+                  💰 Nominal kurang — Status: <strong>UANG MUKA</strong> (kekurangan {rp(total - effectivePaid)})
                 </div>
               )}
 
@@ -1620,24 +1605,14 @@ export default function NotaStep3Page({ goBack }) {
 
               <MoneyInput value={paidAmountStr} onChange={setPaidAmountStr} placeholder="Masukkan nominal transfer..." />
 
-              <div style={{ marginTop: 12 }}>
-                <button type="button" onClick={() => setKasirConfirmedReceived(true)}
-                  disabled={effectivePaid < total} style={{
-                    width: '100%', padding: '14px', borderRadius: 12,
-                    border: `2px solid ${kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#2563EB' : C.n300)}`,
-                    background: kasirConfirmedReceived ? C.successBg : (effectivePaid >= total ? '#2563EB10' : C.n50),
-                    fontFamily: 'Poppins', fontSize: 14, fontWeight: 600,
-                    color: kasirConfirmedReceived ? C.success : (effectivePaid >= total ? '#2563EB' : C.n500),
-                    cursor: effectivePaid >= total ? 'pointer' : 'not-allowed',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  }}>
-                  {kasirConfirmedReceived ? '✅ Sudah Dikonfirmasi' : '🔒 Konfirmasi: Transfer Sudah Masuk'}
-                </button>
-              </div>
-
-              {effectivePaid >= total && !kasirConfirmedReceived && (
-                <div style={{ marginTop: 10, padding: '10px 12px', background: '#E0F2FE', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#0EA5E9', fontWeight: 600 }}>
-                  ⏳ Nominal cukup. Tekan tombol konfirmasi di atas.
+              {effectivePaid >= total && (
+                <div style={{ marginTop: 10, padding: '10px 12px', background: '#D1FAE5', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#059669', fontWeight: 600 }}>
+                  ✅ Nominal cukup — Status: <strong>LUNAS</strong>
+                </div>
+              )}
+              {effectivePaid > 0 && effectivePaid < total && (
+                <div style={{ marginTop: 10, padding: '10px 12px', background: '#FEF3C7', borderRadius: 10, fontFamily: 'Poppins', fontSize: 11, color: '#D97706', fontWeight: 600 }}>
+                  💰 Nominal kurang — Status: <strong>UANG MUKA</strong> (kekurangan {rp(total - effectivePaid)})
                 </div>
               )}
 

@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ProduksiStokPage — Inventory Stock for Production Role
 // Design: Production style (dark header, glassmorphism, purple theme)
+// Features: View stock, adjust stock, send alerts, view history
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
@@ -12,8 +13,12 @@ import {
   STAGE_STYLE, SLA_STYLES, LAYOUT, PROD_SHADOW, HEADER, CARD,
   getSLALevel, formatSLA,
 } from '../../utils/productionDesign';
-import { Search, RefreshCw, Package, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import {
+  Search, RefreshCw, Package, AlertTriangle, CheckCircle, XCircle,
+  Plus, Minus, History
+} from 'lucide-react';
 import { alertSuccess, alertError } from '../../utils/alert';
+import { Modal, Btn } from '../../components/ui';
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 const rp = (n) => {
@@ -78,13 +83,15 @@ const FILTER_OPTIONS = [
   { value: 'out', label: 'Habis' },
   { value: 'critical', label: 'Kritis' },
   { value: 'low', label: 'Rendah' },
+  { value: 'medium', label: 'Sedang' },
 ];
 
 // ─── Stock Card Component ─────────────────────────────────────────────────────
-function StockCard({ item, onSendAlert, sendingId }) {
+function StockCard({ item, onSendAlert, onAdjust, onHistory, sendingId, adjustingId }) {
   const status = getStockStatus(item);
   const StatusIcon = status.icon;
   const stockPct = item.minStock > 0 ? Math.min(100, (item.stockQty / item.minStock) * 100) : 100;
+  const showAlertButton = status.label === 'Habis' || status.label === 'Kritis';
 
   return (
     <motion.div
@@ -197,18 +204,18 @@ function StockCard({ item, onSendAlert, sendingId }) {
           }} />
         </div>
 
-        {/* Footer: price + action */}
+        {/* Footer: price + actions */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {item.lastCost && (
-            <div style={{
-              fontFamily: 'Inter, system-ui',
-              fontSize: 11,
-              color: C.n500,
-            }}>
-              {rp(item.lastCost)} / {item.unit || 'unit'}
-            </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {item.lastCost && (
+              <div style={{
+                fontFamily: 'Inter, system-ui',
+                fontSize: 11,
+                color: C.n500,
+              }}>
+                {rp(item.lastCost)} / {item.unit || 'unit'}
+              </div>
+            )}
             {item.lastUpdated && (
               <div style={{
                 fontFamily: 'Inter, system-ui',
@@ -218,30 +225,107 @@ function StockCard({ item, onSendAlert, sendingId }) {
                 Update: {new Date(item.lastUpdated).toLocaleDateString('id-ID')}
               </div>
             )}
-            {onSendAlert && (status.level === 'critical' || status.level === 'low') && (
-              <button
-                onClick={() => onSendAlert(item)}
-                disabled={sendingId === item.id}
-                style={{
-                  background: sendingId === item.id ? C.n400 : status.accent,
-                  color: C.white,
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '4px 10px',
-                  fontSize: 10,
-                  fontFamily: 'Poppins',
-                  fontWeight: 600,
-                  cursor: sendingId === item.id ? 'default' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  opacity: sendingId === item.id ? 0.7 : 1,
-                }}
-              >
-                <AlertTriangle size={10} />
-                {sendingId === item.id ? 'Mengirim...' : 'Kirim Alert'}
-              </button>
-            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Quick adjust buttons */}
+            <div style={{ display: 'flex', gap: 4 }}>
+              {/* History button */}
+              {onHistory && (
+                <motion.button
+                  onClick={() => onHistory(item)}
+                  whileTap={{ scale: 0.9 }}
+                  style={{
+                    background: C.n100,
+                    color: C.n600,
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '4px 8px',
+                    fontSize: 10,
+                    fontFamily: 'Poppins',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <History size={10} />
+                </motion.button>
+              )}
+              {onAdjust && (
+                <>
+                  <motion.button
+                    onClick={() => onAdjust(item, 'out')}
+                    disabled={adjustingId === item.id || item.stockQty <= 0}
+                    whileTap={{ scale: 0.9 }}
+                    style={{
+                      background: adjustingId === item.id ? C.n400 : '#3B82F6',
+                      color: C.white,
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '4px 8px',
+                      fontSize: 10,
+                      fontFamily: 'Poppins',
+                      fontWeight: 600,
+                      cursor: adjustingId === item.id ? 'default' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      opacity: adjustingId === item.id ? 0.7 : 1,
+                    }}
+                  >
+                    <Minus size={10} />
+                  </motion.button>
+                  <motion.button
+                    onClick={() => onAdjust(item, 'in')}
+                    disabled={adjustingId === item.id}
+                    whileTap={{ scale: 0.9 }}
+                    style={{
+                      background: adjustingId === item.id ? C.n400 : '#10B981',
+                      color: C.white,
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '4px 8px',
+                      fontSize: 10,
+                      fontFamily: 'Poppins',
+                      fontWeight: 600,
+                      cursor: adjustingId === item.id ? 'default' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      opacity: adjustingId === item.id ? 0.7 : 1,
+                    }}
+                  >
+                    <Plus size={10} />
+                  </motion.button>
+                </>
+              )}
+              {onSendAlert && showAlertButton && (
+                <motion.button
+                  onClick={() => onSendAlert(item)}
+                  disabled={sendingId === item.id}
+                  whileTap={{ scale: 0.9 }}
+                  style={{
+                    background: sendingId === item.id ? C.n400 : status.accent,
+                    color: C.white,
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '4px 10px',
+                    fontSize: 10,
+                    fontFamily: 'Poppins',
+                    fontWeight: 600,
+                    cursor: sendingId === item.id ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    opacity: sendingId === item.id ? 0.7 : 1,
+                  }}
+                >
+                  <AlertTriangle size={10} />
+                  {sendingId === item.id ? '...' : 'Alert'}
+                </motion.button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -287,6 +371,230 @@ function StatsCard({ label, value, icon, color, bgColor }) {
         {label}
       </div>
     </div>
+  );
+}
+
+// ─── Stock Adjustment Modal ─────────────────────────────────────────────────────
+function StockAdjustmentModal({ visible, onClose, item, onSuccess }) {
+  const [type, setType] = useState('in'); // 'in' or 'out'
+  const [qty, setQty] = useState('');
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setType('in');
+      setQty('');
+      setNotes('');
+    }
+  }, [visible, item]);
+
+  const handleSubmit = async () => {
+    const qtyNum = Number(qty);
+    if (!qtyNum || qtyNum <= 0) {
+      alertError('Jumlah harus lebih dari 0');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const qtyDelta = type === 'in' ? qtyNum : -qtyNum;
+      await axios.post('/api/inventory/adjust', {
+        inventoryId: item.id || item.itemId,
+        qtyDelta,
+        notes: notes || `Penyesuaian stok ${type === 'in' ? 'masuk' : 'keluar'} oleh produksi`,
+      });
+      alertSuccess(`Stok ${item.itemName} berhasil ${type === 'in' ? 'ditambah' : 'dikurangi'} ${qtyNum} ${item.unit}`);
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      alertError(err?.response?.data?.message || 'Gagal menyesuaikan stok');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} onClose={onClose} title="Penyesuaian Stok">
+      <div style={{ marginBottom: 16 }}>
+        {/* Item Info */}
+        <div style={{
+          background: C.n50,
+          borderRadius: 10,
+          padding: 12,
+          marginBottom: 16,
+        }}>
+          <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800 }}>
+            {item?.itemName || item?.name}
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, marginTop: 2 }}>
+            {item?.categoryName || item?.category} · Stok saat ini: {Number(item?.stockQty || item?.currentStock || 0).toLocaleString('id-ID')} {item?.unit}
+          </div>
+        </div>
+
+        {/* Type Toggle */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <motion.button
+            type="button"
+            onClick={() => setType('in')}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              borderRadius: 10,
+              border: `2px solid ${type === 'in' ? '#10B981' : C.n200}`,
+              background: type === 'in' ? '#10B981' : C.white,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Plus size={18} color={type === 'in' ? C.white : '#10B981'} />
+            <span style={{
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: 600,
+              color: type === 'in' ? C.white : '#10B981',
+            }}>
+              Stok Masuk
+            </span>
+          </motion.button>
+          <motion.button
+            type="button"
+            onClick={() => setType('out')}
+            whileTap={{ scale: 0.97 }}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              borderRadius: 10,
+              border: `2px solid ${type === 'out' ? '#EF4444' : C.n200}`,
+              background: type === 'out' ? '#EF4444' : C.white,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Minus size={18} color={type === 'out' ? C.white : '#EF4444'} />
+            <span style={{
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              fontWeight: 600,
+              color: type === 'out' ? C.white : '#EF4444',
+            }}>
+              Stok Keluar
+            </span>
+          </motion.button>
+        </div>
+
+        {/* Quantity Input */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{
+            display: 'block',
+            fontFamily: 'Poppins',
+            fontSize: 12,
+            fontWeight: 500,
+            color: C.n700,
+            marginBottom: 6,
+          }}>
+            Jumlah ({item?.unit || 'unit'})
+          </label>
+          <input
+            type="number"
+            min="1"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            placeholder={`Masukkan jumlah ${item?.unit || ''}`}
+            style={{
+              width: '100%',
+              height: 48,
+              borderRadius: 10,
+              border: `1.5px solid ${C.n300}`,
+              padding: '0 14px',
+              fontFamily: 'Poppins',
+              fontSize: 16,
+              fontWeight: 600,
+              color: C.n900,
+              background: C.white,
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          {/* Quick buttons */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            {[1, 5, 10, 20].map(v => (
+              <motion.button
+                key={v}
+                type="button"
+                onClick={() => setQty(String(v))}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: 8,
+                  border: `1.5px solid ${qty === String(v) ? C.primary : C.n200}`,
+                  background: qty === String(v) ? `${C.primary}15` : C.white,
+                  cursor: 'pointer',
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: qty === String(v) ? C.primary : C.n700,
+                }}
+              >
+                {v}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{
+            display: 'block',
+            fontFamily: 'Poppins',
+            fontSize: 12,
+            fontWeight: 500,
+            color: C.n700,
+            marginBottom: 6,
+          }}>
+            Catatan (opsional)
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Tambahkan catatan jika diperlukan..."
+            rows={2}
+            style={{
+              width: '100%',
+              borderRadius: 10,
+              border: `1.5px solid ${C.n300}`,
+              padding: '12px 14px',
+              fontFamily: 'Poppins',
+              fontSize: 14,
+              color: C.n900,
+              background: C.white,
+              outline: 'none',
+              resize: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {/* Submit Button */}
+        <Btn
+          variant={type === 'in' ? 'success' : 'danger'}
+          fullWidth
+          onClick={handleSubmit}
+          loading={loading}
+          disabled={!qty || Number(qty) <= 0}
+        >
+          {type === 'in' ? '+ Tambah Stok' : '- Kurangi Stok'}
+        </Btn>
+      </div>
+    </Modal>
   );
 }
 
@@ -346,6 +654,16 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
   const [search, setSearch] = useState('');
   const [summary, setSummary] = useState({ total: 0, out: 0, critical: 0, ok: 0 });
   const [sendingId, setSendingId] = useState(null);
+  const [adjustingId, setAdjustingId] = useState(null);
+
+  // Modal states
+  const [adjustModalVisible, setAdjustModalVisible] = useState(false);
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  // Category filter
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   // Get outlet ID from user
   const outletId = user?.outletId || authUser?.outletId;
@@ -358,12 +676,18 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
     try {
       const params = { outletId };
       if (filter !== 'all') params.filter = filter;
+      if (selectedCategory !== 'all') params.category = selectedCategory;
 
       const res = await axios.get('/api/inventory/check', { params });
       if (res?.data?.success) {
         const data = res.data.data;
         setItems(data.items || []);
         setSummary(data.summary || { total: 0, out: 0, critical: 0, ok: 0 });
+
+        // Set categories from API
+        if (data.filters?.categories) {
+          setCategories(data.filters.categories);
+        }
 
         // Dispatch alert count to BottomNav
         const alertCount = (data.summary?.out || 0) + (data.summary?.critical || 0);
@@ -377,7 +701,7 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [outletId, filter]);
+  }, [outletId, filter, selectedCategory]);
 
   useEffect(() => {
     fetchStock();
@@ -393,9 +717,9 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
     setSendingId(item.id);
     try {
       await axios.post('/api/inventory/low-stock-alert', {
-        inventoryId: item.id,
+        inventoryId: item.id || item.itemId,
         outletId,
-        stockQty: item.stockQty,
+        currentStock: item.stockQty || item.currentStock,
         minStock: item.minStock,
         itemName: item.itemName || item.name,
         unit: item.unit,
@@ -407,6 +731,24 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
       setSendingId(null);
     }
   }, [outletId]);
+
+  // Quick adjust handler
+  const handleQuickAdjust = useCallback(async (item, type) => {
+    setAdjustingId(item.id || item.itemId);
+    setSelectedItem(item);
+    setAdjustModalVisible(true);
+  }, []);
+
+  // Open history
+  const handleViewHistory = useCallback((item) => {
+    setSelectedItem(item);
+    setHistoryModalVisible(true);
+  }, []);
+
+  // Adjustment success callback
+  const handleAdjustmentSuccess = useCallback(() => {
+    fetchStock(true);
+  }, [fetchStock]);
 
   // Filter items by search
   const filteredItems = items.filter(item => {
@@ -436,6 +778,7 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
         {/* Header top row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Navigation back button - only show if no BottomNav context */}
             {goBack && (
               <motion.button
                 onClick={goBack}
@@ -463,7 +806,7 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
                 fontSize: 13,
                 color: HEADER.textMuted,
               }}>
-                {user?.outletName || authUser?.outletName || 'Produksi'}
+                {user?.outlet?.name || user?.outletName || authUser?.outletName || 'Produksi'}
               </div>
               <div style={{
                 fontFamily: 'Poppins',
@@ -476,24 +819,27 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
             </div>
           </div>
 
-          {/* Refresh button */}
-          <motion.button
-            onClick={handleRefresh}
-            whileTap={{ scale: 0.9 }}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 12,
-              border: 'none',
-              background: HEADER.accent,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <RefreshCw size={18} color="#fff" style={{ opacity: refreshing ? 0.5 : 1 }} />
-          </motion.button>
+          {/* Action buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Refresh button */}
+            <motion.button
+              onClick={handleRefresh}
+              whileTap={{ scale: 0.9 }}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                border: 'none',
+                background: HEADER.accent,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <RefreshCw size={18} color="#fff" style={{ opacity: refreshing ? 0.5 : 1 }} />
+            </motion.button>
+          </div>
         </div>
 
         {/* Stats row */}
@@ -558,54 +904,131 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
         padding: LAYOUT.pagePaddingX,
         paddingTop: 16,
       }}>
-        {/* Search bar */}
+        {/* Search and Category Filter Row */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          {/* Search bar */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: C.white,
+            border: `1px solid ${C.n200}`,
+            borderRadius: 12,
+            padding: '10px 14px',
+          }}>
+            <Search size={18} color={C.n400} />
+            <input
+              type="text"
+              placeholder="Cari nama item..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                flex: 1,
+                border: 'none',
+                outline: 'none',
+                fontFamily: 'Inter, system-ui',
+                fontSize: 14,
+                color: C.n800,
+                background: 'transparent',
+              }}
+            />
+            {search && (
+              <motion.button
+                onClick={() => setSearch('')}
+                whileTap={{ scale: 0.9 }}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  border: 'none',
+                  background: C.n100,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.n500} strokeWidth="3" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </motion.button>
+            )}
+          </div>
+        </div>
+
+        {/* Category pills */}
+        {categories.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 }}>
+            <motion.button
+              key="cat-all"
+              onClick={() => setSelectedCategory('all')}
+              whileTap={{ scale: 0.95 }}
+              style={{
+                flexShrink: 0,
+                padding: '6px 12px',
+                borderRadius: 16,
+                border: `1.5px solid ${selectedCategory === 'all' ? C.primary : C.n200}`,
+                background: selectedCategory === 'all' ? `${C.primary}15` : C.white,
+                color: selectedCategory === 'all' ? C.primary : C.n700,
+                fontFamily: 'Poppins',
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Semua Kategori
+            </motion.button>
+            {categories.map((cat) => (
+              <motion.button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                whileTap={{ scale: 0.95 }}
+                style={{
+                  flexShrink: 0,
+                  padding: '6px 12px',
+                  borderRadius: 16,
+                  border: `1.5px solid ${selectedCategory === cat.id ? C.primary : C.n200}`,
+                  background: selectedCategory === cat.id ? `${C.primary}15` : C.white,
+                  color: selectedCategory === cat.id ? C.primary : C.n700,
+                  fontFamily: 'Poppins',
+                  fontSize: 11,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {cat.name}
+              </motion.button>
+            ))}
+          </div>
+        )}
+
+        {/* Info bar */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
-          background: C.white,
-          border: `1px solid ${C.n200}`,
-          borderRadius: 12,
-          padding: '10px 14px',
-          marginBottom: 16,
+          justifyContent: 'space-between',
+          marginBottom: 12,
+          padding: '8px 12px',
+          background: `${C.primary}08`,
+          borderRadius: 10,
+          border: `1px solid ${C.primary}20`,
         }}>
-          <Search size={18} color={C.n400} />
-          <input
-            type="text"
-            placeholder="Cari nama item atau kategori..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              fontFamily: 'Inter, system-ui',
-              fontSize: 14,
-              color: C.n800,
-              background: 'transparent',
-            }}
-          />
-          {search && (
-            <motion.button
-              onClick={() => setSearch('')}
-              whileTap={{ scale: 0.9 }}
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: 10,
-                border: 'none',
-                background: C.n100,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.n500} strokeWidth="3" strokeLinecap="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </motion.button>
-          )}
+          <div style={{
+            fontFamily: 'Poppins',
+            fontSize: 12,
+            color: C.primary,
+            fontWeight: 500,
+          }}>
+            {filteredItems.length} item ditemukan
+          </div>
+          <div style={{
+            fontFamily: 'Poppins',
+            fontSize: 10,
+            color: C.n500,
+          }}>
+            Ketuk +/- untuk adjust stok
+          </div>
         </div>
 
         {/* Loading state */}
@@ -636,12 +1059,36 @@ export default function ProduksiStokPage({ navigate, goBack, user }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
               >
-                <StockCard item={item} onSendAlert={handleSendAlert} sendingId={sendingId} />
+                <StockCard
+                  item={item}
+                  onSendAlert={handleSendAlert}
+                  onAdjust={handleQuickAdjust}
+                  onHistory={handleViewHistory}
+                  sendingId={sendingId}
+                  adjustingId={adjustingId}
+                />
               </motion.div>
             ))}
           </motion.div>
         )}
       </div>
+
+      {/* ── Modals ─────────────────────────────────────────────────────────── */}
+      <StockAdjustmentModal
+        visible={adjustModalVisible}
+        onClose={() => {
+          setAdjustModalVisible(false);
+          setAdjustingId(null);
+        }}
+        item={selectedItem}
+        onSuccess={handleAdjustmentSuccess}
+      />
+
+      <StockHistoryModal
+        visible={historyModalVisible}
+        onClose={() => setHistoryModalVisible(false)}
+        item={selectedItem}
+      />
     </div>
   );
 }

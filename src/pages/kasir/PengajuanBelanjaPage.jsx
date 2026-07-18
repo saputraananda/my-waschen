@@ -4,7 +4,7 @@
  * Fitur:
  * - Glassmorphism header dengan animated blobs
  * - Clay card components
- * - Tabs: Uang Kas (auto-approve) | Biaya AP (approval >500k)
+ * - Tabs: Uang Kas (≤500k auto) | Biaya AP (all need admin approval)
  * - List dengan pagination + page size dropdown
  * - Category breakdown visualization (bar chart)
  * - Export Excel + PDF
@@ -696,12 +696,12 @@ export default function PengajuanBelanjaPage({ goBack }) {
           </div>
           <div>
             <div style={{ fontSize: 11.5, fontWeight: 600, color: DT.n800, marginBottom: 2 }}>
-              {currentTab.alwaysAuto ? 'Auto-Approve Uang Kas' : 'Aturan Approval Biaya AP'}
+              {currentTab.alwaysAuto ? 'Aturan Approval Uang Kas' : 'Aturan Approval Biaya AP'}
             </div>
             <div style={{ fontSize: 11, color: DT.n600, lineHeight: 1.5 }}>
               {currentTab.alwaysAuto
-                ? 'Semua pengajuan uang kas langsung diproses & dicatat ke saldo kas harian outlet.'
-                : '≤ Rp 500.000 auto-approve. Lebih dari itu perlu persetujuan admin/owner.'}
+                ? '≤ Rp 500.000 auto-approve. Lebih dari itu perlu persetujuan admin.'
+                : 'Semua pengajuan Biaya AP memerlukan persetujuan admin.'}
             </div>
           </div>
         </motion.div>
@@ -1544,7 +1544,10 @@ function FormModal({ tab, onClose, onSuccess }) {
   }));
 
   const grandTotal = parsedItems.reduce((s, it) => s + it.numPrice * it.qtyNum, 0);
-  const needsApproval = !tab.alwaysAuto && grandTotal > AUTO_APPROVE_LIMIT;
+  // Approval logic:
+  // - Biaya AP: selalu butuh approval admin
+  // - Uang Kas: hanya > 500k butuh approval admin
+  const needsApproval = tab.key === 'biaya_ap' || grandTotal > AUTO_APPROVE_LIMIT;
   const isOperational = tab.key === 'uang_kas'; // uang kas requires photo, AP optional
 
   // Upload photo

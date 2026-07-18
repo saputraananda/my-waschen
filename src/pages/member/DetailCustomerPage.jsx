@@ -5,6 +5,7 @@ import { rp } from '../../utils/helpers';
 import { TopBar, Btn, Divider, Chip, SearchBar, Modal, ProfileAvatar } from '../../components/ui';
 import { alertError, alertSuccess, confirmAction } from '../../utils/alert';
 import { useResponsive } from '../../utils/hooks';
+import { useScrollLock } from '../../utils/useScrollLock';
 
 // Glass card CSS class - injected once
 const GLASS_STYLES_DETAIL = `
@@ -272,6 +273,12 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
   const [membershipData, setMembershipData] = useState(null);
   const [membershipLoading, setMembershipLoading] = useState(false);
 
+  // Scroll container ref for modal scroll lock
+  const scrollContainerRef = useRef(null);
+
+  // Scroll lock for filter modal
+  useScrollLock(showFilterModal, scrollContainerRef);
+
   useEffect(() => {
     if (!customerId) {
       setCustomer(null);
@@ -497,7 +504,7 @@ export default function DetailCustomerPage({ navigate, goBack, screenParams }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 16 }}>
+      <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 16 }}>
         {/* Profile card with glass effect */}
         <div className="glass-card-detail" style={{ padding: isMobile ? '16px 14px' : '24px 20px', marginBottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
           {/* Large avatar with edit capability */}

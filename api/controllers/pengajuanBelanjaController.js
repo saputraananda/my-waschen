@@ -5,9 +5,9 @@
 //
 // Business Logic:
 // - Kasir submits request (1 or more items)
-// - ≤ Rp 500.000: auto-approve (auto_approved)
-// - > Rp 500.000: requires admin approval (pending)
-// - Admin approves/rejects
+// - Uang Kas (operational): always auto-approve, deduct from cash balance
+// - Biaya AP (tagihan): auto-approve if <= 500k, else pending (no balance deduction)
+// - Admin approves/rejects for tagihan > 500k
 // ─────────────────────────────────────────────────────────────────────────────
 import { poolWaschenPos } from '../db/connection.js';
 import { writeAudit } from '../utils/auditLog.js';
@@ -18,6 +18,29 @@ const logger = createLogger('PengajuanBelanja');
 const AUTO_APPROVE_LIMIT = 500_000;
 const FRONTLINER_ROLES = ['frontline'];
 const ADMIN_ROLES = ['admin'];
+
+// ─── Helper: ensure outlet cash balance row exists and return current balance ──
+async function ensureBalance(conn, outletId) {
+  await conn.execute(
+    `INSERT IGNORE INTO mst_outlet_cash_balance (outlet_id, balance) VALUES (?, 0)`,
+    [outletId]
+  );
+  const [rows] = await conn.execute(
+    `SELECT balance FROM mst_outlet_cash_balance WHERE outlet_id = ? FOR UPDATE`,
+    [outletId]
+  );
+  return Number(rows[0]?.balance || 0);
+}
+
+// ─── Helper: log to cash ledger ──────────────────────────────────────────────
+async function logLedger(conn, { outletId, type, amount, balanceAfter, expenseId = null, notes = null, createdBy = null }) {
+  await conn.execute(
+    `INSERT INTO tr_outlet_cash_ledger
+      (outlet_id, type, amount, balance_after, expense_id, notes, created_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+    [outletId, type, amount, balanceAfter, expenseId, notes, createdBy]
+  );
+}
 
 // ─── Helper: Generate Request Number ────────────────────────────────────────────
 async function generateRequestNo(conn, outletId) {
@@ -159,21 +182,52 @@ export const createPengajuan = async (req, res) => {
     // Calculate total
     const totalAmount = calculateTotal(resolvedItems);
 
-    // Determine approval:
-    // - Uang Kas (operational): always auto-approve (source_type = 'operational')
-    // - Biaya AP (tagihan): auto-approve if <= 500k, else pending
+    // Determine approval logic:
+    // - Uang Kas (operasional) ≤ 500k → auto-approve, langsung potong saldo
+    // - Uang Kas (operasional) > 500k → pending, potong saldo saat admin approve
+    // - Biaya AP (tagihan) → ALL pending, potong saldo saat admin approve
     const firstCat = resolvedItems[0];
     const [catRows] = await conn.execute(
       'SELECT group_type FROM mst_pengajuan_category WHERE id = ?',
       [firstCat.categoryId]
     );
-    // DB uses Indonesian spelling 'operasional', NOT English 'operational'
     const groupType = catRows.length > 0 ? (catRows[0].group_type || 'operasional') : 'operasional';
     const isOperational = groupType === 'operasional';
-    const needsApproval = !isOperational && totalAmount > AUTO_APPROVE_LIMIT;
+    const isTagihan = groupType === 'tagihan';
+
+    // Approval logic: operasional ≤ 500k = auto, else = pending
+    // Tagihan = selalu pending
+    let needsApproval;
+    if (isTagihan) {
+      needsApproval = true; // Biaya AP selalu butuh approval
+    } else if (isOperational) {
+      needsApproval = totalAmount > AUTO_APPROVE_LIMIT; // Uang Kas > 500k butuh approval
+    } else {
+      needsApproval = totalAmount > AUTO_APPROVE_LIMIT;
+    }
+    const isAutoApproved = !needsApproval;
 
     // Determine source type (match DB enum: 'operational', 'inventory', 'tagihan', 'utility')
-    const sourceType = groupType; // 'operasional' → 'operasional', 'tagihan' → 'tagihan'
+    const sourceTypeMap = { 'operasional': 'operational', 'tagihan': 'tagihan' };
+    const sourceType = sourceTypeMap[groupType] || groupType || 'operational';
+
+    // For operational (uang kas) ≤ 500k, validate and deduct cash balance BEFORE insert
+    // For others, we'll deduct when admin approves
+    let balanceBefore = null;
+    let balanceAfter = null;
+    if (isOperational && isAutoApproved) {
+      // Only auto-approved operational requests deduct immediately
+      balanceBefore = await ensureBalance(conn, outletId);
+      if (balanceBefore < totalAmount) {
+        await conn.rollback();
+        conn.release();
+        return res.status(400).json({
+          success: false,
+          message: `Saldo kas tidak cukup. Saldo: Rp ${balanceBefore.toLocaleString('id-ID')}, dibutuhkan: Rp ${totalAmount.toLocaleString('id-ID')}.`,
+        });
+      }
+      balanceAfter = balanceBefore - totalAmount;
+    }
 
     // Insert main request
     const [insertResult] = await conn.execute(
@@ -222,6 +276,28 @@ export const createPengajuan = async (req, res) => {
       );
     }
 
+    // Deduct cash balance for operational (uang kas) with auto-approve
+    if (isOperational && isAutoApproved && balanceAfter !== null) {
+      // Update cash balance
+      await conn.execute(
+        `UPDATE mst_outlet_cash_balance
+            SET balance = ?, last_expense_at = NOW()
+          WHERE outlet_id = ?`,
+        [balanceAfter, outletId]
+      );
+
+      // Log to ledger
+      await logLedger(conn, {
+        outletId,
+        type: 'pengajuan_belanja',
+        amount: -totalAmount,
+        balanceAfter,
+        expenseId: pengajuanId,
+        notes: `${groupType}: ${description || 'Pengajuan Uang Kas'} (${requestNo})`,
+        createdBy: userId,
+      });
+    }
+
     await writeAudit(conn, {
       userId,
       outletId,
@@ -236,19 +312,38 @@ export const createPengajuan = async (req, res) => {
 
     await conn.commit();
 
-    logger.info('[createPengajuan]', { pengajuanId, requestNo, totalAmount, needsApproval, by: resolvedPicName });
+    logger.info('[createPengajuan]', {
+      pengajuanId, requestNo, totalAmount, needsApproval,
+      isOperational, isAutoApproved,
+      balanceBefore, balanceAfter,
+      by: resolvedPicName
+    });
+
+    // Build response message based on type
+    let message;
+    if (isOperational && isAutoApproved) {
+      message = `Pengajuan Uang Kas Rp ${totalAmount.toLocaleString('id-ID')} berhasil. Saldo terpakai: Rp ${totalAmount.toLocaleString('id-ID')}.`;
+    } else if (needsApproval) {
+      message = `Pengajuan berhasil. Total Rp ${totalAmount.toLocaleString('id-ID')} memerlukan persetujuan admin.`;
+    } else {
+      message = 'Pengajuan berhasil (auto-approve)';
+    }
 
     return res.status(201).json({
       success: true,
-      message: needsApproval
-        ? `Pengajuan berhasil. Total Rp ${totalAmount.toLocaleString('id-ID')} memerlukan persetujuan admin.`
-        : 'Pengajuan berhasil (auto-approve)',
+      message,
       data: {
         id: pengajuanId,
         requestNo,
         totalAmount,
         status: needsApproval ? 'pending' : 'auto_approved',
         needsApproval,
+        // Include balance info for operational
+        ...(isOperational && isAutoApproved ? {
+          balanceBefore,
+          balanceAfter,
+          balanceUsed: totalAmount,
+        } : {}),
       },
     });
 
@@ -563,6 +658,52 @@ export const approvePengajuan = async (req, res) => {
 
     const pengajuan = rows[0];
 
+    // Deduct cash balance for approved pengajuan
+    // - Uang Kas > 500k (source_type = 'operational') → potong saldo saat approve
+    // - Biaya AP (source_type = 'tagihan') → potong saldo saat approve
+    const isOperational = pengajuan.source_type === 'operational' || pengajuan.source_type === 'operasional';
+    const isTagihan = pengajuan.source_type === 'tagihan';
+
+    let balanceBefore = null;
+    let balanceAfter = null;
+
+    if (isOperational || isTagihan) {
+      // These need balance deduction upon approval
+      balanceBefore = await ensureBalance(conn, pengajuan.outlet_id);
+      const totalAmount = parseFloat(pengajuan.total_amount);
+
+      if (balanceBefore < totalAmount) {
+        await conn.rollback();
+        conn.release();
+        return res.status(400).json({
+          success: false,
+          message: `Saldo kas tidak cukup. Saldo: Rp ${balanceBefore.toLocaleString('id-ID')}, dibutuhkan: Rp ${totalAmount.toLocaleString('id-ID')}.`,
+        });
+      }
+
+      balanceAfter = balanceBefore - totalAmount;
+
+      // Update cash balance
+      await conn.execute(
+        `UPDATE mst_outlet_cash_balance
+            SET balance = ?, last_expense_at = NOW()
+          WHERE outlet_id = ?`,
+        [balanceAfter, pengajuan.outlet_id]
+      );
+
+      // Log to ledger
+      await logLedger(conn, {
+        outletId: pengajuan.outlet_id,
+        type: 'pengajuan_belanja',
+        amount: -totalAmount,
+        balanceAfter,
+        expenseId: pengajuan.id,
+        notes: `${pengajuan.source_type}: ${pengajuan.description || 'Pengajuan Belanja'} (${pengajuan.request_no})`,
+        createdBy: userId,
+      });
+    }
+
+    // Update pengajuan status
     await conn.execute(
       `UPDATE tr_pengajuan_belanja
        SET status = 'approved', approved_by = ?, approved_at = NOW(), approval_notes = ?
@@ -577,17 +718,32 @@ export const approvePengajuan = async (req, res) => {
       entityId: id,
       action: 'approve',
       oldData: { status: 'pending' },
-      newData: { status: 'approved', approvalNotes },
+      newData: { status: 'approved', approvalNotes, balanceDeducted: balanceAfter !== null },
       req,
     });
 
     await conn.commit();
 
-    logger.info('[approvePengajuan]', { id, by: req.user?.name });
+    logger.info('[approvePengajuan]', {
+      id,
+      by: req.user?.name,
+      sourceType: pengajuan.source_type,
+      balanceDeducted: balanceAfter !== null,
+      balanceAfter
+    });
+
+    const message = balanceAfter !== null
+      ? `Pengajuan berhasil diapprove. Saldo terpakai: Rp ${parseFloat(pengajuan.total_amount).toLocaleString('id-ID')}.`
+      : 'Pengajuan berhasil diapprove.';
 
     return res.json({
       success: true,
-      message: 'Pengajuan berhasil diapprove',
+      message,
+      data: balanceAfter !== null ? {
+        balanceBefore,
+        balanceAfter,
+        balanceUsed: parseFloat(pengajuan.total_amount),
+      } : undefined,
     });
 
   } catch (error) {

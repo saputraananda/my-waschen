@@ -2113,6 +2113,7 @@ export const recordTransactionPayment = async (req, res) => {
     paymentRef,
     externalPaymentId,
     integrationStatus,
+    paymentPhotoBase64,
   } = req.body;
 
   const userId = req.user?.userId;
@@ -2195,8 +2196,8 @@ export const recordTransactionPayment = async (req, res) => {
       `INSERT INTO tr_payment_item (
         transaction_id, method, amount,
         recorded_by, status, paid_at, recorded_at,
-        notes, payment_ref, external_payment_id, integration_status
-      ) VALUES (?, ?, ?, ?, 'paid', NOW(), NOW(), ?, ?, ?, ?)`,
+        notes, payment_ref, external_payment_id, integration_status, payment_photo
+      ) VALUES (?, ?, ?, ?, 'paid', NOW(), NOW(), ?, ?, ?, ?, ?)`,
       [
         row.id,
         methodDb,
@@ -2206,6 +2207,7 @@ export const recordTransactionPayment = async (req, res) => {
         paymentRef || null,
         externalPaymentId || null,
         integ,
+        paymentPhotoBase64 || null,
       ]
     );
     const paymentItemId = pmtInsert.insertId;

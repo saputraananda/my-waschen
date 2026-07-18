@@ -1,14 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { FixedSizeList as List } from 'react-window';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
-import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
+import { useIsMobile, useWindowSize } from '../../utils/hooks';
 import { TopBar, Btn, Chip, Modal, Input, Select, SearchBar, MoneyInput } from '../../components/ui';
 import { alertError, alertSuccess, alertWarning, confirmAction } from '../../utils/alert';
 import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
 import bubbleIcon from '../../assets/Decorative icon/bubble-1.webp';
 import bubble2Icon from '../../assets/Decorative icon/bubble-2.webp';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+const PAGE_SIZE = 50;
+const ITEM_HEIGHT = 130;
 
 // ─── Premium Card Style ──────────────────────────────────────────────────────
 const PREMIUM_CARD = {
@@ -60,6 +65,7 @@ const PlusIcon = () => (
 
 export default function ManajemenLayananPage({ navigate, goBack }) {
   const isMobile = useIsMobile();
+  const { height: windowHeight } = useWindowSize();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -75,47 +81,108 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
     expressEligible: true, minQty: '1', slaRegular: '', slaExpress: '',
   });
 
-  useEffect(() => {
-    const fetchServices = async () => {
-      setLoading(true);
-      try {
-        const res = await axios.get('/api/services');
-        setServices(res?.data?.data || []);
-      } catch {
-        setLoading(false);
+  // Pagination state
+  const [pagination, setPagination] = useState({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 });
+  const [categories, setCategories] = useState(['all']);
+
+  // Refs for debouncing
+  const searchTimeoutRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+  // Fetch services with pagination
+  const fetchServices = useCallback(async (page = 1, search = '') => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(PAGE_SIZE),
+      });
+      if (search) params.append('search', search);
+
+      const res = await axios.get(`/api/services?${params}`, {
+        signal: abortControllerRef.current.signal,
+      });
+
+      const { data, pagination: paginationData } = res?.data || {};
+      setServices(data || []);
+      if (paginationData) {
+        setPagination(paginationData);
       }
-    };
-    fetchServices();
+    } catch (err) {
+      if (axios.isCancel(err)) return; // Ignore aborted requests
+      setServices([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const categories = ['all', ...new Set(services.map((s) => s.category).filter(Boolean))];
-  const filtered = services
-    .filter((s) => {
-      const matchCategory = filter === 'all' ? true : s.category === filter;
-      const matchStatus = statusFilter === 'all'
-        ? true
-        : statusFilter === 'active'
-          ? s.active !== false
-          : s.active === false;
-      const q = query.trim().toLowerCase();
-      const matchQuery = !q
-        ? true
-        : (s.name || '').toLowerCase().includes(q)
-          || (s.category || '').toLowerCase().includes(q)
-          || (s.unit || '').toLowerCase().includes(q);
-      return matchCategory && matchStatus && matchQuery;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'category') return (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || '');
-      if (sortBy === 'price_asc') return Number(a.price || 0) - Number(b.price || 0);
-      return (a.name || '').localeCompare(b.name || '', 'id');
-    });
+  // Initial load
+  useEffect(() => {
+    fetchServices(1, '');
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchServices]);
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchServices(1, query);
+    }, 300); // 300ms debounce
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [query, fetchServices]);
+
+  // Update categories when services change
+  useEffect(() => {
+    const cats = ['all', ...new Set(services.map((s) => s.category).filter(Boolean))];
+    setCategories(cats);
+  }, [services]);
+
+  // Client-side filter (only on current page)
+  const filtered = useMemo(() => {
+    return services
+      .filter((s) => {
+        const matchCategory = filter === 'all' ? true : s.category === filter;
+        const matchStatus = statusFilter === 'all'
+          ? true
+          : statusFilter === 'active'
+            ? s.active !== false
+            : s.active === false;
+        return matchCategory && matchStatus;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'category') return (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || '');
+        if (sortBy === 'price_asc') return Number(a.price || 0) - Number(b.price || 0);
+        return (a.name || '').localeCompare(b.name || '', 'id');
+      });
+  }, [services, filter, statusFilter, sortBy]);
 
   const activeFilterCount = [
     filter !== 'all',
     statusFilter !== 'all',
     sortBy !== 'name_asc',
   ].filter(Boolean).length;
+
+  // Pagination handlers
+  const goToPage = useCallback((page) => {
+    if (page < 1 || page > pagination.totalPages) return;
+    fetchServices(page, query);
+  }, [pagination.totalPages, fetchServices, query]);
 
   const openAdd = () => {
     setEditingId(null);
@@ -164,8 +231,7 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
       } else {
         await axios.post('/api/services', payload);
       }
-      const resList = await axios.get('/api/services');
-      setServices(resList?.data?.data || []);
+      fetchServices(pagination.page, query);
       setModalAdd(false);
       alertSuccess(editingId ? 'Layanan berhasil diupdate.' : 'Layanan berhasil ditambahkan.');
     } catch {
@@ -180,7 +246,8 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
     if (!ok) return;
     try {
       await axios.delete(`/api/services/${id}`);
-      setServices((prev) => prev.filter((s) => s.id !== id));
+      // Refresh current page
+      fetchServices(pagination.page, query);
       alertSuccess('Layanan berhasil dihapus.');
     } catch {
       const msg = 'Gagal menghapus layanan.';
@@ -428,97 +495,177 @@ export default function ManajemenLayananPage({ navigate, goBack }) {
               <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n500, display: 'block', marginTop: 4 }}>Tap + untuk menambahkan layanan</span>
             </motion.div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {filtered.map((s, idx) => {
-                const hasExpress = s.expressEligible !== false && s.expressEligible !== 0;
-                return (
-                  <motion.div
-                    key={s.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.04 }}
-                    whileHover={{ y: -2 }}
-                    style={{
-                      ...PREMIUM_CARD,
-                      padding: '14px 16px',
-                      opacity: s.active === false ? 0.55 : 1,
-                      borderLeft: `4px solid ${hasExpress ? C.warning : C.primary}`,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }} className="service-card-body">
-                      <div style={{ flex: 1, minWidth: 0 }} className="service-card-content">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{s.name}</span>
-                          {hasExpress && (
-                            <span style={{ background: C.warningBg, color: C.warningDark, fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 999 }}>
-                              ⚡ EXPRESS
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>
-                          {s.category} · per {s.unit}{s.minQty > 1 ? ` (min ${s.minQty})` : ''}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-                          <span style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.primary }}>{rp(s.price)}</span>
-                          {hasExpress && (
-                            <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.warningDark, fontWeight: 600 }}>⚡ Express: {rp(s.price * 2)}</span>
-                          )}
-                        </div>
-                        {(s.slaRegular || s.slaExpress) && (
-                          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                            {s.slaRegular && (
-                              <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, background: C.n50, padding: '2px 8px', borderRadius: 999, fontWeight: 500 }}>
-                                🕐 Reguler: {s.slaRegular}jam
-                              </span>
-                            )}
-                            {s.slaExpress && hasExpress && (
-                              <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.warningDark, background: C.warningBg, padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>
-                                ⚡ Express: {s.slaExpress}jam
-                              </span>
+            <>
+              {/* Total count + Pagination info */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '0 2px' }}>
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600 }}>
+                  Menampilkan {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} dari {pagination.total}
+                </span>
+                {pagination.totalPages > 1 && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => goToPage(pagination.page - 1)}
+                      disabled={pagination.page <= 1}
+                      style={{
+                        padding: '4px 10px', borderRadius: 8,
+                        border: '1px solid', borderColor: pagination.page <= 1 ? C.n100 : C.n200,
+                        background: pagination.page <= 1 ? C.n50 : 'white',
+                        cursor: pagination.page <= 1 ? 'not-allowed' : 'pointer',
+                        fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                        color: pagination.page <= 1 ? C.n400 : C.primary,
+                      }}
+                    >‹</motion.button>
+                    {pagination.page > 1 && (
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => goToPage(1)}
+                        style={{
+                          padding: '4px 8px', borderRadius: 8,
+                          border: '1px solid ' + C.n200, background: 'white',
+                          cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                          color: C.n700,
+                        }}
+                      >1</motion.button>
+                    )}
+                    {pagination.page > 2 && (
+                      <span style={{ padding: '4px 2px', color: C.n400, fontFamily: 'Poppins', fontSize: 11 }}>...</span>
+                    )}
+                    <span style={{
+                      padding: '4px 10px', borderRadius: 8,
+                      background: C.primary, color: 'white',
+                      fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                    }}>{pagination.page}</span>
+                    {pagination.page < pagination.totalPages - 1 && (
+                      <span style={{ padding: '4px 2px', color: C.n400, fontFamily: 'Poppins', fontSize: 11 }}>...</span>
+                    )}
+                    {pagination.page < pagination.totalPages && (
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => goToPage(pagination.totalPages)}
+                        style={{
+                          padding: '4px 8px', borderRadius: 8,
+                          border: '1px solid ' + C.n200, background: 'white',
+                          cursor: 'pointer', fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                          color: C.n700,
+                        }}
+                      >{pagination.totalPages}</motion.button>
+                    )}
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => goToPage(pagination.page + 1)}
+                      disabled={pagination.page >= pagination.totalPages}
+                      style={{
+                        padding: '4px 10px', borderRadius: 8,
+                        border: '1px solid', borderColor: pagination.page >= pagination.totalPages ? C.n100 : C.n200,
+                        background: pagination.page >= pagination.totalPages ? C.n50 : 'white',
+                        cursor: pagination.page >= pagination.totalPages ? 'not-allowed' : 'pointer',
+                        fontFamily: 'Poppins', fontSize: 11, fontWeight: 600,
+                        color: pagination.page >= pagination.totalPages ? C.n400 : C.primary,
+                      }}
+                    >›</motion.button>
+                  </div>
+                )}
+              </div>
+
+              {/* Virtualized List */}
+              <List
+                height={Math.min(windowHeight - 420, 600)}
+                itemCount={filtered.length}
+                itemSize={ITEM_HEIGHT}
+                width="100%"
+                itemData={{ services: filtered, onEdit: openEdit, onDelete: handleDelete, onToggle: toggleActive }}
+              >
+                {({ index, style, data }) => {
+                  const s = data.services[index];
+                  if (!s) return null;
+                  const hasExpress = s.expressEligible !== false && s.expressEligible !== 0;
+                  return (
+                    <div style={{ ...style, paddingBottom: 10 }}>
+                      <motion.div
+                        style={{
+                          ...PREMIUM_CARD,
+                          padding: '14px 16px',
+                          opacity: s.active === false ? 0.55 : 1,
+                          borderLeft: `4px solid ${hasExpress ? C.warning : C.primary}`,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }} className="service-card-body">
+                          <div style={{ flex: 1, minWidth: 0 }} className="service-card-content">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n900 }}>{s.name}</span>
+                              {hasExpress && (
+                                <span style={{ background: C.warningBg, color: C.warningDark, fontFamily: 'Poppins', fontSize: 9, fontWeight: 600, padding: '2px 7px', borderRadius: 999 }}>
+                                  ⚡ EXPRESS
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n500, marginTop: 2 }}>
+                              {s.category} · per {s.unit}{s.minQty > 1 ? ` (min ${s.minQty})` : ''}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                              <span style={{ fontFamily: 'Poppins', fontSize: 15, fontWeight: 600, color: C.primary }}>{rp(s.price)}</span>
+                              {hasExpress && (
+                                <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.warningDark, fontWeight: 600 }}>⚡ Express: {rp(s.price * 2)}</span>
+                              )}
+                            </div>
+                            {(s.slaRegular || s.slaExpress) && (
+                              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                                {s.slaRegular && (
+                                  <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, background: C.n50, padding: '2px 8px', borderRadius: 999, fontWeight: 500 }}>
+                                    🕐 Reguler: {s.slaRegular}jam
+                                  </span>
+                                )}
+                                {s.slaExpress && hasExpress && (
+                                  <span style={{ fontFamily: 'Poppins', fontSize: 10, color: C.warningDark, background: C.warningBg, padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>
+                                    ⚡ Express: {s.slaExpress}jam
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, marginLeft: 10 }} className="service-card-actions">
-                        <motion.button
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => toggleActive(s.id)}
-                          style={{
-                            padding: '5px 10px', borderRadius: 10,
-                            border: `1px solid ${s.active !== false ? C.success : C.n300}`,
-                            background: s.active !== false ? C.successBg : C.n50,
-                            cursor: 'pointer', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
-                            color: s.active !== false ? C.success : C.n500, width: 66,
-                          }}
-                        >
-                          {s.active !== false ? 'Aktif' : 'Nonaktif'}
-                        </motion.button>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <motion.button
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => openEdit(s)}
-                            style={{
-                              flex: 1, padding: '6px', borderRadius: 10,
-                              border: `1px solid ${C.n200}`, background: 'white',
-                              cursor: 'pointer', color: C.primary, fontSize: 12,
-                            }}
-                          >✏️</motion.button>
-                          <motion.button
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleDelete(s.id)}
-                            style={{
-                              flex: 1, padding: '6px', borderRadius: 10,
-                              border: `1px solid ${C.n200}`, background: 'white',
-                              cursor: 'pointer', color: C.error, fontSize: 12,
-                            }}
-                          >🗑️</motion.button>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, marginLeft: 10 }} className="service-card-actions">
+                            <motion.button
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => data.onToggle(s.id)}
+                              style={{
+                                padding: '5px 10px', borderRadius: 10,
+                                border: `1px solid ${s.active !== false ? C.success : C.n300}`,
+                                background: s.active !== false ? C.successBg : C.n50,
+                                cursor: 'pointer', fontFamily: 'Poppins', fontSize: 10, fontWeight: 600,
+                                color: s.active !== false ? C.success : C.n500, width: 66,
+                              }}
+                            >
+                              {s.active !== false ? 'Aktif' : 'Nonaktif'}
+                            </motion.button>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <motion.button
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => data.onEdit(s)}
+                                style={{
+                                  flex: 1, padding: '6px', borderRadius: 10,
+                                  border: `1px solid ${C.n200}`, background: 'white',
+                                  cursor: 'pointer', color: C.primary, fontSize: 12,
+                                }}
+                              >✏️</motion.button>
+                              <motion.button
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => data.onDelete(s.id)}
+                                style={{
+                                  flex: 1, padding: '6px', borderRadius: 10,
+                                  border: `1px solid ${C.n200}`, background: 'white',
+                                  cursor: 'pointer', color: C.error, fontSize: 12,
+                                }}
+                              >🗑️</motion.button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      </motion.div>
                     </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+                  );
+                }}
+              </List>
+            </>
           )}
         </div>
       </div>

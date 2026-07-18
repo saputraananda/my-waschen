@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { C } from '../../utils/theme';
 import { TopBar, Btn } from '../../components/ui';
@@ -736,6 +736,12 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
     }
   });
 
+  // Ref untuk menyimpan config terkini (avoid closure stale)
+  const cfgRef = useRef(cfg);
+  useEffect(() => {
+    cfgRef.current = cfg;
+  }, [cfg]);
+
   const [activeTab, setActiveTab] = useState(0);
   const [saved, setSaved] = useState(false);
 
@@ -854,12 +860,15 @@ export default function PrinterSettingsPage({ navigate, goBack }) {
 
   // Save settings to localStorage AND update printService immediately
   const handleSave = async () => {
+    // Ambil config terkini dari ref untuk avoid closure stale
+    const currentCfg = cfgRef.current;
+
     // Save to localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentCfg));
     // Also update printService immediately for instant effect
     try {
       const { savePrinterConfig } = await import('../../utils/printService');
-      savePrinterConfig(cfg);
+      savePrinterConfig(currentCfg);
     } catch {}
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);

@@ -169,16 +169,24 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
   const handleUpdateStage = async () => {
     if (!nextStage || !canUpdateStage) return;
 
-    // Cek hasPackingPhoto: dari server meta atau dari conditionPhotos lokal yang baru di-upload
-    const hasPacking = productionMeta?.hasPackingPhoto || conditionPhotos.some((p) =>
-      p.type === 'packing'
-    );
+    // Cek foto yang sudah ada — sesuai phase yang akan dituju
+    if (nextStage === 'Diterima') {
+      const hasReceive = productionMeta?.hasReceivePhoto || conditionPhotos.some((p) => p.type === 'receive');
+      if (!hasReceive) {
+        alertWarning('Wajib foto terima sebelum melanjutkan ke tahap berikutnya.');
+        openFoto('receive');
+        return;
+      }
+    }
 
-    // ✅ VALIDASI: Jika sedang di tahap Packing → wajib ada foto packing sebelum bisa selesaikan tahap ini
-    if (nextStage === 'Packing' && !hasPacking) {
-      alertWarning('Wajib foto packing sebelum bisa menyelesaikan tahap Packing.');
-      openFoto('packing');
-      return;
+    // Cek foto packing: dari server meta atau dari conditionPhotos lokal yang baru di-upload
+    if (nextStage === 'Packing') {
+      const hasPacking = productionMeta?.hasPackingPhoto || conditionPhotos.some((p) => p.type === 'packing');
+      if (!hasPacking) {
+        alertWarning('Wajib foto packing sebelum bisa menyelesaikan tahap Packing.');
+        openFoto('packing');
+        return;
+      }
     }
 
     // Tampilkan konfirmasi sebelum menandai selesai semua
@@ -223,6 +231,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
       const msg = err?.response?.data?.message || 'Gagal mencatat. Coba lagi.';
       setStageError(msg);
       if (code === 'PACKING_PHOTO_REQUIRED') openFoto('packing');
+      if (code === 'RECEIVE_PHOTO_REQUIRED') openFoto('receive');
       // Rollback: re-fetch server progress so UI stays in sync
       try {
         const res = await axios.get(`/api/transactions/${apiId}${item?.itemId ? `?itemId=${item.itemId}` : ''}`);

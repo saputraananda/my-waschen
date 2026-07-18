@@ -493,10 +493,15 @@ const mapCustomerRow = (c) => {
 // ─── Controller: GET /api/customers ────────────────────────────────────────────
 export const getCustomers = async (req, res) => {
   try {
-    const { search, page = 1, limit = 100, outletId: queryOutletId, sort, member, loyalty, recent } = req.query;
+    const {
+      search, page = 1, limit = 100, offset: offsetParam,
+      outletId: queryOutletId, sort, member, loyalty, recent,
+      is_member, fields
+    } = req.query;
+
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 100));
-    const offset = (pageNum - 1) * limitNum;
+    const offset = offsetParam ? parseInt(offsetParam) : (pageNum - 1) * limitNum;
 
     const userRole = req.user?.roleCode;
     const userOutletId = req.user?.outletId;
@@ -529,15 +534,28 @@ export const getCustomers = async (req, res) => {
       const userId = req.user?.userId;
       const userOutletId = req.user?.outletId;
 
-      const [rows] = await poolWaschenPos.execute(
-        `SELECT DISTINCT c.id, c.name, c.phone, c.is_member, c.gender, c.photo,
+      // Lightweight query for recent customers (minimal fields)
+      const recentFields = fields || 'id, name, phone, photo, is_member, depositBalance, totalTx, totalSpendAmount';
+      const isLightweight = recentFields.split(',').every(f =>
+        ['id', 'name', 'phone', 'photo', 'is_member', 'depositBalance', 'totalTx', 'totalSpendAmount'].includes(f.trim())
+      );
+
+      const selectFields = isLightweight
+        ? `SELECT DISTINCT c.id, c.name, c.phone, c.is_member, c.photo,
+                w.balance AS depositBalance,
+                COALESCE(tx.totalTx, 0) AS totalTx,
+                COALESCE(tx.totalSpendAmount, 0) AS totalSpendAmount`
+        : `SELECT DISTINCT c.id, c.name, c.phone, c.is_member, c.gender, c.photo,
                 c.registered_outlet_id AS registeredOutletId,
                 o.name AS registeredOutletName,
                 w.balance AS depositBalance,
                 COALESCE(tx.totalTx, 0) AS totalTx,
                 COALESCE(tx.lastTxDate, NULL) AS lastTxDate,
                 COALESCE(tx.totalSpendAmount, 0) AS totalSpendAmount,
-                MAX(tx.lastCreatedAt) AS recentTransactionAt
+                MAX(tx.lastCreatedAt) AS recentTransactionAt`;
+
+      const [rows] = await poolWaschenPos.execute(
+        `${selectFields}
          FROM mst_customer c
          LEFT JOIN mst_customer_wallet w ON w.customer_id = c.id
          LEFT JOIN mst_outlet o ON o.id = c.registered_outlet_id
@@ -557,47 +575,36 @@ export const getCustomers = async (req, res) => {
            AND tx.customer_id IS NOT NULL
          GROUP BY c.id
          ORDER BY MAX(tx.lastCreatedAt) DESC
-         LIMIT 5`,
+         LIMIT 6`,
         userOutletId ? [userOutletId] : []
       );
 
       return res.status(200).json({
         success: true,
         data: rows.map(mapCustomerRow),
-        pagination: { page: 1, limit: 5, total: rows.length, totalPages: 1 },
+        pagination: { page: 1, limit: 6, total: rows.length, totalPages: 1 },
       });
     }
 
+    // Member filter (is_member param)
+    if (is_member !== undefined) {
+      if (is_member === '1' || is_member === 'true') {
+        where += ' AND c.is_member = 1';
+      } else if (is_member === '0' || is_member === 'false') {
+        where += ' AND (c.is_member = 0 OR c.is_member IS NULL)';
+      }
+    }
+
+    // Legacy member filter
     if (member === 'premium') {
       where += ' AND c.is_member = 1';
     } else if (member === 'regular') {
       where += ' AND (c.is_member = 0 OR c.is_member IS NULL)';
     }
 
-    // Loyalty filter - applied in-memory since it's computed (not stored in DB)
-    // We still need to filter customers who match the loyalty category
-    // This is handled in the query by joining with transaction data
-    if (loyalty && ['loyal', 'regular', 'one_time', 'churn', 'new'].includes(loyalty)) {
-      // Get customer IDs matching the loyalty criteria
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 19).replace('T', ' ');
-
-      // Subquery to get loyalty classification per customer
-      if (loyalty === 'new') {
-        where += ' AND (SELECT COUNT(*) FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\') = 0';
-      } else if (loyalty === 'one_time') {
-        where += ' AND (SELECT COUNT(*) FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\') = 1';
-      } else if (loyalty === 'loyal') {
-        where += ` AND (SELECT COUNT(*) FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\') >= 5`;
-        where += ` AND (SELECT MAX(created_at) FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\') >= '${thirtyDaysAgoStr}'`;
-      } else if (loyalty === 'regular') {
-        where += ` AND (SELECT COUNT(*) FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\') BETWEEN 2 AND 4`;
-        where += ` AND (SELECT MAX(created_at) FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\') >= '${thirtyDaysAgoStr}'`;
-      } else if (loyalty === 'churn') {
-        where += ` AND (SELECT COUNT(*) FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\') > 0`;
-        where += ` AND (SELECT MAX(created_at) FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\') < '${thirtyDaysAgoStr}'`;
-      }
+    // Simplified loyalty filter - only apply for new customers (no transactions)
+    if (loyalty === 'new') {
+      where += ' AND NOT EXISTS (SELECT 1 FROM tr_transaction WHERE customer_id = c.id AND deleted_at IS NULL AND status != \'cancelled\')';
     }
 
     // Count total
@@ -607,12 +614,12 @@ export const getCustomers = async (req, res) => {
     );
     const total = Number(countRows[0]?.total || 0);
 
-    // Fetch rows
+    // Simplified sort options - only use columns from main table and basic joins
     const sortKey = String(sort || 'name_asc').toLowerCase();
     const sortSql = {
       name_asc: 'c.name ASC',
+      name_desc: 'c.name DESC',
       newest: 'c.created_at DESC',
-      frequent: 'COALESCE(tx.totalTx, 0) DESC, c.name ASC',
     };
     const orderBy = sortSql[sortKey] || sortSql.name_asc;
 

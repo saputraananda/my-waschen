@@ -61,6 +61,12 @@ export const getServices = async (req, res) => {
     const sort = req.query?.sort; // 'popular' | 'alphabetical' (default)
     const serviceKind = req.query?.serviceKind; // 'waschen' | 'cleanox'
 
+    // Pagination params
+    const page = Math.max(1, parseInt(req.query?.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query?.limit) || 50));
+    const offset = (page - 1) * limit;
+    const search = (req.query?.search || '').trim();
+
     const globalRoles = ['admin'];
     const isGlobalRole = globalRoles.includes(userRole) ||
                          globalRoles.includes(req.user?.originalRoleCode);
@@ -85,6 +91,15 @@ export const getServices = async (req, res) => {
     if (serviceKind && ['waschen', 'cleanox'].includes(serviceKind)) {
       kindFilter = ' AND s.service_kind = ?';
       kindParams.push(serviceKind);
+    }
+
+    // Search filter
+    let searchFilter = '';
+    const searchParams = [];
+    if (search) {
+      searchFilter = ' AND (s.name LIKE ? OR c.name LIKE ?)';
+      const searchTerm = `%${search}%`;
+      searchParams.push(searchTerm, searchTerm);
     }
 
     // Popular count subquery
@@ -124,11 +139,24 @@ export const getServices = async (req, res) => {
     }
 
     // Build params array
-    const params = [];
-    if (targetOutletId) params.push(targetOutletId);
-    if (targetOutletId) params.push(targetOutletId); // for popularJoin
-    const finalParams = [...favParams, ...params, ...kindParams];
+    const baseParams = [];
+    if (targetOutletId) baseParams.push(targetOutletId);
+    if (targetOutletId) baseParams.push(targetOutletId); // for popularJoin
 
+    // Count query for total
+    const countParams = [...favParams, ...baseParams, ...searchParams, ...kindParams];
+    const [countResult] = await poolWaschenPos.execute(
+      `SELECT COUNT(*) AS total
+       FROM mst_service s
+       JOIN mst_service_category c ON c.id = s.category_id
+       ${favJoin}
+       WHERE s.is_active = 1 AND s.deleted_at IS NULL ${kindFilter}${searchFilter}`,
+      countParams
+    );
+    const total = countResult[0]?.total || 0;
+
+    // Main query with pagination
+    const mainParams = [...favParams, ...baseParams, ...searchParams, ...kindParams, String(limit), String(offset)];
     const [rows] = await poolWaschenPos.execute(
       `SELECT
         s.id,
@@ -155,9 +183,10 @@ export const getServices = async (req, res) => {
       ${pinJoin}
       ${popularJoin}
       ${favJoin}
-      WHERE s.is_active = 1 AND s.deleted_at IS NULL ${kindFilter}
-      ORDER BY c.sort_order, c.name, s.name`,
-      finalParams
+      WHERE s.is_active = 1 AND s.deleted_at IS NULL ${kindFilter}${searchFilter}
+      ORDER BY c.sort_order, c.name, s.name
+      LIMIT ? OFFSET ?`,
+      mainParams
     );
 
     const fixedRows = rows.map(row => ({
@@ -188,7 +217,16 @@ export const getServices = async (req, res) => {
       sortedRows = [...pinned, ...popular, ...favorites, ...others];
     }
 
-    return res.status(200).json({ success: true, data: sortedRows });
+    return res.status(200).json({
+      success: true,
+      data: sortedRows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      }
+    });
   } catch (err) {
     logger.error('Gagal memuat data layanan', { error: err.message });
     return res.status(500).json({ success: false, message: 'Gagal memuat data layanan.' });

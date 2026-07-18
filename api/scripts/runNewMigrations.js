@@ -1,5 +1,5 @@
 /**
- * Migration Runner - My Waschen POS v4.1.0
+ * Migration Runner - My Waschen POS v4.2.0
  *
  * Run: node api/scripts/runNewMigrations.js
  *
@@ -10,7 +10,9 @@
  * - 012_create_merge_table.sql
  * - 013_create_daily_report_table.sql
  * - 014_create_ap_request_table.sql
+ * - 027_create_pengajuan_belanja.sql (NEW - unified expense system)
  * - 028_deprecate_petty_cash_tables.sql
+ * - 034_fix_pengajuan_belanja_columns.sql (NEW - fix columns)
  */
 
 import 'dotenv/config';
@@ -429,6 +431,117 @@ async function run() {
     } else {
       log('028 - Petty cash deprecation: Already done', 'warning');
     }
+
+    // =====================================================
+    // 027 - Create Pengajuan Belanja System
+    // =====================================================
+    // Create unified pengajuan belanja tables (replaces petty cash, kas operasional, AP request)
+    const m027_cat_exists = await tableExists('mst_pengajuan_category');
+    if (!m027_cat_exists) {
+      await runMigration('027 - Create Pengajuan Belanja Tables', `
+        CREATE TABLE IF NOT EXISTS \`mst_pengajuan_category\` (
+          \`id\` BIGINT NOT NULL AUTO_INCREMENT,
+          \`name\` VARCHAR(100) NOT NULL COMMENT 'Category name',
+          \`code\` VARCHAR(30) NOT NULL COMMENT 'Category code',
+          \`icon\` VARCHAR(50) DEFAULT NULL COMMENT 'Icon/emoji',
+          \`color\` VARCHAR(7) DEFAULT '#6B7280' COMMENT 'Hex color for UI',
+          \`group_type\` ENUM('operasional', 'inventory', 'tagihan', 'utility', 'other') DEFAULT 'operasional' COMMENT 'Grouping type',
+          \`is_active\` TINYINT(1) DEFAULT 1,
+          \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (\`id\`),
+          UNIQUE KEY \`uk_code\` (\`code\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        INSERT IGNORE INTO \`mst_pengajuan_category\` (\`name\`, \`code\`, \`icon\`, \`color\`, \`group_type\`) VALUES
+          ('Biaya Uang Makan', 'uang_makan', '🍽️', '#F59E0B', 'operasional'),
+          ('BBM / Biaya Transport', 'bbm_transport', '🚗', '#6366F1', 'operasional'),
+          ('Biaya Kantor', 'biaya_kantor', '📦', '#10B981', 'operasional'),
+          ('Biaya Lainnya', 'biaya_lain', '📝', '#8B5CF6', 'operasional'),
+          ('Biaya LPG / Gas Alam', 'lpg', '🔥', '#F59E0B', 'tagihan'),
+          ('Biaya Galon Air Mineral', 'galon', '💧', '#3B82F6', 'tagihan'),
+          ('Biaya Listrik', 'listrik', '⚡', '#FACC15', 'tagihan'),
+          ('Biaya Internet', 'internet', '📶', '#8B5CF6', 'tagihan');
+      `);
+    } else {
+      // Table exists, but ensure categories are seeded
+      await runMigration('027b - Seed Pengajuan Categories', `
+        INSERT IGNORE INTO \`mst_pengajuan_category\` (\`name\`, \`code\`, \`icon\`, \`color\`, \`group_type\`) VALUES
+          ('Biaya Uang Makan', 'uang_makan', '🍽️', '#F59E0B', 'operasional'),
+          ('BBM / Biaya Transport', 'bbm_transport', '🚗', '#6366F1', 'operasional'),
+          ('Biaya Kantor', 'biaya_kantor', '📦', '#10B981', 'operasional'),
+          ('Biaya Lainnya', 'biaya_lain', '📝', '#8B5CF6', 'operasional'),
+          ('Biaya LPG / Gas Alam', 'lpg', '🔥', '#F59E0B', 'tagihan'),
+          ('Biaya Galon Air Mineral', 'galon', '💧', '#3B82F6', 'tagihan'),
+          ('Biaya Listrik', 'listrik', '⚡', '#FACC15', 'tagihan'),
+          ('Biaya Internet', 'internet', '📶', '#8B5CF6', 'tagihan');
+      `);
+      log('027 - Pengajuan categories seeded', 'success');
+    }
+
+    // Create main pengajuan table if not exists
+    const m027_tr_exists = await tableExists('tr_pengajuan_belanja');
+    if (!m027_tr_exists) {
+      await runMigration('027c - Create tr_pengajuan_belanja Table', `
+        CREATE TABLE IF NOT EXISTS \`tr_pengajuan_belanja\` (
+          \`id\` BIGINT NOT NULL AUTO_INCREMENT,
+          \`request_no\` VARCHAR(50) NOT NULL COMMENT 'Request number: PB-YYYYMMDD-XXX',
+          \`outlet_id\` BIGINT NOT NULL,
+          \`requested_by\` BIGINT NOT NULL,
+          \`pic_id\` BIGINT DEFAULT NULL COMMENT 'Person in charge',
+          \`pic_name\` VARCHAR(100) DEFAULT NULL,
+          \`total_amount\` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Sum of all items',
+          \`description\` VARCHAR(255) DEFAULT NULL COMMENT 'General description/notes',
+          \`period_month\` INT DEFAULT NULL COMMENT 'For utility expenses',
+          \`period_year\` INT DEFAULT NULL,
+          \`status\` ENUM('pending', 'auto_approved', 'approved', 'rejected', 'cancelled') DEFAULT 'pending',
+          \`needs_approval\` TINYINT(1) DEFAULT 0 COMMENT '1 if > 500k',
+          \`approved_by\` BIGINT DEFAULT NULL,
+          \`approved_at\` DATETIME DEFAULT NULL,
+          \`approval_notes\` TEXT DEFAULT NULL,
+          \`receipt_photo_url\` TEXT DEFAULT NULL,
+          \`source_type\` ENUM('operasional', 'operational', 'inventory', 'tagihan', 'utility') DEFAULT 'operasional' COMMENT 'Original source',
+          \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP,
+          \`updated_at\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (\`id\`),
+          UNIQUE KEY \`uk_request_no\` (\`request_no\`),
+          KEY \`idx_outlet_id\` (\`outlet_id\`),
+          KEY \`idx_requested_by\` (\`requested_by\`),
+          KEY \`idx_status\` (\`status\`),
+          KEY \`idx_needs_approval\` (\`needs_approval\`),
+          KEY \`idx_created_at\` (\`created_at\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+        CREATE TABLE IF NOT EXISTS \`tr_pengajuan_belanja_item\` (
+          \`id\` BIGINT NOT NULL AUTO_INCREMENT,
+          \`pengajuan_id\` BIGINT NOT NULL,
+          \`category_id\` BIGINT NOT NULL,
+          \`item_name\` VARCHAR(255) NOT NULL COMMENT 'Item description',
+          \`qty\` DECIMAL(10,2) NOT NULL DEFAULT 1,
+          \`unit\` VARCHAR(30) DEFAULT 'pcs',
+          \`estimated_price\` DECIMAL(15,2) DEFAULT NULL COMMENT 'Estimated unit price',
+          \`total_price\` DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'qty * estimated_price',
+          \`created_at\` DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (\`id\`),
+          KEY \`idx_pengajuan_id\` (\`pengajuan_id\`),
+          KEY \`idx_category_id\` (\`category_id\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+      `);
+    } else {
+      log('027c - tr_pengajuan_belanja already exists', 'warning');
+    }
+
+    // =====================================================
+    // 034 - Fix Pengajuan Belanja Columns
+    // =====================================================
+    // Fix: Change receipt_photo_url from VARCHAR(500) to TEXT (base64 data URLs are too long)
+    // Fix: Update source_type enum to include 'operasional' (Indonesian) and 'operational' (English)
+    await runMigration('034 - Fix Pengajuan Belanja Columns', `
+      ALTER TABLE \`tr_pengajuan_belanja\`
+      MODIFY COLUMN \`receipt_photo_url\` TEXT DEFAULT NULL COMMENT 'Foto bon/struk (data URL atau path)';
+
+      ALTER TABLE \`tr_pengajuan_belanja\`
+      MODIFY COLUMN \`source_type\` ENUM('operasional', 'operational', 'inventory', 'tagihan', 'utility') DEFAULT 'operasional' COMMENT 'Original source';
+    `);
 
     console.log('\n' + '='.repeat(50));
     console.log('✅ All migrations completed!');

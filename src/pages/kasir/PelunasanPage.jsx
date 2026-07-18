@@ -1,17 +1,161 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // PelunasanPage — flow lunas saat customer ambil cucian
-// Konsep: LUNAS FULL dengan grouped picker
+// Konsep: LUNAS FULL dengan grouped picker + foto konfirmasi
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TopBar, Btn, Input, MoneyInput } from '../../components/ui';
-import { IconCheck, IconWarning, IconClock, IconPerson, IconClose } from '../../components/ui/StatusIcons';
+import { IconCheck, IconWarning, IconPerson, IconClose } from '../../components/ui/StatusIcons';
 import { C } from '../../utils/theme';
 import { rp } from '../../utils/helpers';
 import { alertSuccess, alertError } from '../../utils/alert';
 import PaymentMethodGrouped from '../../components/PaymentMethodGrouped';
 import { useResponsive } from '../../utils/hooks';
+
+// ─── Client-side Image Compression ────────────────────────────────────────────
+// Resize to max 800px width, PNG format → text stays sharp
+const compressImage = (file) =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX_W = 800;
+      let { width, height } = img;
+      if (width > MAX_W) {
+        height = Math.round((height * MAX_W) / width);
+        width = MAX_W;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+
+// ─── Payment Photo Upload Component ──────────────────────────────────────────
+function PaymentPhotoUpload({ photo, preview, onFileChange, onClear, mandatory = false, label }) {
+  return (
+    <div style={{
+      background: C.n50,
+      borderRadius: 12,
+      padding: '16px',
+      border: `1px solid ${C.n200}`
+    }}>
+      <div style={{
+        fontFamily: 'Poppins',
+        fontSize: 11,
+        fontWeight: 600,
+        color: C.n600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px',
+        marginBottom: 4
+      }}>
+        {label || '📷 Bukti Transaksi'} {mandatory && <span style={{ color: C.danger }}>*</span>}
+      </div>
+      <div style={{
+        fontFamily: 'Poppins',
+        fontSize: 10,
+        color: C.n500,
+        marginBottom: 12,
+        lineHeight: 1.4
+      }}>
+        {mandatory ? 'Upload foto bukti pembayaran. Wajib untuk verifikasi.' : 'Upload foto bukti untuk rekonsiliasi. Opsional tapi membantu verifikasi.'}
+      </div>
+
+      <label
+        style={{
+          display: 'block',
+          border: `2px dashed ${C.n300}`,
+          borderRadius: 12,
+          padding: '24px 16px',
+          textAlign: 'center',
+          cursor: 'pointer',
+          background: C.white,
+          transition: 'all 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = C.primary;
+          e.currentTarget.style.background = C.primaryLight;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = C.n300;
+          e.currentTarget.style.background = C.white;
+        }}
+      >
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file && onFileChange) onFileChange(file);
+          }}
+        />
+        <div style={{ fontSize: 32, marginBottom: 8 }}>
+          {preview ? '📷' : '📸'}
+        </div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.n700, marginBottom: 4 }}>
+          {preview ? '📷 Foto Tersimpan' : 'Klik untuk Upload Foto'}
+        </div>
+        <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n500 }}>
+          {preview ? 'Klik untuk ganti foto' : (mandatory ? 'Foto wajib diupload' : 'Bukti pembayaran, screenshot, dll.')}
+        </div>
+      </label>
+
+      {preview && (
+        <div style={{ marginTop: 12, position: 'relative', display: 'inline-block' }}>
+          <img
+            src={preview}
+            alt="Bukti transaksi"
+            style={{
+              width: 80,
+              height: 80,
+              objectFit: 'cover',
+              borderRadius: 10,
+              border: `2px solid ${C.n200}`,
+              display: 'block',
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (onClear) onClear();
+            }}
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              width: 22,
+              height: 22,
+              borderRadius: '50%',
+              background: C.danger,
+              color: C.white,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 13,
+              fontWeight: 700,
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+          <div style={{ marginTop: 6, fontFamily: 'Poppins', fontSize: 9, color: C.n500, textAlign: 'center' }}>
+            {Math.round(preview.length * 0.75 / 1024)} KB
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Clay Card ────────────────────────────────────────────────────────────────
 const ClayCard = ({ children, style, padding = 16 }) => (
@@ -63,6 +207,10 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
   const [transferRef, setTransferRef] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Photo confirmation state
+  const [paymentPhoto, setPaymentPhoto] = useState(null);
+  const [paymentPhotoPreview, setPaymentPhotoPreview] = useState(null);
+
   const fetchTx = useCallback(async () => {
     if (!txId) return;
     setLoading(true);
@@ -106,11 +254,11 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
     if (balanceDue <= 0) return false;
     if (!selectedMethod) return false;
     if (selectedMethod === 'cash') {
-      return Number(cashReceived || 0) >= balanceDue;
+      return Number(cashReceived || 0) >= balanceDue && !!paymentPhotoPreview;
     }
     if (selectedMethod === 'transfer' && !transferRef.trim()) return false;
     return true;
-  }, [submitting, balanceDue, selectedMethod, cashReceived, transferRef]);
+  }, [submitting, balanceDue, selectedMethod, cashReceived, transferRef, paymentPhotoPreview]);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -121,6 +269,7 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
         payAmount: balanceDue,
         cashReceived: selectedMethod === 'cash' ? Number(cashReceived) : null,
         paymentRef: selectedMethod === 'transfer' ? transferRef.trim() : null,
+        paymentPhotoBase64: paymentPhotoPreview || null,
       });
 
       await alertSuccess('Pembayaran lunas! Customer bisa ambil cucian.');
@@ -244,6 +393,47 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
           <div style={{ fontFamily: "'Poppins'", fontSize: 11, fontWeight: 600, color: C.n700, marginBottom: 12 }}>
             Pilih Metode Pembayaran
           </div>
+
+          {/* Tunai — large card, handled separately */}
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setSelectedMethod('cash')}
+            style={{
+              width: '100%',
+              padding: '14px 16px',
+              borderRadius: 12,
+              border: `2px solid ${selectedMethod === 'cash' ? '#059669' : C.n200}`,
+              background: selectedMethod === 'cash' ? '#05966910' : C.white,
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 10,
+              transition: 'all 0.15s',
+            }}
+          >
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: '#05966915', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+                <rect x="1" y="4" width="22" height="16" rx="2" stroke="#059669" strokeWidth="2"/>
+                <circle cx="12" cy="12" r="3" stroke="#059669" strokeWidth="2"/>
+                <path d="M1 10h2M21 10h2M1 14h2M21 14h2" stroke="#059669" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: 'Poppins', fontSize: 13, fontWeight: 600, color: selectedMethod === 'cash' ? '#059669' : C.n900 }}>
+                Tunai / Cash
+              </div>
+              <div style={{ fontFamily: 'Poppins', fontSize: 10, color: '#059669', opacity: 0.8, marginTop: 1 }}>
+                Bayar langsung dengan uang tunai
+              </div>
+            </div>
+            {selectedMethod === 'cash' && (
+              <IconCheck size={20} color="#059669" />
+            )}
+          </motion.button>
+
+          {/* Non-tunai methods */}
           <PaymentMethodGrouped
             value={selectedMethod}
             onChange={setSelectedMethod}
@@ -362,6 +552,86 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
               </ClayCard>
             </motion.div>
           )}
+
+          {selectedMethod === 'qris' && (
+            <motion.div
+              key="qris"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ClayCard padding={16} style={{ marginBottom: 12 }}>
+                <div style={{
+                  background: '#5B005F10',
+                  borderRadius: 12,
+                  padding: '16px',
+                  textAlign: 'center',
+                  marginBottom: 12,
+                  border: '2px dashed #5B005F40',
+                }}>
+                  <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: '#5B005F', marginBottom: 4 }}>
+                    📱 Tunjukkan QRIS ke Customer
+                  </div>
+                  <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: '#5B005F', opacity: 0.8 }}>
+                    Tagihan: <strong>{rp(balanceDue)}</strong>
+                  </div>
+                </div>
+                <div style={{
+                  background: C.success + '10',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  border: `1px solid ${C.success}30`,
+                  fontFamily: "'Poppins'",
+                  fontSize: 11,
+                  color: C.success,
+                  fontWeight: 600,
+                }}>
+                  ✅ QRIS lunas — Customer bayar penuh {rp(balanceDue)}
+                </div>
+              </ClayCard>
+            </motion.div>
+          )}
+
+          {selectedMethod === 'edc' && (
+            <motion.div
+              key="edc"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ClayCard padding={16} style={{ marginBottom: 12 }}>
+                <div style={{
+                  background: '#7C3AED10',
+                  borderRadius: 12,
+                  padding: '16px',
+                  textAlign: 'center',
+                  marginBottom: 12,
+                  border: '2px dashed #7C3AED40',
+                }}>
+                  <div style={{ fontFamily: "'Poppins'", fontSize: 13, fontWeight: 600, color: '#7C3AED', marginBottom: 4 }}>
+                    💳 Gesek Kartu di Mesin EDC
+                  </div>
+                  <div style={{ fontFamily: "'Poppins'", fontSize: 11, color: '#7C3AED', opacity: 0.8 }}>
+                    Tagihan: <strong>{rp(balanceDue)}</strong>
+                  </div>
+                </div>
+                <div style={{
+                  background: C.success + '10',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  border: `1px solid ${C.success}30`,
+                  fontFamily: "'Poppins'",
+                  fontSize: 11,
+                  color: C.success,
+                  fontWeight: 600,
+                }}>
+                  ✅ EDC lunas — Customer bayar penuh {rp(balanceDue)}
+                </div>
+              </ClayCard>
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {selectedMethod === 'deposit' && depositBalance < balanceDue && (
@@ -377,6 +647,48 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
               <IconClose size={14} color={C.danger} />
               Saldo deposit tidak cukup. Saldo: {rp(depositBalance)}, butuh: {rp(balanceDue)}.
             </div>
+          </ClayCard>
+        )}
+
+        {/* Foto Konfirmasi — wajib untuk cash, opsional untuk lainnya */}
+        {selectedMethod && selectedMethod !== 'deposit' && (
+          <ClayCard padding={16} style={{ marginBottom: 12 }}>
+            <div style={{
+              fontFamily: "'Poppins'",
+              fontSize: 11,
+              fontWeight: 600,
+              color: C.n700,
+              marginBottom: 10,
+            }}>
+              📷 Konfirmasi Pembayaran
+            </div>
+            <PaymentPhotoUpload
+              photo={paymentPhoto}
+              preview={paymentPhotoPreview}
+              onFileChange={(f) => {
+                setPaymentPhoto(f);
+                compressImage(f).then(setPaymentPhotoPreview);
+              }}
+              onClear={() => {
+                setPaymentPhoto(null);
+                setPaymentPhotoPreview(null);
+              }}
+              mandatory={selectedMethod === 'cash'}
+              label={selectedMethod === 'cash' ? '📷 Foto Uang (Wajib)' : '📷 Bukti Pembayaran (Opsional)'}
+            />
+            {selectedMethod === 'cash' && !paymentPhotoPreview && (
+              <div style={{
+                fontFamily: "'Poppins'",
+                fontSize: 10,
+                color: C.danger,
+                marginTop: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}>
+                ⚠️ Foto uang cash wajib diupload untuk konfirmasi pelunasan.
+              </div>
+            )}
           </ClayCard>
         )}
       </div>
@@ -415,7 +727,9 @@ export default function PelunasanPage({ navigate, goBack, screenParams }) {
               : 'none',
           }}
         >
-          {selectedMethod ? `Lunasi ${rp(balanceDue)}` : 'Pilih metode pembayaran dulu'}
+          {selectedMethod === 'cash'
+            ? (!paymentPhotoPreview ? `Upload foto untuk konfirmasi` : `Lunasi ${rp(balanceDue)}`)
+            : (selectedMethod ? `Lunasi ${rp(balanceDue)}` : 'Pilih metode pembayaran dulu')}
         </motion.button>
       </div>
     </div>

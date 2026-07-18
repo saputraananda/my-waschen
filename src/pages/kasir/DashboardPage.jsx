@@ -2,7 +2,7 @@
 // KasirDashboardPage — Premium Glassmorphism + Claymorphism UI
 // Layout: Target Hero → Stat Cards → Status + Target Progress → Charts → Menu Fitur → Transaksi
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { C } from '../../utils/theme';
@@ -815,6 +815,9 @@ export default function KasirDashboardPage({ user, navigate }) {
   const [lowStockLoading, setLowStockLoading] = useState(true);
   const [topupModalVisible, setTopupModalVisible] = useState(false);
 
+  // Scroll container ref for modal scroll lock
+  const scrollContainerRef = useRef(null);
+
   // Sparkline data from API
   const [sparkData, setSparkData] = useState({
     omset: null,
@@ -1022,14 +1025,17 @@ export default function KasirDashboardPage({ user, navigate }) {
   const componentStyles = { fonts: styles.fonts, spacing: styles.spacing, radius: styles.radius };
 
   return (
-    <div style={{
-      flex: 1,
-      width: '100%',
-      overflowY: 'auto',
-      paddingBottom: bp.isMobile ? 120 : 100,
-      background: `linear-gradient(180deg, ${C.primarySoft || '#F8F4FF'} 0%, #F1F5F9 50%, #E8EEF5 100%)`,
-      margin: 0,
-    }}>
+    <div
+      ref={scrollContainerRef}
+      style={{
+        flex: 1,
+        width: '100%',
+        overflowY: 'auto',
+        paddingBottom: bp.isMobile ? 120 : 100,
+        background: `linear-gradient(180deg, ${C.primarySoft || '#F8F4FF'} 0%, #F1F5F9 50%, #E8EEF5 100%)`,
+        margin: 0,
+      }}
+    >
 
       {/* ── PREMIUM HEADER - Ultra Aesthetic Cosmic Theme ── */}
       <div style={{
@@ -1644,6 +1650,7 @@ export default function KasirDashboardPage({ user, navigate }) {
         visible={topupModalVisible}
         onClose={() => setTopupModalVisible(false)}
         onSelectCustomer={handleTopupSelectCustomer}
+        scrollContainerRef={scrollContainerRef}
       />
 
     </div>

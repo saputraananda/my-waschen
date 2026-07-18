@@ -494,3 +494,29 @@ export function openWaMe(phone, message) {
   }
   window.open(url, '_blank', 'noopener,noreferrer');
 }
+
+/**
+ * Build a tel: link for phone calls.
+ * @param {string} phone
+ * @returns {string|null}
+ */
+export function buildCallLink(phone) {
+  if (!phone) return null;
+  const cleaned = String(phone).replace(/\D/g, '');
+  if (!cleaned || cleaned.length < 8) return null;
+  return `tel:${cleaned}`;
+}
+
+/**
+ * Format phone number to standard Indonesian format.
+ * @param {string} phone
+ * @returns {string}
+ */
+export function formatPhone(phone) {
+  if (!phone) return '-';
+  const cleaned = String(phone).replace(/\D/g, '');
+  if (cleaned.startsWith('0')) {
+    return `+62 ${cleaned.slice(1)}`;
+  }
+  return phone;
+}

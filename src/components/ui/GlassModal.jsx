@@ -34,6 +34,7 @@
 
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useScrollLock } from '../../utils/useScrollLock';
 
 /**
  * GlassModal Component
@@ -69,8 +70,14 @@ const GlassModal = ({
   // ClassName
   className = '',
   style = {},
+
+  // Scroll container ref for scroll lock
+  scrollContainerRef = null,
 }) => {
   const contentRef = useRef(null);
+
+  // Scroll lock - works with specific container or document.body
+  useScrollLock(visible, scrollContainerRef);
 
   // Handle escape key
   useEffect(() => {
@@ -82,18 +89,6 @@ const GlassModal = ({
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [visible, onClose]);
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (visible) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [visible]);
 
   // Size configurations
   const sizeConfig = {

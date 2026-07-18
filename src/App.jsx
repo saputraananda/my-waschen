@@ -48,6 +48,8 @@ const KasirSegmentasiPage = lazy(() => import('./pages/kasir/SegmentasiPage'));
 const RefundPage = lazy(() => import('./pages/kasir/RefundPage'));
 const AdjustmentListPage = lazy(() => import('./pages/kasir/AdjustmentListPage'));
 const OutstandingListPage = lazy(() => import('./pages/kasir/OutstandingListPage'));
+const OutstandingDetailPage = lazy(() => import('./pages/kasir/OutstandingDetailPage'));
+const CreateOutstandingPage = lazy(() => import('./pages/kasir/CreateOutstandingPage'));
 const MergeTransactionPage = lazy(() => import('./pages/kasir/MergeTransactionPage'));
 const DailyReportPage = lazy(() => import('./pages/kasir/DailyReportPage'));
 const PengajuanBelanjaPage = lazy(() => import('./pages/kasir/PengajuanBelanjaPage'));
@@ -185,7 +187,7 @@ const SCREENS_NO_NAV = new Set([
   'profil', 'buka_shift', 'tutup_shift', 'oper_shift', 'setor_tunai', 'admin_laporan', 'admin_shift', 'setor_approval', 'info_outlet', 'rekap_pendapatan',
   'kasir_antrian', 'kasir_siap_ambil', 'kasir_laporan', 'printer_settings', 'general_report', 'admin_target', 'admin_target_detail', 'admin_period_close',
   'comparison_report', 'forecast', 'laporan_per_outlet', 'manajemen_outlet', 'kebijakan_privasi',
-  'kasir_refund', 'admin_refund', 'adjustment_list', 'adjustment_detail', 'outstanding_list', 'outstanding_detail', 'merge_transaction', 'daily_report', 'ap_request', 'target_page', 'pengajuan_belanja',
+  'kasir_refund', 'admin_refund', 'adjustment_list', 'adjustment_detail', 'outstanding_list', 'outstanding_detail', 'create_outstanding', 'merge_transaction', 'daily_report', 'ap_request', 'target_page', 'pengajuan_belanja',
   'admin_payment_config',
 ]);
 
@@ -467,8 +469,9 @@ function AppInner() {
       case 'outstanding_list':
         return <OutstandingListPage navigate={navigate} goBack={goBack} />;
       case 'outstanding_detail':
-        // Detail page belum ada — redirect ke daftar
-        return <OutstandingListPage navigate={navigate} goBack={goBack} />;
+        return <OutstandingDetailPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
+      case 'create_outstanding':
+        return <CreateOutstandingPage navigate={navigate} goBack={goBack} />;
       case 'ap_request':
       case 'pengajuan_belanja':
         return <PengajuanBelanjaPage navigate={navigate} goBack={goBack} />;

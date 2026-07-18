@@ -1178,7 +1178,7 @@ export function ProduksiDashboardPage({ user, navigate }) {
           <InventoryCheckSection
             outletId={user?.outletId}
             onSendAlert={() => {}}
-            onViewAll={() => navigate('stok_bahan')}
+            onViewAll={() => navigate('stok_produksi')}
           />
         </div>
 

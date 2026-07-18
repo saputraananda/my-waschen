@@ -15,6 +15,7 @@ import { uploadImage } from '../../utils/imageUpload';
 import RefundCancelModal from '../../components/RefundCancelModal';
 import { useResponsive } from '../../utils/hooks';
 import { printReceipt } from '../../utils/printService';
+import { useScrollLock } from '../../utils/useScrollLock';
 
 // ─── Design tokens (Waschen Design Template v3.0) ──────────────────────────
 const FONT = "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -403,6 +404,10 @@ export default function DetailTransaksiPage({ navigate, goBack, screenParams }) 
   const [copied, setCopied] = useState(false);
   const [showPayHistory, setShowPayHistory] = useState(false);
   const [showRequestSheet, setShowRequestSheet] = useState(false);
+
+  // Scroll lock for bottom sheets
+  const hasOpenSheet = showPayHistory || showRequestSheet;
+  useScrollLock(hasOpenSheet);
 
   // Copy ID
   const handleCopyId = () => {

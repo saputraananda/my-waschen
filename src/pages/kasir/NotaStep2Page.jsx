@@ -8,6 +8,23 @@ import { useResponsive } from '../../utils/hooks';
 import { alertError, alertWarning } from '../../utils/alert';
 import KeranjangPanel from '../../components/KeranjangPanel';
 
+// ─── CSS Animations ─────────────────────────────────────────────────────────
+const ANIMATION_STYLE = `
+  @keyframes slideUpCart {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes fabPop {
+    0%   { transform: scale(0.7); opacity: 0; }
+    70%  { transform: scale(1.08); }
+    100% { transform: scale(1);    opacity: 1; }
+  }
+`;
+
 // ─── ItemDetailFields ─────────────────────────────────────────────────────
 // Input bahan & merek per item + auto-detect alert khusus
 const SPECIAL_BAHAN = {
@@ -103,6 +120,8 @@ export default function NotaStep2Page({ goBack }) {
   // ─── Carpet (m2) measurement ────────────────────────────────────────────────
   const [measuringId, setMeasuringId] = useState(null);
   const [carpetInputs, setCarpetInputs] = useState({}); // { [serviceId]: { panjang: '', lebar: '' } } - in meters
+  const [showMobileCart, setShowMobileCart] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
 
   // ─── Body scroll lock when mobile modals open ──
   useEffect(() => {
@@ -288,9 +307,6 @@ export default function NotaStep2Page({ goBack }) {
   const missingMaterialItems = validateMaterialSelection();
   const canProceed = missingMaterialItems.length === 0;
 
-  const [showMobileCart, setShowMobileCart] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-
   // ── Render single service card ──
   const renderServiceCard = (s) => {
     const isM2 = s.unit === 'm2';
@@ -426,6 +442,8 @@ export default function NotaStep2Page({ goBack }) {
   };
 
   return (
+    <>
+      <style>{ANIMATION_STYLE}</style>
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F3EEF7', overflow: 'hidden', height: '100vh' }}>
       {/* Header */}
       <div style={{ background: C.primary, padding: '10px 12px', flexShrink: 0 }}>
@@ -655,7 +673,8 @@ export default function NotaStep2Page({ goBack }) {
         )}
       </div>
 
-      {/* Mobile FAB - only shown on mobile */}
+
+      {/* Mobile FAB — root level so it floats above everything */}
       {isMobile && notaCart.length > 0 && (
         <button
           onClick={() => setShowMobileCart(true)}
@@ -665,6 +684,7 @@ export default function NotaStep2Page({ goBack }) {
             borderRadius: 28, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8,
             boxShadow: '0 4px 16px rgba(92,26,107,0.4)',
             zIndex: 100, fontFamily: 'Poppins', fontSize: 13, fontWeight: 700,
+            animation: 'fabPop 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
           }}
           aria-label="Lihat keranjang"
         >
@@ -673,13 +693,17 @@ export default function NotaStep2Page({ goBack }) {
         </button>
       )}
 
-      {/* Mobile Cart Bottom Sheet */}
+      {/* Mobile Cart Bottom Sheet — root level, animates up from bottom */}
       {showMobileCart && (
         <>
-          {/* Backdrop - fixed, blocks interaction */}
-          <div onClick={() => setShowMobileCart(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
-          {/* Sheet - fixed to bottom */}
-          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderRadius: '20px 20px 0 0', zIndex: 201, padding: '0 0 env(safe-area-inset-bottom, 24px)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div onClick={() => setShowMobileCart(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, animation: 'fadeIn 0.2s ease both' }} />
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            background: 'white', borderRadius: '20px 20px 0 0',
+            zIndex: 201, padding: '0 0 env(safe-area-inset-bottom, 24px)',
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            animation: 'slideUpCart 0.35s cubic-bezier(0.32,0.72,0,1) both',
+          }}>
             <div style={{ padding: '12px 0', display: 'flex', justifyContent: 'center' }}>
               <div style={{ width: 40, height: 4, background: '#E9D3F2', borderRadius: 2 }} />
             </div>
@@ -770,5 +794,6 @@ export default function NotaStep2Page({ goBack }) {
         </>
       )}
     </div>
+    </>
   );
 }

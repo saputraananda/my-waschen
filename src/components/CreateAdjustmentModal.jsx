@@ -3,9 +3,10 @@
  * Modal untuk membuat koreksi nota
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertTriangle, X, TrendingUp, TrendingDown, Minus, Check, RefreshCw } from 'lucide-react';
 import { rp } from '../../utils/helpers';
+import { useScrollLock } from '../../utils/useScrollLock';
 
 const ADJUSTMENT_TYPES = [
   { key: 'price', label: 'Harga', desc: 'Koreksi harga per item/layanan' },
@@ -14,7 +15,7 @@ const ADJUSTMENT_TYPES = [
   { key: 'payment', label: 'Pembayaran', desc: 'Koreksi nominal bayar' },
 ];
 
-export default function CreateAdjustmentModal({ transaction, onClose, onSuccess }) {
+export default function CreateAdjustmentModal({ transaction, onClose, onSuccess, visible = false }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
@@ -28,6 +29,9 @@ export default function CreateAdjustmentModal({ transaction, onClose, onSuccess 
   // Calculate
   const difference = (parseFloat(newValue) || 0) - (parseFloat(oldValue) || 0);
   const adjustmentAction = difference > 0 ? 'charge' : difference < 0 ? 'refund' : 'none';
+
+  // Scroll lock
+  useScrollLock(visible);
 
   const handleSubmit = async () => {
     if (!type || !oldValue || !newValue || !reason) {

@@ -81,7 +81,7 @@ const PaymentMethodIcon = ({ type, size = 22 }) => {
 
 const EMPTY_EXCLUDE_IDS = [];
 
-// ─── Definisi grup — flat, no tabs for non-tunai ───────────
+// ─── Definisi grup ──────────────────────────────────────────────────────────
 const GROUPS = [
   {
     id: 'non-tunai',
@@ -108,7 +108,7 @@ export default function PaymentMethodGrouped({
 }) {
   const [activeGroup, setActiveGroup] = useState(() => {
     const match = GROUPS.find((g) => g.methods.some((m) => m.id === value));
-    return match?.id || 'manual';
+    return match?.id || 'non-tunai';
   });
   const prevValueRef = useRef(value);
 

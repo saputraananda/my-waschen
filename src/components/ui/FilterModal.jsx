@@ -6,6 +6,7 @@
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { C } from '../../utils/theme';
+import { useScrollLock } from '../../utils/useScrollLock';
 
 // ─── Filter Modal Component ──────────────────────────────────────────────────
 export default function FilterModal({
@@ -16,8 +17,12 @@ export default function FilterModal({
   onReset,
   children,
   footer,
+  scrollContainerRef,
 }) {
   const contentRef = useRef(null);
+
+  // Scroll lock - works with specific container or document.body
+  useScrollLock(visible, scrollContainerRef);
 
   // Handle escape key
   useEffect(() => {
@@ -29,18 +34,6 @@ export default function FilterModal({
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, [visible, onClose]);
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (visible) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [visible]);
 
   const handleApply = () => {
     onApply?.();
