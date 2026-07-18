@@ -127,6 +127,7 @@ function InventoryAlertCard({ item, onSendAlert, isSending, isSent }) {
                 ✓ Terkirim
               </span>
             )}
+          </div>
           <div style={{
             fontFamily: 'Poppins',
             fontSize: 11,

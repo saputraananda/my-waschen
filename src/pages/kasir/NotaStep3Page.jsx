@@ -1649,9 +1649,6 @@ export default function NotaStep3Page({ goBack }) {
             </div>
           )}
 
-          {/* Transfer Bank Panel */}
-          {payMethod === 'transfer' && (
-            <div style={{ marginTop: 4, background: C.n50, borderRadius: 12, padding: '16px', border: `1px solid ${C.n200}` }}>
           {/* Transfer Bank Panel — simplified, no bank account selection or photo upload required */}
           {payMethod === 'transfer' && (
             <div style={{ marginTop: 4, background: C.n50, borderRadius: 12, padding: '16px', border: `1px solid ${C.n200}` }}>
