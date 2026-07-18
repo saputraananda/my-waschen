@@ -3,7 +3,7 @@ import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, getCartLineSubtotal, getCartUnitPrice } from '../../utils/helpers';
 import { TopBar, Btn, Input, Select, Divider, MoneyInput } from '../../components/ui';
-import { alertError, alertWarning } from '../../utils/alert';
+import { alertError, alertErrorDetailed, alertWarning } from '../../utils/alert';
 import { useApp } from '../../context/AppContext';
 import { hapticError } from '../../utils/haptic';
 import PICSelector from '../../components/PICSelector';
@@ -51,13 +51,6 @@ const PAYMENT_STATUS_CONFIG = {
     bg: '#d1fae5',
     icon: '✅',
     desc: 'Pembayaran sudah lunas',
-  },
-  menunggu_verifikasi: {
-    label: 'MENUNGGU',
-    color: '#0EA5E9',
-    bg: '#E0F2FE',
-    icon: '⏳',
-    desc: 'Kasir belum konfirmasi penerimaan',
   },
   partial: {
     label: 'UANG MUKA',
@@ -365,15 +358,9 @@ export default function NotaStep3Page({ goBack }) {
 
   const [paidAmountStr, setPaidAmountStr] = useState('');
 
-  // Payment photo for external methods (optional for QRIS/EDC, mandatory for Transfer)
-  const [paymentPhoto, setPaymentPhoto] = useState(null);
-  const [paymentPhotoPreview, setPaymentPhotoPreview] = useState(null);
+  // Payment photo state removed — photo upload for payment confirmation no longer required
 
-  // Kasir explicit confirmation for external methods (QRIS/EDC/Transfer) — NO LONGER REQUIRED (2026-07-18)
-
-  // Transfer Bank: selected outlet bank account
-  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
-  const [bankAccounts, setBankAccounts] = useState([]);
+  // Transfer Bank state removed — bank account selection no longer required
 
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState(null);
@@ -439,21 +426,7 @@ export default function NotaStep3Page({ goBack }) {
     return () => clearTimeout(timer);
   }, [notaCart, notaCustomer?.id, user?.outletId, user?.outlet?.id]);
 
-  // Fetch bank accounts for transfer payment method
-  useEffect(() => {
-    const oid = user?.outletId || user?.outlet?.id;
-    if (!oid) return;
-    axios.get(`/api/outlets/${oid}/bank-accounts`)
-      .then((r) => setBankAccounts(r?.data?.data || []))
-      .catch(() => setBankAccounts([]));
-  }, [user?.outletId, user?.outlet?.id]);
-
-  // Auto-select first bank account when only 1 available
-  useEffect(() => {
-    if (bankAccounts.length === 1 && !selectedBankAccountId) {
-      setSelectedBankAccountId(bankAccounts[0].id);
-    }
-  }, [bankAccounts, selectedBankAccountId]);
+  // Bank accounts fetch & auto-select removed — no longer required
 
   const selectedZone = areaZones.find((z) => z.id === areaZoneId);
   const logisticFee = pickupType === 'self' ? 0 : pickupType === 'both' ? (selectedZone?.fee || 10000) * 2 : (selectedZone?.fee || 10000);
@@ -523,7 +496,7 @@ export default function NotaStep3Page({ goBack }) {
         return `${year}-${month}-${day}`;
       };
 
-      const photoBase64 = paymentPhotoPreview;
+      // photoBase64 removed — payment photo upload no longer required
 
       const finalPaidAmount = Math.min(paidAmountValue, total);
       const finalChangeAmount = paymentStatus === 'lunas' ? Math.max(0, paidAmountValue - total) : 0;
@@ -557,9 +530,6 @@ export default function NotaStep3Page({ goBack }) {
         payment: paymentPayload,
         paymentIntent: {
           paidAmount: finalPaidAmount,
-          verifiedByKasir: true,
-          bankAccountId: payMethod === 'transfer' ? selectedBankAccountId : undefined,
-          paymentPhotoBase64: payMethod === 'transfer' ? photoBase64 : undefined,
         },
         picId: currentPIC?.id || user?.userId || user?.id,
         picName: currentPIC?.name || user?.name,
@@ -646,26 +616,157 @@ export default function NotaStep3Page({ goBack }) {
           navigate('nota_berhasil', nota);
           console.log('[CHECKOUT] ✅ navigate() called');
         } else {
+          // Server returned success:false or no data
           if (!silent) {
             hapticError();
-            alertError(res?.data?.message || 'Gagal membuat nota');
+            const errorMsg = res?.data?.message || 'Gagal membuat nota';
+            const errorDetails = res?.data?.errors;
+            const errorType = res?.data?.error;
+
+            // Build detailed error message
+            let detailedMsg = errorMsg;
+
+            // Add field-specific errors if available
+            if (errorDetails && Object.keys(errorDetails).length > 0) {
+              const fieldErrors = Object.entries(errorDetails)
+                .map(([field, desc]) => {
+                  const fieldLabel = {
+                    pickup_schedule_at: '📅 Jadwal Pickup',
+                    delivery_schedule_at: '📅 Jadwal Delivery',
+                    material_id: '🧵 Material',
+                    carpetPanjangCm: '📐 Panjang Karpet',
+                    carpetLebarCm: '📐 Lebar Karpet',
+                    service_id: '🧺 Layanan',
+                  }[field] || `❓ ${field}`;
+                  return `${fieldLabel}: ${desc}`;
+                })
+                .join('\n');
+              detailedMsg = `${errorMsg}\n\n📋 Detail Error:\n${fieldErrors}`;
+            }
+
+            // Add hint for specific error types
+            const hints = {
+              'INVALID_CUSTOMER': '\n\n💡 Pilih customer dari daftar yang tersedia.',
+              'INVALID_SERVICE': '\n\n💡 Hapus layanan dan pilih ulang.',
+              'INVALID_PROMO': '\n\n💡 Pilih promo lain atau hapus promo.',
+              'NO_ACTIVE_SHIFT': '\n\n💡 Buka shift kasir terlebih dahulu.',
+            };
+            if (hints[errorType]) {
+              detailedMsg += hints[errorType];
+            }
+
+            // Use detailed alert for complex errors
+            if (errorDetails && Object.keys(errorDetails).length > 0) {
+              alertErrorDetailed('Validasi Gagal', detailedMsg);
+            } else if (detailedMsg.length > 100 || hints[errorType]) {
+              alertErrorDetailed('Error', detailedMsg);
+            } else {
+              alertError(detailedMsg);
+            }
           }
           return null;
         }
       } catch (error) {
         if (!silent) hapticError();
+
+        // Extract error details
+        const errorData = error?.response?.data;
+        const statusCode = error?.response?.status;
+        const errorType = errorData?.error;
+        const errorDetails = errorData?.details;
+        const fieldErrors = errorData?.errors;
+
+        // Build error message based on status code
+        let userMessage = errorData?.message || 'Gagal membuat nota. Silakan coba lagi.';
+
+        // Add field-specific errors if available
+        if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+          const fieldList = Object.entries(fieldErrors)
+            .map(([field, desc]) => {
+              const fieldLabel = {
+                pickup_schedule_at: '📅 Jadwal Pickup',
+                delivery_schedule_at: '📅 Jadwal Delivery',
+                material_id: '🧵 Material',
+                carpetPanjangCm: '📐 Panjang Karpet',
+                carpetLebarCm: '📐 Lebar Karpet',
+                service_id: '🧺 Layanan',
+              }[field] || `❓ ${field}`;
+              return `${fieldLabel}: ${desc}`;
+            })
+            .join('\n');
+          userMessage = `${userMessage}\n\n📋 Detail Error:\n${fieldList}`;
+        }
+
+        // Add contextual hints based on error type and status
+        if (statusCode === 403 && errorData?.requiresShift) {
+          userMessage = '⚠️ Shift belum dibuka.\n\nBuka shift kasir terlebih dahulu sebelum membuat transaksi.';
+        } else if (statusCode === 422) {
+          // Validation error - field-specific guidance
+          if (errorData?.message?.includes('pickup')) {
+            userMessage = '⚠️ ' + errorData.message + '\n\n💡 Isi tanggal jemput cucian kotor.';
+          } else if (errorData?.message?.includes('delivery')) {
+            userMessage = '⚠️ ' + errorData.message + '\n\n💡 Isi tanggal antar cucian bersih.';
+          } else if (errorData?.message?.includes('material')) {
+            userMessage = '⚠️ ' + errorData.message + '\n\n💡 Pilih jenis material untuk layanan ini.';
+          } else if (errorData?.message?.includes('dimensi') || errorData?.message?.includes('m²')) {
+            userMessage = '⚠️ ' + errorData.message + '\n\n💡 Masukkan panjang dan lebar karpet.';
+          }
+        } else if (statusCode === 400) {
+          // Bad request
+          if (errorData?.message?.includes('deposit') || errorData?.message?.includes('saldo')) {
+            userMessage = '⚠️ ' + errorData.message;
+          }
+        } else if (statusCode === 500) {
+          // Server error - add troubleshooting hints
+          const hints = {
+            'INVALID_CUSTOMER': 'Pilih customer dari daftar yang tersedia.',
+            'INVALID_SERVICE': 'Hapus layanan dan pilih ulang.',
+            'INVALID_PROMO': 'Pilih promo lain atau hapus promo.',
+            'INVALID_OUTLET': 'Logout dan login kembali.',
+            'INVALID_CASHIER': 'Logout dan login kembali.',
+            'INVALID_PAYMENT_METHOD': 'Pilih metode pembayaran lain.',
+            'INVALID_REFERENCE': 'Data tidak valid. Hubungi administrator.',
+            'DUPLICATE_TRANSACTION': 'Coba ulangi transaksi.',
+            'SCHEMA_MISMATCH': 'Hubungi administrator untuk update database.',
+            'LOCK_TIMEOUT': 'Tunggu beberapa detik, lalu coba lagi.',
+            'NETWORK_ERROR': 'Periksa koneksi internet Anda.',
+            'DB_CONNECTION_ERROR': 'Server sedang sibuk. Coba lagi nanti.',
+          };
+          const hint = hints[errorType];
+          if (hint) {
+            userMessage = `❌ ${errorData?.message}\n\n💡 ${hint}`;
+          } else {
+            userMessage = `❌ ${errorData?.message || 'Terjadi kesalahan server.'}\n\n💡 Coba ulangi transaksi. Jika masih gagal, hubungi administrator.`;
+          }
+        }
+
+        // Log for debugging
         console.error('[CHECKOUT] ❌ Checkout failed:', {
-          status: error?.response?.status,
-          statusText: error?.response?.statusText,
-          message: error?.response?.data?.message,
-          errors: error?.response?.data?.errors,
-          fullResponse: error?.response?.data,
-          isNetworkError: error.isAxiosError && !error.response,
-          networkErrorCode: error.code,
-          stack: error.stack,
+          status: statusCode,
+          errorType,
+          errorDetails,
+          userMessage,
+          debug: errorData?.debug,
+          fullResponse: errorData,
         });
-        const msg = error?.response?.data?.message || 'Gagal membuat nota. Silakan coba lagi.';
-        if (!silent) alertError(msg);
+
+        if (!silent) {
+          // Use detailed alert for complex errors with field-specific info
+          if (fieldErrors && Object.keys(fieldErrors).length > 0) {
+            alertErrorDetailed('Validasi Gagal', userMessage);
+          } else if (statusCode === 403 && errorData?.requiresShift) {
+            alertErrorDetailed('Shift Belum Dibuka', userMessage);
+          } else if (statusCode === 422) {
+            alertErrorDetailed('Validasi Gagal', userMessage);
+          } else if (statusCode === 500 && errorType) {
+            alertErrorDetailed('Error Server', userMessage);
+          } else if (userMessage.length > 100) {
+            // For longer messages, use detailed alert
+            alertErrorDetailed('Error', userMessage);
+          } else {
+            alertError(userMessage);
+          }
+        }
         else throw error;
       } finally {
         setLoading(false);
@@ -673,7 +774,6 @@ export default function NotaStep3Page({ goBack }) {
   };
 
   const isConfirmDisabled = (
-    (payMethod === 'transfer' && (!selectedBankAccountId || !paymentPhoto)) ||
     (payMethod === 'deposit' && Number(notaCustomer?.depositBalance ?? notaCustomer?.deposit ?? 0) < total) ||
     // Only require date for pickup/delivery (no time needed)
     (pickupType === 'pickup' && !pickupScheduleDate) ||
@@ -700,17 +800,7 @@ export default function NotaStep3Page({ goBack }) {
       }
     }
 
-    if (payMethod === 'transfer' && !selectedBankAccountId) {
-      alertWarning('Pilih rekening tujuan transfer.');
-      hapticError();
-      return;
-    }
-
-    if (payMethod === 'transfer' && !paymentPhoto) {
-      alertWarning('Upload bukti transfer wajib untuk verifikasi.');
-      hapticError();
-      return;
-    }
+    // Transfer & QRIS/EDC payment validation removed — confirmation is automatic based on amount only
 
     if (payMethod === 'deposit') {
       const balance = Number(notaCustomer?.depositBalance ?? notaCustomer?.deposit ?? 0);
@@ -1516,12 +1606,7 @@ export default function NotaStep3Page({ goBack }) {
                 </div>
               )}
 
-              <div style={{ marginTop: 16 }}>
-                <PaymentPhotoUpload photo={paymentPhoto} preview={paymentPhotoPreview}
-                  onFileChange={(f) => { setPaymentPhoto(f); compressImage(f).then(setPaymentPhotoPreview); }}
-                  onClear={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
-                  mandatory={false} label="📷 Bukti QRIS (Opsional)" />
-              </div>
+              {/* Payment photo upload removed — confirmation is automatic based on amount */}
             </div>
           )}
 
@@ -1560,38 +1645,16 @@ export default function NotaStep3Page({ goBack }) {
                 </div>
               )}
 
-              <div style={{ marginTop: 16 }}>
-                <PaymentPhotoUpload photo={paymentPhoto} preview={paymentPhotoPreview}
-                  onFileChange={(f) => { setPaymentPhoto(f); compressImage(f).then(setPaymentPhotoPreview); }}
-                  onClear={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
-                  mandatory={false} label="📷 Struk EDC (Opsional)" />
-              </div>
+              {/* EDC payment photo upload removed — confirmation is automatic based on amount */}
             </div>
           )}
 
           {/* Transfer Bank Panel */}
           {payMethod === 'transfer' && (
             <div style={{ marginTop: 4, background: C.n50, borderRadius: 12, padding: '16px', border: `1px solid ${C.n200}` }}>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
-                  Rekening Tujuan Transfer
-                </div>
-                {bankAccounts.length === 0 ? (
-                  <div style={{ padding: '12px', background: C.white, borderRadius: 10, border: `1px solid ${C.n200}`, fontFamily: 'Poppins', fontSize: 11, color: C.n500, textAlign: 'center' }}>
-                    Tidak ada rekening bank tersedia.
-                  </div>
-                ) : (
-                  <Select
-                    value={selectedBankAccountId}
-                    onChange={setSelectedBankAccountId}
-                    options={[
-                      { value: '', label: 'Pilih rekening...' },
-                      ...bankAccounts.map((b) => ({ value: b.id, label: `${b.bankName} — ${b.accountNumber} (a.n. ${b.accountHolder})` })),
-                    ]}
-                  />
-                )}
-              </div>
-
+          {/* Transfer Bank Panel — simplified, no bank account selection or photo upload required */}
+          {payMethod === 'transfer' && (
+            <div style={{ marginTop: 4, background: C.n50, borderRadius: 12, padding: '16px', border: `1px solid ${C.n200}` }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
                 <button type="button" onClick={() => setPaidAmountStr(String(Math.ceil(total / 1000) * 1000))}
                   style={{ padding: '10px', borderRadius: 10, border: `1.5px solid ${C.primary}`, background: C.primaryLight, fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.primary, cursor: 'pointer' }}>
@@ -1615,13 +1678,6 @@ export default function NotaStep3Page({ goBack }) {
                   💰 Nominal kurang — Status: <strong>UANG MUKA</strong> (kekurangan {rp(total - effectivePaid)})
                 </div>
               )}
-
-              <div style={{ marginTop: 16 }}>
-                <PaymentPhotoUpload photo={paymentPhoto} preview={paymentPhotoPreview}
-                  onFileChange={(f) => { setPaymentPhoto(f); compressImage(f).then(setPaymentPhotoPreview); }}
-                  onClear={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
-                  mandatory={true} label="📷 Bukti Transfer (Wajib)" />
-              </div>
             </div>
           )}
 

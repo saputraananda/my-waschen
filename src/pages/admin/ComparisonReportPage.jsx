@@ -7,8 +7,7 @@ import { useApp } from '../../context/AppContext';
 import { getDateRangePreset, DATE_PRESETS } from '../../utils/filterPresets';
 import { useResponsive } from '../../utils/hooks';
 import { motion } from 'framer-motion';
-import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
-import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
+import { GlowOrb, Sparkle } from '../../components/ui/PremiumAnimations';
 
 const F = { fontFamily: 'Poppins' };
 

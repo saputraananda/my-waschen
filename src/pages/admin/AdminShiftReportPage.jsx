@@ -428,7 +428,7 @@ export function AdminShiftReportPageContent({ navigate, goBack }) {
                     <div style={{ ...F, fontSize: 13, fontWeight: 600, color: C.success }}>{rp(disciplinedOutlet.avgAbsCashDiff || 0)}</div>
                     <div style={{ ...F, fontSize: 9, color: C.n700 }}>avg selisih</div>
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* Outlet bermasalah — compact row */}

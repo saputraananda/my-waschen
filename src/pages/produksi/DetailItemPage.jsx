@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { C } from '../../utils/theme';
 import { STAGES, txApiId, photoTypeLabel } from '../../utils/helpers';
@@ -171,10 +171,12 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
 
     // Cek foto yang sudah ada — sesuai phase yang akan dituju
     if (nextStage === 'Diterima') {
-      const hasReceive = productionMeta?.hasReceivePhoto || conditionPhotos.some((p) => p.type === 'receive');
+      const hasReceive = productionMeta?.hasReceivePhoto || conditionPhotos.some((p) => p.type === 'receive' || p.type === 'initial_condition');
       if (!hasReceive) {
-        alertWarning('Wajib foto terima sebelum melanjutkan ke tahap berikutnya.');
-        openFoto('receive');
+        // Trigger inline upload instead of redirecting
+        alertWarning('Wajib foto terima. Silakan upload foto terlebih dahulu.');
+        setPendingUploadPhase('receive');
+        setShowUploadPrompt(true);
         return;
       }
     }
@@ -183,8 +185,10 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
     if (nextStage === 'Packing') {
       const hasPacking = productionMeta?.hasPackingPhoto || conditionPhotos.some((p) => p.type === 'packing');
       if (!hasPacking) {
-        alertWarning('Wajib foto packing sebelum bisa menyelesaikan tahap Packing.');
-        openFoto('packing');
+        // Trigger inline upload instead of redirecting
+        alertWarning('Wajib foto packing. Silakan upload foto terlebih dahulu.');
+        setPendingUploadPhase('packing');
+        setShowUploadPrompt(true);
         return;
       }
     }
@@ -230,8 +234,17 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
       const code = err?.response?.data?.code;
       const msg = err?.response?.data?.message || 'Gagal mencatat. Coba lagi.';
       setStageError(msg);
-      if (code === 'PACKING_PHOTO_REQUIRED') openFoto('packing');
-      if (code === 'RECEIVE_PHOTO_REQUIRED') openFoto('receive');
+      // Trigger inline upload instead of redirecting
+      if (code === 'PACKING_PHOTO_REQUIRED') {
+        alertWarning('Wajib foto packing. Silakan upload foto terlebih dahulu.');
+        setPendingUploadPhase('packing');
+        setShowUploadPrompt(true);
+      }
+      if (code === 'RECEIVE_PHOTO_REQUIRED') {
+        alertWarning('Wajib foto terima. Silakan upload foto terlebih dahulu.');
+        setPendingUploadPhase('receive');
+        setShowUploadPrompt(true);
+      }
       // Rollback: re-fetch server progress so UI stays in sync
       try {
         const res = await axios.get(`/api/transactions/${apiId}${item?.itemId ? `?itemId=${item.itemId}` : ''}`);
@@ -254,6 +267,10 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
   const [revertReason, setRevertReason] = useState('');
   const [reverting, setReverting] = useState(false);
 
+  // Inline photo upload state (for direct upload without redirect)
+  const [inlineUploadLoading, setInlineUploadLoading] = useState(false);
+  const [showUploadPrompt, setShowUploadPrompt] = useState(false);
+
   // Photo edit/delete state
   const [editingPhotoId, setEditingPhotoId] = useState(null);
   const [editingNotes, setEditingNotes] = useState('');
@@ -273,6 +290,59 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
     } catch {
       // Silent fail for optional refresh
     }
+  };
+
+  // Inline photo upload handler (upload directly without redirect)
+  const [pendingUploadPhase, setPendingUploadPhase] = useState(null); // 'receive' | 'packing'
+  const fileInputRef = useRef(null);
+
+  const handleInlinePhotoUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const phase = pendingUploadPhase || 'receive';
+    setInlineUploadLoading(true);
+    setShowUploadPrompt(false);
+
+    try {
+      const results = await Promise.all(files.map(f => uploadImage(f, 'documentation').catch(() => null)));
+      const validResults = results.filter(r => r && r.dataUrl);
+
+      if (validResults.length === 0) {
+        alertWarning('Gagal meng-upload foto. Coba lagi.');
+        return;
+      }
+
+      const photoArr = validResults.map(r => ({
+        url: r.dataUrl,
+        type: phase,
+      }));
+
+      await axios.post(`/api/transactions/${apiId}/condition`, {
+        photos: photoArr,
+        notes: phase === 'receive' ? '📥 Foto terima dari produksi' : '📦 Foto packing dari produksi',
+        phase,
+        itemId: item?.itemId || null,
+      });
+
+      // Refresh photos after upload
+      await refreshPhotos();
+
+      // Emit event for other listeners
+      window.dispatchEvent(new Event('produksi:photo-saved'));
+
+    } catch (err) {
+      alertWarning(err?.response?.data?.message || 'Gagal menyimpan foto.');
+    } finally {
+      setInlineUploadLoading(false);
+      setPendingUploadPhase(null);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const triggerInlineUpload = (phase) => {
+    setPendingUploadPhase(phase);
+    fileInputRef.current?.click();
   };
 
   const handleDeletePhoto = async (photoId) => {
@@ -402,11 +472,91 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
         title={item ? 'Detail Item Cucian' : 'Detail Nota'}
         subtitle={item ? `${tx.id} · ${item.name}` : tx.id}
         onBack={goBack}
-        rightAction={() => openFoto(nextStage === 'Packing' || allDone ? 'packing' : 'receive')}
+        rightAction={() => triggerInlineUpload(nextStage === 'Packing' || allDone ? 'packing' : 'receive')}
         rightIcon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>}
       />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 12 : 16, display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 12, paddingBottom: isMobile ? 120 : 100 }}>
+
+        {/* Hidden file input for inline upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          style={{ display: 'none' }}
+          onChange={handleInlinePhotoUpload}
+        />
+
+        {/* Inline Upload Prompt - shown when photo is required */}
+        {showUploadPrompt && (
+          <div style={{
+            background: 'white',
+            borderRadius: 16,
+            padding: '20px',
+            boxShadow: PROD_SHADOW.card,
+            border: `2px solid ${pendingUploadPhase === 'packing' ? C.success : C.primary}`,
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>
+              {pendingUploadPhase === 'packing' ? '📦' : '📥'}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 14, fontWeight: 600, color: C.n800, marginBottom: 8 }}>
+              {pendingUploadPhase === 'packing' ? 'Upload Foto Packing' : 'Upload Foto Terima'}
+            </div>
+            <div style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n600, marginBottom: 16 }}>
+              {pendingUploadPhase === 'packing'
+                ? 'Wajib foto packing sebelum order siap diambil customer.'
+                : 'Wajib foto terima sebelum melanjutkan ke tahap berikutnya.'}
+            </div>
+            {inlineUploadLoading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0' }}>
+                <span style={{ width: 20, height: 20, border: '2px solid rgba(0,0,0,0.1)', borderTopColor: C.primary, borderRadius: '50%', animation: 'spin 0.6s linear infinite', display: 'inline-block' }} />
+                <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.n700 }}>Mengupload...</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => triggerInlineUpload(pendingUploadPhase || 'receive')}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: pendingUploadPhase === 'packing' ? C.success : C.primary,
+                    color: 'white',
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  📷 Ambil Foto
+                </button>
+                <button
+                  onClick={() => {
+                    setShowUploadPrompt(false);
+                    setPendingUploadPhase(null);
+                  }}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: `1px solid ${C.n200}`,
+                    background: 'white',
+                    color: C.n700,
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Batal
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {(nextStage === 'Packing' || allDone) && !productionMeta?.hasPackingPhoto && !conditionPhotos.some((p) => p.type === 'packing') && (
           <div style={{ background: C.successBg, borderRadius: 12, padding: '10px 12px', fontFamily: 'Poppins', fontSize: 11, color: C.successDark }}>
@@ -629,7 +779,7 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
         <div style={{ background: 'white', borderRadius: 16, padding: '14px 16px', boxShadow: PROD_SHADOW.card }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n500, letterSpacing: '0.05em' }}>BUKTI FOTO</div>
-            <button type="button" onClick={() => openFoto('receive')} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, color: C.primary, background: C.primaryTint, border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>+ Foto</button>
+            <button type="button" onClick={() => triggerInlineUpload('receive')} style={{ fontFamily: 'Poppins', fontSize: 10, fontWeight: 500, color: C.primary, background: C.primaryTint, border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>+ Foto</button>
           </div>
           {photosLoading && (
             <div style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400, textAlign: 'center', padding: 8 }}>Memuat foto…</div>
@@ -743,8 +893,8 @@ export function DetailItemPageContent({ navigate, goBack, screenParams, user }) 
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button type="button" onClick={() => openFoto('receive')} style={{ flex: 1, padding: '8px', borderRadius: 10, border: `1px solid ${C.n200}`, background: C.validationInfoBg, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.validationInfoText, cursor: 'pointer' }}>📥 Foto terima</button>
-            <button type="button" onClick={() => openFoto('packing')} style={{ flex: 1, padding: '8px', borderRadius: 10, border: `1px solid ${C.n200}`, background: C.successBg, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.successDark, cursor: 'pointer' }}>📦 Foto packing</button>
+            <button type="button" onClick={() => triggerInlineUpload('receive')} style={{ flex: 1, padding: '8px', borderRadius: 10, border: `1px solid ${C.n200}`, background: C.validationInfoBg, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.validationInfoText, cursor: 'pointer' }}>📥 Foto terima</button>
+            <button type="button" onClick={() => triggerInlineUpload('packing')} style={{ flex: 1, padding: '8px', borderRadius: 10, border: `1px solid ${C.n200}`, background: C.successBg, fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, color: C.successDark, cursor: 'pointer' }}>📦 Foto packing</button>
           </div>
         </div>
 

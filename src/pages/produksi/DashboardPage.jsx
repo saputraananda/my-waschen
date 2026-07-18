@@ -67,11 +67,14 @@ function ProductionStatsCard({ label, value, icon, color, onClick }) {
 }
 
 // ─── Inventory Alert Card ───────────────────────────────────────────────
-function InventoryAlertCard({ item, onSendAlert }) {
+function InventoryAlertCard({ item, onSendAlert, isSending, isSent }) {
   const stockPct = item.minStock > 0 ? Math.min(100, (item.stockQty / item.minStock) * 100) : 0;
   const isCritical = item.stockQty === 0 || stockPct < 25;
   const isWarning = !isCritical && stockPct < 50;
   const barColor = isCritical ? C.danger : isWarning ? C.warning : C.success;
+  const urgencyLabel = isCritical ? 'KRITIS' : isWarning ? 'MENIPIS' : 'LOW';
+  const urgencyBg = isCritical ? C.validationErrorBg : isWarning ? C.validationWarningBg : C.infoBg;
+  const urgencyText = isCritical ? C.danger : isWarning ? C.validationWarningText : C.info;
 
   return (
     <div style={{
@@ -87,51 +90,91 @@ function InventoryAlertCard({ item, onSendAlert }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: 'Poppins',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#111827',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {item.name}
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            <div style={{
+              background: urgencyBg,
+              color: urgencyText,
+              fontFamily: 'Poppins',
+              fontSize: 8,
+              fontWeight: 700,
+              padding: '1px 6px',
+              borderRadius: 4,
+              letterSpacing: '0.5px',
+            }}>
+              {urgencyLabel}
+            </div>
+            <div style={{
+              fontFamily: 'Poppins',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#111827',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {item.name}
+            </div>
+            {isSent && (
+              <span style={{
+                background: C.successBg,
+                color: C.successDark,
+                fontFamily: 'Poppins',
+                fontSize: 8,
+                fontWeight: 600,
+                padding: '1px 5px',
+                borderRadius: 4,
+              }}>
+                ✓ Terkirim
+              </span>
+            )}
           <div style={{
             fontFamily: 'Poppins',
             fontSize: 11,
             color: '#6B7280',
             marginTop: 2,
           }}>
-            Sisa: <strong style={{ color: barColor }}>{Number(item.stockQty).toLocaleString('id-ID')} {item.unit}</strong>
-            {' '} / Min: {Number(item.minStock).toLocaleString('id-ID')} {item.unit}
+            <span style={{ color: barColor, fontWeight: 600 }}>{Number(item.stockQty).toLocaleString('id-ID')} {item.unit}</span>
+            <span style={{ margin: '0 4px', color: '#D1D5DB' }}>·</span>
+            Min: {Number(item.minStock).toLocaleString('id-ID')} {item.unit}
+            <span style={{ margin: '0 4px', color: '#D1D5DB' }}>·</span>
+            {item.categoryName || 'Bahan'}
           </div>
         </div>
         <motion.button
           onClick={() => onSendAlert(item)}
-          whileTap={{ scale: 0.95 }}
+          disabled={isSending}
+          whileTap={{ scale: isSending ? 1 : 0.95 }}
           style={{
             padding: '6px 12px',
-            background: 'rgba(110, 46, 120, 0.85)',
+            background: isSending ? C.n200 : 'rgba(110, 46, 120, 0.85)',
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
             border: '1px solid rgba(255, 255, 255, 0.2)',
             borderRadius: 8,
-            color: 'white',
+            color: isSending ? C.n500 : 'white',
             fontFamily: 'Poppins',
             fontSize: 11,
             fontWeight: 600,
-            cursor: 'pointer',
+            cursor: isSending ? 'default' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 4,
             flexShrink: 0,
-            boxShadow: '0 2px 8px rgba(110, 46, 120, 0.25)',
+            boxShadow: isSending ? 'none' : '0 2px 8px rgba(110, 46, 120, 0.25)',
+            transition: 'all 0.2s',
           }}
         >
-          <span>📤</span>
-          <span>Alert</span>
+          {isSending ? (
+            <>
+              <span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
+              <span>Mengirim...</span>
+            </>
+          ) : (
+            <>
+              <span>📤</span>
+              <span>Alert</span>
+            </>
+          )}
         </motion.button>
       </div>
       <div style={{
@@ -154,24 +197,27 @@ function InventoryAlertCard({ item, onSendAlert }) {
 }
 
 // ─── Inventory Check Section ───────────────────────────────────────────────
-function InventoryCheckSection({ outletId, onSendAlert, onViewAll }) {
+function InventoryCheckSection({ outletId, onViewAll }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sendingId, setSendingId] = useState(null);
+  const [sentAlerts, setSentAlerts] = useState(new Set()); // track which items already sent today
 
   const fetchLowStock = useCallback(async () => {
-    if (!outletId) return;
-    setLoading(true);
-    setError(null);
+    if (!outletId) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await axios.get(`/api/inventory/stock?outletId=${outletId}`);
       const allItems = res?.data?.data || [];
       // Filter: hanya yang di bawah minimum
       const lowItems = allItems.filter(item =>
         item.stockQty <= item.minStock
-      ).slice(0, 5); // Max 5 items
+      ).slice(0, 8); // Max 8 items for dashboard
       setItems(lowItems);
+      setError(null);
     } catch (err) {
       setError('Gagal memuat stok');
     } finally {
@@ -181,9 +227,20 @@ function InventoryCheckSection({ outletId, onSendAlert, onViewAll }) {
 
   useEffect(() => {
     fetchLowStock();
+    // Auto-refresh setiap 2 menit
+    const interval = setInterval(fetchLowStock, 120000);
+    return () => clearInterval(interval);
+  }, [fetchLowStock]);
+
+  // Listen for inventory updates
+  useEffect(() => {
+    const handleInventoryUpdate = () => fetchLowStock();
+    window.addEventListener('inventory:updated', handleInventoryUpdate);
+    return () => window.removeEventListener('inventory:updated', handleInventoryUpdate);
   }, [fetchLowStock]);
 
   const handleSendAlert = async (item) => {
+    if (sendingId) return; // prevent double click
     setSendingId(item.id);
     try {
       await axios.post('/api/inventory/low-stock-alert', {
@@ -195,12 +252,20 @@ function InventoryCheckSection({ outletId, onSendAlert, onViewAll }) {
         unit: item.unit,
       });
       alertSuccess(`Alert stok ${item.name} sudah dikirim ke kasir!`);
+      // Mark as sent for today
+      setSentAlerts(prev => new Set([...prev, item.id]));
     } catch (err) {
-      alertError(err?.response?.data?.message || 'Gagal kirim alert');
+      const msg = err?.response?.data?.message || 'Gagal kirim alert';
+      alertError(msg);
     } finally {
       setSendingId(null);
     }
   };
+
+  // Stats summary
+  const totalLow = items.length;
+  const criticalCount = items.filter(i => i.stockQty === 0 || (i.minStock > 0 && (i.stockQty / i.minStock) < 0.25)).length;
+  const warningCount = items.filter(i => i.stockQty > 0 && i.minStock > 0 && (i.stockQty / i.minStock) >= 0.25 && (i.stockQty / i.minStock) < 0.5).length;
 
   if (loading) {
     return (
@@ -219,9 +284,26 @@ function InventoryCheckSection({ outletId, onSendAlert, onViewAll }) {
         borderRadius: 12,
         margin: '0 16px',
         textAlign: 'center',
-      }}>
+        cursor: 'pointer',
+      }} onClick={fetchLowStock}>
         <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.danger }}>
-          ⚠️ {error}
+          ⚠️ {error} — Tap untuk retry
+        </span>
+      </div>
+    );
+  }
+
+  if (!outletId) {
+    return (
+      <div style={{
+        padding: '12px 16px',
+        background: C.infoBg,
+        borderRadius: 12,
+        margin: '0 16px',
+        textAlign: 'center',
+      }}>
+        <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.info }}>
+          ℹ️ Outlet belum terdeteksi. Hubungi admin.
         </span>
       </div>
     );
@@ -234,17 +316,26 @@ function InventoryCheckSection({ outletId, onSendAlert, onViewAll }) {
         background: C.successBg,
         borderRadius: 12,
         margin: '0 16px',
-        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
       }}>
-        <span style={{ fontFamily: 'Poppins', fontSize: 12, color: C.success }}>
-          ✅ Semua stok dalam kondisi aman
-        </span>
+        <span style={{ fontSize: 22 }}>✅</span>
+        <div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 12, fontWeight: 600, color: C.successDark }}>
+            Semua stok dalam kondisi aman
+          </div>
+          <div style={{ fontFamily: 'Poppins', fontSize: 10, color: C.n600, marginTop: 2 }}>
+            Tidak ada item yang di bawah minimum
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      {/* Header dengan summary stats */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -252,22 +343,46 @@ function InventoryCheckSection({ outletId, onSendAlert, onViewAll }) {
         padding: '0 16px',
         marginBottom: 8,
       }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14 }}>📦</span>
-          <span style={{
-            fontFamily: 'Poppins',
-            fontSize: 11,
-            fontWeight: 600,
-            color: C.danger,
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}>
-            Stok Menipis ({items.length})
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{
+              fontFamily: 'Poppins',
+              fontSize: 11,
+              fontWeight: 600,
+              color: C.danger,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}>
+              Stok Menipis ({totalLow})
+            </span>
+            {criticalCount > 0 && (
+              <span style={{
+                background: C.validationErrorBg,
+                color: C.danger,
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                fontWeight: 600,
+                padding: '2px 6px',
+                borderRadius: 999,
+              }}>
+                🔴 {criticalCount} kritis
+              </span>
+            )}
+            {warningCount > 0 && (
+              <span style={{
+                background: C.validationWarningBg,
+                color: C.validationWarningText,
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                fontWeight: 600,
+                padding: '2px 6px',
+                borderRadius: 999,
+              }}>
+                ⚠️ {warningCount} perhatian
+              </span>
+            )}
+          </div>
         </div>
         {onViewAll && (
           <button
@@ -293,6 +408,7 @@ function InventoryCheckSection({ outletId, onSendAlert, onViewAll }) {
             key={item.id}
             item={item}
             onSendAlert={handleSendAlert}
+            isSending={sendingId === item.id}
           />
         ))}
       </div>
@@ -1177,7 +1293,6 @@ export function ProduksiDashboardPage({ user, navigate }) {
         <div style={{ marginTop: 16 }}>
           <InventoryCheckSection
             outletId={user?.outletId}
-            onSendAlert={() => {}}
             onViewAll={() => navigate('stok_produksi')}
           />
         </div>

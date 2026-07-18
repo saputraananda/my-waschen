@@ -6,9 +6,7 @@ import { useIsMobile, useResponsive, useWindowSize } from '../../utils/hooks';
 import { TopBar, Btn, Chip, Select, DateTimeInput } from '../../components/ui';
 import { useApp } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
-import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
-import FloatingBubble from '../../components/ui/PremiumAnimations/FloatingBubble';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
 
 const METHOD_LABEL = { cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit', ovo: 'OVO', gopay: 'GoPay', dana: 'DANA', shopeepay: 'ShopeePay' };
 const METHOD_ICON = { cash: '💵', transfer: '🏦', qris: '📱', deposit: '💰', ovo: '🟣', gopay: '🟢', dana: '🔵', shopeepay: '🟠' };

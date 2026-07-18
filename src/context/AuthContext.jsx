@@ -50,7 +50,8 @@ const ALL_SCREENS = new Set([
 
 const NAV_SCREENS = ['dashboard', 'transaksi', 'customer', 'profil', 'settings', 'kasir_shift', 'antrian',
   'approval', 'admin_laporan', 'history_produksi', 'nota_step1',
-  'verifikasi_payment', 'laporan_keuangan', 'delivery_tasks', 'delivery_history'];
+  'verifikasi_payment', 'laporan_keuangan', 'delivery_tasks', 'delivery_history',
+  'stok_produksi'];
 
 function screenToUrl(scr, params) {
   if (!scr || scr === 'splash') return '/';

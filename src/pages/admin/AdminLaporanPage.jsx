@@ -8,9 +8,7 @@ import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency, fmtDate } from '../../utils/exportReport';
 import { getDateRangePreset } from '../../utils/filterPresets';
 import { motion } from 'framer-motion';
-import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
-import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
-import FloatingBubble from '../../components/ui/PremiumAnimations/FloatingBubble';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
 
 const METHOD_LABEL = {
   cash: 'Tunai', transfer: 'Transfer', qris: 'QRIS', deposit: 'Deposit',

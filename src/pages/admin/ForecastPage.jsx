@@ -10,8 +10,7 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { motion } from 'framer-motion';
-import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
-import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
+import { GlowOrb, Sparkle } from '../../components/ui/PremiumAnimations';
 
 const F = { fontFamily: 'Poppins' };
 

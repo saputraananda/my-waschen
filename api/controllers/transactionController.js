@@ -601,15 +601,6 @@ export const checkoutTransaction = async (req, res) => {
       if (paidAmount >= computedTotal && computedTotal >= 0) paymentStatus = 'paid';
       else if (paidAmount > 0) paymentStatus = 'partial';
       else paymentStatus = 'unpaid';
-
-      // ── External method guard: QRIS/EDC/Transfer require kasir confirmation ──
-      // Even if paidAmount >= total, don't mark as 'paid' until kasir explicitly
-      // confirms money received. This prevents false-lunas for claimed-but-unverified payments.
-      const externalMethods = ['qris', 'edc', 'transfer'];
-      if (externalMethods.includes(primaryPaymentMethod) && paymentStatus === 'paid') {
-        const confirmed = paymentIntent?.verifiedByKasir || paymentIntent?.confirmedByKasir;
-        if (!confirmed) paymentStatus = 'menunggu_verifikasi';
-      }
     } else {
       paidAmount = payment.paidAmount != null ? Number(payment.paidAmount) : computedTotal;
       changeAmount = payment.changeAmount != null ? Number(payment.changeAmount) : Math.max(0, paidAmount - computedTotal);
@@ -1535,6 +1526,9 @@ export const checkoutTransaction = async (req, res) => {
     return res.status(201).json(responsePayload);
   } catch (err) {
     await conn.rollback();
+
+    // ── DIAGNOSTIC ERROR HANDLER ──────────────────────────────────────────────
+    // Provide specific error messages based on MySQL error codes
     logger.error('[checkoutTransaction] Error', { error: err.message, stack: err.stack });
     logger.error('[checkoutTransaction] Error details:', {
       code: err.code,
@@ -1542,9 +1536,121 @@ export const checkoutTransaction = async (req, res) => {
       sqlState: err.sqlState,
       sqlMessage: err.sqlMessage,
     });
+
+    // Build diagnostic response
+    let diagnosticMessage = 'Gagal membuat nota. Transaksi dibatalkan.';
+    let errorType = 'UNKNOWN_ERROR';
+    let errorDetails = {};
+
+    // Map MySQL error codes to user-friendly messages
+    if (err.code === 'ER_NO_REFERENCED_ROW_2' || err.code === 'ER_NO_REFERENCED_ROW') {
+      // Foreign key constraint - missing referenced record
+      if (err.sqlMessage?.includes('customer_id')) {
+        diagnosticMessage = 'Customer tidak ditemukan. Silakan pilih customer lain.';
+        errorType = 'INVALID_CUSTOMER';
+        errorDetails = { field: 'customerId', suggestion: 'Pilih customer dari daftar' };
+      } else if (err.sqlMessage?.includes('outlet_id')) {
+        diagnosticMessage = 'Outlet tidak valid. Silakan logout dan login kembali.';
+        errorType = 'INVALID_OUTLET';
+        errorDetails = { field: 'outletId', suggestion: 'Logout dan login kembali' };
+      } else if (err.sqlMessage?.includes('service_id')) {
+        diagnosticMessage = 'Layanan tidak ditemukan. Silakan pilih layanan lain.';
+        errorType = 'INVALID_SERVICE';
+        errorDetails = { field: 'items', suggestion: 'Hapus dan tambah ulang layanan' };
+      } else if (err.sqlMessage?.includes('cashier_id') || err.sqlMessage?.includes('user_id')) {
+        diagnosticMessage = 'Akun kasir tidak valid. Silakan logout dan login kembali.';
+        errorType = 'INVALID_CASHIER';
+        errorDetails = { field: 'userId', suggestion: 'Logout dan login kembali' };
+      } else if (err.sqlMessage?.includes('promo_id')) {
+        diagnosticMessage = 'Promo tidak valid atau sudah kadaluarsa.';
+        errorType = 'INVALID_PROMO';
+        errorDetails = { field: 'promoId', suggestion: 'Pilih promo lain' };
+      } else if (err.sqlMessage?.includes('membership_id')) {
+        diagnosticMessage = 'Membership customer tidak valid.';
+        errorType = 'INVALID_MEMBERSHIP';
+        errorDetails = { field: 'membershipId', suggestion: 'Hubungi admin' };
+      } else {
+        diagnosticMessage = `Data referensi tidak valid: ${err.sqlMessage || 'foreign key constraint failed'}`;
+        errorType = 'INVALID_REFERENCE';
+      }
+    } else if (err.code === 'ER_DUP_ENTRY' || err.code === 'ER_DUP_UNIQUE') {
+      // Unique constraint violation
+      if (err.sqlMessage?.includes('transaction_no')) {
+        diagnosticMessage = 'Nomor nota duplikat. Silakan coba lagi.';
+        errorType = 'DUPLICATE_TRANSACTION';
+        errorDetails = { suggestion: 'Coba ulangi transaksi' };
+      } else if (err.sqlMessage?.includes('payment_item')) {
+        diagnosticMessage = 'Item pembayaran duplikat.';
+        errorType = 'DUPLICATE_PAYMENT';
+        errorDetails = { suggestion: 'Hubungi admin' };
+      } else {
+        diagnosticMessage = `Data duplikat: ${err.sqlMessage || 'unique constraint violation'}`;
+        errorType = 'DUPLICATE_DATA';
+      }
+    } else if (err.code === 'ER_BAD_FIELD_ERROR' || err.code === 'ER_NO_SUCH_TABLE') {
+      // Schema mismatch - missing column or table
+      diagnosticMessage = 'Struktur database tidak sesuai. Silakan hubungi administrator.';
+      errorType = 'SCHEMA_MISMATCH';
+      errorDetails = { suggestion: 'Jalankan migrasi database' };
+    } else if (err.code === 'ER_DATA_TOO_LONG') {
+      // Data too long for column
+      const fieldMatch = err.sqlMessage?.match(/Column '(\w+)'/);
+      const fieldName = fieldMatch ? fieldMatch[1] : 'unknown';
+      diagnosticMessage = `Data terlalu panjang untuk kolom ${fieldName}. Silakan kurangi input.`;
+      errorType = 'DATA_TOO_LONG';
+      errorDetails = { field: fieldName };
+    } else if (err.code === 'ER_TRUNCATED_WRONG_VALUE' || err.code === 'ER_INVALID_DATA') {
+      // Invalid data format
+      diagnosticMessage = `Format data tidak valid: ${err.sqlMessage || err.message}`;
+      errorType = 'INVALID_DATA_FORMAT';
+      errorDetails = { suggestion: 'Periksa input data' };
+    } else if (err.code === 'ER_CHECK_CONSTRAINT_VIOLATED') {
+      // Check constraint violation (e.g., payment_amount > 0)
+      diagnosticMessage = 'Data violates constraint. Pastikan semua field terisi dengan benar.';
+      errorType = 'CONSTRAINT_VIOLATION';
+    } else if (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.code === 'ER_LOCK_DEADLOCK') {
+      // Lock-related errors
+      diagnosticMessage = 'Server sedang sibuk. Silakan tunggu sebentar dan coba lagi.';
+      errorType = 'LOCK_TIMEOUT';
+      errorDetails = { suggestion: 'Tunggu beberapa detik dan coba lagi' };
+    } else if (err.code === 'ER_PARSE_ERROR' || err.code === 'ER_SYNTAX_ERROR') {
+      // SQL syntax error - this is a bug
+      diagnosticMessage = 'Kesalahan sistem database. Silakan hubungi administrator.';
+      errorType = 'SQL_SYNTAX_ERROR';
+      errorDetails = { suggestion: 'Bug report - laporkan ke developer' };
+    } else if (err.code === 'ER_ACCESS_DENIED_ERROR' || err.code === 'ECONNREFUSED') {
+      // Connection issues
+      diagnosticMessage = 'Tidak dapat terhubung ke database. Silakan hubungi administrator.';
+      errorType = 'DB_CONNECTION_ERROR';
+    } else if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') {
+      // Network issues
+      diagnosticMessage = 'Koneksi terputus. Silakan coba lagi.';
+      errorType = 'NETWORK_ERROR';
+    } else if (err.errno === 1366 || err.errno === 1265) {
+      // ENUM or data truncation - similar to constraint violation
+      if (err.sqlMessage?.includes('method') || err.sqlMessage?.includes('payment')) {
+        diagnosticMessage = 'Metode pembayaran tidak valid.';
+        errorType = 'INVALID_PAYMENT_METHOD';
+        errorDetails = { suggestion: 'Pilih metode pembayaran yang tersedia' };
+      } else {
+        diagnosticMessage = `Data tidak valid untuk kolom: ${err.sqlMessage || err.message}`;
+        errorType = 'ENUM_VIOLATION';
+      }
+    }
+
     return res.status(500).json({
       success: false,
-      message: 'Gagal membuat nota. Transaksi dibatalkan.',
+      message: diagnosticMessage,
+      error: errorType,
+      details: errorDetails,
+      // Include debug info only if available (for admin/support)
+      debug: {
+        code: err.code,
+        errno: err.errno,
+        sqlState: err.sqlState,
+        // Don't expose full SQL message in production
+        // sqlMessage: err.sqlMessage,
+      }
     });
   } finally {
     conn.release();

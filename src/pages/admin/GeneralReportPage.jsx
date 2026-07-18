@@ -8,9 +8,7 @@ import { useApp } from '../../context/AppContext';
 import { exportToExcel, exportToPDF, fmtCurrency } from '../../utils/exportReport';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
-import GlowOrb from '../../components/ui/PremiumAnimations/GlowOrb';
-import Sparkle from '../../components/ui/PremiumAnimations/Sparkle';
-import FloatingBubble from '../../components/ui/PremiumAnimations/FloatingBubble';
+import { GlowOrb, Sparkle, FloatingBubble } from '../../components/ui/PremiumAnimations';
 
 // ─── Collapsible Section Component ─────────────────────────────────────────────
 // Premium card style
@@ -451,7 +449,7 @@ export default function GeneralReportPage({ goBack }) {
                         <MiniStat label="Customer" value={o.uniqueCustomers} />
                         <MiniStat label="Express" value={o.expressCount} />
                         <MiniStat label="Selisih Kas" value={o.avgCashDiff != null ? rp(o.avgCashDiff) : '—'} warn={o.avgCashDiff > 5000} />
-                      </motion.div>
+                      </div>
                     </motion.div>
                   ))}
                 </div>

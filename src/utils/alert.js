@@ -8,6 +8,24 @@ export const alertError = (text) => toast.error(text, { duration: 3500 });
 export const alertInfo = (text) => toast(text, { duration: 2500 });
 export const alertWarning = (text) => toast.warning(text, { duration: 3000 });
 
+// ─── Detailed Error Alert: SweetAlert for complex error messages ──
+export const alertErrorDetailed = (title, message) => {
+  return Swal.fire({
+    icon: 'error',
+    title: title || 'Error',
+    html: message.replace(/\n/g, '<br/>'),
+    customClass: {
+      popup: 'waschen-swal',
+      title: 'waschen-swal__title',
+      htmlContainer: 'waschen-swal__text',
+      confirmButton: 'waschen-swal__btn waschen-swal__btn--confirm',
+    },
+    buttonsStyling: false,
+    confirmButtonText: 'Tutup',
+    width: '400px',
+  });
+};
+
 // ─── SweetAlert2: kept ONLY for confirmations (needs user action) ──
 const swalBase = Swal.mixin({
   customClass: {

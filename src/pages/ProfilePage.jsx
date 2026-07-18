@@ -1272,19 +1272,90 @@ export default function ProfilePage({ navigate, goBack }) {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-  // Mock data for stats, shifts, activities
-  const [stats] = useState({ totalShifts: 24, totalTransactions: 156, totalRevenue: 28450000 });
-  const [shifts] = useState([
-    { date: '02 Jul 2026', type: 'Pagi', startTime: '07:00', endTime: '15:00', status: 'closed', cashTotal: 4250000 },
-    { date: '01 Jul 2026', type: 'Pagi', startTime: '07:00', endTime: '15:00', status: 'closed', cashTotal: 3890000 },
-    { date: '30 Jun 2026', type: 'Siang', startTime: '15:00', endTime: '22:00', status: 'closed', cashTotal: 3120000 },
-  ]);
-  const [activities] = useState([
-    { icon: '💰', description: 'Melakukan setoran tunai Rp 5.000.000', time: '2 Jul 2026, 14:30' },
-    { icon: '📋', description: 'Membuat transaksi Nota #1247', time: '2 Jul 2026, 13:45' },
-    { icon: '👤', description: 'Menambah customer baru: Budi Santoso', time: '2 Jul 2026, 11:20' },
-    { icon: '🔄', description: 'Oper shift ke Maya', time: '2 Jul 2026, 10:00' },
-  ]);
+  // Real data from API
+  const [stats, setStats] = useState({ totalShifts: 0, totalTransactions: 0, totalRevenue: 0 });
+  const [shifts, setShifts] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [loadingProfileData, setLoadingProfileData] = useState(true);
+
+  // Fetch real data on mount
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      setLoadingProfileData(true);
+      try {
+        // Fetch all data in parallel
+        const [statsRes, shiftsRes, auditRes] = await Promise.all([
+          axios.get('/api/shifts/my-stats').catch(() => ({ data: { data: { totalShifts: 0, totalTransactions: 0, totalRevenue: 0 } } })),
+          axios.get('/api/shifts/my-history?limit=10').catch(() => ({ data: { data: [] } })),
+          axios.get('/api/audit-log?limit=20').catch(() => ({ data: { data: [] } })),
+        ]);
+
+        // Set stats
+        if (statsRes?.data?.data) {
+          setStats(statsRes.data.data);
+        }
+
+        // Set shift history
+        if (shiftsRes?.data?.data) {
+          setShifts(shiftsRes.data.data);
+        }
+
+        // Set activities from audit log
+        if (auditRes?.data?.data) {
+          const formattedActivities = auditRes.data.data.slice(0, 10).map((log) => {
+            // Map action to icon and format description
+            let icon = '📋';
+            let description = log.action || 'Aktivitas';
+
+            // Customize icon and description based on action
+            if (log.action?.includes('create') || log.action?.includes('CREATE')) {
+              icon = '✨';
+              description = `Membuat ${log.entity_type || 'data'} baru`;
+            } else if (log.action?.includes('update') || log.action?.includes('UPDATE')) {
+              icon = '✏️';
+              description = `Memperbarui ${log.entity_type || 'data'}`;
+            } else if (log.action?.includes('delete') || log.action?.includes('DELETE')) {
+              icon = '🗑️';
+              description = `Menghapus ${log.entity_type || 'data'}`;
+            } else if (log.action?.includes('payment') || log.action?.includes('PAYMENT')) {
+              icon = '💰';
+              description = `Pembayaran ${log.entity_type || ''}`.trim();
+            } else if (log.action?.includes('transaction') || log.action?.includes('TRANSACTION')) {
+              icon = '📋';
+              description = `Transaksi ${log.entity_type || ''}`.trim();
+            } else if (log.action?.includes('shift') || log.action?.includes('SHIFT')) {
+              icon = '🕐';
+              description = `Operasi shift ${log.entity_type || ''}`.trim();
+            } else if (log.action?.includes('customer') || log.action?.includes('CUSTOMER')) {
+              icon = '👤';
+              description = `Aktivitas customer ${log.entity_type || ''}`.trim();
+            }
+
+            return {
+              id: log.id,
+              icon,
+              description,
+              time: log.createdAt ? new Date(log.createdAt).toLocaleString('id-ID', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }) : '-',
+              rawData: log,
+            };
+          });
+          setActivities(formattedActivities);
+        }
+      } catch (error) {
+        // Silent fail - keep empty data
+      } finally {
+        setLoadingProfileData(false);
+      }
+    };
+
+    fetchProfileData();
+  }, []);
 
   const handlePhotoChange = async (e) => {
     const file = e.target.files?.[0];
