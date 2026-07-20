@@ -121,6 +121,19 @@ export function clearSavedDevice() {
   } catch (e) {}
 }
 
+/**
+ * Reset ALL Bluetooth state — clears saved device AND resets in-memory connection.
+ * Call this when Bluetooth gets stuck or permissions are revoked.
+ * Usage: Buka DevTools Console → ketik:
+ *   const BT = (await import('/src/utils/bluetoothPrinter.js')).default;
+ *   await BT.resetAll();
+ */
+export async function resetAll() {
+  await disconnect();
+  clearSavedDevice();
+  console.log('[BT] All Bluetooth state cleared. Refresh page and reconnect.');
+}
+
 // ─── Service Discovery ────────────────────────────────────────────────────
 
 /**
@@ -207,6 +220,13 @@ export async function connect(deviceId) {
  * Silent reconnect using navigator.bluetooth.getDevices().
  * Returns a result object on success, or null if the device is not available.
  * This method does NOT show any browser UI.
+ *
+ * IMPORTANT: getDevices() only returns devices that:
+ * 1. Were previously authorized by the user for this origin
+ * 2. Are still in range and the device hasn't been "forgotten" in Chrome settings
+ *
+ * If saved device ID is no longer in the authorized list, we return null
+ * and let the caller fall through to connectWithPicker().
  */
 async function silentReconnect(deviceId, saved) {
   try {
@@ -215,6 +235,15 @@ async function silentReconnect(deviceId, saved) {
     const btDevice = known.find(d => d.id === targetId);
 
     if (!btDevice) {
+      // Device not in authorized list — could be:
+      // 1. First time connecting (normal)
+      // 2. Device was "forgotten" in Chrome settings
+      // 3. localStorage has stale device ID from different browser/context
+      // Clear saved data so we don't keep trying with invalid ID
+      if (saved?.deviceId) {
+        console.log('[BT] Saved device ID not in authorized list. Clearing stale data...');
+        clearSavedDevice();
+      }
       console.log('[BT] getDevices(): device not in authorized list, skipping silent reconnect');
       return null;
     }
@@ -228,10 +257,23 @@ async function silentReconnect(deviceId, saved) {
       isConnected = true;
     } else {
       // Reconnect GATT — no picker, works if device is nearby
-      const gattServer = await btDevice.gatt.connect();
-      device = btDevice;
-      server = gattServer;
-      isConnected = true;
+      try {
+        const gattServer = await btDevice.gatt.connect();
+        device = btDevice;
+        server = gattServer;
+        isConnected = true;
+      } catch (err) {
+        // GATT connect failed — could be device out of range, turned off,
+        // or permission was revoked. Clear saved data and fall through to picker.
+        if (/origin.*not allowed|not allowed to access|permission/i.test(err.message) ||
+            err.name === 'SecurityError') {
+          console.warn('[BT] Permission revoked or device forgotten. Clearing saved data...');
+          clearSavedDevice();
+        } else {
+          console.warn('[BT] GATT connect failed:', err.message);
+        }
+        return null; // Fall through to connectWithPicker
+      }
     }
 
     // Try saved UUIDs first (fast path)
@@ -279,11 +321,32 @@ async function silentReconnect(deviceId, saved) {
  * Connect using browser device picker (requestDevice).
  * This ALWAYS shows the Bluetooth device picker popup.
  * Only called as a last resort when no previously-authorized device exists.
+ *
+ * CRITICAL: optionalServices MUST be set for the origin to get ANY service access.
+ * Without it, Chrome will error: "Origin is not allowed to access any service."
+ * We include common thermal printer service UUIDs to maximize compatibility.
  */
 async function connectWithPicker(deviceId, saved) {
+  // Common thermal printer service UUIDs (ESC/POS standard)
+  // Including these increases chance of getting service access permission.
+  // If saved.serviceUUID exists, it's automatically included.
+  const KNOWN_PRINTER_UUIDS = [
+    '0000ffe0-0000-1000-8000-00805f9b34fb', // Common HM-10 / CC2541 BLE UART
+    '49535343-fe7d-4ae5-8fa9-9fafd202e124', // Serial Port Profile (SPP)
+    '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART Service
+    '00001101-0000-1000-8000-00805f9b34fb', // Serial Port (RFCOMM)
+  ];
+
+  const optionalServices = [
+    ...KNOWN_PRINTER_UUIDS,
+    ...(saved?.serviceUUID && !KNOWN_PRINTER_UUIDS.includes(saved.serviceUUID)
+      ? [saved.serviceUUID]
+      : []),
+  ];
+
   const btDevice = await navigator.bluetooth.requestDevice({
     acceptAllDevices: true,
-    optionalServices: saved?.serviceUUID ? [saved.serviceUUID] : undefined,
+    optionalServices,
   });
 
   if (!btDevice) throw new Error('Printer tidak dipilih.');
@@ -291,7 +354,23 @@ async function connectWithPicker(deviceId, saved) {
   console.log('[BT] Selected:', btDevice.name, '|', btDevice.id);
 
   if (btDevice.gatt?.connected) btDevice.gatt.disconnect();
-  const gattServer = await btDevice.gatt.connect();
+
+  let gattServer;
+  try {
+    gattServer = await btDevice.gatt.connect();
+  } catch (err) {
+    // "Origin is not allowed to access any service" → permission denied or device revoked
+    if (err.name === 'SecurityError' ||
+        /origin.*not allowed|not allowed to access|permission.*denied/i.test(err.message)) {
+      throw new Error(
+        'Izin akses ditolak. Pastikan kamu:\n' +
+        '1. Centang "Izinkan" / "Allow" saat memilih perangkat\n' +
+        '2. Printer masih dalam jangkauan dan menyala\n' +
+        '3. Coba lagi — tekan "Hubungkan Printer" untuk memilih ulang'
+      );
+    }
+    throw err;
+  }
 
   device = btDevice;
   server = gattServer;
@@ -685,7 +764,17 @@ async function sendData(data) {
 
   async function doWrite() {
     if (!server || !characteristic) {
-      throw new Error('Printer belum terhubung. Sambungkan printer terlebih dahulu.');
+      // More specific error message based on what went wrong
+      if (!isConnected && !server) {
+        throw new Error(
+          'Printer belum terhubung.\n' +
+          'Buka Pengaturan Printer → Tekan "Hubungkan Printer"'
+        );
+      }
+      throw new Error(
+        'Printer terhubung tapi karakteristik tulis tidak ditemukan.\n' +
+        'Coba "Lupakan Printer" lalu hubungkan ulang.'
+      );
     }
     if (buffer.length <= MAX_CHUNK) {
       await characteristic.writeValue(buffer);
@@ -778,7 +867,21 @@ async function reconnectWithDevice(btDevice, savedInfo) {
 export async function print(data) {
   // Ensure we have a connection before sending
   if (!isConnected || !server) {
-    await connect();
+    try {
+      await connect();
+    } catch (err) {
+      // Re-throw with clearer context
+      if (/printer.*belum|printer.*terputus/i.test(err.message)) {
+        throw new Error('Printer belum terhubung. Tekan "Hubungkan Printer" di halaman Pengaturan Printer terlebih dahulu.');
+      }
+      throw err;
+    }
+  }
+  if (!characteristic) {
+    throw new Error(
+      'Printer terhubung tapi tidak siap cetak.\n' +
+      'Tekan "Hubungkan Printer" di halaman Pengaturan Printer untuk mengatur ulang koneksi.'
+    );
   }
   const receipt = buildReceipt(data);
   return await sendData(receipt);
@@ -786,7 +889,20 @@ export async function print(data) {
 
 export async function printLabel(unitData, fullData) {
   if (!isConnected || !server) {
-    await connect();
+    try {
+      await connect();
+    } catch (err) {
+      if (/printer.*belum|printer.*terputus/i.test(err.message)) {
+        throw new Error('Printer belum terhubung. Tekan "Hubungkan Printer" di halaman Pengaturan Printer terlebih dahulu.');
+      }
+      throw err;
+    }
+  }
+  if (!characteristic) {
+    throw new Error(
+      'Printer terhubung tapi tidak siap cetak label.\n' +
+      'Tekan "Hubungkan Printer" di halaman Pengaturan Printer untuk mengatur ulang koneksi.'
+    );
   }
   const label = buildLabel(unitData, fullData);
   return await sendData(label);
@@ -876,4 +992,5 @@ export default {
   buildReceipt,
   buildLabel,
   debugDiscoverPrinter,
+  resetAll,
 };

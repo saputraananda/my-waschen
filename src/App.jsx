@@ -538,7 +538,7 @@ function AppInner() {
           display: flex;
           flex-direction: column;
           width: 100%;
-          height: 100vh;
+          height: 100dvh; /* dvh = dynamic viewport height, menyesuaikan address bar mobile browser */
           overflow: hidden;
           position: relative;
           background: ${C.n50};
@@ -662,7 +662,7 @@ export default function App() {
         }
         .app-wrapper {
           width: 100vw;
-          height: 100vh;
+          height: 100dvh; /* dvh = dynamic viewport height, menyesuaikan address bar mobile browser */
           overflow: hidden;
           background: #F1F5F9;
         }

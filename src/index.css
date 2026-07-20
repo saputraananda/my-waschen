@@ -437,9 +437,11 @@ input[type="time"]::-webkit-datetime-edit-minute-field:focus {
   box-shadow: var(--shadow-nav);
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  padding: 8px 0 4px;
+  padding: 8px 0 calc(4px + env(safe-area-inset-bottom));
   position: sticky;
   bottom: 0;
+  /* Fallback untuk browser lama yang tidak support dvh */
+  min-height: 76px;
 }
 
 .nav-item { color: var(--text-muted); }
