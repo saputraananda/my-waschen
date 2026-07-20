@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { C, SHADOW } from '../../utils/theme';
 import { rp, getCartLineSubtotal, getCartUnitPrice } from '../../utils/helpers';
@@ -367,6 +367,15 @@ export default function NotaStep3Page({ goBack }) {
   const [loading, setLoading] = useState(false);
   const [promos, setPromos] = useState([]);
   const [selectedPromoId, setSelectedPromoId] = useState('');
+  const [paymentPhoto, setPaymentPhoto] = useState(null);
+  const [paymentPhotoPreview, setPaymentPhotoPreview] = useState(null);
+  const paymentPhotoRef = useRef(null);
+
+  // Reset payment photo when payment method changes
+  useEffect(() => {
+    setPaymentPhoto(null);
+    setPaymentPhotoPreview(null);
+  }, [payMethod]);
 
   // Fetch area zones for delivery fee calculation
   useEffect(() => {
@@ -508,6 +517,9 @@ export default function NotaStep3Page({ goBack }) {
       };
       if (finalPaidAmount > 0) {
         paymentPayload.method = payMethod;
+      }
+      if (paymentPhoto) {
+        paymentPayload.photoBase64 = paymentPhoto;
       }
 
       const payload = {
@@ -1264,7 +1276,6 @@ export default function NotaStep3Page({ goBack }) {
                   onClick={() => {
                     setPayMethod(mid);
                     setPaidAmountStr('');
-                    if (mid !== 'transfer') setSelectedBankAccountId('');
                   }}
                   style={{
                     flexShrink: 0,
@@ -1289,6 +1300,32 @@ export default function NotaStep3Page({ goBack }) {
               );
             })}
           </div>
+
+          {/* Shared file input for payment photo */}
+          <input
+            ref={paymentPhotoRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => setPaymentPhotoPreview(ev.target?.result);
+              reader.readAsDataURL(file);
+              const formData = new FormData();
+              formData.append('file', file);
+              axios.post('/api/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+                .then(res => setPaymentPhoto(res.data?.url || res.data?.path || res.data))
+                .catch(() => {
+                  setPaymentPhoto(null);
+                  setPaymentPhotoPreview(null);
+                  alertError('Gagal upload foto bukti bayar.');
+                });
+              e.target.value = '';
+            }}
+          />
 
           {/* ─── Method Content Panels ─────────────────────────── */}
 
@@ -1606,6 +1643,46 @@ export default function NotaStep3Page({ goBack }) {
                 </div>
               )}
 
+              {/* Upload Bukti Bayar */}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 6 }}>📷 BUKTI PEMBAYARAN</div>
+                {paymentPhotoPreview ? (
+                  <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1.5px solid ${C.primary}` }}>
+                    <img src={paymentPhotoPreview} alt="Bukti Bayar" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
+                      style={{
+                        position: 'absolute', top: 6, right: 6,
+                        background: 'rgba(0,0,0,0.6)', color: 'white',
+                        border: 'none', borderRadius: 8, padding: '4px 10px',
+                        fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >
+                      ✕ Hapus
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => paymentPhotoRef.current?.click()}
+                    style={{
+                      width: '100%', height: 80,
+                      border: `2px dashed ${C.n200}`, borderRadius: 12,
+                      background: C.n50, cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                    }}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400, fontWeight: 500 }}>Klik untuk foto bukti</span>
+                  </button>
+                )}
+              </div>
+
               {/* Payment photo upload removed — confirmation is automatic based on amount */}
             </div>
           )}
@@ -1645,11 +1722,49 @@ export default function NotaStep3Page({ goBack }) {
                 </div>
               )}
 
-              {/* EDC payment photo upload removed — confirmation is automatic based on amount */}
+              {/* Upload Bukti Bayar */}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 6 }}>📷 BUKTI PEMBAYARAN</div>
+                {paymentPhotoPreview ? (
+                  <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1.5px solid ${C.primary}` }}>
+                    <img src={paymentPhotoPreview} alt="Bukti Bayar" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
+                      style={{
+                        position: 'absolute', top: 6, right: 6,
+                        background: 'rgba(0,0,0,0.6)', color: 'white',
+                        border: 'none', borderRadius: 8, padding: '4px 10px',
+                        fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >
+                      ✕ Hapus
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => paymentPhotoRef.current?.click()}
+                    style={{
+                      width: '100%', height: 80,
+                      border: `2px dashed ${C.n200}`, borderRadius: 12,
+                      background: C.n50, cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                    }}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400, fontWeight: 500 }}>Klik untuk foto bukti</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Transfer Bank Panel — simplified, no bank account selection or photo upload required */}
+          {/* Transfer Bank Panel */}
           {payMethod === 'transfer' && (
             <div style={{ marginTop: 4, background: C.n50, borderRadius: 12, padding: '16px', border: `1px solid ${C.n200}` }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
@@ -1675,6 +1790,46 @@ export default function NotaStep3Page({ goBack }) {
                   💰 Nominal kurang — Status: <strong>UANG MUKA</strong> (kekurangan {rp(total - effectivePaid)})
                 </div>
               )}
+
+              {/* Upload Bukti Bayar */}
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 600, color: C.n600, marginBottom: 6 }}>📷 BUKTI PEMBAYARAN</div>
+                {paymentPhotoPreview ? (
+                  <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: `1.5px solid ${C.primary}` }}>
+                    <img src={paymentPhotoPreview} alt="Bukti Bayar" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                    <button
+                      type="button"
+                      onClick={() => { setPaymentPhoto(null); setPaymentPhotoPreview(null); }}
+                      style={{
+                        position: 'absolute', top: 6, right: 6,
+                        background: 'rgba(0,0,0,0.6)', color: 'white',
+                        border: 'none', borderRadius: 8, padding: '4px 10px',
+                        fontFamily: 'Poppins', fontSize: 10, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >
+                      ✕ Hapus
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => paymentPhotoRef.current?.click()}
+                    style={{
+                      width: '100%', height: 80,
+                      border: `2px dashed ${C.n200}`, borderRadius: 12,
+                      background: C.n50, cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                    }}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.n400} strokeWidth="2" strokeLinecap="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span style={{ fontFamily: 'Poppins', fontSize: 11, color: C.n400, fontWeight: 500 }}>Klik untuk foto bukti</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

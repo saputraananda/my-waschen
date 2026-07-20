@@ -418,8 +418,8 @@ export default function KasirLaporanPage({ navigate, goBack }) {
   const statGridCols = isMobile ? '1fr' : '1fr 1fr';
   const exportGridCols = isMobile ? '1fr' : '1fr 1fr';
 
-  // Admin / finance / owner — bisa pilih outlet
-  const isGlobalRole = ['admin', 'superadmin', 'finance', 'owner', 'ga'].includes(user?.originalRoleCode || user?.roleCode || user?.role);
+  // Admin — bisa pilih outlet
+  const isGlobalRole = ['admin'].includes(user?.originalRoleCode || user?.roleCode || user?.role);
   const [outlets, setOutlets] = useState([]);
   const initialOutletId = isGlobalRole && adminOutletId && adminOutletId !== '_all'
     ? adminOutletId

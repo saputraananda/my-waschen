@@ -81,8 +81,7 @@ export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCou
     window.addEventListener('stok:alert-count', handler);
     return () => window.removeEventListener('stok:alert-count', handler);
   }, []);
-  // 'frontline' adalah sinonim 'kasir' — perlakukan sama
-  const isKasir = role === 'kasir' || role === 'frontline';
+  const isKasir = role === 'frontline';
   const tabs =
     isKasir
       ? [
@@ -101,20 +100,13 @@ export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCou
           { id: 'history_produksi', label: 'Riwayat', icon: NAV_ICONS.history },
           { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
         ]
-      : role === 'finance'
+      : role === 'produksi'
       ? [
           { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
-          { id: 'verifikasi_payment', label: 'Verifikasi', icon: NAV_ICONS.approval },
+          { id: 'antrian', label: 'Antrian', icon: NAV_ICONS.queue },
+          { id: 'stok_produksi', label: 'Stok', icon: NAV_ICONS.inventory },
           { id: '_fab', label: '', icon: null },
-          { id: 'laporan_keuangan', label: 'Laporan', icon: NAV_ICONS.monitor },
-          { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
-        ]
-      : role === 'delivery'
-      ? [
-          { id: 'dashboard', label: 'Beranda', icon: NAV_ICONS.home },
-          { id: 'delivery_tasks', label: 'Tugas', icon: NAV_ICONS.tx },
-          { id: '_fab', label: '', icon: null },
-          { id: 'delivery_history', label: 'Riwayat', icon: NAV_ICONS.history },
+          { id: 'history_produksi', label: 'Riwayat', icon: NAV_ICONS.history },
           { id: 'settings', label: 'Profil', icon: NAV_ICONS.profile },
         ]
       : [
@@ -130,10 +122,6 @@ export const BottomNav = ({ role, active, navigate, overdueCount: propOverdueCou
       ? () => navigate('nota_step1')
       : role === 'produksi'
       ? () => navigate('produksi_qr_scan')
-      : role === 'finance'
-      ? () => navigate('verifikasi_payment')
-      : role === 'delivery'
-      ? () => navigate('delivery_tasks')
       : () => navigate('approval');
 
   return (

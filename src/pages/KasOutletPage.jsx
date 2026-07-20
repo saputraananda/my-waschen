@@ -219,8 +219,8 @@ export default function KasOutletPage({ goBack }) {
   const { isMobile } = useResponsive();
   const { user } = useApp();
   const userRole = user?.originalRoleCode || user?.roleCode || user?.role;
-  const isAdmin = ['admin', 'superadmin', 'owner'].includes(userRole);
-  const isKasir = ['kasir', 'frontline'].includes(userRole);
+  const isAdmin = ['admin'].includes(userRole);
+  const isKasir = ['frontline'].includes(userRole);
 
   const [config, setConfig] = useState(null);
   const [balance, setBalance] = useState(null);

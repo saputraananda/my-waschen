@@ -26,10 +26,10 @@ export default function NotifikasiPage({ navigate, goBack }) {
   const [lowBalanceAlert, setLowBalanceAlert] = useState(null);
   const [poolData, setPoolData] = useState([]);
 
-  // Helper: check if user is admin/owner/finance (global roles)
-  const isGlobalRole = ['admin', 'superadmin', 'owner', 'finance'].includes(user?.roleCode);
-  // Helper: check if user is kasir/frontline
-  const isKasir = ['kasir', 'frontline'].includes(user?.roleCode);
+  // Helper: check if user is admin (global role)
+  const isGlobalRole = ['admin'].includes(user?.roleCode);
+  // Helper: check if user is frontliner
+  const isKasir = ['frontline'].includes(user?.roleCode);
   // Helper: check if user is produksi
   const isProduksi = user?.roleCode === 'produksi';
 
@@ -50,12 +50,12 @@ export default function NotifikasiPage({ navigate, goBack }) {
   const fetchDashboardAlerts = useCallback(async () => {
     if (!token) return;
     try {
-      // For global roles (admin/owner/finance), show all outlets
-      // For outlet-scoped roles (kasir/produksi), only show their outlet
+      // For admin (global role), show all outlets
+      // For outlet-scoped roles (frontliner/produksi), only show their outlet
       let outletsToFetch = [];
 
       if (isGlobalRole) {
-        // Admin/owner/finance: get all outlets
+        // Admin: get all outlets
         const outletsRes = await axios.get('/api/master/outlets');
         outletsToFetch = outletsRes?.data?.data || [];
       } else if (user?.outletId) {
@@ -73,7 +73,7 @@ export default function NotifikasiPage({ navigate, goBack }) {
       const lowBalance = await checkLowBalance();
       setLowBalanceAlert(lowBalance);
 
-      // Get pool data - only for admin/owner/finance roles
+      // Get pool data - only for admin roles
       if (isGlobalRole) {
         try {
           const poolRes = await axios.get('/api/cash-deposits/pool-summary');

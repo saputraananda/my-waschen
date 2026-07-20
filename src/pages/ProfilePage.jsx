@@ -1248,7 +1248,6 @@ export default function ProfilePage({ navigate, goBack }) {
     { id: 'frontline', label: 'Frontline', icon: '🧺' },
     { id: 'produksi', label: 'Produksi', icon: '🧺' },
     { id: 'admin',    label: 'Admin',    icon: '👑' },
-    { id: 'finance',  label: 'Finance',  icon: '💰' },
   ];
 
   const [name, setName]   = useState(user?.name  || '');

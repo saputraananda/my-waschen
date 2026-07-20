@@ -38,7 +38,7 @@ export default function KelolaLayananOutletPage({ navigate, goBack, screenParams
   const isMobile = useIsMobile();
   const { user } = useApp();
 
-  const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+  const globalRoles = ['admin'];
   const isAdmin = globalRoles.includes(user?.roleCode || user?.role);
 
   const [outlets, setOutlets] = useState([]);

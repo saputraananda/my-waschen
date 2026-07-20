@@ -348,7 +348,7 @@ export default function SettingsPage({ navigate }) {
         setLoadingShift(false);
       }
     };
-    if (role === 'kasir' || role === 'frontline') {
+    if (role === 'frontline') {
       fetchShift();
     }
   }, [role]);
@@ -645,7 +645,7 @@ export default function SettingsPage({ navigate }) {
         zIndex: 10,
       }}>
         {/* ── FLOATING SHIFT CARD (only for kasir/frontline) ── */}
-        {(role === 'kasir' || role === 'frontline') && (
+        {(role === 'frontline') && (
           <div style={{
             background: 'rgba(255,255,255,0.75)',
             backdropFilter: 'blur(18px) saturate(160%)',
@@ -869,7 +869,6 @@ export default function SettingsPage({ navigate }) {
                 { id: 'frontline', label: 'Frontliner' },
                 { id: 'produksi', label: 'Produksi' },
                 { id: 'admin', label: 'Admin' },
-                { id: 'finance', label: 'Finance' },
               ].map((r) => (
                 <motion.button
                   key={r.id}

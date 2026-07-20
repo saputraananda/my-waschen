@@ -219,7 +219,7 @@ const LOYALTY_META = {
 
 export default function CustomerListPage({ navigate }) {
   const { user } = useApp();
-  const globalRoles = ['admin', 'superadmin', 'finance', 'owner'];
+  const globalRoles = ['admin'];
   const isAdmin = globalRoles.includes(user?.roleCode || user?.role);
   const [customers, setCustomers] = useState([]);
   const [outlets, setOutlets] = useState([]);

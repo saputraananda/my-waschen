@@ -217,7 +217,7 @@ export function BirthdayPageContent({ navigate, goBack }) {
   const [bonusAmount, setBonusAmount] = useState('');
 
   const { userRole } = useApp();
-  const isAdmin = ['admin', 'superadmin', 'owner', 'finance'].includes(userRole);
+  const isAdmin = ['admin'].includes(userRole);
 
   const fetchTodayBirthdays = useCallback(async () => {
     setLoading(true);

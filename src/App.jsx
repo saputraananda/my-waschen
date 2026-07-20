@@ -3,7 +3,7 @@ import { BottomNav, ErrorBoundary, OfflineIndicator, GlobalPullToRefresh, Global
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { C } from './utils/theme';
-import { isAdmin, isFinance, isProduksi, isDelivery, isDataAnalyst, ADMIN_ROLES, FINANCE_ROLES } from './utils/roles';
+import { isAdmin, isProduksi, ADMIN_ROLES } from './utils/roles';
 import { Toaster } from 'sonner';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -94,10 +94,6 @@ const DetailRiwayatProduksiPage = lazy(() => import('./pages/produksi/DetailRiwa
 const ProduksiNotifikasiPage = lazy(() => import('./pages/produksi/NotifikasiPage'));
 const ProduksiStokPage = lazy(() => import('./pages/produksi/StokPage'));
 
-// Finance (lazy loaded for performance)
-const FinanceDashboardPage = lazy(() => import('./pages/finance/DashboardPage'));
-const VerifikasiPaymentPage = lazy(() => import('./pages/finance/VerifikasiPaymentPage'));
-const LaporanKeuanganPage = lazy(() => import('./pages/finance/LaporanKeuanganPage'));
 // Member
 const DetailCustomerPage = lazy(() => import('./pages/member/DetailCustomerPage'));
 const TopupDepositPage = lazy(() => import('./pages/member/TopupDepositPage'));
@@ -172,9 +168,6 @@ const LazyForecastPage = withSuspense(ForecastPage);
 const LazySetorApprovalPage = withSuspense(SetorApprovalPage);
 const AdminRefundPage = lazy(() => import('./pages/admin/RefundListPage'));
 const LazyAdminRefundPage = withSuspense(AdminRefundPage);
-const LazyFinanceDashboardPage = withSuspense(FinanceDashboardPage);
-const LazyVerifikasiPaymentPage = withSuspense(VerifikasiPaymentPage);
-const LazyLaporanKeuanganPage = withSuspense(LaporanKeuanganPage);
 
 const SCREENS_NO_NAV = new Set([
   'splash', 'login', 'nota_step1', 'nota_step2', 'nota_step3', 'nota_berhasil',
@@ -202,8 +195,8 @@ function AppInner() {
 
   const [sessionExpired, setSessionExpired] = useState(false);
 
-  // Kasir role identifiers
-  const CASHIER_ROLES = new Set(['kasir', 'frontline']);
+  // Frontliner role identifiers
+  const CASHIER_ROLES = new Set(['frontline']);
 
   // ── Shift enforcement (global) ────────────────────────────────────────────
   const [shiftPromptVisible, setShiftPromptVisible] = useState(false);
@@ -268,8 +261,6 @@ function AppInner() {
 
   // ─── Role Guard (using centralized helpers) ──────────────────────────────
   const isAdminUser = isAdmin(user);
-  const isFinanceUser = isFinance(user);
-  const canViewReports = isAdmin(user) || isFinance(user) || isDataAnalyst(user);
 
   /** Render fallback jika user tidak punya akses ke screen tertentu */
   const renderUnauthorized = () => {
@@ -303,12 +294,8 @@ function AppInner() {
         if (!user) return <LoginPage onLogin={handleLogin} />;
         if (isAdmin(user))
           return <AdminDashboardPage user={user} navigate={navigate} />;
-        if (isFinance(user))
-          return <FinanceDashboardPage user={user} navigate={navigate} />;
         if (isProduksi(user))
           return <ProduksiDashboardPage user={user} navigate={navigate} />;
-        if (isDelivery(user))
-          return <DriverDashboardPage user={user} navigate={navigate} />;
         return <KasirDashboardPage user={user} navigate={navigate} />;
 
       case 'transaksi':
@@ -350,7 +337,7 @@ function AppInner() {
       case 'kas_outlet':
         return <KasOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'kas_approval':
-        if (!isAdminUser && !isFinanceUser) return renderUnauthorized();
+        if (!isAdminUser) return renderUnauthorized();
         return <KasApprovalPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'admin_kas_overview':
         if (!isAdminUser) return renderUnauthorized();
@@ -363,7 +350,7 @@ function AppInner() {
       case 'approval_pengadaan_barang':
       case 'daftar_pengadaan_barang': // alias — digabung ke approval
       case 'admin_purchase_requests': // alias lama
-        if (!isAdminUser && !isFinanceUser) return renderUnauthorized();
+        if (!isAdminUser) return renderUnauthorized();
         return <PurchaseRequestApprovalPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'admin_all_outlet_stocks':
         if (!isAdminUser) return renderUnauthorized();
@@ -454,7 +441,7 @@ function AppInner() {
       case 'cash_deposit':
         return <CashDepositPage navigate={navigate} goBack={goBack} />;
       case 'admin_cash_deposit':
-        if (!isAdminUser && !isFinanceUser) return renderUnauthorized();
+        if (!isAdminUser) return renderUnauthorized();
         return <CashDepositApproval navigate={navigate} goBack={goBack} />;
       case 'approval':
         if (!isAdminUser) return renderUnauthorized();
@@ -489,13 +476,13 @@ function AppInner() {
       case 'info_outlet':
         return <LazyInfoOutletPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;
       case 'rekap_pendapatan':
-        if (!canViewReports) return renderUnauthorized();
+        if (!isAdminUser) return renderUnauthorized();
         return <LazyRekapPendapatanPage navigate={navigate} goBack={goBack} />;
       case 'laporan_per_outlet':
-        if (!canViewReports) return renderUnauthorized();
+        if (!isAdminUser) return renderUnauthorized();
         return <KasirLaporanPage navigate={navigate} goBack={goBack} />;
       case 'general_report':
-        if (!canViewReports) return renderUnauthorized();
+        if (!isAdminUser) return renderUnauthorized();
         return <LazyGeneralReportPage navigate={navigate} goBack={goBack} />;
       case 'admin_target':
         if (!isAdminUser) return renderUnauthorized();
@@ -507,19 +494,11 @@ function AppInner() {
         if (!isAdminUser) return renderUnauthorized();
         return <LazyAdminPeriodClosePage navigate={navigate} goBack={goBack} />;
       case 'comparison_report':
-        if (!canViewReports) return renderUnauthorized();
+        if (!isAdminUser) return renderUnauthorized();
         return <LazyComparisonReportPage navigate={navigate} goBack={goBack} />;
       case 'forecast':
-        if (!canViewReports) return renderUnauthorized();
+        if (!isAdminUser) return renderUnauthorized();
         return <LazyForecastPage navigate={navigate} goBack={goBack} />;
-
-      // ─── Finance-Only Screens (Role Guard, Lazy Loaded) ─────────────────
-      case 'verifikasi_payment':
-        if (!isFinanceUser) return renderUnauthorized();
-        return <LazyVerifikasiPaymentPage navigate={navigate} goBack={goBack} />;
-      case 'laporan_keuangan':
-        if (!isFinanceUser) return renderUnauthorized();
-        return <LazyLaporanKeuanganPage navigate={navigate} goBack={goBack} />;
 
       case 'topup_deposit':
         return <TopupDepositPage navigate={navigate} goBack={goBack} screenParams={screenParams} />;

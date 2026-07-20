@@ -5,10 +5,9 @@ export const MOCK_DATA = {
   ],
 
   users: [
-    { id: 1, name: 'Dian Pratiwi', role: 'kasir', outlet: 1, avatar: 'DP', email: 'dian@waschen.id', pin: '1234' },
+    { id: 1, name: 'Dian Pratiwi', role: 'frontline', outlet: 1, avatar: 'DP', email: 'dian@waschen.id', pin: '1234' },
     { id: 2, name: 'Budi Santoso', role: 'produksi', outlet: 1, avatar: 'BS', email: 'budi@waschen.id', pin: '5678' },
     { id: 3, name: 'Rina Kusuma', role: 'admin', outlet: 1, avatar: 'RK', email: 'rina@waschen.id', pin: '9012' },
-    { id: 4, name: 'Fajar Nugroho', role: 'finance', outlet: 1, avatar: 'FN', email: 'fajar@waschen.id', pin: '3456' },
   ],
 
   customers: [

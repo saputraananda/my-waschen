@@ -169,12 +169,16 @@ async function discoverAndSave(serverInstance, btDevice) {
 // ─── Connection ────────────────────────────────────────────────────────────
 
 /**
- * Connect to a specific device by its ID, OR show device picker if no ID given.
- * @param {string} [deviceId] - Optional: connect to a specific device directly
+ * Connect to printer — tries silent reconnect via getDevices() first,
+ * only shows device picker (requestDevice) if no previously-authorized
+ * device is available.
+ *
+ * @param {string} [deviceId] - Optional: connect to specific device ID
+ * @returns {{ success, name, silent, serviceUUID?, charUUID?, alreadyConnected? }}
  */
 export async function connect(deviceId) {
   if (!isWebBluetoothAvailable()) {
-    throw new Error('Bluetooth tidak tersedia. Gunakan Chrome.');
+    throw new Error('Bluetooth tidak tersedia. Gunakan Chrome di Android.');
   }
 
   if (isConnected && device && server) {
@@ -182,92 +186,107 @@ export async function connect(deviceId) {
   }
 
   const saved = getSavedDevice();
-  let btDevice = null;
 
-  if (deviceId) {
-    console.log('[BT] Connecting to specific device ID:', deviceId);
-    try {
-      btDevice = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: saved?.serviceUUID ? [saved.serviceUUID] : undefined,
-      });
-
-      if (btDevice.gatt?.connected) btDevice.gatt.disconnect();
-      const gattServer = await btDevice.gatt.connect();
-
-      device = btDevice;
-      server = gattServer;
-      isConnected = true;
-
-      let charFound = false;
-      if (saved?.serviceUUID && saved?.charUUID) {
-        try {
-          const svc = await gattServer.getPrimaryService(saved.serviceUUID);
-          characteristic = await svc.getCharacteristic(saved.charUUID);
-          service = svc;
-          charFound = true;
-          console.log('[BT] Reconnected with saved UUIDs!');
-        } catch (e) {
-          console.log('[BT] Saved UUIDs not valid, re-discovering...');
-        }
-      }
-
-      if (!charFound) {
-        const result = await discoverAndSave(gattServer, btDevice);
-        service = result.service;
-        characteristic = result.characteristic;
-        if (characteristic) {
-          console.log('[BT] Discovered fresh UUIDs and saved!');
-        }
-      }
-
-      console.log('[BT] Connected to:', btDevice.name);
-      return {
-        success: true,
-        name: btDevice.name,
-        macAddress: btDevice.address,
-        serviceUUID: service?.uuid,
-        charUUID: characteristic?.uuid,
-      };
-    } catch (e) {
-      if (e.name === 'NotFoundError') {
-        throw new Error('Printer tidak ditemukan. Pastikan printer dalam jangkauan.');
-      }
-      throw new Error('Gagal connect: ' + e.message);
+  // ── STEP 1: Silent reconnect — try getDevices() first (NO chooser) ────────
+  if (navigator.bluetooth?.getDevices && (deviceId || saved?.deviceId)) {
+    const silentResult = await silentReconnect(deviceId, saved);
+    if (silentResult) {
+      return silentResult;
     }
   }
 
-  if (saved?.deviceId && saved?.serviceUUID && saved?.charUUID) {
-    console.log('[BT] Attempting reconnect with saved device:', saved.name);
-    try {
-      btDevice = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [saved.serviceUUID],
-      });
+  // ── STEP 2: No authorized device found → MUST show device picker ─────────
+  // requestDevice() always triggers a chooser popup — this is the only path
+  // that shows UI. It runs after user gesture (onClick), so user activation
+  // is still fresh and Chrome won't silently cancel the chooser.
+  console.log('[BT] No saved/authorized device — showing device picker...');
+  return await connectWithPicker(deviceId, saved);
+}
 
-      if (btDevice.gatt?.connected) btDevice.gatt.disconnect();
+/**
+ * Silent reconnect using navigator.bluetooth.getDevices().
+ * Returns a result object on success, or null if the device is not available.
+ * This method does NOT show any browser UI.
+ */
+async function silentReconnect(deviceId, saved) {
+  try {
+    const known = await navigator.bluetooth.getDevices();
+    const targetId = deviceId || saved?.deviceId;
+    const btDevice = known.find(d => d.id === targetId);
 
+    if (!btDevice) {
+      console.log('[BT] getDevices(): device not in authorized list, skipping silent reconnect');
+      return null;
+    }
+
+    console.log('[BT] Silent reconnect via getDevices():', btDevice.name);
+
+    // Already connected? Just re-use
+    if (btDevice.gatt?.connected) {
+      device = btDevice;
+      server = btDevice.gatt;
+      isConnected = true;
+    } else {
+      // Reconnect GATT — no picker, works if device is nearby
       const gattServer = await btDevice.gatt.connect();
-      const svc = await gattServer.getPrimaryService(saved.serviceUUID);
-      const char = await svc.getCharacteristic(saved.charUUID);
-
       device = btDevice;
       server = gattServer;
-      service = svc;
-      characteristic = char;
       isConnected = true;
-
-      console.log('[BT] Reconnected instantly!', saved.name);
-      return { success: true, name: saved.name, macAddress: saved.macAddress };
-    } catch (e) {
-      console.log('[BT] Saved device reconnect failed:', e.message, '-- trying fresh connect');
     }
+
+    // Try saved UUIDs first (fast path)
+    let charFound = false;
+    if (saved?.serviceUUID && saved?.charUUID) {
+      try {
+        const svc = await server.getPrimaryService(saved.serviceUUID);
+        characteristic = await svc.getCharacteristic(saved.charUUID);
+        service = svc;
+        charFound = true;
+        console.log('[BT] Silent reconnect OK — saved UUIDs still valid');
+      } catch (e) {
+        console.log('[BT] Saved UUIDs invalid, re-discovering...');
+      }
+    }
+
+    // Discovery needed
+    if (!charFound) {
+      const result = await discoverAndSave(server, btDevice);
+      service = result.service;
+      characteristic = result.characteristic;
+      if (characteristic) {
+        console.log('[BT] Silent reconnect OK — discovered fresh UUIDs');
+      }
+    }
+
+    if (!characteristic) {
+      throw new Error('Printer terhubung tapi tidak ada karakteristik yang bisa ditulis.');
+    }
+
+    return {
+      success: true,
+      name: btDevice.name,
+      serviceUUID: service?.uuid,
+      charUUID: characteristic?.uuid,
+      silent: true, // marks: no chooser was shown
+    };
+  } catch (e) {
+    console.warn('[BT] Silent reconnect failed:', e.message);
+    return null;
   }
+}
 
-  console.log('[BT] Fresh connect -- showing device picker...');
-  btDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
+/**
+ * Connect using browser device picker (requestDevice).
+ * This ALWAYS shows the Bluetooth device picker popup.
+ * Only called as a last resort when no previously-authorized device exists.
+ */
+async function connectWithPicker(deviceId, saved) {
+  const btDevice = await navigator.bluetooth.requestDevice({
+    acceptAllDevices: true,
+    optionalServices: saved?.serviceUUID ? [saved.serviceUUID] : undefined,
+  });
 
-  if (!btDevice) throw new Error('Printer tidak dipilih');
+  if (!btDevice) throw new Error('Printer tidak dipilih.');
 
   console.log('[BT] Selected:', btDevice.name, '|', btDevice.id);
 
@@ -296,7 +315,7 @@ export async function connect(deviceId) {
   console.log('[BT] Connected:', btDevice.name);
   console.log('[BT]   Service:', service.uuid);
   console.log('[BT]   Char:', characteristic.uuid);
-  console.log('[BT]   Next time -> auto-reconnect tanpa pairing!');
+  console.log('[BT]   Next time → auto-reconnect TANPA picker!');
 
   return {
     success: true,
@@ -304,6 +323,7 @@ export async function connect(deviceId) {
     macAddress: btDevice.address,
     serviceUUID: service.uuid,
     charUUID: characteristic.uuid,
+    silent: false,
   };
 }
 

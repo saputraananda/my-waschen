@@ -357,8 +357,8 @@ export default function PengajuanBelanjaPage({ goBack }) {
   const { isMobile } = useResponsive();
   const { user } = useApp();
   const userRole = user?.originalRoleCode || user?.roleCode || user?.role;
-  const isAdmin = ['admin', 'superadmin', 'owner'].includes(userRole);
-  const isKasir = ['kasir', 'frontliner'].includes(userRole);
+  const isAdmin = ['admin'].includes(userRole);
+  const isKasir = ['frontline'].includes(userRole);
 
   const [tab, setTab] = useState('uang_kas');
   const [data, setData] = useState([]);

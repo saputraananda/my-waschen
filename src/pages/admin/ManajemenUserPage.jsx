@@ -487,7 +487,7 @@ export default function ManajemenUserPage({ navigate, goBack }) {
 
           <div style={{ fontFamily: 'Poppins', fontSize: 11, fontWeight: 700, color: C.n700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Role</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-            {['semua', 'frontline', 'produksi', 'admin', 'finance'].map(f => (
+            {['semua', 'frontline', 'produksi', 'admin'].map(f => (
               <motion.button
                 key={f}
                 onClick={() => setRoleFilter(f)}
@@ -556,7 +556,6 @@ export default function ManajemenUserPage({ navigate, goBack }) {
               { value: 'frontline', label: 'Frontliner' },
               { value: 'produksi', label: 'Produksi' },
               { value: 'admin', label: 'Admin' },
-              { value: 'finance', label: 'Finance' },
             ]} />
             <Select label="Outlet" value={form.outletId} onChange={(v) => setForm((f) => ({ ...f, outletId: v }))} options={outlets.map((o) => ({ value: o.id, label: o.name }))} placeholder="Pilih outlet" />
 
@@ -604,7 +603,6 @@ export default function ManajemenUserPage({ navigate, goBack }) {
               { value: 'frontline', label: 'Frontliner' },
               { value: 'produksi', label: 'Produksi' },
               { value: 'admin', label: 'Admin' },
-              { value: 'finance', label: 'Finance' },
             ]} />
             <Select label="Outlet" value={editForm.outletId} onChange={(v) => setEditForm((f) => ({ ...f, outletId: v }))} options={outlets.map((o) => ({ value: o.id, label: o.name }))} placeholder="Pilih outlet" />
             <Select label="Status Akun" value={editForm.active ? 'active' : 'inactive'} onChange={(v) => setEditForm((f) => ({ ...f, active: v === 'active' }))} options={[{ value: 'active', label: 'Aktif' }, { value: 'inactive', label: 'Nonaktif' }]} />

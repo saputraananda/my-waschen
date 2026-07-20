@@ -37,10 +37,9 @@ export const getAvatarSource = (user, typeOverride = null) => {
   if (!avatarType) {
     if (role === 'admin') {
       avatarType = 'admin';
-    } else if (role === 'frontline' || role === 'kasir' || role === 'finance') {
+    } else if (role === 'frontline' || role === 'produksi') {
       avatarType = 'staff';
-    } else if (role === 'delivery') {
-      avatarType = 'delivery';
+    }
     } else if (role === 'produksi') {
       avatarType = 'staff'; // Produksi uses staff avatar
     } else {

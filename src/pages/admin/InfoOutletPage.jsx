@@ -15,10 +15,6 @@ const ROLE_LABEL = {
   frontline: 'Frontliner',
   admin: 'Admin',
   produksi: 'Produksi',
-  finance: 'Finance',
-  delivery: 'Delivery',
-  owner: 'Owner',
-  superadmin: 'Super Admin',
 };
 
 const fmtDate = (v) => {

@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 
-const CASHIER_ROLES = new Set(['kasir', 'frontline']);
+const CASHIER_ROLES = new Set(['frontline']);
 
 export function useShiftEnforcement({ onShiftRequired }) {
   const [shiftOpen, setShiftOpen] = useState(null); // null = belum dicek
@@ -74,7 +74,8 @@ export const FINANCIAL_SCREENS = new Set([
 /**
  * Check apakah screen saat ini butuh shift aktif.
  * Cashier roles (kasir/frontline) → perlu shift.
- * Admin/finance/produksi → tidak perlu (bypass).
+ * Frontliner roles → perlu shift.
+ * Admin/produksi → tidak perlu (bypass).
  */
 export function screenNeedsShift(user, screen) {
   if (!user) return false;
